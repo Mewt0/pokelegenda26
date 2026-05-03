@@ -6,6 +6,7 @@ use Pokemon8\Controller\GameApiController;
 use Pokemon8\Controller\GameController;
 use Pokemon8\Controller\GameModuleController;
 use Pokemon8\Controller\HomeController;
+use Pokemon8\Controller\InventoryApiController;
 use Pokemon8\Controller\NpcApiController;
 use Pokemon8\Database\Connection;
 use Pokemon8\Game\GameRoutes;
@@ -69,6 +70,7 @@ $game = new GameController($session, $csrf);
 $gameApi = new GameApiController($session, $csrf, $locationState, $mapMoves);
 $gameModules = new GameModuleController($session);
 $npcApi = new NpcApiController($session, $csrf, $npcDialogs);
+$inventoryApi = new InventoryApiController($inventory, $session);
 
 $router = new Router();
 $router->get('/', fn (Request $request) => $home->index($request));
@@ -84,6 +86,7 @@ $router->get('/api/game/state', fn (Request $request) => $gameApi->state($reques
 $router->post('/api/map/move', fn (Request $request) => $gameApi->move($request));
 $router->get('/api/location/npc', fn (Request $request) => $npcApi->show($request));
 $router->post('/api/location/npc/action', fn (Request $request) => $npcApi->action($request));
+$router->get('/api/inventory', fn (Request $request) => $inventoryApi->list($request));
 
 $request = Request::capture();
 $banResponse = $banGuard->check($request);

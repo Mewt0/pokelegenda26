@@ -125,6 +125,78 @@ use Pokemon8\View\View;
     .npc-panel.is-open { display: block; }
     .npc-panel h2 { margin: 0 0 6px; font-size: 18px; }
     .npc-panel p { margin: 0; color: #344154; }
+
+    /* Inventory Panel */
+    .inventory-panel {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(500px, 90vw);
+      max-height: 80vh;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.3);
+      z-index: 1000;
+      flex-direction: column;
+    }
+    .inventory-panel.is-open { display: flex; }
+    .inventory-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .inventory-header h2 { margin: 0; font-size: 18px; }
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--muted);
+    }
+    .inventory-content {
+      padding: 18px;
+      overflow-y: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+      gap: 12px;
+    }
+    .inventory-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      transition: all .2s;
+    }
+    .inventory-item:hover {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+    }
+    .inventory-item img {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+    }
+    .inventory-item-count {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .inventory-empty {
+      grid-column: 1 / -1;
+      text-align: center;
+      color: var(--muted);
+      padding: 20px;
+    }
+
     .chat {
       grid-column: 1;
       grid-row: 2;
@@ -277,12 +349,22 @@ use Pokemon8\View\View;
       <div id="usersList"></div>
     </aside>
 
+    <div class="inventory-panel" id="inventoryPanel">
+      <div class="inventory-header">
+        <h2>Инвентарь</h2>
+        <button class="close-btn" id="closeInventory">&times;</button>
+      </div>
+      <div class="inventory-content" id="inventoryContent">
+        <div class="inventory-empty">Загрузка...</div>
+      </div>
+    </div>
+
     <nav class="actionbar">
       <button type="button" id="pveButton">Нападение: выкл</button>
       <button type="button">Режим: общий</button>
       <input placeholder="Ник">
       <a href="/game/pokemon">Покемоны</a>
-      <a href="/game/items">Инвентарь</a>
+      <button type="button" id="inventoryBtn">Инвентарь</button>
       <a href="/game/quests">Квесты</a>
       <a href="/game/battle/pvp">Бои</a>
       <a href="/game/messages">Почта</a>
@@ -484,6 +566,46 @@ use Pokemon8\View\View;
       const response = await fetch('/api/game/state', { credentials: 'same-origin' });
       render(await response.json());
     }
+
+    async function loadInventory() {
+      const content = document.getElementById('inventoryContent');
+      content.innerHTML = '<div class="inventory-empty">Загрузка...</div>';
+
+      try {
+        const response = await fetch('/api/inventory', { credentials: 'same-origin' });
+        const data = await response.json();
+
+        if (!data.ok) throw new Error(data.message || 'Ошибка загрузки');
+
+        content.innerHTML = '';
+        if (data.items.length === 0) {
+          content.innerHTML = '<div class="inventory-empty">Инвентарь пуст.</div>';
+          return;
+        }
+
+        for (const item of data.items) {
+          const el = document.createElement('div');
+          el.className = 'inventory-item';
+          el.title = item.tittle || item.name;
+          el.innerHTML = `
+            <img src="/img/items/${item.item_id}.png" alt="${item.name}" onerror="this.src='/img/blank.gif'">
+            <div class="inventory-item-count">x${item.count}</div>
+          `;
+          content.appendChild(el);
+        }
+      } catch (error) {
+        content.innerHTML = `<div class="inventory-empty error">${error.message}</div>`;
+      }
+    }
+
+    document.getElementById('inventoryBtn').addEventListener('click', () => {
+      document.getElementById('inventoryPanel').classList.add('is-open');
+      loadInventory();
+    });
+
+    document.getElementById('closeInventory').addEventListener('click', () => {
+      document.getElementById('inventoryPanel').classList.remove('is-open');
+    });
 
     async function moveTo(locationId) {
       if (state.busy) return;

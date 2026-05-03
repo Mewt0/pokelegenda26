@@ -93,6 +93,20 @@ final class InventoryRepository
         return true;
     }
 
+    public function getUserInventory(int $userId): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT iu.item_id, iu.count, i.name, i.tittle
+             FROM items_users iu
+             JOIN items i ON iu.item_id = i.id
+             WHERE iu.user_id = :user
+             ORDER BY i.name ASC'
+        );
+        $stmt->execute(['user' => $userId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     private function findRow(int $userId, int $itemId): ?array
     {
         $stmt = $this->db->prepare(
