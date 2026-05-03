@@ -32,3 +32,15 @@ templates_c/
 # OS
 .DS_Store
 Thumbs.db
+
+# Downloaded assets (игнорируем загруженные папки)
+downloaded_assets/
+downloaded_images/
+
+# Debug files
+debug_*.html
+debug_*.txt
+download.py
+
+# Saved web pages (браузерные сохранения)
+*.html_files/
