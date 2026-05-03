@@ -6,6 +6,7 @@ namespace Pokemon8\Controller;
 use Pokemon8\Http\Request;
 use Pokemon8\Http\Response;
 use Pokemon8\Repository\InventoryRepository;
+use Pokemon8\Security\Csrf;
 use Pokemon8\Security\Session;
 
 final class InventoryApiController
@@ -13,6 +14,7 @@ final class InventoryApiController
     public function __construct(
         private Session $session,
         private InventoryRepository $inventory,
+        private Csrf $csrf,
     ) {
     }
 
@@ -51,6 +53,41 @@ final class InventoryApiController
             'ok' => true,
             'items' => $this->inventory->listBattleItemsForUser($userId),
         ]);
+    }
+
+    public function equip(Request $request): Response
+    {
+        $userId = (int) $this->session->get('id', 0);
+        if ($userId <= 0) {
+            return $this->json(['ok' => false, 'error' => 'auth', 'message' => 'Нужно войти в игру.'], 401);
+        }
+
+        if (!$this->csrf->validate($request->input('_csrf'))) {
+            return $this->json(['ok' => false, 'error' => 'csrf', 'message' => 'Сессия устарела. Обновите страницу.'], 419);
+        }
+
+        return $this->json($this->inventory->equipItemToPokemon(
+            $userId,
+            (int) $request->input('item_user_id', '0'),
+            (int) $request->input('pokemon_id', '0')
+        ));
+    }
+
+    public function unequip(Request $request): Response
+    {
+        $userId = (int) $this->session->get('id', 0);
+        if ($userId <= 0) {
+            return $this->json(['ok' => false, 'error' => 'auth', 'message' => 'Нужно войти в игру.'], 401);
+        }
+
+        if (!$this->csrf->validate($request->input('_csrf'))) {
+            return $this->json(['ok' => false, 'error' => 'csrf', 'message' => 'Сессия устарела. Обновите страницу.'], 419);
+        }
+
+        return $this->json($this->inventory->unequipPokemonItem(
+            $userId,
+            (int) $request->input('pokemon_id', '0')
+        ));
     }
 
     private function json(array $payload, int $status = 200): Response

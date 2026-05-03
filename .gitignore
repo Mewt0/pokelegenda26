@@ -43,4 +43,5 @@ debug_*.txt
 download.py
 
 # Saved web pages (браузерные сохранения)
-*.html_files/
+*_files/
+*.html

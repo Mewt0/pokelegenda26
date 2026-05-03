@@ -11,6 +11,7 @@ use Pokemon8\Controller\InventoryController;
 use Pokemon8\Controller\NpcApiController;
 use Pokemon8\Controller\PokemonApiController;
 use Pokemon8\Controller\PokemonController;
+use Pokemon8\Controller\ProfileController;
 use Pokemon8\Controller\PveBattleApiController;
 use Pokemon8\Database\Connection;
 use Pokemon8\Game\GameRoutes;
@@ -28,6 +29,7 @@ use Pokemon8\Repository\BanRepository;
 use Pokemon8\Repository\InventoryRepository;
 use Pokemon8\Repository\LocationRepository;
 use Pokemon8\Repository\PokemonRepository;
+use Pokemon8\Repository\ProfileRepository;
 use Pokemon8\Repository\QuestRepository;
 use Pokemon8\Repository\UserRepository;
 use Pokemon8\Repository\BattleRepository;
@@ -64,6 +66,7 @@ $locations = new LocationRepository($db);
 $pokemonRepository = new PokemonRepository($db);
 $quests = new QuestRepository($db);
 $inventory = new InventoryRepository($db);
+$profiles = new ProfileRepository($db);
 $battleRepository = new BattleRepository($db);
 $locationGraph = LocationGraph::fromLegacyData(APP_ROOT . '/include/data.world.php');
 $locationContent = LocationContentRepository::fromFile(APP_ROOT . '/config/location_content.php');
@@ -79,10 +82,11 @@ $banGuard = new BanGuard($bans);
 $home = new HomeController($rankings, $session, $csrf);
 $auth = new AuthController($users, $passwords, $session, $csrf, ['techwork' => $appConfig['techwork']]);
 $game = new GameController($session, $csrf);
-$inventoryPage = new InventoryController($session, $inventory);
-$inventoryApi = new InventoryApiController($session, $inventory);
+$inventoryPage = new InventoryController($session, $inventory, $csrf);
+$inventoryApi = new InventoryApiController($session, $inventory, $csrf);
 $pokemonPage = new PokemonController($session, $csrf);
 $pokemonApi = new PokemonApiController($session, $csrf, $pokemonRepository);
+$profilePage = new ProfileController($session, $profiles);
 $gameApi = new GameApiController($session, $csrf, $locationState, $mapMoves, $wildEncounters, $battleEngine, $locations);
 $gameModules = new GameModuleController($session);
 $npcApi = new NpcApiController($session, $csrf, $npcDialogs);
@@ -95,8 +99,9 @@ $router->get('/logout', fn (Request $request) => $auth->logout($request));
 $router->get('/game', fn (Request $request) => $game->start($request));
 $router->get('/game/items', fn (Request $request) => $inventoryPage->index($request));
 $router->get('/game/pokemon', fn (Request $request) => $pokemonPage->index($request));
+$router->get('/game/profile', fn (Request $request) => $profilePage->show($request));
 foreach (GameRoutes::MODULES as $slug => $_module) {
-    if ($slug === 'items' || $slug === 'pokemon') {
+    if ($slug === 'items' || $slug === 'pokemon' || $slug === 'profile') {
         continue;
     }
     $router->get('/game/' . $slug, function (Request $request) use ($gameModules, $slug) {
@@ -112,6 +117,8 @@ $router->post('/api/battle/pve/action', fn (Request $request) => $pveBattleApi->
 $router->post('/api/battle/pve/ack-end', fn (Request $request) => $pveBattleApi->ackEnd($request));
 $router->get('/api/inventory/page', fn (Request $request) => $inventoryApi->page($request));
 $router->get('/api/inventory/battle', fn (Request $request) => $inventoryApi->battle($request));
+$router->post('/api/inventory/equip', fn (Request $request) => $inventoryApi->equip($request));
+$router->post('/api/inventory/unequip', fn (Request $request) => $inventoryApi->unequip($request));
 $router->get('/api/pokemon/moves', fn (Request $request) => $pokemonApi->moves($request));
 $router->post('/api/pokemon/move', fn (Request $request) => $pokemonApi->setMove($request));
 $router->get('/api/location/npc', fn (Request $request) => $npcApi->show($request));

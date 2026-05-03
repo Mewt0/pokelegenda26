@@ -45,6 +45,7 @@ use Pokemon8\View\View;
       <input placeholder="Ник">
       <a href="/game/pokemon" id="pokemonLink">Покемоны</a>
       <a href="/game/items" id="inventoryLink">Инвентарь</a>
+      <a href="/game/profile">Профиль</a>
       <a href="/game/quests">Квесты</a>
       <a href="/game/battle/pvp">Бои</a>
       <a href="/game/messages">Почта</a>
@@ -85,7 +86,10 @@ use Pokemon8\View\View;
     <div class="battle-window" role="dialog" aria-label="PvE бой">
       <header class="battle-head">
         <span id="battleTitle">Дикий бой</span>
-        <span id="battleRound">Раунд 1</span>
+        <span class="battle-head-right">
+          <span id="battleRound">Раунд 1</span>
+          <button type="button" id="battleReviewClose" class="battle-review-close" aria-label="Закрыть просмотр боя">&times;</button>
+        </span>
       </header>
       <div class="battle-layout">
         <aside class="battle-left">
@@ -109,6 +113,7 @@ use Pokemon8\View\View;
                 <h3 id="battleEnemyName">Дикий покемон</h3>
                 <div class="hpbar"><div class="hpfill" id="battleEnemyHpBar" style="width:100%"></div></div>
                 <div id="battleEnemyHp" class="muted">HP 0/0</div>
+                <div class="battle-status-badges" id="battleEnemyStatuses"></div>
               </article>
             </div>
             <div class="battle-arena-field">
@@ -120,6 +125,7 @@ use Pokemon8\View\View;
                 <h3 id="battlePlayerName">Ваш покемон</h3>
                 <div class="hpbar"><div class="hpfill" id="battlePlayerHpBar" style="width:100%"></div></div>
                 <div id="battlePlayerHp" class="muted">HP 0/0</div>
+                <div class="battle-status-badges" id="battlePlayerStatuses"></div>
               </article>
             </div>
           </div>
@@ -135,13 +141,16 @@ use Pokemon8\View\View;
     </div>
   </section>
   <div class="inv-tooltip" id="invTooltip"></div>
+  <div class="battle-poke-tooltip" id="battlePokeTooltip"></div>
 
   <script>
     const app = document.querySelector('.world');
     const csrf = app.dataset.csrf;
     const state = { busy: false, locationId: 0, activeNpc: null, pveButton: false };
     const inventory = { page: 1, pages: 1, items: [], selected: null };
-    const battleState = { active: false, moves: [] };
+    const battleState = { active: false, reviewing: false, moves: [] };
+    const battleWindowDrag = { ready: false, dragging: false, offsetX: 0, offsetY: 0 };
+    const battleHoverState = { ready: false, player: null, enemy: null };
     const battlePocket = { loaded: false, items: [] };
 
     function setupBattleSideTabs() {
@@ -192,6 +201,18 @@ use Pokemon8\View\View;
       left.insertBefore(turn, left.firstChild);
       left.insertBefore(content, subactions || null);
       left.appendChild(tabs);
+
+      const review = document.createElement('div');
+      review.className = 'battle-review-actions';
+      review.innerHTML = [
+        '<div class="battle-review-title"><b>Режим просмотра</b><small>Время не ограничено...</small></div>',
+        '<button type="button" id="battleReplayBtn">&#9654; Повтор боя</button>',
+        '<button type="button" id="battleCloseReviewBtn">&#10006; Закрыть окно</button>'
+      ].join('');
+      left.appendChild(review);
+      review.querySelector('#battleReplayBtn').addEventListener('click', () => setStatus('Повтор боя будет подключен позже.'));
+      review.querySelector('#battleCloseReviewBtn').addEventListener('click', acknowledgeBattleEnd);
+
       tabs.querySelectorAll('[data-battle-tab]').forEach(button => {
         button.addEventListener('click', () => setBattleTab(button.dataset.battleTab));
       });
@@ -369,17 +390,73 @@ use Pokemon8\View\View;
 
     function openBattleOverlay() {
       setupBattleSideTabs();
+      setupBattleDrag();
       const overlay = document.getElementById('battleOverlay');
       overlay.classList.add('is-open');
       overlay.setAttribute('aria-hidden', 'false');
       battleState.active = true;
     }
 
+    function setupBattleDrag() {
+      if (battleWindowDrag.ready) return;
+      battleWindowDrag.ready = true;
+      const overlay = document.getElementById('battleOverlay');
+      const win = overlay.querySelector('.battle-window');
+      const head = win.querySelector('.battle-head');
+      const clampWindow = (left, top) => {
+        const overlayRect = overlay.getBoundingClientRect();
+        const winRect = win.getBoundingClientRect();
+        const pad = 8;
+        const maxLeft = Math.max(pad, overlayRect.width - winRect.width - pad);
+        const maxTop = Math.max(pad, overlayRect.height - winRect.height - pad);
+        return {
+          left: Math.max(pad, Math.min(left, maxLeft)),
+          top: Math.max(pad, Math.min(top, maxTop)),
+        };
+      };
+
+      head.addEventListener('pointerdown', event => {
+        if (event.target.closest('button')) return;
+        const rect = win.getBoundingClientRect();
+        battleWindowDrag.dragging = true;
+        battleWindowDrag.offsetX = event.clientX - rect.left;
+        battleWindowDrag.offsetY = event.clientY - rect.top;
+        win.classList.add('is-dragged');
+        win.style.left = rect.left + 'px';
+        win.style.top = rect.top + 'px';
+        head.setPointerCapture(event.pointerId);
+      });
+      head.addEventListener('pointermove', event => {
+        if (!battleWindowDrag.dragging) return;
+        const pos = clampWindow(event.clientX - battleWindowDrag.offsetX, event.clientY - battleWindowDrag.offsetY);
+        win.style.left = pos.left + 'px';
+        win.style.top = pos.top + 'px';
+      });
+      head.addEventListener('pointerup', event => {
+        battleWindowDrag.dragging = false;
+        try { head.releasePointerCapture(event.pointerId); } catch (e) {}
+      });
+      head.addEventListener('pointercancel', () => {
+        battleWindowDrag.dragging = false;
+      });
+      window.addEventListener('resize', () => {
+        if (!win.classList.contains('is-dragged')) return;
+        const rect = win.getBoundingClientRect();
+        const pos = clampWindow(rect.left, rect.top);
+        win.style.left = pos.left + 'px';
+        win.style.top = pos.top + 'px';
+      });
+    }
+
     function closeBattleOverlay() {
       const overlay = document.getElementById('battleOverlay');
       overlay.classList.remove('is-open');
+      overlay.classList.remove('is-review');
       overlay.setAttribute('aria-hidden', 'true');
+      const left = document.querySelector('.battle-left');
+      if (left) left.classList.remove('is-review');
       battleState.active = false;
+      battleState.reviewing = false;
     }
 
     function renderBattleLog(logByRound, messages) {
@@ -454,10 +531,17 @@ use Pokemon8\View\View;
         return;
       }
       if (!payload.active && !payload.finished && !payload.result) {
+        if (battleState.reviewing) {
+          return;
+        }
         closeBattleOverlay();
         return;
       }
       openBattleOverlay();
+      battleState.reviewing = !!payload.finished;
+      const left = document.querySelector('.battle-left');
+      if (left) left.classList.toggle('is-review', battleState.reviewing);
+      document.getElementById('battleOverlay').classList.toggle('is-review', battleState.reviewing);
 
       const battle = payload.battle || payload;
       const player = battle.player || { name: 'Ваш покемон', level: 1, hp: 0, hpMax: 1, baseNum: 0 };
@@ -469,6 +553,11 @@ use Pokemon8\View\View;
       document.getElementById('battleEnemyName').textContent = enemy.name + ' Lv.' + enemy.level;
       document.getElementById('battlePlayerHp').textContent = 'HP ' + player.hp + '/' + player.hpMax;
       document.getElementById('battleEnemyHp').textContent = 'HP ' + enemy.hp + '/' + enemy.hpMax;
+      renderBattleStatuses('battlePlayerStatuses', player.statuses || []);
+      renderBattleStatuses('battleEnemyStatuses', enemy.statuses || []);
+      battleHoverState.player = player;
+      battleHoverState.enemy = enemy;
+      setupBattlePokemonHover();
       renderBattleSprites(player, enemy);
 
       const playerHpPercent = Math.max(0, Math.min(100, (player.hp / Math.max(1, player.hpMax)) * 100));
@@ -484,8 +573,12 @@ use Pokemon8\View\View;
           button.disabled = false;
           const power = Number(move.power || 0);
           const acc = Number(move.accuracy || 0);
-          button.innerHTML = '<span class="t"></span><span class="s"></span>';
+          const pp = Number(move.pp || 0);
+          const ppMax = Number(move.ppMax || 0);
+          button.disabled = ppMax > 0 && pp <= 0;
+          button.innerHTML = '<span class="t"></span><span class="pp"></span><span class="s"></span>';
           button.querySelector('.t').textContent = move.name;
+          button.querySelector('.pp').textContent = ppMax > 0 ? (pp + '/' + ppMax) : '';
           button.querySelector('.s').textContent = 'Сила: ' + power + ' • Точность: ' + acc + '%';
           button.dataset.moveId = String(move.id);
         } else {
@@ -532,6 +625,86 @@ use Pokemon8\View\View;
       document.getElementById('battleSwitchSelect').disabled = disabled;
       document.getElementById('battleSwitchBtn').disabled = disabled;
       document.getElementById('battleEscapeBtn').disabled = disabled;
+    }
+
+    function renderBattleStatuses(targetId, statuses) {
+      const box = document.getElementById(targetId);
+      if (!box) return;
+      box.innerHTML = '';
+      if (!Array.isArray(statuses)) return;
+      for (const status of statuses.slice(0, 4)) {
+        const badge = document.createElement('span');
+        badge.className = status.kind === 'minus' ? 'minus' : 'plus';
+        badge.textContent = String(status.label || '') + ' ' + String(status.sign || '') + String(status.value || '');
+        box.appendChild(badge);
+      }
+    }
+
+    function setupBattlePokemonHover() {
+      if (battleHoverState.ready) return;
+      battleHoverState.ready = true;
+      const targets = [
+        ['player', document.getElementById('battlePlayerSprite'), document.querySelector('.fighter-player')],
+        ['enemy', document.getElementById('battleEnemySprite'), document.querySelector('.fighter-enemy')],
+      ];
+      for (const [kind, ...nodes] of targets) {
+        for (const node of nodes) {
+          if (!node) continue;
+          node.addEventListener('mouseenter', event => showBattlePokemonTooltip(event, kind));
+          node.addEventListener('mousemove', moveBattlePokemonTooltip);
+          node.addEventListener('mouseleave', hideBattlePokemonTooltip);
+        }
+      }
+    }
+
+    function showBattlePokemonTooltip(event, kind) {
+      const pokemon = battleHoverState[kind];
+      if (!pokemon) return;
+      const tooltip = document.getElementById('battlePokeTooltip');
+      const hpMax = Math.max(1, Number(pokemon.hpMax || 1));
+      const hp = Math.max(0, Number(pokemon.hp || 0));
+      const stats = pokemon.stats || {};
+      const moves = Array.isArray(pokemon.movesPreview) ? pokemon.movesPreview.slice(0, 4) : [];
+      const statuses = Array.isArray(pokemon.statuses) ? pokemon.statuses : [];
+      const typeLabel = String(pokemon.tips || 'normal').toLowerCase().includes('shine') ? 'SHINY' : 'NORMAL';
+      const statusText = statuses.length
+        ? statuses.map(s => escapeHtml(String(s.label || '') + ' ' + String(s.sign || '') + String(s.value || ''))).join(', ')
+        : 'нет';
+      const movesText = moves.length
+        ? moves.map(m => '<span class="tip-move">• ' + escapeHtml(m.name || 'Атака') + '</span> (' + Number(m.pp || 0) + '/' + Number(m.ppMax || 0) + ' | ' + Number(m.power || 0) + '/' + Number(m.accuracy || 0) + ')').join('<br>')
+        : 'нет данных';
+      tooltip.innerHTML = [
+        '<h4>' + escapeHtml(pokemon.name || 'Pokemon') + ' <small>Lv.' + Number(pokemon.level || 1) + '</small></h4>',
+        '<span class="tip-type">' + typeLabel + '</span>',
+        '<div>HP: ' + Math.round((hp / hpMax) * 100) + '% (' + hp + '/' + hpMax + ')</div>',
+        '<div>Модификаторы: ' + statusText + '</div>',
+        '<div>Раскрытые атаки:<br>' + movesText + '</div>',
+        '<table><tr><th>Атака</th><th>Защита</th><th>С. Атака</th><th>С. Защита</th><th>Скорость</th></tr>',
+        '<tr><td>' + Number(stats.atk || 0) + '</td><td>' + Number(stats.def || 0) + '</td><td>' + Number(stats.satk || 0) + '</td><td>' + Number(stats.sdef || 0) + '</td><td>' + Number(stats.speed || 0) + '</td></tr></table>',
+      ].join('');
+      tooltip.style.display = 'block';
+      moveBattlePokemonTooltip(event);
+    }
+
+    function moveBattlePokemonTooltip(event) {
+      const tooltip = document.getElementById('battlePokeTooltip');
+      if (tooltip.style.display !== 'block') return;
+      const pad = 12;
+      let left = event.clientX + 14;
+      let top = event.clientY + 14;
+      const rect = tooltip.getBoundingClientRect();
+      if (left + rect.width + pad > window.innerWidth) {
+        left = event.clientX - rect.width - 14;
+      }
+      if (top + rect.height + pad > window.innerHeight) {
+        top = event.clientY - rect.height - 14;
+      }
+      tooltip.style.left = Math.max(pad, left) + 'px';
+      tooltip.style.top = Math.max(pad, top) + 'px';
+    }
+
+    function hideBattlePokemonTooltip() {
+      document.getElementById('battlePokeTooltip').style.display = 'none';
     }
 
     function renderBattleSwitchList(options) {
@@ -635,11 +808,31 @@ use Pokemon8\View\View;
       const urls = candidates.filter(Boolean);
       let idx = 0;
       const tryNext = () => {
-        if (idx >= urls.length) return;
+        if (idx >= urls.length) {
+          imgEl.src = '/img/blank.gif';
+          return;
+        }
         imgEl.src = urls[idx++];
       };
       imgEl.onerror = tryNext;
       tryNext();
+    }
+
+    function spriteNumberCandidates(base) {
+      const num = Number(base || 0);
+      const plain = String(num);
+      const padded = pad3(num);
+      return plain === padded ? [padded] : [padded, plain];
+    }
+
+    function spriteCandidates(folder, base, extensions = ['gif']) {
+      const urls = [];
+      for (const name of spriteNumberCandidates(base)) {
+        for (const ext of extensions) {
+          urls.push('/pok/' + folder + '/' + name + '.' + ext);
+        }
+      }
+      return urls;
     }
 
     function renderBattleSprites(player, enemy) {
@@ -652,20 +845,18 @@ use Pokemon8\View\View;
       enemyImg.alt = enemy.name || 'Дикий покемон';
 
       // Ваш покемон — обязательно из back (вид со спины), с fallback.
-      setSpriteWithFallback(playerImg, [
-        '/pok/back/' + playerBase + '.jpg',
-        '/pok/sback/' + playerBase + '.jpg',
-        '/pok/back/' + pad3(playerBase) + '.gif',
-        '/pok/normal/' + pad3(playerBase) + '.gif'
-      ]);
+      const playerTips = String(player.tips || 'normal').toLowerCase();
+      const playerCandidates = playerTips === 'shine' || playerTips === 'shiny'
+        ? spriteCandidates('sback', playerBase).concat(spriteCandidates('Sback', playerBase), spriteCandidates('back', playerBase), spriteCandidates('back', playerBase, ['jpg', 'png']))
+        : spriteCandidates('back', playerBase).concat(spriteCandidates('back', playerBase, ['jpg', 'png']));
+      setSpriteWithFallback(playerImg, playerCandidates);
 
       // Дикий покемон — фронтальный спрайт.
-      setSpriteWithFallback(enemyImg, [
-        '/pok/normal/' + pad3(enemyBase) + '.gif',
-        '/pok/shine/' + pad3(enemyBase) + '.gif',
-        '/pok/shiny/' + pad3(enemyBase) + '.gif',
-        '/pok/back/' + enemyBase + '.jpg'
-      ]);
+      const enemyTips = String(enemy.tips || 'normal').toLowerCase();
+      const enemyCandidates = enemyTips === 'shine' || enemyTips === 'shiny'
+        ? spriteCandidates('shiny', enemyBase).concat(spriteCandidates('shine', enemyBase, ['png']))
+        : spriteCandidates('pok', enemyBase).concat(spriteCandidates('normal', enemyBase, ['png']));
+      setSpriteWithFallback(enemyImg, enemyCandidates);
     }
 
     function renderBattleSpritesFromDebug(debug) {
@@ -679,16 +870,16 @@ use Pokemon8\View\View;
 
       // Тестовый рендер в "квадратиках", даже если backend еще не собрал state полностью.
       setSpriteWithFallback(playerImg, [
-        '/pok/back/' + playerId + '.jpg',
-        '/pok/sback/' + playerId + '.jpg',
         '/pok/back/' + pad3(playerId) + '.gif',
+        '/pok/back/' + playerId + '.gif',
+        '/pok/sback/' + playerId + '.gif',
+        '/pok/sback/' + pad3(playerId) + '.gif',
         '/pok/back/1.jpg',
       ]);
       setSpriteWithFallback(enemyImg, [
-        '/pok/normal/' + pad3(enemyId) + '.gif',
-        '/pok/shine/' + pad3(enemyId) + '.gif',
+        '/pok/pok/' + pad3(enemyId) + '.gif',
         '/pok/shiny/' + pad3(enemyId) + '.gif',
-        '/pok/normal/001.gif',
+        '/pok/pok/001.gif',
       ]);
     }
 
@@ -1044,11 +1235,14 @@ use Pokemon8\View\View;
     document.getElementById('battleDoneBtn').addEventListener('click', () => {
       acknowledgeBattleEnd();
     });
+    document.getElementById('battleReviewClose').addEventListener('click', () => {
+      acknowledgeBattleEnd();
+    });
 
     loadState();
     setInterval(loadState, 5000);
     setInterval(() => {
-      if (battleState.active) {
+      if (battleState.active && !battleState.reviewing) {
         loadBattleState();
       }
     }, 2000);

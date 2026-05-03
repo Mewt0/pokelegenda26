@@ -254,7 +254,7 @@ final class WildEncounterService
         }
 
         $stats = $this->rollStats($base, $level);
-        $name = (string) ($base['title'] ?? ('Pokemon #' . $baseId));
+        $name = preg_replace('/\s*-\s*Shiny\b/i', '', (string) ($base['title'] ?? ('Pokemon #' . $baseId))) ?: ('Pokemon #' . $baseId);
         $tips = 'normal';
         if ((int) ($encounter['poimka'] ?? 0) === 1 && random_int(1, 1000000) <= 10) {
             $tips = 'shine';
@@ -378,110 +378,153 @@ final class WildEncounterService
 
     private function createPveBattle(int $userId, int $playerPokemonId, int $enemyPokemonId): int
     {
-        // Legacy-совместимый формат создания PvE боя (см. include/files/gameload.world.php).
-        $manualBattleId = $this->nextBattleId();
-        if ($manualBattleId <= 0) {
-            $this->lastBattleCreateError = '(cannot allocate next battle id)';
-            return 0;
-        }
+        $battleId = 0;
+        $playerBattlePokemon = 'pvp_' . $playerPokemonId;
+        $enemyBattlePokemon = 'pve_' . $enemyPokemonId;
 
-        $stmt = $this->db->prepare(
-            'INSERT INTO battles (id, user_1, user_2, poke_1, poke_2, batl_tip, times)
-             VALUES (:id, :user_1, :user_2, :poke_1, :poke_2, :batl_tip, :times)'
-        );
-
+        // Главный путь: нормальная схема с AUTO_INCREMENT на battles.id.
         try {
-            $ok = $stmt->execute([
-                'id' => $manualBattleId,
+            $stmt = $this->db->prepare(
+                'INSERT INTO battles (user_1, user_2, poke_1, poke_2, batl_tip, times)
+                 VALUES (:user_1, :user_2, :poke_1, :poke_2, :batl_tip, :times)'
+            );
+            $stmt->execute([
                 'user_1' => $userId,
                 // В legacy PvE сюда кладут id записи pok_pve.
                 'user_2' => $enemyPokemonId,
-                'poke_1' => 'pvp_' . $playerPokemonId,
-                'poke_2' => 'pve_' . $enemyPokemonId,
+                'poke_1' => $playerBattlePokemon,
+                'poke_2' => $enemyBattlePokemon,
                 'batl_tip' => 'pve',
                 'times' => time() + 3600,
             ]);
+            $battleId = (int) $this->db->lastInsertId();
         } catch (\Throwable $e) {
-            $this->lastBattleCreateError = '(EX) ' . $e->getMessage();
-            error_log('[PVE_FORCE] createPveBattle exception: ' . $e->getMessage());
-            return 0;
+            // Старые дампы часто имеют battles.id без AUTO_INCREMENT. Тогда используем совместимый ручной id.
+            $battleId = 0;
         }
 
-        if (!$ok) {
-            $err = $stmt->errorInfo();
-            $msg = is_array($err) ? trim(($err[0] ?? '') . ' ' . ($err[2] ?? '')) : 'unknown';
-            $cols = $this->battleColumnsDebug();
-            $colsText = $cols ? (' cols=' . implode(',', $cols)) : '';
-            $this->lastBattleCreateError = '(' . $msg . $colsText . ')';
-            return 0;
-        }
+        if ($battleId <= 0) {
+            $manualBattleId = $this->nextBattleId();
+            if ($manualBattleId <= 0) {
+                $this->lastBattleCreateError = '(cannot allocate next battle id)';
+                return 0;
+            }
 
-        $battleId = (int) $this->db->lastInsertId();
-        if ($battleId <= 0) {
-            $battleId = $manualBattleId;
-        }
-        if ($battleId <= 0) {
-            // Если в таблице нет AUTO_INCREMENT или драйвер не возвращает lastInsertId,
-            // пытаемся найти свежесозданный бой по ключевым полям.
             try {
-                $q = $this->db->prepare(
-                    'SELECT id
-                       FROM battles
-                      WHERE user_1 = :user_1
-                        AND poke_1 = :poke_1
-                        AND poke_2 = :poke_2
-                        AND batl_tip = "pve"
-                      ORDER BY id DESC
-                      LIMIT 1'
+                $stmt = $this->db->prepare(
+                    'INSERT INTO battles (id, user_1, user_2, poke_1, poke_2, batl_tip, times)
+                     VALUES (:id, :user_1, :user_2, :poke_1, :poke_2, :batl_tip, :times)'
                 );
-                $q->execute([
+                $stmt->execute([
+                    'id' => $manualBattleId,
                     'user_1' => $userId,
-                    'poke_1' => 'pvp_' . $playerPokemonId,
-                    'poke_2' => 'pve_' . $enemyPokemonId,
+                    'user_2' => $enemyPokemonId,
+                    'poke_1' => $playerBattlePokemon,
+                    'poke_2' => $enemyBattlePokemon,
+                    'batl_tip' => 'pve',
+                    'times' => time() + 3600,
                 ]);
-                $battleId = (int) ($q->fetchColumn() ?: 0);
+                $battleId = $manualBattleId;
             } catch (\Throwable $e) {
                 $cols = $this->battleColumnsDebug();
                 $colsText = $cols ? (' cols=' . implode(',', $cols)) : '';
-                $this->lastBattleCreateError = '(lastInsertId=0; select_id_failed: ' . $e->getMessage() . $colsText . ')';
+                $this->lastBattleCreateError = '(EX) ' . $e->getMessage() . $colsText;
+                error_log('[PVE_FORCE] createPveBattle exception: ' . $e->getMessage());
                 return 0;
             }
         }
+
         if ($battleId <= 0) {
             $cols = $this->battleColumnsDebug();
             $colsText = $cols ? (' cols=' . implode(',', $cols)) : '';
-            $this->lastBattleCreateError = '(battleId=0 after insert; lastInsertId=0' . $colsText . ')';
+            $this->lastBattleCreateError = '(battleId=0 after insert' . $colsText . ')';
             return 0;
         }
 
-        // В legacy при создании боя добавляется базовая запись статусов (не всегда обязательна, но безопасно попытаться).
-        try {
-            $st = $this->db->prepare(
-                'INSERT INTO statpokemonbatle (battleid, pokeid, accuracy, acc, tip)
-                 VALUES (:battleid, :pokeid, :accuracy, :acc, :tip)'
-            );
-            $st->execute([
-                'battleid' => $battleId,
-                'pokeid' => 'pve_' . $enemyPokemonId,
-                'accuracy' => 6,
-                'acc' => 6,
-                'tip' => 'plus',
-            ]);
-        } catch (\Throwable $e) {
-            // Не блокируем бой, если таблицы/поля отличаются.
-        }
+        // statpokemonbatle — это состояние модификаторов боя.
+        // Старт боя обязан быть без бафов/дебафов: создаем plus/minus строки с нулями.
+        $this->initializeBattleStatRows($battleId, $playerBattlePokemon, $enemyBattlePokemon);
 
         return $battleId;
     }
 
     private function nextBattleId(): int
     {
+        // Желательно выполнить SQL из README и сделать battles.id AUTO_INCREMENT.
+        // Этот fallback нужен только для старой схемы без AUTO_INCREMENT.
         try {
-            $stmt = $this->db->query('SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM battles');
-            $nextId = (int) ($stmt ? $stmt->fetchColumn() : 0);
-            return max(1, $nextId);
+            $this->db->exec(
+                'CREATE TABLE IF NOT EXISTS battle_id_sequence (
+                    id TINYINT NOT NULL PRIMARY KEY,
+                    next_id INT(11) NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+            );
+
+            $seed = max(time(), (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM battles')->fetchColumn() ?: 1));
+            $insert = $this->db->prepare('INSERT IGNORE INTO battle_id_sequence (id, next_id) VALUES (1, :seed)');
+            $insert->execute(['seed' => $seed]);
+
+            $this->db->exec('UPDATE battle_id_sequence SET next_id = LAST_INSERT_ID(next_id + 1) WHERE id = 1');
+            $nextId = (int) $this->db->lastInsertId();
+            if ($nextId > 0) {
+                return $nextId;
+            }
+        } catch (\Throwable) {
+            // fallback ниже
+        }
+
+        try {
+            $maxId = (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM battles')->fetchColumn() ?: 1);
+            return max($maxId, time() + random_int(1, 999));
+        } catch (\Throwable) {
+            return time() + random_int(1, 999);
+        }
+    }
+
+    private function initializeBattleStatRows(int $battleId, string $playerBattlePokemon, string $enemyBattlePokemon): void
+    {
+        foreach ([$playerBattlePokemon, $enemyBattlePokemon] as $pokeId) {
+            foreach (['plus', 'minus'] as $tip) {
+                $this->insertZeroBattleStatRow($battleId, $pokeId, $tip);
+            }
+        }
+    }
+
+    private function insertZeroBattleStatRow(int $battleId, string $pokeId, string $tip): void
+    {
+        try {
+            $stmt = $this->db->prepare(
+                'INSERT INTO statpokemonbatle
+                    (battleid, pokeid, attac, spattac, defend, spdefend, speed, acc, accuracy, tip, raundends)
+                 VALUES
+                    (:battleid, :pokeid, 0, 0, 0, 0, 0, 0, 0, :tip, 0)'
+            );
+            $stmt->execute([
+                'battleid' => $battleId,
+                'pokeid' => $pokeId,
+                'tip' => $tip,
+            ]);
+            return;
+        } catch (\Throwable) {
+            // Если id у statpokemonbatle еще не AUTO_INCREMENT, пробуем legacy-вставку с ручным id.
+        }
+
+        try {
+            $nextId = (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM statpokemonbatle')->fetchColumn() ?: 1);
+            $stmt = $this->db->prepare(
+                'INSERT INTO statpokemonbatle
+                    (id, battleid, pokeid, attac, spattac, defend, spdefend, speed, acc, accuracy, tip, raundends)
+                 VALUES
+                    (:id, :battleid, :pokeid, 0, 0, 0, 0, 0, 0, 0, :tip, 0)'
+            );
+            $stmt->execute([
+                'id' => $nextId,
+                'battleid' => $battleId,
+                'pokeid' => $pokeId,
+                'tip' => $tip,
+            ]);
         } catch (\Throwable $e) {
-            return 0;
+            error_log('[PVE_FORCE] cannot initialize statpokemonbatle: ' . $e->getMessage());
         }
     }
 

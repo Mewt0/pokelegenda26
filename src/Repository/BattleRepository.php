@@ -71,11 +71,188 @@ final class BattleRepository
         return is_array($rows) ? $rows : [];
     }
 
+    public function findBattleStatuses(int $battleId, string $battlePokemon): array
+    {
+        if ($battleId <= 0 || $battlePokemon === '') {
+            return [];
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT attac, spattac, defend, spdefend, speed, acc, accuracy, tip
+               FROM statpokemonbatle
+              WHERE battleid = :battle AND pokeid = :pokemon'
+        );
+        $stmt->execute([
+            'battle' => $battleId,
+            'pokemon' => $battlePokemon,
+        ]);
+
+        $labels = [
+            'attac' => 'Атака',
+            'spattac' => 'С. Атака',
+            'defend' => 'Защита',
+            'spdefend' => 'С. Защита',
+            'speed' => 'Скорость',
+            'acc' => 'Ловкость',
+            'accuracy' => 'Точность',
+        ];
+
+        // В старом коде могли появляться дубли строк plus/minus. Здесь агрегируем,
+        // чтобы UI не показывал одно и то же усиление несколько раз.
+        $sum = [
+            'plus' => array_fill_keys(array_keys($labels), 0),
+            'minus' => array_fill_keys(array_keys($labels), 0),
+        ];
+
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $kind = (string) ($row['tip'] ?? '') === 'minus' ? 'minus' : 'plus';
+            foreach ($labels as $field => $_label) {
+                $sum[$kind][$field] += max(0, (int) ($row[$field] ?? 0));
+            }
+        }
+
+        $result = [];
+        foreach (['plus', 'minus'] as $kind) {
+            foreach ($labels as $field => $label) {
+                $value = max(0, min(6, (int) $sum[$kind][$field]));
+                if ($value <= 0) {
+                    continue;
+                }
+                $result[] = [
+                    'field' => $field,
+                    'label' => $label,
+                    'value' => $value,
+                    'sign' => $kind === 'minus' ? '-' : '+',
+                    'kind' => $kind,
+                ];
+            }
+        }
+
+        return $result;
+    }
+
+    public function findBattleStatStageMap(int $battleId, string $battlePokemon): array
+    {
+        $fields = ['attac', 'spattac', 'defend', 'spdefend', 'speed', 'acc', 'accuracy'];
+        $map = array_fill_keys($fields, 0);
+
+        if ($battleId <= 0 || $battlePokemon === '') {
+            return $map;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT attac, spattac, defend, spdefend, speed, acc, accuracy, tip
+               FROM statpokemonbatle
+              WHERE battleid = :battle AND pokeid = :pokemon'
+        );
+        $stmt->execute([
+            'battle' => $battleId,
+            'pokemon' => $battlePokemon,
+        ]);
+
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $sign = (string) ($row['tip'] ?? '') === 'minus' ? -1 : 1;
+            foreach ($fields as $field) {
+                $map[$field] += $sign * max(0, (int) ($row[$field] ?? 0));
+            }
+        }
+
+        foreach ($map as $field => $value) {
+            $map[$field] = max(-6, min(6, (int) $value));
+        }
+
+        return $map;
+    }
+
+    public function applyBattleStatStage(int $battleId, string $battlePokemon, string $kind, string $field, int $delta): int
+    {
+        $allowedFields = ['attac', 'spattac', 'defend', 'spdefend', 'speed', 'acc', 'accuracy'];
+        if ($battleId <= 0 || $battlePokemon === '' || !in_array($kind, ['plus', 'minus'], true) || !in_array($field, $allowedFields, true)) {
+            return 0;
+        }
+
+        $delta = max(1, min(6, $delta));
+        $this->ensureBattleStatRow($battleId, $battlePokemon, $kind);
+
+        $sql = sprintf(
+            'UPDATE statpokemonbatle
+                SET `%s` = LEAST(6, GREATEST(0, `%s` + :delta))
+              WHERE battleid = :battle AND pokeid = :pokemon AND tip = :kind
+              LIMIT 1',
+            $field,
+            $field
+        );
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([
+            'delta' => $delta,
+            'battle' => $battleId,
+            'pokemon' => $battlePokemon,
+            'kind' => $kind,
+        ]);
+
+        return $stmt->rowCount();
+    }
+
+    public function ensureBattleStatRow(int $battleId, string $battlePokemon, string $kind): void
+    {
+        if ($battleId <= 0 || $battlePokemon === '' || !in_array($kind, ['plus', 'minus'], true)) {
+            return;
+        }
+
+        $exists = $this->db->prepare(
+            'SELECT id FROM statpokemonbatle WHERE battleid = :battle AND pokeid = :pokemon AND tip = :kind LIMIT 1'
+        );
+        $exists->execute([
+            'battle' => $battleId,
+            'pokemon' => $battlePokemon,
+            'kind' => $kind,
+        ]);
+        if ($exists->fetchColumn() !== false) {
+            return;
+        }
+
+        try {
+            $stmt = $this->db->prepare(
+                'INSERT INTO statpokemonbatle
+                    (battleid, pokeid, attac, spattac, defend, spdefend, speed, acc, accuracy, tip, raundends)
+                 VALUES
+                    (:battle, :pokemon, 0, 0, 0, 0, 0, 0, 0, :kind, 0)'
+            );
+            $stmt->execute([
+                'battle' => $battleId,
+                'pokemon' => $battlePokemon,
+                'kind' => $kind,
+            ]);
+            return;
+        } catch (\Throwable) {
+            // старый дамп без AUTO_INCREMENT на statpokemonbatle.id
+        }
+
+        try {
+            $nextId = (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM statpokemonbatle')->fetchColumn() ?: 1);
+            $stmt = $this->db->prepare(
+                'INSERT INTO statpokemonbatle
+                    (id, battleid, pokeid, attac, spattac, defend, spdefend, speed, acc, accuracy, tip, raundends)
+                 VALUES
+                    (:id, :battle, :pokemon, 0, 0, 0, 0, 0, 0, 0, :kind, 0)'
+            );
+            $stmt->execute([
+                'id' => $nextId,
+                'battle' => $battleId,
+                'pokemon' => $battlePokemon,
+                'kind' => $kind,
+            ]);
+        } catch (\Throwable) {
+            // не валим бой из-за статов
+        }
+    }
+
     public function findAvailableMoves(int $baseId, int $level): array
     {
         $stmt = $this->db->prepare(
             'SELECT ap.atac_id AS id, ap.atc_lvl,
-                    apw.atac_name, apw.atac_power, apw.atac_accuracy, apw.atac_categori, apw.critic, apw.priorety
+                    apw.atac_name, apw.atac_power, apw.atac_accuracy, apw.atac_categori, apw.critic, apw.priorety, apw.atac_pp
                FROM attac_poke ap
                LEFT JOIN attac_power apw ON apw.atac_id = ap.atac_id
               WHERE ap.poke_base_id = :base AND ap.atc_lvl <= :lvl
@@ -94,6 +271,7 @@ final class BattleRepository
                 'atac_categori' => 1,
                 'critic' => 1,
                 'priorety' => 0,
+                'atac_pp' => 35,
             ]];
         }
 
@@ -141,7 +319,7 @@ final class BattleRepository
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $movesStmt = $this->db->prepare(
-            'SELECT atac_id AS id, atac_name, atac_power, atac_accuracy, atac_categori, critic, priorety
+            'SELECT atac_id AS id, atac_name, atac_power, atac_accuracy, atac_categori, critic, priorety, atac_pp
                FROM attac_power
               WHERE atac_id IN (' . $placeholders . ')'
         );
@@ -167,6 +345,51 @@ final class BattleRepository
         }
 
         return $moves;
+    }
+
+    public function decrementSelectedMovePp(int $pokemonId, int $moveId): bool
+    {
+        if ($pokemonId <= 0 || $moveId <= 0) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT a_id, a_pp_min, b_id, b_pp_min, c_id, c_pp_min, d_id, d_pp_min
+               FROM attac_my_poke
+              WHERE pok_id = :pokemon
+              LIMIT 1'
+        );
+        $stmt->execute(['pokemon' => $pokemonId]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            return false;
+        }
+
+        $slots = [
+            ['id' => 'a_id', 'pp' => 'a_pp_min'],
+            ['id' => 'b_id', 'pp' => 'b_pp_min'],
+            ['id' => 'c_id', 'pp' => 'c_pp_min'],
+            ['id' => 'd_id', 'pp' => 'd_pp_min'],
+        ];
+        foreach ($slots as $slot) {
+            if ((int) ($row[$slot['id']] ?? 0) !== $moveId) {
+                continue;
+            }
+            if ((int) ($row[$slot['pp']] ?? 0) <= 0) {
+                return false;
+            }
+            $update = $this->db->prepare(
+                sprintf(
+                    'UPDATE attac_my_poke SET %s = GREATEST(%s - 1, 0) WHERE pok_id = :pokemon LIMIT 1',
+                    $slot['pp'],
+                    $slot['pp']
+                )
+            );
+            $update->execute(['pokemon' => $pokemonId]);
+            return $update->rowCount() > 0;
+        }
+
+        return false;
     }
 
     public function updateBattleAction(int $battleId, int $playerAttack, int $enemyAttack): void
@@ -522,25 +745,67 @@ final class BattleRepository
 
     public function finishBattle(int $battleId, int $userId, int $winner): void
     {
+        // Не удаляем бой/лог сразу: frontend должен успеть показать финальный экран.
+        // Удаление делается только после /api/battle/pve/ack-end.
         $this->db->prepare(
             'UPDATE battles SET pobeda = :winner WHERE id = :id LIMIT 1'
         )->execute(['winner' => $winner, 'id' => $battleId]);
 
-        $enemy = $this->db->prepare('SELECT poke_2 FROM battles WHERE id = :id LIMIT 1');
-        $enemy->execute(['id' => $battleId]);
-        $enemyBattlePokemon = (string) ($enemy->fetchColumn() ?: '');
-
         $this->db->prepare(
-            'UPDATE users SET pve = 0, battleid = 0, atack_poke = :next_attack WHERE id = :id LIMIT 1'
-        )->execute(['next_attack' => time() + 30, 'id' => $userId]);
+            'UPDATE users SET pve = 0, battleid = :battle, atack_poke = :next_attack WHERE id = :id LIMIT 1'
+        )->execute([
+            'battle' => $battleId,
+            'next_attack' => time() + 30,
+            'id' => $userId,
+        ]);
+    }
 
-        $this->db->prepare('DELETE FROM battles WHERE id = :id LIMIT 1')->execute(['id' => $battleId]);
+    public function cleanupFinishedBattleForUser(int $userId): void
+    {
+        if ($userId <= 0) {
+            return;
+        }
+
+        $stmt = $this->db->prepare('SELECT battleid FROM users WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $userId]);
+        $battleId = (int) ($stmt->fetchColumn() ?: 0);
+        if ($battleId <= 0) {
+            return;
+        }
+
+        $battle = $this->db->prepare(
+            'SELECT id, poke_2, pobeda
+               FROM battles
+              WHERE id = :id AND user_1 = :user AND batl_tip = "pve"
+              LIMIT 1'
+        );
+        $battle->execute([
+            'id' => $battleId,
+            'user' => $userId,
+        ]);
+        $row = $battle->fetch();
+        if (!$row) {
+            $this->db->prepare('UPDATE users SET battleid = 0 WHERE id = :id LIMIT 1')->execute(['id' => $userId]);
+            return;
+        }
+
+        if ((int) ($row['pobeda'] ?? 0) === 0) {
+            // Бой еще не помечен как завершенный.
+            return;
+        }
+
+        $enemyBattlePokemon = (string) ($row['poke_2'] ?? '');
+
+        $this->db->prepare('DELETE FROM statpokemonbatle WHERE battleid = :id')->execute(['id' => $battleId]);
         $this->db->prepare('DELETE FROM battle_log WHERE battle_id = :id')->execute(['id' => $battleId]);
+        $this->db->prepare('DELETE FROM battles WHERE id = :id LIMIT 1')->execute(['id' => $battleId]);
 
         $parsed = $this->parseBattlePokemon($enemyBattlePokemon);
         if ($parsed !== null && $parsed['table'] === 'pok_pve') {
             $this->db->prepare('DELETE FROM pok_pve WHERE id = :id LIMIT 1')->execute(['id' => $parsed['id']]);
         }
+
+        $this->db->prepare('UPDATE users SET battleid = 0 WHERE id = :id LIMIT 1')->execute(['id' => $userId]);
     }
 
     private function parseBattlePokemon(string $value): ?array
@@ -608,7 +873,10 @@ final class BattleRepository
         $itemId = (int) ($item['id_items'] ?? 0);
         $rawName = (string) ($item['name'] ?? '');
         $name = function_exists('mb_strtolower') ? mb_strtolower($rawName) : strtolower($rawName);
-        return $itemId === 2 || str_contains($name, 'скоб') || str_contains($name, 'macho') || str_contains($name, 'brace');
+        return $itemId === 2
+            || str_contains($name, 'скоб')
+            || str_contains($name, 'macho')
+            || str_contains($name, 'brace');
     }
 
     private function calculateStats(array $pokemon, int $level): array
@@ -628,985 +896,6 @@ final class BattleRepository
             'satk' => (int) round(((((int) ($pokemon['satk_iv'] ?? 1) + ((int) $base['satk'] * 2) + ((int) ($pokemon['satk_ev'] ?? 0) / 4)) * ($level / 100)) + 5) * (float) $har['satk']),
             'sdef' => (int) round(((((int) ($pokemon['sdef_iv'] ?? 1) + ((int) $base['sdef'] * 2) + ((int) ($pokemon['sdef_ev'] ?? 0) / 4)) * ($level / 100)) + 5) * (float) $har['sdef']),
             'speed' => (int) round(((((int) ($pokemon['speed_iv'] ?? 1) + ((int) $base['speed'] * 2) + ((int) ($pokemon['speed_ev'] ?? 0) / 4)) * ($level / 100)) + 5) * (float) $har['speed']),
-        ];
-    }
-}
-__halt_compiler();
-<?php
-declare(strict_types=1);
-
-namespace Pokemon8\Repository;
-
-use PDO;
-
-final class BattleRepository
-{
-    public function __construct(private PDO $db)
-    {
-    }
-
-    public function findActivePveBattleIdForUser(int $userId): int
-    {
-        $stmt = $this->db->prepare('SELECT battleid FROM users WHERE id = :id AND pve = 1 LIMIT 1');
-        $stmt->execute(['id' => $userId]);
-        return (int) ($stmt->fetchColumn() ?: 0);
-    }
-
-    public function findPveBattleForUser(int $userId, int $battleId): ?array
-    {
-        $stmt = $this->db->prepare(
-            'SELECT id, user_1, user_2, poke_1, poke_2, attac_1, attac_2, raund, hod_user_id, pobeda
-               FROM battles
-              WHERE id = :id AND user_1 = :user AND batl_tip = "pve"
-              LIMIT 1'
-        );
-        $stmt->execute(['id' => $battleId, 'user' => $userId]);
-        return $stmt->fetch() ?: null;
-    }
-
-    public function findPokemon(string $battlePokemon): ?array
-    {
-        $parsed = $this->parseBattlePokemon($battlePokemon);
-        if ($parsed === null) {
-            return null;
-        }
-
-        $stmt = $this->db->prepare(
-            'SELECT id, users, names, basenum, lvl, hp_my, hp_max, atk, def, satk, sdef, speed
-               FROM ' . $parsed['table'] . '
-              WHERE id = :id
-              LIMIT 1'
-        );
-        $stmt->execute(['id' => $parsed['id']]);
-        $row = $stmt->fetch();
-        if (!$row) {
-            return null;
-        }
-
-        $row['battle_pokemon'] = $battlePokemon;
-        return $row;
-    }
-
-    public function findUserBattlePokemonOptions(int $userId): array
-    {
-        $stmt = $this->db->prepare(
-            'SELECT id, names, hp_my, hp_max, active, basenum, lvl
-               FROM pok_user
-              WHERE users = :user AND active = 1
-              ORDER BY (hp_my > 0) DESC, startepoke DESC, id ASC'
-        );
-        $stmt->execute(['user' => $userId]);
-        $rows = $stmt->fetchAll();
-        return is_array($rows) ? $rows : [];
-    }
-
-    public function findAvailableMoves(int $baseId, int $level): array
-    {
-        $stmt = $this->db->prepare(
-            'SELECT ap.atac_id AS id, ap.atc_lvl,
-                    apw.atac_name, apw.atac_power, apw.atac_accuracy, apw.atac_categori, apw.critic, apw.priorety
-               FROM attac_poke ap
-               LEFT JOIN attac_power apw ON apw.atac_id = ap.atac_id
-              WHERE ap.poke_base_id = :base AND ap.atc_lvl <= :lvl
-              ORDER BY ap.atc_lvl DESC, ap.atac_id DESC
-              LIMIT 16'
-        );
-        $stmt->execute(['base' => $baseId, 'lvl' => $level]);
-        $rows = $stmt->fetchAll();
-
-        if (!is_array($rows) || $rows === []) {
-            return [[
-                'id' => 33,
-                'atac_name' => 'Tackle',
-                'atac_power' => 40,
-                'atac_accuracy' => 100,
-                'atac_categori' => 1,
-                'critic' => 1,
-                'priorety' => 0,
-            ]];
-        }
-
-        $byId = [];
-        foreach ($rows as $row) {
-            $id = (int) ($row['id'] ?? 0);
-            if ($id <= 0 || isset($byId[$id])) {
-                continue;
-            }
-            $byId[$id] = $row;
-        }
-
-        return array_slice(array_values($byId), 0, 4);
-    }
-
-    public function updateBattleAction(int $battleId, int $playerAttack, int $enemyAttack): void
-    {
-        $stmt = $this->db->prepare(
-            'UPDATE battles SET attac_1 = :attac_1, attac_2 = :attac_2 WHERE id = :id LIMIT 1'
-        );
-        $stmt->execute([
-            'attac_1' => $playerAttack,
-            'attac_2' => $enemyAttack,
-            'id' => $battleId,
-        ]);
-    }
-
-    public function incrementRoundAndResetActions(int $battleId): void
-    {
-        $stmt = $this->db->prepare(
-            'UPDATE battles SET attac_1 = 0, attac_2 = 0, raund = raund + 1 WHERE id = :id LIMIT 1'
-        );
-        $stmt->execute(['id' => $battleId]);
-    }
-
-    public function updatePokemonHp(string $battlePokemon, int $newHp): void
-    {
-        $parsed = $this->parseBattlePokemon($battlePokemon);
-        if ($parsed === null) {
-            return;
-        }
-
-        $stmt = $this->db->prepare(
-            'UPDATE ' . $parsed['table'] . ' SET hp_my = :hp WHERE id = :id LIMIT 1'
-        );
-        $stmt->execute(['hp' => max(0, $newHp), 'id' => $parsed['id']]);
-    }
-
-    public function switchPlayerPokemon(int $battleId, int $userId, int $pokemonId): bool
-    {
-        $check = $this->db->prepare(
-            'SELECT id FROM pok_user WHERE id = :id AND users = :user AND active = 1 AND hp_my > 0 LIMIT 1'
-        );
-        $check->execute(['id' => $pokemonId, 'user' => $userId]);
-        if (!$check->fetch()) {
-            return false;
-        }
-
-        $stmt = $this->db->prepare(
-            'UPDATE battles SET poke_1 = :poke WHERE id = :battle AND user_1 = :user LIMIT 1'
-        );
-        $stmt->execute([
-            'poke' => 'pvp_' . $pokemonId,
-            'battle' => $battleId,
-            'user' => $userId,
-        ]);
-        return true;
-    }
-
-    public function insertBattleLog(int $battleId, int $round, string $message): void
-    {
-        $stmt = $this->db->prepare(
-            'INSERT INTO battle_log (battle_id, demage, raund) VALUES (:battle_id, :demage, :raund)'
-        );
-        $stmt->execute([
-            'battle_id' => $battleId,
-            'demage' => $message,
-            'raund' => $round,
-        ]);
-    }
-
-    public function finishBattle(int $battleId, int $userId, int $winner): void
-    {
-        $this->db->prepare(
-            'UPDATE battles SET pobeda = :winner WHERE id = :id LIMIT 1'
-        )->execute(['winner' => $winner, 'id' => $battleId]);
-
-        $enemy = $this->db->prepare('SELECT poke_2 FROM battles WHERE id = :id LIMIT 1');
-        $enemy->execute(['id' => $battleId]);
-        $enemyBattlePokemon = (string) ($enemy->fetchColumn() ?: '');
-
-        $this->db->prepare(
-            'UPDATE users SET pve = 0, battleid = 0, atack_poke = :next_attack WHERE id = :id LIMIT 1'
-        )->execute(['next_attack' => time() + 30, 'id' => $userId]);
-
-        $this->db->prepare('DELETE FROM battles WHERE id = :id LIMIT 1')->execute(['id' => $battleId]);
-        $this->db->prepare('DELETE FROM battle_log WHERE battle_id = :id')->execute(['id' => $battleId]);
-
-        $parsed = $this->parseBattlePokemon($enemyBattlePokemon);
-        if ($parsed !== null && $parsed['table'] === 'pok_pve') {
-            $this->db->prepare('DELETE FROM pok_pve WHERE id = :id LIMIT 1')->execute(['id' => $parsed['id']]);
-        }
-    }
-
-    private function parseBattlePokemon(string $value): ?array
-    {
-        $value = trim($value);
-
-        if (preg_match('/^(pvp|pve|nps|user|npc)_(\d+)$/', $value, $m)) {
-            $prefix = $m[1];
-            $id = (int) $m[2];
-            if ($id <= 0) {
-                return null;
-            }
-
-            $table = match ($prefix) {
-                'pvp', 'user' => 'pok_user',
-                'pve' => 'pok_pve',
-                'nps', 'npc' => 'pok_nps',
-                default => '',
-            };
-            if ($table === '') {
-                return null;
-            }
-
-            return ['table' => $table, 'id' => $id];
-        }
-
-        if (ctype_digit($value)) {
-            $id = (int) $value;
-            if ($id <= 0) {
-                return null;
-            }
-
-            foreach (['pok_user', 'pok_pve', 'pok_nps'] as $table) {
-                $stmt = $this->db->prepare('SELECT id FROM ' . $table . ' WHERE id = :id LIMIT 1');
-                $stmt->execute(['id' => $id]);
-                if ($stmt->fetchColumn() !== false) {
-                    return ['table' => $table, 'id' => $id];
-                }
-            }
-        }
-
-        return null;
-    }
-}
-<?php
-declare(strict_types=1);
-
-namespace Pokemon8\Repository;
-
-use PDO;
-
-final class BattleRepository
-{
-    public function __construct(private PDO $db)
-    {
-    }
-
-    public function findActivePveBattleIdForUser(int $userId): int
-    {
-        $stmt = $this->db->prepare('SELECT battleid FROM users WHERE id = :id AND pve = 1 LIMIT 1');
-        $stmt->execute(['id' => $userId]);
-        return (int) ($stmt->fetchColumn() ?: 0);
-    }
-
-    public function findPveBattleForUser(int $userId, int $battleId): ?array
-    {
-        $stmt = $this->db->prepare(
-            'SELECT id, user_1, user_2, poke_1, poke_2, attac_1, attac_2, raund, hod_user_id, pobeda
-               FROM battles
-              WHERE id = :id AND user_1 = :user AND batl_tip = "pve"
-              LIMIT 1'
-        );
-        $stmt->execute([
-            'id' => $battleId,
-            'user' => $userId,
-        ]);
-
-        return $stmt->fetch() ?: null;
-    }
-
-    public function findPokemon(string $battlePokemon): ?array
-    {
-        $parsed = $this->parseBattlePokemon($battlePokemon);
-        if ($parsed === null) {
-            return null;
-        }
-
-        $table = $parsed['table'];
-        $stmt = $this->db->prepare(
-            'SELECT id, users, names, basenum, lvl, hp_my, hp_max, atk, def, satk, sdef, speed
-               FROM ' . $table . '
-              WHERE id = :id
-              LIMIT 1'
-        );
-        $stmt->execute(['id' => $parsed['id']]);
-
-        $row = $stmt->fetch();
-        if (!$row) {
-            return null;
-        }
-
-        $row['battle_pokemon'] = $battlePokemon;
-        $row['table'] = $table;
-        return $row;
-    }
-
-    public function findUserBattlePokemonOptions(int $userId): array
-    {
-        $stmt = $this->db->prepare(
-            'SELECT id, names, hp_my, hp_max, active, basenum, lvl
-               FROM pok_user
-              WHERE users = :user AND active = 1
-              ORDER BY (hp_my > 0) DESC, startepoke DESC, id ASC'
-        );
-        $stmt->execute(['user' => $userId]);
-
-        $rows = $stmt->fetchAll();
-        return is_array($rows) ? $rows : [];
-    }
-
-    public function findAvailableMoves(int $baseId, int $level): array
-    {
-        $stmt = $this->db->prepare(
-            'SELECT ap.atac_id AS id, ap.atc_lvl,
-                    apw.atac_name, apw.atac_power, apw.atac_accuracy, apw.atac_categori, apw.critic, apw.priorety
-               FROM attac_poke ap
-               LEFT JOIN attac_power apw ON apw.atac_id = ap.atac_id
-              WHERE ap.poke_base_id = :base AND ap.atc_lvl <= :lvl
-              ORDER BY ap.atc_lvl DESC, ap.atac_id DESC
-              LIMIT 16'
-        );
-        $stmt->execute([
-            'base' => $baseId,
-            'lvl' => $level,
-        ]);
-        $rows = $stmt->fetchAll();
-        if (!is_array($rows) || $rows === []) {
-            return [[
-                'id' => 33,
-                'atac_name' => 'Tackle',
-                'atac_power' => 40,
-                'atac_accuracy' => 100,
-                'atac_categori' => 1,
-                'critic' => 1,
-                'priorety' => 0,
-            ]];
-        }
-
-        $byId = [];
-        foreach ($rows as $row) {
-            $id = (int) ($row['id'] ?? 0);
-            if ($id <= 0 || isset($byId[$id])) {
-                continue;
-            }
-            $byId[$id] = $row;
-        }
-
-        return array_slice(array_values($byId), 0, 4);
-    }
-
-    public function updateBattleAction(int $battleId, int $playerAttack, int $enemyAttack): void
-    {
-        $stmt = $this->db->prepare(
-            'UPDATE battles
-                SET attac_1 = :attac_1, attac_2 = :attac_2
-              WHERE id = :id
-              LIMIT 1'
-        );
-        $stmt->execute([
-            'attac_1' => $playerAttack,
-            'attac_2' => $enemyAttack,
-            'id' => $battleId,
-        ]);
-    }
-
-    public function incrementRoundAndResetActions(int $battleId): void
-    {
-        $stmt = $this->db->prepare(
-            'UPDATE battles
-                SET attac_1 = 0, attac_2 = 0, raund = raund + 1
-              WHERE id = :id
-              LIMIT 1'
-        );
-        $stmt->execute(['id' => $battleId]);
-    }
-
-    public function updatePokemonHp(string $battlePokemon, int $newHp): void
-    {
-        $parsed = $this->parseBattlePokemon($battlePokemon);
-        if ($parsed === null) {
-            return;
-        }
-
-        $stmt = $this->db->prepare(
-            'UPDATE ' . $parsed['table'] . ' SET hp_my = :hp WHERE id = :id LIMIT 1'
-        );
-        $stmt->execute([
-            'hp' => max(0, $newHp),
-            'id' => $parsed['id'],
-        ]);
-    }
-
-    public function switchPlayerPokemon(int $battleId, int $userId, int $pokemonId): bool
-    {
-        $check = $this->db->prepare(
-            'SELECT id FROM pok_user WHERE id = :id AND users = :user AND active = 1 AND hp_my > 0 LIMIT 1'
-        );
-        $check->execute([
-            'id' => $pokemonId,
-            'user' => $userId,
-        ]);
-        if (!$check->fetch()) {
-            return false;
-        }
-
-        $stmt = $this->db->prepare(
-            'UPDATE battles SET poke_1 = :poke WHERE id = :battle AND user_1 = :user LIMIT 1'
-        );
-        $stmt->execute([
-            'poke' => 'pvp_' . $pokemonId,
-            'battle' => $battleId,
-            'user' => $userId,
-        ]);
-
-        return true;
-    }
-
-    public function insertBattleLog(int $battleId, int $round, string $message): void
-    {
-        $stmt = $this->db->prepare(
-            'INSERT INTO battle_log (battle_id, demage, raund) VALUES (:battle_id, :demage, :raund)'
-        );
-        $stmt->execute([
-            'battle_id' => $battleId,
-            'demage' => $message,
-            'raund' => $round,
-        ]);
-    }
-
-    public function finishBattle(int $battleId, int $userId, int $winner): void
-    {
-        $stmt = $this->db->prepare(
-            'UPDATE battles SET pobeda = :winner WHERE id = :id LIMIT 1'
-        );
-        $stmt->execute([
-            'winner' => $winner,
-            'id' => $battleId,
-        ]);
-
-        $enemy = $this->db->prepare('SELECT poke_2 FROM battles WHERE id = :id LIMIT 1');
-        $enemy->execute(['id' => $battleId]);
-        $enemyBattlePokemon = (string) ($enemy->fetchColumn() ?: '');
-
-        $this->db->prepare(
-            'UPDATE users SET pve = 0, battleid = 0, atack_poke = :next_attack WHERE id = :id LIMIT 1'
-        )->execute([
-            'next_attack' => time() + 30,
-            'id' => $userId,
-        ]);
-
-        $this->db->prepare('DELETE FROM battles WHERE id = :id LIMIT 1')->execute(['id' => $battleId]);
-        $this->db->prepare('DELETE FROM battle_log WHERE battle_id = :id')->execute(['id' => $battleId]);
-
-        $parsed = $this->parseBattlePokemon($enemyBattlePokemon);
-        if ($parsed !== null && $parsed['table'] === 'pok_pve') {
-            $this->db->prepare('DELETE FROM pok_pve WHERE id = :id LIMIT 1')->execute(['id' => $parsed['id']]);
-        }
-    }
-
-    private function parseBattlePokemon(string $value): ?array
-    {
-        $value = trim($value);
-
-        if (preg_match('/^(pvp|pve|nps|user|npc)_(\d+)$/', $value, $m)) {
-            $prefix = $m[1];
-            $id = (int) $m[2];
-            if ($id <= 0) {
-                return null;
-            }
-
-            $table = match ($prefix) {
-                'pvp', 'user' => 'pok_user',
-                'pve' => 'pok_pve',
-                'nps', 'npc' => 'pok_nps',
-                default => '',
-            };
-
-            if ($table === '') {
-                return null;
-            }
-
-            return ['table' => $table, 'id' => $id];
-        }
-
-        if (ctype_digit($value)) {
-            $id = (int) $value;
-            if ($id <= 0) {
-                return null;
-            }
-
-            foreach (['pok_user', 'pok_pve', 'pok_nps'] as $table) {
-                $stmt = $this->db->prepare('SELECT id FROM ' . $table . ' WHERE id = :id LIMIT 1');
-                $stmt->execute(['id' => $id]);
-                if ($stmt->fetchColumn() !== false) {
-                    return ['table' => $table, 'id' => $id];
-                }
-            }
-        }
-
-        return null;
-    }
-}
-<?php
-declare(strict_types=1);
-
-namespace Pokemon8\Repository;
-
-use PDO;
-
-final class BattleRepository
-{
-    public function __construct(private PDO $db)
-    {
-    }
-
-    public function findActivePveBattleIdForUser(int $userId): int
-    {
-        $stmt = $this->db->prepare('SELECT battleid FROM users WHERE id = :id AND pve = 1 LIMIT 1');
-        $stmt->execute(['id' => $userId]);
-        return (int) ($stmt->fetchColumn() ?: 0);
-    }
-
-    public function findPveBattleForUser(int $userId, int $battleId): ?array
-    {
-        $stmt = $this->db->prepare(
-            'SELECT id, user_1, user_2, poke_1, poke_2, attac_1, attac_2, raund, hod_user_id, pobeda
-               FROM battles
-              WHERE id = :id AND user_1 = :user AND batl_tip = "pve"
-              LIMIT 1'
-        );
-        $stmt->execute([
-            'id' => $battleId,
-            'user' => $userId,
-        ]);
-
-        return $stmt->fetch() ?: null;
-    }
-
-    public function findPokemon(string $battlePokemon): ?array
-    {
-        $parsed = $this->parseBattlePokemon($battlePokemon);
-        if ($parsed === null) {
-            return null;
-        }
-
-        $table = $parsed['table'];
-        $stmt = $this->db->prepare(
-            'SELECT id, users, names, basenum, lvl, hp_my, hp_max, atk, def, satk, sdef, speed
-               FROM ' . $table . '
-              WHERE id = :id
-              LIMIT 1'
-        );
-        $stmt->execute(['id' => $parsed['id']]);
-
-        $row = $stmt->fetch();
-        if (!$row) {
-            return null;
-        }
-
-        $row['battle_pokemon'] = $battlePokemon;
-        $row['table'] = $table;
-        return $row;
-    }
-
-    public function findUserBattlePokemonOptions(int $userId): array
-    {
-        $stmt = $this->db->prepare(
-            'SELECT id, names, hp_my, hp_max, active, basenum, lvl
-               FROM pok_user
-              WHERE users = :user AND active = 1
-              ORDER BY (hp_my > 0) DESC, startepoke DESC, id ASC'
-        );
-        $stmt->execute(['user' => $userId]);
-
-        $rows = $stmt->fetchAll();
-        return is_array($rows) ? $rows : [];
-    }
-
-    public function findAvailableMoves(int $baseId, int $level): array
-    {
-        $stmt = $this->db->prepare(
-            'SELECT ap.atac_id AS id, ap.atc_lvl,
-                    apw.atac_name, apw.atac_power, apw.atac_accuracy, apw.atac_categori, apw.critic, apw.priorety
-               FROM attac_poke ap
-               LEFT JOIN attac_power apw ON apw.atac_id = ap.atac_id
-              WHERE ap.poke_base_id = :base AND ap.atc_lvl <= :lvl
-              ORDER BY ap.atc_lvl DESC, ap.atac_id DESC
-              LIMIT 16'
-        );
-        $stmt->execute([
-            'base' => $baseId,
-            'lvl' => $level,
-        ]);
-        $rows = $stmt->fetchAll();
-        if (!is_array($rows) || $rows === []) {
-            return [[
-                'id' => 33,
-                'atac_name' => 'Tackle',
-                'atac_power' => 40,
-                'atac_accuracy' => 100,
-                'atac_categori' => 1,
-                'critic' => 1,
-                'priorety' => 0,
-            ]];
-        }
-
-        $byId = [];
-        foreach ($rows as $row) {
-            $id = (int) ($row['id'] ?? 0);
-            if ($id <= 0 || isset($byId[$id])) {
-                continue;
-            }
-            $byId[$id] = $row;
-        }
-
-        return array_slice(array_values($byId), 0, 4);
-    }
-
-    public function updateBattleAction(int $battleId, int $playerAttack, int $enemyAttack): void
-    {
-        $stmt = $this->db->prepare(
-            'UPDATE battles
-                SET attac_1 = :attac_1, attac_2 = :attac_2
-              WHERE id = :id
-              LIMIT 1'
-        );
-        $stmt->execute([
-            'attac_1' => $playerAttack,
-            'attac_2' => $enemyAttack,
-            'id' => $battleId,
-        ]);
-    }
-
-    public function incrementRoundAndResetActions(int $battleId): void
-    {
-        $stmt = $this->db->prepare(
-            'UPDATE battles
-                SET attac_1 = 0, attac_2 = 0, raund = raund + 1
-              WHERE id = :id
-              LIMIT 1'
-        );
-        $stmt->execute(['id' => $battleId]);
-    }
-
-    public function updatePokemonHp(string $battlePokemon, int $newHp): void
-    {
-        $parsed = $this->parseBattlePokemon($battlePokemon);
-        if ($parsed === null) {
-            return;
-        }
-
-        $stmt = $this->db->prepare(
-            'UPDATE ' . $parsed['table'] . ' SET hp_my = :hp WHERE id = :id LIMIT 1'
-        );
-        $stmt->execute([
-            'hp' => max(0, $newHp),
-            'id' => $parsed['id'],
-        ]);
-    }
-
-    public function switchPlayerPokemon(int $battleId, int $userId, int $pokemonId): bool
-    {
-        $check = $this->db->prepare(
-            'SELECT id FROM pok_user WHERE id = :id AND users = :user AND active = 1 AND hp_my > 0 LIMIT 1'
-        );
-        $check->execute([
-            'id' => $pokemonId,
-            'user' => $userId,
-        ]);
-        if (!$check->fetch()) {
-            return false;
-        }
-
-        $stmt = $this->db->prepare(
-            'UPDATE battles SET poke_1 = :poke WHERE id = :battle AND user_1 = :user LIMIT 1'
-        );
-        $stmt->execute([
-            'poke' => 'pvp_' . $pokemonId,
-            'battle' => $battleId,
-            'user' => $userId,
-        ]);
-
-        return true;
-    }
-
-    public function insertBattleLog(int $battleId, int $round, string $message): void
-    {
-        $stmt = $this->db->prepare(
-            'INSERT INTO battle_log (battle_id, demage, raund) VALUES (:battle_id, :demage, :raund)'
-        );
-        $stmt->execute([
-            'battle_id' => $battleId,
-            'demage' => $message,
-            'raund' => $round,
-        ]);
-    }
-
-    public function finishBattle(int $battleId, int $userId, int $winner): void
-    {
-        $stmt = $this->db->prepare(
-            'UPDATE battles SET pobeda = :winner WHERE id = :id LIMIT 1'
-        );
-        $stmt->execute([
-            'winner' => $winner,
-            'id' => $battleId,
-        ]);
-
-        $enemy = $this->db->prepare('SELECT poke_2 FROM battles WHERE id = :id LIMIT 1');
-        $enemy->execute(['id' => $battleId]);
-        $enemyBattlePokemon = (string) ($enemy->fetchColumn() ?: '');
-
-        $this->db->prepare(
-            'UPDATE users SET pve = 0, battleid = 0, atack_poke = :next_attack WHERE id = :id LIMIT 1'
-        )->execute([
-            'next_attack' => time() + 30,
-            'id' => $userId,
-        ]);
-
-        $this->db->prepare('DELETE FROM battles WHERE id = :id LIMIT 1')->execute(['id' => $battleId]);
-        $this->db->prepare('DELETE FROM battle_log WHERE battle_id = :id')->execute(['id' => $battleId]);
-
-        $parsed = $this->parseBattlePokemon($enemyBattlePokemon);
-        if ($parsed !== null && $parsed['table'] === 'pok_pve') {
-            $this->db->prepare('DELETE FROM pok_pve WHERE id = :id LIMIT 1')->execute(['id' => $parsed['id']]);
-        }
-    }
-
-    private function parseBattlePokemon(string $value): ?array
-    {
-        $value = trim($value);
-
-        if (preg_match('/^(pvp|pve|nps|user|npc)_(\d+)$/', $value, $m)) {
-            $prefix = $m[1];
-            $id = (int) $m[2];
-            if ($id <= 0) {
-                return null;
-            }
-
-            $table = match ($prefix) {
-                'pvp', 'user' => 'pok_user',
-                'pve' => 'pok_pve',
-                'nps', 'npc' => 'pok_nps',
-                default => '',
-            };
-
-            if ($table === '') {
-                return null;
-            }
-
-            return ['table' => $table, 'id' => $id];
-        }
-
-        if (ctype_digit($value)) {
-            $id = (int) $value;
-            if ($id <= 0) {
-                return null;
-            }
-
-            foreach (['pok_user', 'pok_pve', 'pok_nps'] as $table) {
-                $stmt = $this->db->prepare('SELECT id FROM ' . $table . ' WHERE id = :id LIMIT 1');
-                $stmt->execute(['id' => $id]);
-                if ($stmt->fetchColumn() !== false) {
-                    return ['table' => $table, 'id' => $id];
-                }
-            }
-        }
-
-        return null;
-    }
-}
-<?php
-declare(strict_types=1);
-
-namespace App\Repository;
-
-use PDO;
-use RuntimeException;
-
-/**
- * BattleRepository
- *
- * ВАЖНО:
- * - Сохраняет legacy-таблицы: battles, pok_user, pok_pve, users.
- * - Нормализует типы на выходе.
- * - SQL-поля могут отличаться в твоей БД. Если имена отличаются — править только здесь.
- */
-final class BattleRepository
-{
-    public function __construct(private PDO $pdo) {}
-
-    public function getActivePveBattleForUser(int $userId): ?array
-    {
-        $stmt = $this->pdo->prepare(
-            'SELECT * FROM battles WHERE user_id = :user_id AND type = :type AND status = :status ORDER BY id DESC LIMIT 1'
-        );
-        $stmt->execute([
-            ':user_id' => $userId,
-            ':type' => 'pve',
-            ':status' => 'active',
-        ]);
-
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row ? $this->normalizeBattle($row) : null;
-    }
-
-    public function getBattleById(int $battleId, int $userId): ?array
-    {
-        $stmt = $this->pdo->prepare(
-            'SELECT * FROM battles WHERE id = :id AND user_id = :user_id LIMIT 1'
-        );
-        $stmt->execute([
-            ':id' => $battleId,
-            ':user_id' => $userId,
-        ]);
-
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row ? $this->normalizeBattle($row) : null;
-    }
-
-    public function getPlayerPokemon(int $pokUserId, int $userId): ?array
-    {
-        $stmt = $this->pdo->prepare(
-            'SELECT * FROM pok_user WHERE id = :id AND user_id = :user_id LIMIT 1'
-        );
-        $stmt->execute([
-            ':id' => $pokUserId,
-            ':user_id' => $userId,
-        ]);
-
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row ? $this->normalizePokemon($row) : null;
-    }
-
-    public function getWildPokemon(int $pokPveId): ?array
-    {
-        $stmt = $this->pdo->prepare(
-            'SELECT * FROM pok_pve WHERE id = :id LIMIT 1'
-        );
-        $stmt->execute([':id' => $pokPveId]);
-
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row ? $this->normalizePokemon($row) : null;
-    }
-
-    public function updatePlayerPokemonHp(int $pokUserId, int $userId, int $hp): void
-    {
-        $stmt = $this->pdo->prepare(
-            'UPDATE pok_user SET hp = :hp WHERE id = :id AND user_id = :user_id LIMIT 1'
-        );
-        $stmt->execute([
-            ':hp' => max(0, $hp),
-            ':id' => $pokUserId,
-            ':user_id' => $userId,
-        ]);
-    }
-
-    public function updateWildPokemonHp(int $pokPveId, int $hp): void
-    {
-        $stmt = $this->pdo->prepare(
-            'UPDATE pok_pve SET hp = :hp WHERE id = :id LIMIT 1'
-        );
-        $stmt->execute([
-            ':hp' => max(0, $hp),
-            ':id' => $pokPveId,
-        ]);
-    }
-
-    public function updateBattleState(int $battleId, array $state): void
-    {
-        $stmt = $this->pdo->prepare(
-            'UPDATE battles SET state_json = :state_json, updated_at = NOW() WHERE id = :id LIMIT 1'
-        );
-        $stmt->execute([
-            ':state_json' => json_encode($state, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-            ':id' => $battleId,
-        ]);
-    }
-
-    public function appendRoundLog(int $battleId, string $message, array $context = []): void
-    {
-        $stmt = $this->pdo->prepare(
-            'INSERT INTO battle_logs (battle_id, message, context_json, created_at)
-             VALUES (:battle_id, :message, :context_json, NOW())'
-        );
-        $stmt->execute([
-            ':battle_id' => $battleId,
-            ':message' => $message,
-            ':context_json' => json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-        ]);
-    }
-
-    public function getBattleLog(int $battleId, int $limit = 30): array
-    {
-        $stmt = $this->pdo->prepare(
-            'SELECT message, context_json, created_at FROM battle_logs
-             WHERE battle_id = :battle_id ORDER BY id DESC LIMIT :limit'
-        );
-        $stmt->bindValue(':battle_id', $battleId, PDO::PARAM_INT);
-        $stmt->bindValue(':limit', max(1, min(100, $limit)), PDO::PARAM_INT);
-        $stmt->execute();
-
-        return array_reverse($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
-    }
-
-    public function finishBattle(int $battleId, int $userId, string $result): void
-    {
-        $this->pdo->beginTransaction();
-
-        try {
-            $stmt = $this->pdo->prepare(
-                'UPDATE battles SET status = :status, result = :result, ended_at = NOW(), updated_at = NOW()
-                 WHERE id = :id AND user_id = :user_id LIMIT 1'
-            );
-            $stmt->execute([
-                ':status' => 'finished',
-                ':result' => $result,
-                ':id' => $battleId,
-                ':user_id' => $userId,
-            ]);
-
-            $stmt = $this->pdo->prepare(
-                'UPDATE users SET pve = 0, battleid = 0 WHERE id = :user_id LIMIT 1'
-            );
-            $stmt->execute([':user_id' => $userId]);
-
-            $this->pdo->commit();
-        } catch (\Throwable $e) {
-            $this->pdo->rollBack();
-            throw $e;
-        }
-    }
-
-    public function cleanupPveState(int $userId): void
-    {
-        $stmt = $this->pdo->prepare(
-            'UPDATE users SET pve = 0, battleid = 0 WHERE id = :user_id LIMIT 1'
-        );
-        $stmt->execute([':user_id' => $userId]);
-    }
-
-    private function normalizeBattle(array $row): array
-    {
-        $state = [];
-        if (!empty($row['state_json'])) {
-            $decoded = json_decode((string)$row['state_json'], true);
-            $state = is_array($decoded) ? $decoded : [];
-        }
-
-        return [
-            'id' => (int)($row['id'] ?? 0),
-            'user_id' => (int)($row['user_id'] ?? 0),
-            'player_pokemon_id' => (int)($row['player_pokemon_id'] ?? $row['pok_user_id'] ?? 0),
-            'wild_pokemon_id' => (int)($row['wild_pokemon_id'] ?? $row['pok_pve_id'] ?? 0),
-            'status' => (string)($row['status'] ?? 'active'),
-            'result' => isset($row['result']) ? (string)$row['result'] : null,
-            'state' => $state,
-        ];
-    }
-
-    private function normalizePokemon(array $row): array
-    {
-        return [
-            'id' => (int)($row['id'] ?? 0),
-            'name' => (string)($row['name'] ?? $row['nickname'] ?? $row['pok_name'] ?? 'Pokemon'),
-            'level' => (int)($row['level'] ?? $row['lvl'] ?? 1),
-            'hp' => max(0, (int)($row['hp'] ?? 0)),
-            'max_hp' => max(1, (int)($row['max_hp'] ?? $row['hp_max'] ?? $row['hp'] ?? 1)),
-            'attack' => max(1, (int)($row['attack'] ?? $row['atk'] ?? 10)),
-            'defense' => max(1, (int)($row['defense'] ?? $row['def'] ?? 10)),
-            'speed' => max(1, (int)($row['speed'] ?? $row['spd'] ?? 10)),
-            'status' => (string)($row['status'] ?? ''),
-            'raw' => $row,
         ];
     }
 }

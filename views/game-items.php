@@ -51,7 +51,7 @@ use Pokemon8\View\View;
     @media (max-width: 980px) { .search input{width:180px;} .side{grid-template-columns:1fr;} }
   </style>
 </head>
-<body>
+<body data-csrf="<?= View::e((string) $csrf) ?>">
   <main class="page">
     <div class="head">
       <div>
@@ -108,6 +108,7 @@ use Pokemon8\View\View;
           <input id="amountClan" type="number" min="1" placeholder="Кол-во (клан)">
           <button id="clanBtn" type="button" disabled>Отдать клану</button>
           <button id="dressBtn" type="button" disabled>Одеть</button>
+          <button id="undressBtn" type="button">Снять</button>
           <button id="openBtn" type="button" disabled>Открыть</button>
         </div>
       </section>
@@ -116,7 +117,11 @@ use Pokemon8\View\View;
         <div class="controls">
           <select id="pokemonSelect">
             <?php foreach ($pokemons as $pokemon): ?>
-              <option value="<?= View::e((string) ($pokemon['id'] ?? '0')) ?>"><?= View::e((string) ($pokemon['names'] ?? 'Покемон')) ?></option>
+              <option
+                value="<?= View::e((string) ($pokemon['id'] ?? '0')) ?>"
+                data-item-id="<?= View::e((string) ($pokemon['equipped_item_id'] ?? '0')) ?>"
+                data-item-name="<?= View::e((string) ($pokemon['equipped_item_name'] ?? '')) ?>"
+              ><?= View::e(strip_tags((string) ($pokemon['names'] ?? 'Покемон'))) ?></option>
             <?php endforeach; ?>
           </select>
           <input id="pageInfo" value="1/1" readonly>
@@ -127,6 +132,7 @@ use Pokemon8\View\View;
     </div>
   </main>
   <script>
+    const csrf = document.body.dataset.csrf || '';
     const state = { page: 1, pages: 1, selected: null, items: [] };
 
     function setToast(text) {
@@ -177,6 +183,95 @@ use Pokemon8\View\View;
       openBtn.disabled = !(String(item.elementary || '0') !== '1');
       dropBtn.disabled = String(item.delet || '0') === '1';
       clanBtn.disabled = String(item.delet || '0') === '1';
+    }
+
+    function selectedPokemonId() {
+      return Number(document.getElementById('pokemonSelect').value || 0);
+    }
+
+    function renderPokemonEquipHint() {
+      const select = document.getElementById('pokemonSelect');
+      const option = select.options[select.selectedIndex];
+      if (!option) return;
+
+      const itemId = Number(option.dataset.itemId || 0);
+      const itemName = option.dataset.itemName || '';
+      const base = itemId > 0
+        ? 'На покемоне: ' + (itemName || ('предмет #' + itemId)) + '.'
+        : 'На выбранном покемоне нет предмета.';
+      const toast = document.getElementById('toast');
+      if (!toast.textContent || toast.dataset.equipHint === '1') {
+        toast.textContent = base;
+        toast.dataset.equipHint = '1';
+      }
+    }
+
+    function updatePokemonOptions(pokemon) {
+      if (!Array.isArray(pokemon)) return;
+      const select = document.getElementById('pokemonSelect');
+      const currentValue = select.value;
+      select.innerHTML = '';
+      for (const poke of pokemon) {
+        const option = document.createElement('option');
+        option.value = String(poke.id || 0);
+        option.textContent = String(poke.names || 'Покемон').replace(/<[^>]*>/g, '');
+        option.dataset.itemId = String(poke.equipped_item_id || 0);
+        option.dataset.itemName = String(poke.equipped_item_name || '');
+        select.appendChild(option);
+      }
+      if (currentValue) select.value = currentValue;
+    }
+
+    async function postInventoryAction(url, fields) {
+      const body = new URLSearchParams();
+      body.set('_csrf', csrf);
+      Object.entries(fields || {}).forEach(([key, value]) => body.set(key, String(value)));
+
+      const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body
+      });
+      return response.json();
+    }
+
+    async function equipSelectedItem() {
+      if (!state.selected) return;
+      const pokemonId = selectedPokemonId();
+      if (pokemonId <= 0) {
+        setToast('Выберите покемона.');
+        return;
+      }
+
+      const payload = await postInventoryAction('/api/inventory/equip', {
+        item_user_id: state.selected.id,
+        pokemon_id: pokemonId
+      });
+      setToast(payload && payload.message ? payload.message : 'Готово.');
+      document.getElementById('toast').dataset.equipHint = '';
+      if (payload && payload.ok) {
+        updatePokemonOptions(payload.pokemon);
+        await loadPage(state.page);
+        setToast(payload.message || 'Готово.');
+      }
+    }
+
+    async function unequipSelectedPokemon() {
+      const pokemonId = selectedPokemonId();
+      if (pokemonId <= 0) {
+        setToast('Выберите покемона.');
+        return;
+      }
+
+      const payload = await postInventoryAction('/api/inventory/unequip', { pokemon_id: pokemonId });
+      setToast(payload && payload.message ? payload.message : 'Готово.');
+      document.getElementById('toast').dataset.equipHint = '';
+      if (payload && payload.ok) {
+        updatePokemonOptions(payload.pokemon);
+        await loadPage(state.page);
+        setToast(payload.message || 'Готово.');
+      }
     }
 
     function renderGrid() {
@@ -250,10 +345,16 @@ use Pokemon8\View\View;
     function bindActionButtons() {
       const note = () => setToast('Действие будет подключено следующим этапом через API.');
       document.getElementById('useBtn').addEventListener('click', note);
-      document.getElementById('dressBtn').addEventListener('click', note);
+      document.getElementById('dressBtn').addEventListener('click', equipSelectedItem);
+      document.getElementById('undressBtn').addEventListener('click', unequipSelectedPokemon);
       document.getElementById('openBtn').addEventListener('click', note);
       document.getElementById('dropBtn').addEventListener('click', note);
       document.getElementById('clanBtn').addEventListener('click', note);
+      document.getElementById('pokemonSelect').addEventListener('change', () => {
+        document.getElementById('toast').dataset.equipHint = '1';
+        renderPokemonEquipHint();
+      });
+      document.getElementById('pokemonSelect').addEventListener('dblclick', unequipSelectedPokemon);
       document.getElementById('refreshBtn').addEventListener('click', () => loadPage(state.page));
       document.getElementById('prevPageBtn').addEventListener('click', () => loadPage(Math.max(1, state.page - 1)));
       document.getElementById('nextPageBtn').addEventListener('click', () => loadPage(Math.min(state.pages, state.page + 1)));
@@ -277,6 +378,7 @@ use Pokemon8\View\View;
 
     bindActionButtons();
     loadPage(1);
+    renderPokemonEquipHint();
   </script>
 </body>
 </html>
