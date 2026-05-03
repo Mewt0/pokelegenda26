@@ -1,0 +1,5 @@
+AddDefaultCharset cp1251
+php_value default_charset cp1251
+php_value default_charset cp1251
+Order Allow,Deny
+Deny from All

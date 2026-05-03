@@ -1,0 +1,354 @@
+<?php
+session_start();
+require_once ("include/function/db3.php");
+require_once ("include/function/config.php");
+require_once ("include/function/globfanction.php");
+require_once ("include/function/functionusers.php");
+require_once ("include/class/index.class.php");
+$db = db($config);
+require_once ("ban.php");
+$includeIndexNews = false;
+if (isset($_GET['go']) && ($_GET['go'] != false)){
+  $goindex = $_GET['go'];
+    if($goindex == 'exits' && !empty($_SESSION['id'])){
+      update('users',array('online'=>0),'id='.(int)$_SESSION['id']);
+      unset($_SESSION['login']);
+      unset($_SESSION['password']);
+      header('Location: ..');
+     }
+    elseif($goindex == 'reg'){
+      $includFiles = 'include/files/registration.php';
+      $includeIndexNews = true;
+    }
+    elseif($goindex == 'rule'){
+      $includFiles = 'include/files/rulles.php';
+      $includeIndexNews = true;
+    }
+    elseif($goindex == 'provReg' && $_GET['severeg'] == false){
+      require_once("include/files/registrationseve.php");
+      exit;
+    }
+    elseif($goindex == 'sendpass'){
+      $includFiles = 'include/files/sendpass.php';
+      $includeIndexNews = true;
+    }else{
+      header('Location: ..');
+    } 
+}
+
+if (!empty($_GET['code'])){
+  $code = $_GET['code'];
+  
+  Header("Pragma: no-cache");
+    $pic = ImageCreateFromgif("css/img/code.gif");
+  Header("Content-type: image/gif");
+    $color=ImageColorAllocate($pic, 255, 204, 0);
+    ImageString($pic,4,12,1,$code,$color);
+    Imagegif($pic);
+    ImageDestroy($pic); 
+}
+
+
+if(!empty($_SESSION['login']) && !empty($_SESSION['password'])){
+  if(!empty($_SESSION['browse']) && $_SESSION['browse'] == getBrowserSign()){
+    $myrow = first('SELECT id,login,activation,password,groups FROM users WHERE login="%s" AND password="%s" AND activation=1',$_SESSION['login'],$_SESSION['password']);
+    $_SESSION['browse'] = getBrowserSign();
+  }
+}else{ 
+  $myrow = false;
+}
+if(!$myrow['id'])
+    {
+        setcookie("PHPSESSID", "", time() - 3600);
+        unset($_SESSION['browse']);
+        unset($_SESSION['login']);
+        unset($_SESSION['password']);
+    }
+                                                                                                                                                       
+if (
+      (isset($myrow['login']) && ($myrow['login'] == $_SESSION['login'])) 
+        && 
+      (isset($myrow['password']) && ($myrow['password'] == $_SESSION['password']))
+   )
+  $autorize = true;
+else
+  $autorize = false;
+
+$townsInd  = new TownsIndex();
+$onlineInd = new OnlineIndex();
+if(arrayTime(date('i'))) 
+    $townsInd -> updateOffline();
+if(arrayTime(date('i')) && !empty($_SESSION['id'])) 
+    $townsInd -> updateOnline();
+    
+
+$zahvat = first('SELECT * FROM settings_zax WHERE id_struc=1');
+if(!empty($_GET['timezone'])){
+ 
+    print 'countdown = '.($_GET['timezone'] == 'zaxvat'?$zahvat["timer"]-time():$zahvat["times_2"]-time()).' 
+          function convert_to_time(secs){
+            	secs = parseInt(secs);	
+            	hh = secs / 3600;	
+            	hh = parseInt(hh);	
+            	mmt = secs - (hh * 3600);
+            	mm = mmt / 60;	
+            	mm = parseInt(mm);	
+            	ss = mmt - (mm * 60);
+    	         if (hh > 23){	
+                 dd = hh / 24;	  
+            	   dd = parseInt(dd);	
+            	   hh = hh - (dd * 24);	
+               } else { 
+                dd = 0; 
+              }
+              	if (ss < 10)  ss = "0"+ss; 	
+              	if (mm < 10)  mm = "0"+mm; 	
+              	if (hh < 10)  hh = "0"+hh; 	
+              	if (dd == 0)  return (hh+" С‡. "+mm+" РјРёРЅ. "+ss+" СЃРµРє. "); else {
+                  		if (dd > 1)  return (dd+" Рґ. "+hh+" С‡. "+mm+" РјРёРЅ. "+ss+" СЃРµРє. "); 
+                      		else  return (dd+" Рґ. "+hh+" С‡. "+mm+" РјРёРЅ. "+ss+" СЃРµРє. "); 
+                }		
+          }
+          function do_cd(){
+	         if (countdown < 0){ 	
+		        document.getElementById(\'cd\').innerHTML = "Р—Р°С…РІР°С‚ РЅР°С‡Р°Р»СЃСЏ!"; 
+           }else{	
+		        document.getElementById(\'cd\').innerHTML = convert_to_time(countdown);
+		        setTimeout(\'do_cd()\', 1000);
+	         }	
+	         countdown = countdown - 1;	
+          }
+          document.write("<div id=\'cd\'></div>\n");
+          do_cd();
+          ';
+exit;
+}
+
+if($zahvat['klanz_pobed'] > 0 && $zahvat['klanz_pobed'] != 1){
+  $clan = first('SELECT clan_name FROM clans WHERE id_clan=%d',$zahvat['klanz_pobed']);
+}else{
+  $clan = array();
+  $clan['clan_name'] = 'Pokelegenda';
+}
+$zax_txt = false;
+if($zahvat['yes'] == 0){
+  $a = 24 * 60 * 60;
+  $b = time();
+  $c = $zahvat["timer"];
+  $d = $c - $b; 
+  $e = $d / $a; 
+  $f = floor($e); 
+  $g = ($e - $f)*24; 
+  $i = floor($g); 
+  $m = floor(($g - $i)*60);
+  $zax_txt = "Р”Рѕ Р·Р°С…РІР°С‚Р° РѕСЃС‚Р°Р»РѕСЃСЊ: <br><b><script language=\"JavaScript\" src=\"/index.php?timezone=zaxvat\"></script></b> Р’СЃРµ СЃРѕР±СЂР°РЅРЅС‹Рµ РЅР°Р»РѕРіРё РїСЂРёРЅР°РґР»РµР¶Р°С‚ РєР»Р°РЅСѓ: <br/> <b style='color:#fff'>".$clan['clan_name']."</b><br/> РЎСѓРјРјР° РЅР°Р»РѕРіРѕРІ СЃРѕСЃС‚Р°РІР»СЏРµС‚:<br/> <b style='color:#fff'>".formatnum($zahvat['cool_many'])." РњРѕРЅРµС‚.</b>"; 
+}
+if($zahvat['yes'] == 1){
+  $a = 24 * 60 * 60;
+  $b = time();
+  $c = $zahvat["times_2"];
+  $d = $c - $b; 
+  $e = $d / $a; 
+  $f = floor($e); 
+  $g = ($e - $f)*24; 
+  $i = floor($g); 
+  $m = floor(($g - $i)*60);
+  $zax_txt = "Р—Р°С…РІР°С‚ РїСЂРѕРґР»РёС‚СЃСЏ РµС‰Рµ: <br><b><script language=\"JavaScript\" SRC=\"/index.php?timezone=zaxvatgo\"></script></b>";
+}
+?>
+
+
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd"><html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>League-of-pokemons</title>
+<style>
+#subEnter{
+  display: none;  
+}
+</style>
+<script type='text/javascript' src='/script/jquery.js'></script>
+<script type='text/javascript' src='/script/md5.js'></script>
+<script type='text/javascript' src='/script/textJs.js'></script>
+<script type='text/javascript' src='/script/autr.js'></script>
+
+<script type='text/javascript'>
+function hrefs(){
+  window.location.href=window.location.href;
+}
+</script>
+<div id='bar'>
+<div id='autorizeDiv'>
+<?php if(!$autorize){ ?>
+<table style="">
+<tr>
+<td>
+<form name="formAut" id="formAut"  action="/autoriz.php"  method="post">
+Р›РѕРіРёРЅ:  <input id="login" class="formAut" name="LOGIN" type="text" size="16" maxlength="16" value=""> 
+РџР°СЂРѕР»СЊ: <input id="pass" class="formAut" name="PASSWORD" type="password" size="16" maxlength="16"" value=""> 
+</td>
+<td>
+  <input id="autoChec" class="checAut" name="AUTO" type="checkbox" style="cursor:hand"> 
+  РђРІС‚РѕРІС…РѕРґ
+</td>
+<td>
+  <input id="confirmOk" type="submit" name="submit" class="btInp" value="Р’С…РѕРґ"/>
+</form>
+</td>
+<td>
+  | <button id="confirmOk" type="button" class="btInp" onclick="window.location.href='index.php?go=reg';" title="Р—Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°С‚СЊСЃСЏ">Р РµРіРёСЃС‚СЂР°С†РёСЏ</button>
+</td>
+<td>
+  | <button id="confirmOk" type="button" class="btInp" onclick="window.location.href='index.php?go=sendpass';" title="Р’РѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ РїР°СЂРѕР»СЊ">Р’РѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёРµ РїР°СЂРѕР»СЏ</button>
+</td>
+</tr>
+</table>
+<?php                                                   
+} else { 
+  print 'РџСЂРёРІРµС‚СЃС‚РІСѓРµРј Р’Р°СЃ, С‚СЂРµРЅРµСЂ: '.$_SESSION['login'].'! 
+  |  <button type="button" class="btInp" onclick="window.open(\'/game\',\'mir\');">Р’ РјРёСЂ</button>
+  |  <button type="button" class="btInp" onclick="window.open(\'/game.php?go=start\',\'game\');">Р’ РёРіСЂСѓ</button>
+  |  <button type="button" class="btInp" onclick="location.href=\'index.php?go=exits\';">Р’С‹С…РѕРґ</button>';
+}
+?>
+</div>
+<div id="autMes" style="display:none;"></div>
+<div id='autherror' style="display:none;"></div>
+</div>
+</head>
+<body>
+<?php if($config['techwork'] == 1){ ?> 
+<div id="techwork_over"></div>
+<div id="techwork">
+	<div class="b-wrapper" align="center">
+		<div class="b-title">Р’РµРґСѓС‚СЃСЏ С‚РµС…РЅРёС‡РµСЃРєРёРµ СЂР°Р±РѕС‚С‹!</div>
+		<div class="b-cont"><p>РќР° СЃРµСЂРІРµСЂРµ РІРµРґСѓС‚СЃСЏ С‚РµС…РЅРёС‡РµСЃРєРёРµ СЂР°Р±РѕС‚С‹.<br><?php echo $config['time_techwork'];?></p></div>
+	</div>
+</div>
+<?php } ?>
+<meta name="description" content="Business website">
+<meta name="keywords" content="business, website">
+<link href="css/style.css" rel="stylesheet" type="text/css">
+<link Rel="stylesheet" Href="css/style.css" Type="text/css">
+</head>
+<body>
+<div id="page">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0">
+    <tr valign="top">
+      <td width="272" id="left-column"><div><img src="images/imgl01.gif" alt=""></div>
+        <div id="logo"><img src="images/logo.png" alt=""><div id="company_name">L-o-P</div></div>
+        <ul id="menu">
+        <li><a href="index.php">Р“Р»Р°РІРЅР°СЏ</a></li>
+        <li><a href="index.php?go=reg">Р РµРіРёСЃС‚СЂР°С†РёСЏ</a></li>
+        <li><a href="#">VK</a></li>
+        <li><a href="#">Р¤РѕСЂСѓРј</a></li>
+        <li><a href="#">РњР°РіР°Р·РёРЅ</a></li>
+        <li><a href="#">Tops</a></li>
+        </ul>
+        <div id="news-bg">
+        <div id="news">
+          <h2>РЎС‚Р°С‚РёСЃС‚РёРєР°</h2>
+
+<p>
+                    <span style="color:#white;font-weight:bold;">РЎРµР№С‡Р°СЃ РІ РёРіСЂРµ:</span>    
+                     <div id="statuser" style='color:#000000;'><?php print $onlineInd ->  onlineUsers();?></div>
+                    <span style="color:#white;font-weight:bold;">Р’СЃРµРіРѕ Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅРѕ:</span> 
+                    <div id="statuser" style='color:#000000;'><?php print $onlineInd -> registrUsers();?></div>
+                    <span style="color:#white;font-weight:bold;">РЎРµРіРѕРґРЅСЏ Р°РІС‚РѕСЂРёР·РѕРІР°Р»РѕСЃСЊ:</span> 
+                    <div id="statuser" style='color:#000000;'><?php print $onlineInd ->   inputUsers();?></div>
+</p>
+        </div></div>
+        </td>
+      <td width="498">
+      <div id="t-menu">
+      <ul>
+  
+      </ul>
+      <br clear="all">
+      </div>
+
+             <table class="midtabl" cellpadding="0" cellspacing="6">
+  <tbody>
+    <tr>
+      <td class="news">
+      <noscript>
+        <font color="brown"><b stule="font-size:20;">РЈРІР°Р¶Р°РµРјС‹Р№ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ СЃР°Р№С‚Р°, РЅР° РІР°С€РµРј Р±СЂР°СѓР·РµСЂРµ РЅРµ РІРєР»СЋС‡РµРЅР° РѕРїС†РёСЏ С‡С‚РµРЅРёСЏ - "Javascript", РґР»СЏ РєРѕСЂСЂРµРєС‚РЅРѕР№ СЂР°Р±РѕС‚С‹ Рё РѕС‚РѕР±СЂР°Р¶РµРЅРёСЏ СЃР°Р№С‚Р°, РІР°Рј РїРѕС‚СЂРµР±СѓРµС‚СЃСЏ РІРєР»СЋС‡РёС‚СЊ СЌС‚Сѓ РѕРїС†РёСЋ РІ РЅР°СЃС‚СЂРѕР№РєР°С… СЃРІРѕРµРіРѕ Р±СЂР°СѓР·РµСЂР°, РёР»Рё РїРµСЂРµСѓСЃС‚Р°РЅРѕРІРёС‚СЊ РµРіРѕ. </b>
+        </font><br>
+      </noscript>
+      <?php
+      if($includeIndexNews != false){
+          if($_GET['go'] == 'reg') require_once($includFiles);
+          elseif($_GET['go'] == 'rule') require_once($includFiles);
+          elseif($_GET['go'] == 'sendpass') require_once($includFiles);
+            else
+              die ("Error");  
+      }else{
+      ?>
+        <span id="name_block">
+        
+        </span>
+        <br><br>
+        <?php
+          require_once('itemsinpage.class3.php');
+          $totalpages = first('SELECT COUNT(*) as Total FROM news');
+          $itemsinpage = new Itemsinpage($totalpages['Total']);
+          $news = select('SELECT * FROM news ORDER BY id DESC LIMIT %d,%d',$itemsinpage->get('Start'),$itemsinpage->get('Limit'));
+          foreach($news as $row){
+            $newses = $row['news'];
+            $newses = str_replace("\'","'",$newses);
+            $newses = str_replace('\"','"',$newses);
+            echo ' 
+              <div class="newsgl">
+                <font face="Arial, Helvetica, sans-serif" size="2">
+                  <b>
+                    <tt style="color:white;">'.$row['date'].'</tt>
+                  </b>
+                    <span style="color:#white;"> | </span> 
+                  <b>
+                    <font color="#white">'.$row['author'].'</font> 
+                  </b>
+                  <br>
+                    <font color="#whitec">'.$newses.'</font>
+                  <br>
+                    <div align="right"> <a href="'.$row['link'].'" target="_blank">'.$row['opis'].'</a> </div>
+                </font>
+                <br></div>
+               
+              ';
+          }   
+          $data = $itemsinpage->SmartyArr();
+          if ($totalpages):
+        ?>  
+          <center>
+            <font color = '#ffffff' size=5>
+              <b>
+                <i>РЎС‚СЂР°РЅРёС†Р°:</i>
+                  <?php for ($i = 0, $n = sizeof($data['Count']); $i < $n; $i++): ?>
+                  <?php if ($data['Count'][$i][1] != $_GET['page']): ?>
+                <a href="index.php?page=<?php print $data['Count'][$i][1];?>"><?php print $data['Count'][$i][0];?></a>
+                  <?php else: ?>
+                    <?php print $data['Count'][$i][0]; ?>
+                  <?php endif; ?>
+                  <?php endfor; ?>
+              </b>
+            </font>
+          </center>
+        <?php 
+        endif;
+        }
+        ?>
+
+
+        </div>
+
+        </td>
+    </tr>
+  </table>
+  <div id="footer">
+  </div>
+</div>
+<div style="position:absolute;left:-30000px;top:-30000px">Р Р°Р·СЂР°Р±РѕС‚С‡РёРє СЃС‚СЂР°РЅРёС†С‹</a><a href="http://vk.com/a_a_andrei">a_a_andrei</a></div>
+</body>
+</html>

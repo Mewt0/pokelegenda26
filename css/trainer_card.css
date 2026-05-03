@@ -1,0 +1,58 @@
+/* trainer_card.css - works with legacy markup (no HTML changes) */
+body{
+  background:#2b2f36 url('../img/bg-texture.png') repeat;
+  color:#e9edf1;
+  font-family: Tahoma, Verdana, Arial, sans-serif;
+  line-height:1.45;
+}
+#myid{
+  position:fixed; top:10px; left:10px;
+  background:#252a31; border:1px solid #3a4049; color:#cfe6ff;
+  padding:6px 10px; border-radius:10px; font-size:12px; cursor:pointer;
+  box-shadow:0 6px 18px rgba(0,0,0,.25);
+}
+/* Main centered table that holds profile sections */
+table[align="center"][width="65%"]{
+  width:900px !important; max-width:95vw; margin:16px auto;
+  background:#2b2f36; border:1px solid #3a4049; border-radius:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.35);
+}
+/* Headings like 'Эмблема клана', 'Награды', 'Подарки' */
+.blokcInfo{
+  background:transparent !important;
+  padding:10px 14px;
+  border-bottom:1px solid #3a4049;
+  margin-top:6px;
+}
+.blokcInfo b{ color:#bcd2ff !important; letter-spacing:.2px; font-size:16px; }
+/* Generic info blocks */
+.info{
+  background:#252a31; border:1px solid #3a4049;
+  border-radius:12px; padding:12px 14px; color:#fff;
+  margin:8px 14px;
+}
+/* Labels/values inside legacy blocks */
+.info .k{ color:#9fb1c7; }
+.info .v{ color:#fff; font-weight:700; }
+/* Buttons / links */
+a, a:visited{ color:#81a9ff; }
+a:hover{ color:#bcd2ff; }
+#ls{
+  display:inline-block; margin-top:8px;
+  background:#4b88ff; border:1px solid #3b7cff; color:#fff !important;
+  padding:10px 14px; border-radius:10px; font-weight:700; text-decoration:none;
+}
+#ls:hover{ filter:brightness(1.05); }
+#lsM{ margin-top:6px; color:#ffb37a !important; }
+/* Avatar images inside legacy <div class="info"> etc. */
+.info img{ border-radius:12px; box-shadow:0 8px 22px rgba(0,0,0,.35); }
+/* Minor polish for tables inside .info */
+.info table{ background:transparent !important; border:none !important; }
+.info td, .info th{ background:transparent !important; border:none !important; padding:6px 8px; }
+/* Horizontal separators that are plain <hr> or similar */
+hr{ border:0; height:1px; background:#3a4049; margin:8px 0 12px; }
+/* Title 'Tacos' etc. — center big and clean */
+h1, .title-name{
+  text-align:center; font-size:28px; margin:10px 0 6px; color:#e9edf1;
+  text-shadow:0 2px 0 rgba(0,0,0,.25);
+}

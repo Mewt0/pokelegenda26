@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="League of Pokemons - Онлайн игра в покемонов">
+    <meta name="theme-color" content="#1a1a1a">
+    
+    <title>League of Pokemons - Ловля покемонов онлайн</title>
+    
+    <!-- Modern CSS -->
+    <link rel="stylesheet" href="../css/style.modern.css">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="../favicon.ico">
+    <link rel="apple-touch-icon" href="../apple-touch-icon.png">
+</head>
+<body>
+    <!-- Main wrapper -->
+    <div id="wrap">
+        <!-- Header with logo and branding -->
+        <header id="header">
+            <div class="container">
+                <!-- Logo section -->
+                <div id="logo">
+                    <img src="../images/other/logo.png" alt="League of Pokemons" width="280" height="117" style="max-width:100%; height:auto;">
+                </div>
+                
+                <!-- Company name -->
+                <h1 id="company_name">League of Pokemons</h1>
+                
+                <!-- Top navigation menu -->
+                <nav id="t-menu">
+                    <ul>
+                        <li><a href="/">Главная</a></li>
+                        <li><a href="/guide">Руководство</a></li>
+                        <li><a href="/forum">Форум</a></li>
+                        <li><a href="/rating">Рейтинг</a></li>
+                        <li><a href="/support">Поддержка</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </header>
+
+        <!-- Main content area with 3-column layout -->
+        <main id="page">
+            <!-- Left sidebar -->
+            <aside id="left-column" style="order: 1;">
+                <!-- Main menu -->
+                <ul id="menu">
+                    <li><a href="/">🏠 Главная</a></li>
+                    <li><a href="/profile">👤 Мой профиль</a></li>
+                    <li><a href="/battle">⚔️ Сражаться</a></li>
+                    <li><a href="/pokedex">📖 Покедекс</a></li>
+                    <li><a href="/inventory">🎒 Инвентарь</a></li>
+                    <li><a href="/clan">👥 Клан</a></li>
+                    <li><a href="/quests">📜 Квесты</a></li>
+                    <li><a href="/shop">🛍️ Магазин</a></li>
+                    <li><a href="/logout">🚪 Выход</a></li>
+                </ul>
+
+                <!-- Login form (for non-authenticated users) -->
+                <div id="login_form">
+                    <form action="/auth" method="POST">
+                        <input 
+                            type="text" 
+                            name="login" 
+                            placeholder="Логин" 
+                            required
+                            autocomplete="username"
+                        >
+                        <input 
+                            type="password" 
+                            name="password" 
+                            placeholder="Пароль" 
+                            required
+                            autocomplete="current-password"
+                        >
+                        <button type="submit">Вход</button>
+                    </form>
+                </div>
+            </aside>
+
+            <!-- Center content - News -->
+            <div class="news-column" style="order: 2;">
+                <!-- News section -->
+                <section id="newsDiv">
+                    <h2>📰 Свежие новости</h2>
+
+                    <!-- News item 1 -->
+                    <article class="news-item">
+                        <div class="news-item-date">3 мая 2026</div>
+                        <h3 class="news-item-title">Новый дизайн игры!</h3>
+                        <p class="news-item-text">
+                            Мы рады представить совершенно новый дизайн League of Pokemons! 
+                            Интерфейс теперь более современный, быстрый и удобен для использования 
+                            на мобильных устройствах. Наслаждайтесь обновленным опытом игры!
+                        </p>
+                    </article>
+
+                    <!-- News item 2 -->
+                    <article class="news-item">
+                        <div class="news-item-date">2 мая 2026</div>
+                        <h3 class="news-item-title">Новые покемоны добавлены в игру</h3>
+                        <p class="news-item-text">
+                            Добавлены новые эволюционные ветви для известных покемонов. 
+                            Теперь вы сможете еще больше разнообразить свою команду. 
+                            Кроме того, улучшена система баланса боевой системы.
+                        </p>
+                    </article>
+
+                    <!-- News item 3 -->
+                    <article class="news-item">
+                        <div class="news-item-date">1 мая 2026</div>
+                        <h3 class="news-item-title">Масштабное обновление квестов</h3>
+                        <p class="news-item-text">
+                            Добавлены 50+ новых квестов с интересными наградами. 
+                            Система прогрессии переработана, чтобы быть более справедливой 
+                            и увлекательной для всех уровней тренеров.
+                        </p>
+                    </article>
+                </section>
+
+                <!-- Rankings section -->
+                <section id="rankings">
+                    <h2>🏆 Рейтинги</h2>
+
+                    <!-- Top by money ranking -->
+                    <section class="ranking-section">
+                        <h3 class="ranking-title">💰 Топ 5 по деньгам</h3>
+                        <div class="ranking-item">
+                            <span class="ranking-position">1</span>
+                            <span class="ranking-name">DragonMaster</span>
+                            <span class="ranking-score">9,999,999</span>
+                        </div>
+                        <div class="ranking-item">
+                            <span class="ranking-position">2</span>
+                            <span class="ranking-name">PokemonChampion</span>
+                            <span class="ranking-score">9,500,000</span>
+                        </div>
+                        <div class="ranking-item">
+                            <span class="ranking-position">3</span>
+                            <span class="ranking-name">ThunderBolt</span>
+                            <span class="ranking-score">8,750,000</span>
+                        </div>
+                        <div class="ranking-item">
+                            <span class="ranking-position">4</span>
+                            <span class="ranking-name">WaterFlow</span>
+                            <span class="ranking-score">8,200,000</span>
+                        </div>
+                        <div class="ranking-item">
+                            <span class="ranking-position">5</span>
+                            <span class="ranking-name">FireBlast</span>
+                            <span class="ranking-score">7,800,000</span>
+                        </div>
+                    </section>
+
+                    <!-- Top by rating ranking -->
+                    <section class="ranking-section">
+                        <h3 class="ranking-title">⭐ Топ 5 по рейтингу</h3>
+                        <div class="ranking-item">
+                            <span class="ranking-position">1</span>
+                            <span class="ranking-name">PsychicMaster</span>
+                            <span class="ranking-score">3,589</span>
+                        </div>
+                        <div class="ranking-item">
+                            <span class="ranking-position">2</span>
+                            <span class="ranking-name">GrassKing</span>
+                            <span class="ranking-score">3,456</span>
+                        </div>
+                        <div class="ranking-item">
+                            <span class="ranking-position">3</span>
+                            <span class="ranking-name">IceQueen</span>
+                            <span class="ranking-score">3,342</span>
+                        </div>
+                        <div class="ranking-item">
+                            <span class="ranking-position">4</span>
+                            <span class="ranking-name">ElectricStorm</span>
+                            <span class="ranking-score">3,201</span>
+                        </div>
+                        <div class="ranking-item">
+                            <span class="ranking-position">5</span>
+                            <span class="ranking-name">RockSolid</span>
+                            <span class="ranking-score">3,087</span>
+                        </div>
+                    </section>
+
+                    <!-- Top by pokedex ranking -->
+                    <section class="ranking-section">
+                        <h3 class="ranking-title">📚 Топ 5 по Покедексу</h3>
+                        <div class="ranking-item">
+                            <span class="ranking-position">1</span>
+                            <span class="ranking-name">Collector</span>
+                            <span class="ranking-score">894 (92%)</span>
+                        </div>
+                        <div class="ranking-item">
+                            <span class="ranking-position">2</span>
+                            <span class="ranking-name">NatureWalker</span>
+                            <span class="ranking-score">872 (90%)</span>
+                        </div>
+                        <div class="ranking-item">
+                            <span class="ranking-position">3</span>
+                            <span class="ranking-name">ExplorEra</span>
+                            <span class="ranking-score">851 (88%)</span>
+                        </div>
+                        <div class="ranking-item">
+                            <span class="ranking-position">4</span>
+                            <span class="ranking-name">Seeker</span>
+                            <span class="ranking-score">819 (84%)</span>
+                        </div>
+                        <div class="ranking-item">
+                            <span class="ranking-position">5</span>
+                            <span class="ranking-name">Hunter</span>
+                            <span class="ranking-score">798 (82%)</span>
+                        </div>
+                    </section>
+                </section>
+
+            </div>
+
+            <!-- Right sidebar - Rankings only -->
+            <aside id="right-sidebar" style="order: 3;">
+        </main>
+
+        <!-- Footer -->
+        <footer id="footer">
+            <nav id="bottom_menu" role="navigation">
+                <a href="/about">О игре</a>
+                <a href="/rules">Правила</a>
+                <a href="/privacy">Конфиденциальность</a>
+                <a href="/terms">Условия использования</a>
+                <a href="/contact">Контакты</a>
+            </nav>
+            <div id="bottom_addr">
+                <p>
+                    &copy; 2014-2026 League of Pokemons. Все права защищены.<br>
+                    <a href="mailto:support@pokemonchic.com">support@pokemonchic.com</a>
+                </p>
+                <p>
+                    Pokémon является зарегистрированной торговой маркой компании Nintendo/Creatures Inc./Game Freak.
+                </p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Optional: Scripts for interactivity -->
+    <script>
+        // Theme switching (if you want to add dark/light mode toggle)
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check user's preferred color scheme
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            // Apply dark theme by default (already in CSS)
+        });
+
+        // Simple keyboard navigation enhancement
+        document.addEventListener('keydown', function(e) {
+            // Skip to main content (good for accessibility)
+            if (e.key === 's' && e.ctrlKey) {
+                e.preventDefault();
+                document.querySelector('main.news').focus();
+            }
+        });
+    </script>
+</body>
+</html>

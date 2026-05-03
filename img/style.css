@@ -1,0 +1,110 @@
+BODY {
+
+ background-color: #65927b; /* Цвет фона */
+ background-position: center top; 
+ background-repeat: no-repeat;
+ position: relative;
+ margin:0 0 0 0;
+ padding:0 0 0 0;
+ SCROLLBAR-FACE-COLOR: #b3d0c1;
+ SCROLLBAR-HIGHLIGHT-COLOR: #65927b ;
+ SCROLLBAR-SHADOW-COLOR: #65927b ;
+ SCROLLBAR-ARROW-COLOR: #65927b ;
+ SCROLLBAR-TRACK-COLOR: #65927b ;
+ SCROLLBAR-3DLIGHT-COLOR: #65927b ;
+ SCROLLBAR-DARKSHADOW-COLOR: #b3d0c1;
+ color: #000000; }
+ table.uptabl {
+ background-image: url('/new_diz/Phonama.png');
+ background-repeat: repeat-y;
+ background-position: center top; 
+ width: 915px;
+ margin: 0px auto;
+ position: relative;
+ border: 0px;
+ border-spacing: 0px;
+ padding: 0px;
+ }
+
+
+A.news {
+	font-size:12px;
+	display:inline-block;
+	background-color:#97BDE5;
+	width:30px;
+	height:16px;
+	text-align:center;
+	margin:1px;
+}
+
+tr.unread {
+	font-weight:bold;
+}
+
+tr.current {
+	background-color:#88B1F0;
+}
+
+tr.message {
+	height: 15px;
+}
+
+tr.message:hover {
+	background-color:#88B1F0;
+}
+
+td.biglink {
+  font-size:20px;
+  font-weight:bold;
+  background-color:#AFD0F1;
+}
+
+
+.c1 {
+	height:1px;
+	margin:0 6px;
+}
+.c2 {
+	border-width:0 2px;
+	margin:0 4px;
+	height:1px;
+}
+.c3 {
+	border-width:0 1px;
+	margin:0 3px;
+	height:1px;
+}
+.c4 {
+	border-width:0 1px;
+	margin:0 2px;
+	height:1px;
+}
+.c5 {
+	border-width:0 1px;
+	margin:0 1px;
+	height:2px;
+}
+.c1, .c2, .c3, .c4, .c5 {
+	overflow:hidden;
+}
+
+#name  {
+
+	background:#14761a;
+}
+/* forum admin warning */ 
+.admintext_1 {font-size:14pt;color:#FFFFFF;} 
+.admintext {font-size:12pt;color:#934A4A;font-weight:bold;} 
+.codeBattoninfo {font-size:8pt;background:#51B11B 0 0 no-repeat;} 
+.codeBattonswarning {font-size:8pt;background:#FFAC40 0 0 no-repeat;} 
+.codeBattonsStop {font-size:8pt;background:#F24646 0 0 no-repeat;} 
+/* ---------------------------- */
+
+
+#mymess {font-size:10pt;padding:5px 6px;background:#000;opacity:0.7;width:auto;height:auto;bottom:0;left:0;position:fixed} 
+#mymess:hover {opacity:0.8} 
+#mymess a {font-size:1em;color:#ff0000;text-decoration:none;} 
+#mymess a:hover {color:#ff0000;text-decoration:none;padding-top:10px} 
+#mymess:hover #close {padding-left:9px;display: block !important;float:right} 
+#mymess #close {display:none;font-weight:bold;cursor:pointer;color:#7c7c7c} 
+#mymess #close:hover {color:#fff}

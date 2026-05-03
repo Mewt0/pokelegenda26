@@ -1,0 +1,87 @@
+body {
+  background: linear-gradient(135deg, #1a2a6c, #b21f1f);
+  color: #fff;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  padding: 40px;
+}
+
+.container {
+  max-width: 100%;
+  padding: 20px;
+}
+
+.card {
+  background: rgba(0, 0, 0, 0.75);
+  border-radius: 15px;
+  padding: 30px;
+  border: 2px solid #00ffff;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+}
+
+.card-title {
+  font-size: 1.6rem;
+  color: #00ffff;
+  text-align: center;
+  margin-bottom: 25px;
+}
+
+label {
+  display: block;
+  margin-bottom: 8px;
+  color: #00ffff;
+  font-weight: bold;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 2px solid #4d94ff;
+  background: rgba(30, 30, 60, 0.8);
+  color: white;
+  font-size: 1rem;
+  margin-bottom: 20px;
+  transition: all 0.3s ease;
+}
+
+.form-input:focus {
+  border-color: #00ffff;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+  outline: none;
+}
+
+.btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #00ccff, #0099ff);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 255, 255, 0.4);
+}
+
+.message {
+  padding: 12px;
+  margin-bottom: 20px;
+  border-radius: 10px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.message.success {
+  background: rgba(0, 128, 0, 0.7);
+  border: 2px solid #33cc33;
+}
+
+.message.error {
+  background: rgba(128, 0, 0, 0.7);
+  border: 2px solid #ff4444;
+}

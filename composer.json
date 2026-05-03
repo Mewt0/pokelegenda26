@@ -1,0 +1,20 @@
+{
+  "name": "pokemon8/game",
+  "description": "Modern rewrite of the browser Pokemon game.",
+  "type": "project",
+  "require": {
+    "php": ">=8.3",
+    "ext-pdo": "*",
+    "ext-pdo_mysql": "*",
+    "ext-mbstring": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "Pokemon8\\": "src/"
+    }
+  },
+  "scripts": {
+    "serve": "php -S 127.0.0.1:8000 -t public public/index.php",
+    "lint": "php -l public/index.php"
+  }
+}

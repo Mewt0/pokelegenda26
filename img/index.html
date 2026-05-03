@@ -1,0 +1,417 @@
+<?php
+session_start();
+include ("include/function/config.php");
+include ("include/function/db3.php");
+include ("include/function/globfanction.php");
+include ("include/function/functionusers.php");
+include ("include/class/index.class.php");
+include ("ban.php");
+?>
+<!doctype html>
+<html class="no-js">
+
+	<head>
+		<meta charset="utf-8"/>
+		<title>League of Pokemons - Главная</title>
+		<link rel="stylesheet" media="all" href="css/style0.css"/>
+
+		
+		<meta name="viewport" content="width=device-width, initial-scale=1"/>
+
+		
+		
+	
+		<script src="js/jquery-1.6.4.min.js"></script>
+		<script src="js/css3-mediaqueries.js"></script>
+		<script src="js/custom.js"></script>
+		<script src="js/tabs.js"></script>
+		
+		
+		
+		<script src="js/tweet/jquery.tweet.js" ></script> 
+	
+	
+		<link rel="stylesheet" media="screen" href="css/superfish.css" /> 
+		<script  src="js/superfish-1.4.8/js/hoverIntent.js"></script>
+		<script  src="js/superfish-1.4.8/js/superfish.js"></script>
+		<script  src="js/superfish-1.4.8/js/supersubs.js"></script>
+
+		
+	
+		<script  src="js/prettyPhoto/js/jquery.prettyPhoto.js"></script>
+		
+
+	
+		<script  src="js/poshytip-1.1/src/jquery.poshytip.min.js"></script>
+
+	
+		<link href='http://fonts.googleapis.com/css?family=Yanone+Kaffeesatz:400,300' rel='stylesheet' type='text/css'>
+		
+		
+		<script src="js/jquery.flexslider-min.js"></script>
+
+	
+		
+	
+		<script src="js/modernizr.js"></script>
+		
+		
+		<link rel="stylesheet" media="all" href="css/skin.css"/>
+		
+<div id='bar'>
+<div id='autorizeDiv'>
+<?php if(!$autorize){ ?>
+<table style="">
+<tr>
+<td>
+<form name="formAut" id="formAut"  action="/autoriz.php"  method="post">
+Логин:  <input id="login" class="formAut" name="LOGIN" type="text" size="16" maxlength="16" value=""> 
+Пароль: <input id="pass" class="formAut" name="PASSWORD" type="password" size="16" maxlength="16"" value=""> 
+</td>
+<td>
+  <input id="autoChec" class="checAut" name="AUTO" type="checkbox" style="cursor:hand"> 
+  Автовход
+</td>
+<td>
+  <input id="confirmOk" type="submit" name="submit" class="btInp" value="Вход"/>
+</form>
+</td>
+<td>
+  | <button id="confirmOk" type="button" class="btInp" onclick="window.location.href='index.php?go=reg';" title="Зарегистрироваться">Регистрация</button>
+</td>
+<td>
+  | <button id="confirmOk" type="button" class="btInp" onclick="window.location.href='index.php?go=sendpass';" title="Восстановить пароль">Восстановление пароля</button>
+</td>
+</tr>
+</table>
+<?php                                                   
+} else { 
+  print 'Приветствуем Вас, тренер: '.$_SESSION['login'].'! 
+  |  <button type="button" class="btInp" onclick="window.open(\'/game\',\'mir\');">В мир</button>
+  |  <button type="button" class="btInp" onclick="window.open(\'/game.php?go=start\',\'game\');">В игру</button>
+  |  <button type="button" class="btInp" onclick="location.href=\'index.php?go=exits\';">Выход</button>';
+}
+?>
+</div>
+<div id="autMes" style="display:none;"></div>
+<div id='autherror' style="display:none;"></div>
+</div>
+	</head>
+	
+	<body lang="en">
+
+		<header class="clearfix">
+		
+			<!-- top widget -->
+			<div id="top-widget-holder">
+				<div class="wrapper">
+					<div id="top-widget">
+						<div class="padding">
+						<ul class="widget-cols clearfix">
+									
+									<div class="widget-block">
+										<h4>Recent posts</h4>
+										<div class="recent-post">
+											<a href="#" class="thumb"><img src="img/dummies/54x54.gif" alt="Post" /></a>
+											<div class="post-head">
+												<a href="#">Pellentesque habitant morbi senectus</a><span> March 12, 2011</span>
+											</div>
+										</div>
+										<div class="recent-post">
+											<a href="#" class="thumb"><img src="img/dummies/54x54.gif" alt="Post" /></a>
+											<div class="post-head">
+												<a href="#">Pellentesque habitant morbi senectus</a><span> March 12, 2011</span>
+											</div>
+										</div>
+										<div class="recent-post">
+											<a href="#" class="thumb"><img src="img/dummies/54x54.gif" alt="Post" /></a>
+											<div class="post-head">
+												<a href="#">Pellentesque habitant morbi senectus</a><span> March 12, 2011</span>
+											</div>
+										</div>
+									</div>
+								</li>
+								
+									
+									<div class="widget-block">
+										<h4>Dummy text</h4>
+										<p>Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Vestibulum tortor quam, feugiat vitae, ultricies ege. Aenean ultricies mi vitae est. Mauris placerat eleifend leo.</p>
+										<p>Pellentesque habitant morbi tristique senectus et netus et malesuada.</p>
+									</div>
+									
+								</li>
+								
+									
+									<div class="widget-block">
+										<h4>Dummy text</h4>
+										<p>Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Vestibulum tortor quam, feugiat vitae, ultricies ege. Aenean ultricies mi vitae est. Mauris placerat eleifend leo.</p>
+										<p>Pellentesque habitant morbi tristique senectus et netus et malesuada.</p>
+									</div>
+					         		
+								</li>
+								
+									
+									<div class="widget-block">
+										<h4>Dummy text</h4>
+										<p>Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Vestibulum tortor quam, feugiat vitae, ultricies ege. Aenean ultricies mi vitae est. Mauris placerat eleifend leo.</p>
+										<p>Pellentesque habitant morbi tristique senectus et netus et malesuada.</p>
+									</div>
+					         		
+								</li>	
+							</ul>				
+						</div>
+					</div>
+				</div>
+				
+			</div>
+			
+
+
+
+			<div class="wrapper">
+				<a href=".." id="logo"><img  src="img/lop.png" alt="лах"></a>
+
+
+	
+				<nav>
+					<ul id="nav" class="sf-menu">
+						<li class="current-menu-item"><a href="..">Главная</a></li>
+						
+						<li><a href="..">Правила</a></li>
+<li><a href="..">О нас</a></li>
+<li><a href="index.php?go=reg">Регистрация</a></li>
+<ul class="sub">
+<li><a href="http://forum.league-of-pokemons.ru/" target="_blank">Прочее</a></li>
+<li><a href="http://forum.league-of-pokemons.ru/viewforum.php?f=143" target="_blank">Свободное общение</a></li>
+<li><a href="http://forum.league-of-pokemons.ru/viewforum.php?f=138" target="_blank">Ошибки в игре</a></li>
+<li><a href="http://forum.league-of-pokemons.ru/viewforum.php?f=137" target="_blank">Предложения</a></li>
+<li><a href="http://forum.league-of-pokemons/viewforum.php?f=132" target="_blank">Конкурсы</a></li>
+</ul>
+<li><a href="..">Форум</a></li>
+<li><a href="..">Группа ВК</a></li>
+
+</ul>
+</li>
+
+					
+				</nav>
+
+
+        
+				<div id="combo-holder"></div>
+			</div>
+		</header>
+		
+		
+	
+		<div id="main">	
+			<div class="wrapper clearfix">
+			
+				
+
+				<!-- posts list -->
+	        	<div id="posts-list">
+	        	
+	        		<h2 class="page-heading"><span>News</span></h2>	
+	        	
+<!--Новости -->	
+										<article class="format-standard">
+						<div class="entry-date"><div class="number">12</div> <div class="year">Авг, 2014</div></div>
+						<div class="feature-image">
+							
+						</div>
+						<h2  class="post-heading">Сбежавшие покемоны</h2>
+						<div class="excerpt">Внимание,внимание!Во время открытия игры сбежали покемоны из-за нападения команды "Ракета" на лабараторию профессора Оука. Вы не бойтесь команду "Ракету" поймали и всех покемонов, которых они украли мы отправили обратно в лабараторию, но вот другие сбежали и сейчас находятся все в Алабастии. Те кто поймает сбежавшего покемона могут оставить себе,профессор Оук будет не против,чтобы хороший тренер мог бы позаботиться о новом своём друге. 
+						</div>
+						
+						<div class="meta">
+						<div class="user"><a href="http://www.league-of-pokemons.ru/game.php?go=trenInfo&id=1"><font color=grey>Tacos</font></a></div>
+						</div>
+					</article>
+					
+					
+					
+										<article class="format-standard">
+						<div class="entry-date"><div class="number">12</div> <div class="year">Авг, 2014</div></div>
+						<div class="feature-image">
+							
+						</div>
+						<h2  class="post-heading">Ивент</h2>
+						<div class="excerpt">Увеличен Опыт: +250%. Монеты: +250%. Счастье: +250%. Энергия: +100%. Приятной игры.)) 
+						</div>
+						
+						<div class="meta">
+						<div class="user"><a href="http://www.league-of-pokemons.ru/game.php?go=trenInfo&id=1"><font color=grey>Tacos</font></a></div>
+						</div>
+					</article>
+					
+					
+					
+					<article class="format-standard">
+						<div class="entry-date"><div class="number">12</div> <div class="year">Авг, 2014</div></div>
+						<div class="feature-image">
+							
+						</div>
+						<h2  class="post-heading">Открытие игры</h2>
+						<div class="excerpt">League Of Pokemons - многопользовательская браузерная онлайн игра,воодушевлённая к созданию поклонников игр и аниме про "Pokemon".Вашему вниманию будет представлено пока,что 2 региона с обширными землями, материками с прекрасными видами и ландшафтами.И с неповторимыми видами покемонов,которые будет в себя включать 6 поколений покемонов,а также мега-эволюции-это свыше 700 разнообразных видов , которые ждут вас и вашего желания,рвения к развитию своего товарища и самого себя.И вместе со своими товарищами побороться в турнире "Лига Чемпионов",а также сразиться с великолепной четвёркой,так что вам и вашим друзьям есть к чему и куда стремиться,быть может вы станете следующим чемпионом или станете одним из великолепной четвёрки.И это только часть того,что вас ждёт в "League of Pokemons"! 
+						</div>
+						
+						<div class="meta">
+						<div class="user"><a href="http://www.league-of-pokemons.ru/game.php?go=trenInfo&id=1"><font color=grey>Tacos</font></a></div>
+						</div>
+					</article>
+				
+					
+
+					
+					
+					<div class="page-navigation clearfix">
+
+
+    				
+ 
+    				
+    			</div>
+	        		
+	        		
+	        	</div>
+	        	<!-- ENDS posts list -->
+				<!-- sidebar -->
+	        	<aside id="sidebar">
+	        		
+	        		<ul>
+		        		<li class="block">
+			        		<h4>Бойцы:</h4>
+			        		<b><font color=black>                        
+                      <?php 
+                        if($rang){
+                        $pos = "1"; 
+                        foreach($rang as $rangEcho){ ?> 
+                      <tr align="left">                                                           
+                        <td><?php print '<span style="color:#000000;">'.$pos++.'</span>'; ?><span style="color:gold;">.</span></td> 
+                        <td><span style="color:#000000;"><?php echo color_group_users($rangEcho['id'],2); ?> </span></td>
+                      </tr>
+                      <?php }}else{ print '<tr><td>---</td></tr>'; } ?><font></b>
+		        		</li>
+		        		<li class="block">
+			        		<h4>Миллионеры:</h4>
+							<b><font color=black><?php 
+                        if($maney){
+                        $pos2 = "1"; 
+                        foreach($maney as $maneyEcho){ ?> 
+                      <tr align="left">                                                           
+                        <td><?php print '<span style="color:#000000;">'.$pos2++.'</span>'; ?><span style="color:gold;">.</span></td> 
+                        <td><span style="color:#000000;"><?php echo color_group_users($maneyEcho['id'],2); ?> </span></td>
+                        <?php if($myrow['groups'] == 1) {?><td><b><span style="color:#000000;">(<? echo $maneyEcho['count']?>)</span></b></td><?php }?>
+                      </tr>
+                      <?php }}else{ print '<tr><td>---</td></tr>'; } ?><font></b>
+		        		</li>
+		        				        		<li class="block">
+			        		<h4>Top - Pokedex:</h4>
+							<b><font color=black><?php					
+                        if($dex_norm){
+                        $pos3 = "1"; 
+                        foreach($dex_norm as $dex_normEcho){ ?> 
+                      <tr align="left">                                                           
+                        <td><?php print '<span style="color:#000000;">'.$pos3++.'</span>'; ?><span style="color:gold;">.</span></td> 
+                        <td><span style="color:#000000;"><?php echo color_group_users($dex_normEcho['id'],2); ?> </span></td>
+                        <td><b><span style="color:#000000;">(<? echo $dex_normEcho['count_poke']?>/649)</span></b></td>
+                      </tr>
+                      <?php }}else{ print '<tr><td>---</td></tr>'; } ?><font></b>
+		        		</li>
+		        		</li>
+		        				        		<li class="block">
+			        		<h4>Top - Shiny-dex:</h4>
+							<b><font color=black><?php 
+                        if($dex_shiny){
+                        $pos4 = "1"; 
+                        foreach($dex_shiny as $dex_shinyEcho){ ?> 
+                      <tr align="left">                                                           
+                        <td><?php print '<span style="color:#000000;">'.$pos4++.'</span>'; ?><span style="color:gold;">.</span></td> 
+                        <td><span style="color:#000000;"><?php echo color_group_users($dex_shinyEcho['id'],2); ?> </span></td>
+                        <td><b><span style="color:#000000;">(<? echo $dex_shinyEcho['count_poke_s']?>/649)</span></b></td>
+                      </tr>
+                      <?php }}else{ print '<tr><td>---</td></tr>'; } ?>
+					  <font></b>
+		        		</li>
+	        		
+	        		</ul>
+	        		
+	        		<em id="corner"></em>
+	        	</aside>
+				<!-- ENDS sidebar -->
+	        	
+			</div>
+		</div>
+		<!-- ENDS MAIN -->
+		
+		
+		<footer>
+			<div class="wrapper">
+			
+				<ul  class="widget-cols clearfix">
+						
+						<div class="widget-block">
+							<h4>Онлайн игроков:</h4>
+							<div class="recent-post">
+							<h4>Всего игроков:</h4>
+							<h4>Сегодня зашло:</h4>
+								<div class="post-head">
+										
+								</div>
+							</div>
+							<div class="recent-post">
+								
+								<div class="post-head">
+									
+								</div>
+							</div>
+							<div class="recent-post">
+								
+								<div class="post-head">
+								
+								</div>
+							</div>
+						</div>
+					</li>
+					
+						
+						<div class="widget-block">
+							
+						</div>
+						
+					</li>
+					
+						
+						<div class="widget-block">
+							<div id="tweets" class="footer-col tweet">
+		         				
+		         			</div>
+		         		</div>
+		         		
+					</li>
+					
+						
+						<div class="widget-block">
+							
+							
+						</div>
+		         		
+					</li>	
+				</ul>				
+				
+				
+				<div class="footer-bottom">
+					<center>League of Pokemons © 2014</center>
+					<center><b>Все права на покемонов принадлежат компании: «Nintendo» © 1996 - 2014</b></center>
+					<div class="right">
+						<ul id="social-bar">
+						</ul>
+					</div>
+				</div>
+				
+			</div>
+		</footer>			
+	</body>
+	
+</html>

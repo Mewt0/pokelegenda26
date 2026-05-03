@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="League of Pokemons - пример современного UTF-8 макета.">
+    <title>League of Pokemons - пример макета</title>
+    <link rel="stylesheet" href="../css/style.modern.css">
+    <link rel="icon" href="../favicon.ico">
+</head>
+<body>
+    <div id="wrap">
+        <header id="header">
+            <div class="container">
+                <div id="logo">
+                    <img src="../img/lop.png" alt="League of Pokemons" width="280" height="117" style="max-width:100%;height:auto;">
+                </div>
+
+                <h1 id="company_name">League of Pokemons</h1>
+
+                <nav id="t-menu" aria-label="Верхнее меню">
+                    <ul>
+                        <li><a href="/">Главная</a></li>
+                        <li><a href="/game">Игра</a></li>
+                        <li><a href="/game/pokedex">Покедекс</a></li>
+                        <li><a href="/game/trainers">Рейтинг</a></li>
+                        <li><a href="/support">Поддержка</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </header>
+
+        <main id="page">
+            <aside id="left-column">
+                <ul id="menu">
+                    <li><a href="/">Главная</a></li>
+                    <li><a href="/game/profile">Профиль</a></li>
+                    <li><a href="/game/battle/pvp">Бои</a></li>
+                    <li><a href="/game/pokedex">Покедекс</a></li>
+                    <li><a href="/game/items">Инвентарь</a></li>
+                    <li><a href="/game/clans">Клан</a></li>
+                    <li><a href="/game/quests">Квесты</a></li>
+                    <li><a href="/game/market/items">Магазин</a></li>
+                </ul>
+
+                <div id="login_form">
+                    <form action="/login" method="post">
+                        <input type="text" name="LOGIN" placeholder="Логин" required autocomplete="username">
+                        <input type="password" name="PASSWORD" placeholder="Пароль" required autocomplete="current-password">
+                        <button type="submit">Войти</button>
+                    </form>
+                </div>
+            </aside>
+
+            <section class="news-column">
+                <section id="newsDiv">
+                    <h2>Свежие новости</h2>
+
+                    <article class="news-item">
+                        <div class="news-item-date">3 мая 2026</div>
+                        <h3 class="news-item-title">Новая навигация</h3>
+                        <p class="news-item-text">
+                            Старые маршруты game.php?go=... заменяются новыми адресами /game/....
+                            Дальше каждый раздел будет переноситься в отдельный контроллер и сервис.
+                        </p>
+                    </article>
+
+                    <article class="news-item">
+                        <div class="news-item-date">3 мая 2026</div>
+                        <h3 class="news-item-title">UTF-8 без битых символов</h3>
+                        <p class="news-item-text">
+                            Все новые шаблоны должны сохраняться в UTF-8. Mojibake в интерфейсе не допускается.
+                        </p>
+                    </article>
+                </section>
+
+                <section id="rankings">
+                    <h2>Рейтинги</h2>
+                    <section class="ranking-section">
+                        <h3 class="ranking-title">Топ тренеров</h3>
+                        <div class="ranking-item">
+                            <span class="ranking-position">1</span>
+                            <span class="ranking-name">Tacos</span>
+                            <span class="ranking-score">3 589</span>
+                        </div>
+                    </section>
+                </section>
+            </section>
+        </main>
+
+        <footer id="footer">
+            <nav id="bottom_menu" aria-label="Нижнее меню">
+                <a href="/about">Об игре</a>
+                <a href="/rules">Правила</a>
+                <a href="/privacy">Конфиденциальность</a>
+                <a href="/terms">Условия использования</a>
+                <a href="/contact">Контакты</a>
+            </nav>
+            <div id="bottom_addr">
+                <p>&copy; 2014-2026 League of Pokemons. Все права защищены.</p>
+            </div>
+        </footer>
+    </div>
+</body>
+</html>

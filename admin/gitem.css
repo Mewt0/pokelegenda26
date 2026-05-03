@@ -1,0 +1,92 @@
+body {
+  background: linear-gradient(135deg, #1a2a6c, #b21f1f);
+  color: #fff;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.form-block {
+  background-color: #1a0e0e;
+  border: 2px solid #ffcc00;
+  border-radius: 16px;
+  padding: 30px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.7);
+}
+
+.form-block h2 {
+  text-align: center;
+  color: #ffcc00;
+  font-size: 1.8rem;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #ffcc00;
+  padding-bottom: 10px;
+}
+
+.form-block label {
+  display: block;
+  margin-bottom: 8px;
+  color: #ffcc00;
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.form-block input[type="number"] {
+  width: 100%;
+  padding: 14px;
+  border-radius: 10px;
+  background-color: #1d1d3c;
+  color: white;
+  font-size: 1rem;
+  border: 2px solid #4d94ff;
+  margin-bottom: 20px;
+  transition: all 0.3s ease;
+}
+
+.form-block input[type="number"]:focus {
+  border-color: #ffcc00;
+  outline: none;
+  box-shadow: 0 0 10px rgba(255, 204, 0, 0.4);
+}
+
+.form-block button {
+  width: 100%;
+  padding: 14px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #ffcc00, #ff9900);
+  color: #1a1a2e;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 5px 15px rgba(255, 204, 0, 0.4);
+}
+
+.form-block button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(255, 204, 0, 0.6);
+}
+
+.alert-message {
+  background: rgba(0, 100, 0, 0.7);
+  padding: 15px;
+  margin-bottom: 20px;
+  border-radius: 10px;
+  text-align: center;
+  font-weight: bold;
+  border: 2px solid #33cc33;
+  color: #ffffff;
+}
+
+.alert-error {
+  background: rgba(100, 0, 0, 0.7);
+  border-color: #cc3333;
+  color: #ffffff;
+}
