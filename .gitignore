@@ -1,0 +1,30 @@
+# Archive files
+*.zip
+*.rar
+*.7z
+*.tar
+*.tar.gz
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# PHP
+vendor/
+composer.lock
+
+# Environment
+.env
+.env.local
+
+# Runtime files
+cache/
+log/
+templates_c/
+
+# OS
+.DS_Store
+Thumbs.db
