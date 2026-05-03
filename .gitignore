@@ -5,6 +5,10 @@
 *.tar
 *.tar.gz
 
+# Backup directories
+_*/
+backup*/
+
 # IDE & Editor
 .vscode/
 .idea/
