@@ -38,6 +38,59 @@ final class InventoryRepository
         return $this->countItem($userId, $itemId) >= $count;
     }
 
+    public function countForUser(int $userId): int
+    {
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM items_users WHERE user_id = :user');
+        $stmt->execute(['user' => $userId]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function listForUser(int $userId, int $limit, int $offset): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT iu.id, iu.item_id, iu.count, iu.dattimer, iu.timers, i.name, i.tittle, i.category, i.delet, i.dress, i.uses, i.elementary, i.battleuse
+             FROM items_users iu
+             INNER JOIN items i ON i.id = iu.item_id
+             WHERE iu.user_id = :user
+             ORDER BY iu.item_id ASC
+             LIMIT :limit OFFSET :offset'
+        );
+        $stmt->bindValue(':user', $userId, PDO::PARAM_INT);
+        $stmt->bindValue(':limit', max(1, $limit), PDO::PARAM_INT);
+        $stmt->bindValue(':offset', max(0, $offset), PDO::PARAM_INT);
+        $stmt->execute();
+
+        $items = $stmt->fetchAll();
+        return is_array($items) ? $items : [];
+    }
+
+    public function listBattleItemsForUser(int $userId): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT iu.id, iu.item_id, iu.count, iu.dattimer, iu.timers, i.name, i.tittle, i.category, i.delet, i.dress, i.uses, i.elementary, i.battleuse
+             FROM items_users iu
+             INNER JOIN items i ON i.id = iu.item_id
+             WHERE iu.user_id = :user AND i.battleuse = 1
+             ORDER BY i.id DESC'
+        );
+        $stmt->execute(['user' => $userId]);
+
+        $items = $stmt->fetchAll();
+        return is_array($items) ? $items : [];
+    }
+
+    public function listActivePokemonForUser(int $userId): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, names FROM pok_user WHERE users = :user AND active = 1 ORDER BY id ASC'
+        );
+        $stmt->execute(['user' => $userId]);
+
+        $rows = $stmt->fetchAll();
+        return is_array($rows) ? $rows : [];
+    }
+
     public function addItem(int $userId, int $itemId, int $count): void
     {
         if ($count <= 0) {

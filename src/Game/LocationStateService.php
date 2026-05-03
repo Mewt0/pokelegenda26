@@ -17,6 +17,7 @@ final class LocationStateService
 
     public function currentStateForUser(int $userId): array
     {
+        $this->locations->touchOnlineHeartbeat($userId);
         $user = $this->locations->findUserState($userId);
         if ($user === null) {
             return ['ok' => false, 'error' => 'auth'];
@@ -33,6 +34,7 @@ final class LocationStateService
             'user' => [
                 'id' => (int) $user['id'],
                 'login' => (string) $user['login'],
+                'pveButton' => (int) ($user['pve_button'] ?? 0) === 1,
             ],
             'location' => $this->formatLocation($location),
             'moves' => $this->movesFor($locationId),

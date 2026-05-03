@@ -145435,3 +145435,7 @@ Stack trace:
 [03-May-2026 14:57:26 Europe/Moscow] PHP Warning:  Trying to access array offset on value of type bool in D:\OSPanel\domains\pokemonchic.com\include\function\fanction.games.php on line 778
 [03-May-2026 15:14:17 Europe/Moscow] PHP Warning:  Trying to access array offset on value of type bool in D:\OSPanel\domains\pokemonchic.com\include\config.room.php on line 14
 [03-May-2026 15:14:17 Europe/Moscow] PHP Warning:  Trying to access array offset on value of type bool in D:\OSPanel\domains\pokemonchic.com\include\config.room.php on line 14
+[03-May-2026 19:03:51 Europe/Prague] PHP Fatal error:  Uncaught Error: Class "Pokemon8\Database\Connection" not found in Standard input code:3
+Stack trace:
+#0 {main}
+  thrown in Standard input code on line 3

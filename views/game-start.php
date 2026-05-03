@@ -7,246 +7,7 @@ use Pokemon8\View\View;
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pokemon 8.0 - Игровой мир</title>
-  <style>
-    :root {
-      --bg: #eef2f5;
-      --panel: #ffffff;
-      --line: #cfd8e3;
-      --text: #172033;
-      --muted: #66758a;
-      --accent: #1d66c2;
-      --accent-soft: #e8f2ff;
-      --danger: #b42318;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: var(--bg);
-      color: var(--text);
-      font: 14px/1.45 Tahoma, Arial, sans-serif;
-    }
-    .world {
-      min-height: 100vh;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 280px;
-      grid-template-rows: minmax(360px, 1fr) 280px 56px;
-    }
-    .location {
-      grid-column: 1 / 3;
-      padding: 14px;
-      background: #676a67;
-      overflow: auto;
-    }
-    .location-card {
-      background: var(--panel);
-      border: 1px solid rgba(0,0,0,.18);
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 2px 10px rgba(0,0,0,.16);
-    }
-    .location-title {
-      margin: 0;
-      padding: 14px 18px;
-      text-align: center;
-      font: 700 28px/1.1 Georgia, "Times New Roman", serif;
-      background: #d6d9d4;
-      border-bottom: 1px solid #b8bdb7;
-    }
-    .location-main {
-      display: grid;
-      grid-template-columns: 320px minmax(0, 1fr);
-      gap: 12px;
-      padding: 12px;
-      background: #e3e5e1;
-    }
-    .location-image {
-      width: 100%;
-      height: 180px;
-      object-fit: cover;
-      border-radius: 6px;
-      border: 1px solid #b8bdb7;
-      background: #dce3e8;
-    }
-    .location-text {
-      min-height: 180px;
-      padding: 12px;
-      border: 1px solid #b8bdb7;
-      border-radius: 6px;
-      background: rgba(255,255,255,.45);
-      font: italic 20px/1.35 Georgia, "Times New Roman", serif;
-    }
-    .moves, .npc-strip {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: center;
-      padding: 12px;
-      background: #d6d9d4;
-      border-top: 1px solid #b8bdb7;
-    }
-    .npc-strip { background: #edf1ec; }
-    .move-btn, .npc-btn {
-      border: 1px solid #aeb7c2;
-      background: #fff;
-      color: #111;
-      border-radius: 6px;
-      padding: 8px 12px;
-      cursor: pointer;
-      font-weight: 700;
-    }
-    .move-btn:hover, .npc-btn:hover { border-color: var(--accent); color: var(--accent); }
-    .move-btn:disabled { opacity: .55; cursor: wait; }
-    .npc-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .npc-icon {
-      width: 24px;
-      height: 24px;
-      display: inline-grid;
-      place-items: center;
-      border-radius: 50%;
-      background: var(--accent-soft);
-      color: var(--accent);
-      font-size: 13px;
-      line-height: 1;
-    }
-    .npc-panel {
-      display: none;
-      margin: 12px;
-      padding: 12px;
-      border: 1px solid #b8bdb7;
-      border-radius: 6px;
-      background: rgba(255,255,255,.72);
-      color: #111;
-    }
-    .npc-panel.is-open { display: block; }
-    .npc-panel h2 { margin: 0 0 6px; font-size: 18px; }
-    .npc-panel p { margin: 0; color: #344154; }
-    .chat {
-      grid-column: 1;
-      grid-row: 2;
-      background: #f7f9fc;
-      border-top: 1px solid var(--line);
-      border-right: 1px solid var(--line);
-      padding: 12px;
-      display: grid;
-      grid-template-rows: 1fr auto;
-      gap: 10px;
-    }
-    .chat-log {
-      overflow: auto;
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 10px;
-      font-weight: 700;
-    }
-    .chat-form {
-      display: grid;
-      grid-template-columns: 180px 1fr 48px;
-      gap: 8px;
-    }
-    .chat-form input {
-      height: 38px;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      padding: 0 10px;
-      font: inherit;
-      background: #fff;
-    }
-    .chat-form button, .actionbar button, .actionbar a {
-      height: 38px;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      background: #fff;
-      color: #174f91;
-      font-weight: 700;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0 14px;
-      text-decoration: none;
-      white-space: nowrap;
-    }
-    .users {
-      grid-column: 2;
-      grid-row: 2;
-      background: #676a67;
-      color: #050505;
-      padding: 12px;
-      overflow: auto;
-    }
-    .users h2 {
-      margin: 0 0 8px;
-      text-align: center;
-      font-size: 16px;
-    }
-    .user-row {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      min-width: 0;
-      margin: 4px 0;
-      font-weight: 700;
-    }
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #8a8f92;
-      flex: 0 0 auto;
-    }
-    .dot.on { background: #20b15a; }
-    .user-name {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .user-tags { color: #222; font-size: 12px; font-weight: 400; }
-    .actionbar {
-      grid-column: 1 / 3;
-      grid-row: 3;
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      padding: 8px 14px;
-      background: #f4f6f9;
-      border-top: 1px solid var(--line);
-      overflow-x: auto;
-    }
-    .actionbar input {
-      height: 38px;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      padding: 0 10px;
-    }
-    .status {
-      margin-left: auto;
-      color: var(--muted);
-      font-size: 13px;
-      white-space: nowrap;
-    }
-    .error {
-      color: var(--danger);
-      font-weight: 700;
-    }
-    .muted { color: var(--muted); }
-    @media (max-width: 900px) {
-      .world { grid-template-columns: 1fr; grid-template-rows: auto 260px 220px 56px; }
-      .location, .chat, .users, .actionbar { grid-column: 1; }
-      .location { grid-row: 1; }
-      .chat { grid-row: 2; }
-      .users { grid-row: 3; }
-      .actionbar { grid-row: 4; }
-      .location-main { grid-template-columns: 1fr; }
-      .chat-form { grid-template-columns: 1fr 44px; }
-      .chat-form input:first-child { display: none; }
-    }
-  </style>
+  <link rel="stylesheet" href="/public/css/game-start.css">
 </head>
 <body>
   <main class="world" data-csrf="<?= View::e($csrf) ?>">
@@ -279,21 +40,175 @@ use Pokemon8\View\View;
 
     <nav class="actionbar">
       <button type="button" id="pveButton">Нападение: выкл</button>
+      <button type="button" id="debugForceBattleBtn" style="display:none">DEBUG: бой (Дорога 1)</button>
       <button type="button">Режим: общий</button>
       <input placeholder="Ник">
-      <a href="/game/pokemon">Покемоны</a>
-      <a href="/game/items">Инвентарь</a>
+      <a href="/game/pokemon" id="pokemonLink">Покемоны</a>
+      <a href="/game/items" id="inventoryLink">Инвентарь</a>
       <a href="/game/quests">Квесты</a>
       <a href="/game/battle/pvp">Бои</a>
       <a href="/game/messages">Почта</a>
       <span class="status" id="status">Готово</span>
     </nav>
   </main>
+  <section class="inventory-overlay" id="inventoryOverlay" aria-hidden="true">
+    <div class="inventory-window" role="dialog" aria-label="Инвентарь">
+      <header class="inv-top">
+        <span class="ico">☰</span><span class="ico">⚙</span><span class="ico">◈</span><span class="ico">★</span>
+        <div class="inv-search">
+          <input id="invSearchInput" placeholder="Начните вводить название">
+        </div>
+      </header>
+      <div class="inv-grid-wrap">
+        <div class="inv-grid" id="invGrid"></div>
+      </div>
+      <footer class="inv-bottom">
+        <button type="button" id="invRefreshBtn">⟳</button>
+        <button type="button" id="invPrevBtn">≪</button>
+        <button type="button" id="invNextBtn">≫</button>
+        <span id="invPageInfo">1/1</span>
+        <span class="inv-slots">СЛОТОВ ЗАНЯТО: <span id="invSlotsCount">0</span></span>
+        <button type="button" class="inv-close" id="invCloseBtn">Закрыть</button>
+      </footer>
+    </div>
+  </section>
+  <section class="pokemon-overlay" id="pokemonOverlay" aria-hidden="true">
+    <div class="pokemon-window" role="dialog" aria-label="Покемоны">
+      <header class="pokemon-modal-head">
+        <strong>Покемоны</strong>
+        <button type="button" id="pokemonCloseBtn">×</button>
+      </header>
+      <iframe id="pokemonFrame" title="Покемоны" src="about:blank"></iframe>
+    </div>
+  </section>
+  <section class="battle-overlay" id="battleOverlay" aria-hidden="true">
+    <div class="battle-window" role="dialog" aria-label="PvE бой">
+      <header class="battle-head">
+        <span id="battleTitle">Дикий бой</span>
+        <span id="battleRound">Раунд 1</span>
+      </header>
+      <div class="battle-layout">
+        <aside class="battle-left">
+          <div class="battle-actions-col">
+            <button type="button" id="battleMove1" class="battle-move-btn">Атака 1</button>
+            <button type="button" id="battleMove2" class="battle-move-btn">Атака 2</button>
+            <button type="button" id="battleMove3" class="battle-move-btn">Атака 3</button>
+            <button type="button" id="battleMove4" class="battle-move-btn">Атака 4</button>
+          </div>
+          <div class="battle-subactions">
+            <select id="battleSwitchSelect" class="wide"></select>
+            <button type="button" id="battleSwitchBtn">Сменить</button>
+            <button type="button" id="battleEscapeBtn" class="danger">Сбежать</button>
+          </div>
+        </aside>
+
+        <main class="battle-center">
+          <div class="battle-arena">
+            <div class="battle-arena-top">
+              <article class="fighter fighter-enemy">
+                <h3 id="battleEnemyName">Дикий покемон</h3>
+                <div class="hpbar"><div class="hpfill" id="battleEnemyHpBar" style="width:100%"></div></div>
+                <div id="battleEnemyHp" class="muted">HP 0/0</div>
+              </article>
+            </div>
+            <div class="battle-arena-field">
+              <div class="sprite sprite-enemy" id="battleEnemySprite" aria-hidden="true"><img id="battleEnemySpriteImg" alt=""></div>
+              <div class="sprite sprite-player" id="battlePlayerSprite" aria-hidden="true"><img id="battlePlayerSpriteImg" alt=""></div>
+            </div>
+            <div class="battle-arena-bottom">
+              <article class="fighter fighter-player">
+                <h3 id="battlePlayerName">Ваш покемон</h3>
+                <div class="hpbar"><div class="hpfill" id="battlePlayerHpBar" style="width:100%"></div></div>
+                <div id="battlePlayerHp" class="muted">HP 0/0</div>
+              </article>
+            </div>
+          </div>
+        </main>
+
+        <aside class="battle-right">
+          <div class="battle-log" id="battleLog"></div>
+          <div class="battle-finish" id="battleFinishBox" hidden>
+            <button type="button" id="battleDoneBtn">Завершить бой</button>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+  <div class="inv-tooltip" id="invTooltip"></div>
 
   <script>
     const app = document.querySelector('.world');
     const csrf = app.dataset.csrf;
-    const state = { busy: false, locationId: 0, activeNpc: null };
+    const state = { busy: false, locationId: 0, activeNpc: null, pveButton: false };
+    const inventory = { page: 1, pages: 1, items: [], selected: null };
+    const battleState = { active: false, moves: [] };
+    const battlePocket = { loaded: false, items: [] };
+
+    function setupBattleSideTabs() {
+      const left = document.querySelector('.battle-left');
+      if (!left || left.dataset.tabsReady === '1') return;
+      left.dataset.tabsReady = '1';
+
+      const actions = left.querySelector('.battle-actions-col');
+      const subactions = left.querySelector('.battle-subactions');
+      const switchSelect = document.getElementById('battleSwitchSelect');
+      const switchBtn = document.getElementById('battleSwitchBtn');
+
+      const turn = document.createElement('div');
+      turn.className = 'battle-turn-card';
+      turn.innerHTML = '<span class="battle-clock" aria-hidden="true">&#9687;</span><span><b>&#1042;&#1072;&#1096; &#1093;&#1086;&#1076;</b><small>&#1042;&#1088;&#1077;&#1084;&#1103; &#1085;&#1077; &#1086;&#1075;&#1088;&#1072;&#1085;&#1080;&#1095;&#1077;&#1085;&#1086;...</small></span>';
+
+      const content = document.createElement('div');
+      content.className = 'battle-side-content';
+      content.innerHTML = [
+        '<div class="battle-tab-panel is-active" data-battle-panel="attacks"></div>',
+        '<div class="battle-tab-panel" data-battle-panel="switch"><div class="battle-list" id="battleSwitchList"></div></div>',
+        '<div class="battle-tab-panel" data-battle-panel="items"><div class="battle-list" id="battleItemsList"></div></div>',
+        '<div class="battle-tab-panel" data-battle-panel="balls"><div class="battle-list" id="battleBallsList"></div></div>'
+      ].join('');
+
+      const attacksPanel = content.querySelector('[data-battle-panel="attacks"]');
+      const switchPanel = content.querySelector('[data-battle-panel="switch"]');
+      if (actions) attacksPanel.appendChild(actions);
+      if (switchSelect) {
+        switchSelect.classList.add('battle-native-switch');
+        switchPanel.appendChild(switchSelect);
+      }
+      if (switchBtn) {
+        switchBtn.classList.add('battle-hidden-action');
+        switchPanel.appendChild(switchBtn);
+      }
+
+      const tabs = document.createElement('nav');
+      tabs.className = 'battle-tabs';
+      tabs.setAttribute('aria-label', 'Battle actions');
+      tabs.innerHTML = [
+        '<button type="button" class="battle-tab is-active" data-battle-tab="attacks" title="Attacks">&#9889;</button>',
+        '<button type="button" class="battle-tab" data-battle-tab="switch" title="Switch">&#8644;</button>',
+        '<button type="button" class="battle-tab" data-battle-tab="items" title="Inventory">&#9635;</button>',
+        '<button type="button" class="battle-tab" data-battle-tab="balls" title="Pokeballs">&#9675;</button>'
+      ].join('');
+
+      left.insertBefore(turn, left.firstChild);
+      left.insertBefore(content, subactions || null);
+      left.appendChild(tabs);
+      tabs.querySelectorAll('[data-battle-tab]').forEach(button => {
+        button.addEventListener('click', () => setBattleTab(button.dataset.battleTab));
+      });
+      setBattleTab('attacks');
+    }
+
+    function setBattleTab(name) {
+      document.querySelectorAll('[data-battle-panel]').forEach(panel => {
+        panel.classList.toggle('is-active', panel.dataset.battlePanel === name);
+      });
+      document.querySelectorAll('[data-battle-tab]').forEach(button => {
+        button.classList.toggle('is-active', button.dataset.battleTab === name);
+      });
+      if (name === 'items' || name === 'balls') {
+        loadBattlePocket();
+      }
+    }
 
     function setStatus(message, isError = false) {
       const el = document.getElementById('status');
@@ -307,6 +222,11 @@ use Pokemon8\View\View;
         return;
       }
 
+      if (payload.redirect) {
+        window.location.href = payload.redirect;
+        return;
+      }
+
       const location = payload.location;
       state.locationId = Number(location.id || 0);
       document.getElementById('locationTitle').textContent = location.title;
@@ -317,6 +237,16 @@ use Pokemon8\View\View;
       renderNpcs(location.npcs || []);
       renderMoves(payload.moves || []);
       renderUsers(location.title, payload.users || []);
+      state.pveButton = !!(payload.user && payload.user.pveButton);
+      renderPveButton();
+      renderDebugBattleButton(location);
+      if (payload.battle && payload.battle.active) {
+        openBattleOverlay();
+        loadBattleState();
+      }
+      if (payload.wildEncounter && payload.wildEncounter.message) {
+        setStatus(payload.wildEncounter.message);
+      }
 
       if (payload.chatEvent && payload.chatEvent.text) {
         const line = document.createElement('div');
@@ -324,7 +254,16 @@ use Pokemon8\View\View;
         document.getElementById('chatLog').appendChild(line);
       }
 
-      setStatus('Готово');
+      // Показываем id локации в статусе, чтобы не гадать.
+      setStatus('Готово • локация #' + state.locationId);
+    }
+
+    function renderDebugBattleButton(location) {
+      const btn = document.getElementById('debugForceBattleBtn');
+      const title = String(location && location.title ? location.title : '').toLowerCase();
+      const isRoad1ByTitle = title.includes('дорога 1');
+      const isRoad1ById = Number(state.locationId) === 4;
+      btn.style.display = (isRoad1ByTitle || isRoad1ById) ? '' : 'none';
     }
 
     function renderNpcs(npcs) {
@@ -371,13 +310,20 @@ use Pokemon8\View\View;
       document.getElementById('usersTitle').textContent = locationTitle + ' (' + users.length + ')';
       const usersList = document.getElementById('usersList');
       usersList.innerHTML = '';
+      if (!users.length) {
+        const empty = document.createElement('div');
+        empty.className = 'muted';
+        empty.textContent = 'Онлайн игроков в этой локации нет.';
+        usersList.appendChild(empty);
+        return;
+      }
       for (const user of users) {
         const row = document.createElement('div');
         row.className = 'user-row';
         row.innerHTML = '<span class="dot ' + (user.online ? 'on' : '') + '"></span>' +
           '<span class="user-name"></span><span class="user-tags"></span>';
         row.querySelector('.user-name').textContent = user.login;
-        row.querySelector('.user-tags').textContent = (user.online ? 'on' : 'off') + (user.pveButton ? ' / pve' : '');
+        row.querySelector('.user-tags').textContent = (user.pveButton ? 'pve' : '');
         usersList.appendChild(row);
       }
     }
@@ -385,6 +331,494 @@ use Pokemon8\View\View;
     function iconLabel(icon) {
       const labels = { cross: '+', shop: '$', mentor: 'i', quest: '?', person: '@' };
       return labels[icon] || '@';
+    }
+
+    function renderPveButton() {
+      const button = document.getElementById('pveButton');
+      button.textContent = state.pveButton ? 'Нападение: вкл' : 'Нападение: выкл';
+    }
+
+    function openInventory() {
+      const overlay = document.getElementById('inventoryOverlay');
+      overlay.classList.add('is-open');
+      overlay.setAttribute('aria-hidden', 'false');
+      loadInventoryPage(inventory.page || 1);
+    }
+
+    function closeInventory() {
+      const overlay = document.getElementById('inventoryOverlay');
+      overlay.classList.remove('is-open');
+      overlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function openPokemonModal() {
+      const overlay = document.getElementById('pokemonOverlay');
+      const frame = document.getElementById('pokemonFrame');
+      if (frame.getAttribute('src') === 'about:blank') {
+        frame.src = '/game/pokemon';
+      }
+      overlay.classList.add('is-open');
+      overlay.setAttribute('aria-hidden', 'false');
+    }
+
+    function closePokemonModal() {
+      const overlay = document.getElementById('pokemonOverlay');
+      overlay.classList.remove('is-open');
+      overlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function openBattleOverlay() {
+      setupBattleSideTabs();
+      const overlay = document.getElementById('battleOverlay');
+      overlay.classList.add('is-open');
+      overlay.setAttribute('aria-hidden', 'false');
+      battleState.active = true;
+    }
+
+    function closeBattleOverlay() {
+      const overlay = document.getElementById('battleOverlay');
+      overlay.classList.remove('is-open');
+      overlay.setAttribute('aria-hidden', 'true');
+      battleState.active = false;
+    }
+
+    function renderBattleLog(logByRound, messages) {
+      const log = document.getElementById('battleLog');
+      log.innerHTML = '';
+
+      if (Array.isArray(logByRound) && logByRound.length) {
+        for (const chunk of logByRound) {
+          const title = document.createElement('div');
+          title.className = 'battle-log-round';
+          title.textContent = (Number(chunk.round) || 1) + ' Раунд';
+          log.appendChild(title);
+
+          for (const eventText of (chunk.events || [])) {
+            const line = document.createElement('div');
+            line.className = 'battle-log-event';
+            line.innerHTML = decorateBattleLogText(String(eventText || ''));
+            log.appendChild(line);
+          }
+        }
+      }
+
+      if (Array.isArray(messages) && messages.length) {
+        for (const message of messages) {
+          const line = document.createElement('div');
+          line.className = 'battle-log-event is-live';
+          line.innerHTML = decorateBattleLogText(String(message || ''));
+          log.appendChild(line);
+        }
+      }
+    }
+
+    function escapeHtml(text) {
+      return String(text).replace(/[&<>"']/g, ch => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      }[ch]));
+    }
+
+    function decorateBattleLogText(text) {
+      let html = escapeHtml(text);
+
+      // Подсветка ключевых слов и значений урона/HP.
+      html = html.replace(/КРИТ!/gi, '<span class="log-crit">КРИТ!</span>');
+      html = html.replace(/промах!?/gi, '<span class="log-miss">$&</span>');
+      html = html.replace(/теряет\s+(\d+)\s+HP/gi, 'теряет <span class="log-damage">$1 HP</span>');
+      html = html.replace(/\((\d+\/\d+)\)/g, '(<span class="log-hp">$1</span>)');
+      html = html.replace(/Победа в бою\./gi, '<span class="log-win">Победа в бою.</span>');
+      html = html.replace(/Поражение в бою\./gi, '<span class="log-lose">Поражение в бою.</span>');
+      html = html.replace(/Вы успешно сбежали из боя\./gi, '<span class="log-escape">Вы успешно сбежали из боя.</span>');
+      html = html.replace(/Награда:/gi, '<span class="log-reward">Награда:</span>');
+
+      // Базовая цветная подсветка имен до первого "использует"/"теряет".
+      html = html.replace(/^([^\.]+?)\sиспользует\s/i, '<span class="log-actor">$1</span> использует ');
+      html = html.replace(/\. ([^\.]+?) теряет /i, '. <span class="log-target">$1</span> теряет ');
+
+      return html;
+    }
+
+    function renderBattle(payload) {
+      if (!payload || payload.ok !== true) {
+        let msg = payload && payload.message ? payload.message : 'Ошибка состояния боя.';
+        if (payload && payload.debug) {
+          msg += ' [' + JSON.stringify(payload.debug) + ']';
+          renderBattleSpritesFromDebug(payload.debug);
+        }
+        setStatus(msg, true);
+        renderBattleLog([], [msg]);
+        return;
+      }
+      if (!payload.active && !payload.finished && !payload.result) {
+        closeBattleOverlay();
+        return;
+      }
+      openBattleOverlay();
+
+      const battle = payload.battle || payload;
+      const player = battle.player || { name: 'Ваш покемон', level: 1, hp: 0, hpMax: 1, baseNum: 0 };
+      const enemy = battle.enemy || { name: 'Дикий покемон', level: 1, hp: 0, hpMax: 1, baseNum: 0 };
+
+      document.getElementById('battleTitle').textContent = 'PvE бой #' + battle.id;
+      document.getElementById('battleRound').textContent = 'Раунд ' + (battle.round || 1);
+      document.getElementById('battlePlayerName').textContent = player.name + ' Lv.' + player.level;
+      document.getElementById('battleEnemyName').textContent = enemy.name + ' Lv.' + enemy.level;
+      document.getElementById('battlePlayerHp').textContent = 'HP ' + player.hp + '/' + player.hpMax;
+      document.getElementById('battleEnemyHp').textContent = 'HP ' + enemy.hp + '/' + enemy.hpMax;
+      renderBattleSprites(player, enemy);
+
+      const playerHpPercent = Math.max(0, Math.min(100, (player.hp / Math.max(1, player.hpMax)) * 100));
+      const enemyHpPercent = Math.max(0, Math.min(100, (enemy.hp / Math.max(1, enemy.hpMax)) * 100));
+      document.getElementById('battlePlayerHpBar').style.width = playerHpPercent + '%';
+      document.getElementById('battleEnemyHpBar').style.width = enemyHpPercent + '%';
+
+      battleState.moves = Array.isArray(battle.moves) ? battle.moves : [];
+      for (let i = 0; i < 4; i++) {
+        const button = document.getElementById('battleMove' + (i + 1));
+        const move = battleState.moves[i];
+        if (move) {
+          button.disabled = false;
+          const power = Number(move.power || 0);
+          const acc = Number(move.accuracy || 0);
+          button.innerHTML = '<span class="t"></span><span class="s"></span>';
+          button.querySelector('.t').textContent = move.name;
+          button.querySelector('.s').textContent = 'Сила: ' + power + ' • Точность: ' + acc + '%';
+          button.dataset.moveId = String(move.id);
+        } else {
+          button.disabled = true;
+          button.textContent = 'Нет атаки';
+          button.dataset.moveId = '';
+        }
+      }
+
+      const switchSelect = document.getElementById('battleSwitchSelect');
+      switchSelect.innerHTML = '';
+      const options = Array.isArray(battle.switchOptions) ? battle.switchOptions : [];
+      for (const option of options) {
+        const row = document.createElement('option');
+        row.value = String(option.id);
+        row.textContent = option.name + ' (' + option.hp + '/' + option.hpMax + ')';
+        row.disabled = !!option.disabled;
+        switchSelect.appendChild(row);
+      }
+      renderBattleSwitchList(options);
+
+      const extraMessages = [...(payload.messages || [])];
+      if (payload.rewards && Number(payload.rewards.coins || 0) > 0) {
+        extraMessages.push('Награда: ' + Number(payload.rewards.coins) + ' монет, ' + Number(payload.rewards.exp || 0) + ' опыта.');
+      }
+      renderBattleLog(battle.logByRound || [], extraMessages);
+
+      if (payload.finished) {
+        const finishLine = payload.result === 'win'
+          ? 'Победа в бою.'
+          : (payload.result === 'caught' ? 'Покемон пойман.' : (payload.result === 'escape' ? 'Вы покинули бой.' : 'Поражение в бою.'));
+        renderBattleLog(battle.logByRound || [], [...extraMessages, finishLine]);
+      }
+
+      const doneBox = document.getElementById('battleFinishBox');
+      doneBox.hidden = !payload.finished;
+      setBattleControlsDisabled(!!payload.finished);
+    }
+
+    function setBattleControlsDisabled(disabled) {
+      for (let i = 1; i <= 4; i++) {
+        document.getElementById('battleMove' + i).disabled = disabled || document.getElementById('battleMove' + i).disabled;
+      }
+      document.getElementById('battleSwitchSelect').disabled = disabled;
+      document.getElementById('battleSwitchBtn').disabled = disabled;
+      document.getElementById('battleEscapeBtn').disabled = disabled;
+    }
+
+    function renderBattleSwitchList(options) {
+      const list = document.getElementById('battleSwitchList');
+      if (!list) return;
+      list.innerHTML = '';
+      if (!Array.isArray(options) || !options.length) {
+        list.innerHTML = '<div class="battle-empty">&#1053;&#1077;&#1090; &#1087;&#1086;&#1082;&#1077;&#1084;&#1086;&#1085;&#1086;&#1074; &#1076;&#1083;&#1103; &#1079;&#1072;&#1084;&#1077;&#1085;&#1099;.</div>';
+        return;
+      }
+      for (const option of options) {
+        const hp = Number(option.hp || 0);
+        const hpMax = Math.max(1, Number(option.hpMax || 1));
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'battle-switch-card';
+        button.disabled = !!option.disabled;
+        button.innerHTML = '<span class="mini-poke"></span><span class="battle-row-main"><b></b><span class="mini-bars"><i class="hp"></i><i class="xp"></i></span></span>';
+        button.querySelector('b').textContent = option.name || 'Pokemon';
+        button.querySelector('.mini-poke').textContent = '●';
+        button.querySelector('.hp').style.width = Math.max(0, Math.min(100, (hp / hpMax) * 100)) + '%';
+        button.querySelector('.xp').style.width = '22%';
+        button.addEventListener('click', () => {
+          if (button.disabled) return;
+          document.getElementById('battleSwitchSelect').value = String(option.id);
+          battleAction('switch', { pokemon_id: option.id });
+        });
+        list.appendChild(button);
+      }
+    }
+
+    async function loadBattlePocket() {
+      if (!battlePocket.loaded) {
+        const itemsList = document.getElementById('battleItemsList');
+        const ballsList = document.getElementById('battleBallsList');
+        if (itemsList) itemsList.innerHTML = '<div class="battle-empty">Loading...</div>';
+        if (ballsList) ballsList.innerHTML = '<div class="battle-empty">Loading...</div>';
+        try {
+          const response = await fetch('/api/inventory/battle', { credentials: 'same-origin' });
+          const payload = await response.json();
+          battlePocket.items = payload && payload.ok === true && Array.isArray(payload.items) ? payload.items : [];
+          battlePocket.loaded = true;
+        } catch (e) {
+          battlePocket.items = [];
+          battlePocket.loaded = true;
+        }
+      }
+      renderBattlePocketLists();
+    }
+
+    function renderBattlePocketLists() {
+      const all = battlePocket.items || [];
+      const balls = all.filter(item => isBattleBall(item));
+      const items = all.filter(item => !isBattleBall(item) && Number(item.item_id || 0) !== 1 && Number(item.battleuse || 0) === 1);
+      renderBattlePocketList('battleItemsList', items, '&#1053;&#1077;&#1090; &#1073;&#1086;&#1077;&#1074;&#1099;&#1093; &#1087;&#1088;&#1077;&#1076;&#1084;&#1077;&#1090;&#1086;&#1074;.');
+      renderBattlePocketList('battleBallsList', balls, '&#1053;&#1077;&#1090; &#1087;&#1086;&#1082;&#1077;&#1073;&#1086;&#1083;&#1086;&#1074;.');
+    }
+
+    function renderBattlePocketList(id, items, emptyText) {
+      const list = document.getElementById(id);
+      if (!list) return;
+      list.innerHTML = '';
+      if (!items.length) {
+        list.innerHTML = '<div class="battle-empty">' + emptyText + '</div>';
+        return;
+      }
+      for (const item of items.slice(0, 12)) {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'battle-item-row';
+        row.innerHTML = '<img alt=""><span><b></b><small></small></span><i aria-hidden="true">☆</i>';
+        row.querySelector('img').src = '/img/items/' + Number(item.item_id || 0) + '.png';
+        row.querySelector('b').textContent = item.name || item.tittle || ('Item #' + Number(item.item_id || 0));
+        row.querySelector('small').innerHTML = '&#1050;&#1086;&#1083;&#1080;&#1095;&#1077;&#1089;&#1090;&#1074;&#1086;: ' + Number(item.count || 0) + ' &#1096;&#1090;.';
+        row.addEventListener('click', () => {
+          const action = id === 'battleBallsList' ? 'ball' : 'item';
+          battleAction(action, { item_user_id: item.id });
+        });
+        list.appendChild(row);
+      }
+    }
+
+    function isBattleBall(item) {
+      const id = Number(item.item_id || 0);
+      const name = String((item.name || '') + ' ' + (item.tittle || '')).toLowerCase();
+      return id === 3
+        || name.includes('ball')
+        || name.includes('покеб')
+        || name.includes('ультрабол')
+        || name.includes('мастербол')
+        || name.includes('шайнибол')
+        || name.includes('ultra')
+        || name.includes('master');
+    }
+
+    function pad3(num) {
+      return String(Math.max(0, Number(num || 0))).padStart(3, '0');
+    }
+
+    function setSpriteWithFallback(imgEl, candidates) {
+      const urls = candidates.filter(Boolean);
+      let idx = 0;
+      const tryNext = () => {
+        if (idx >= urls.length) return;
+        imgEl.src = urls[idx++];
+      };
+      imgEl.onerror = tryNext;
+      tryNext();
+    }
+
+    function renderBattleSprites(player, enemy) {
+      const playerBase = Number(player.baseNum || 0);
+      const enemyBase = Number(enemy.baseNum || 0);
+      const playerImg = document.getElementById('battlePlayerSpriteImg');
+      const enemyImg = document.getElementById('battleEnemySpriteImg');
+
+      playerImg.alt = player.name || 'Ваш покемон';
+      enemyImg.alt = enemy.name || 'Дикий покемон';
+
+      // Ваш покемон — обязательно из back (вид со спины), с fallback.
+      setSpriteWithFallback(playerImg, [
+        '/pok/back/' + playerBase + '.jpg',
+        '/pok/sback/' + playerBase + '.jpg',
+        '/pok/back/' + pad3(playerBase) + '.gif',
+        '/pok/normal/' + pad3(playerBase) + '.gif'
+      ]);
+
+      // Дикий покемон — фронтальный спрайт.
+      setSpriteWithFallback(enemyImg, [
+        '/pok/normal/' + pad3(enemyBase) + '.gif',
+        '/pok/shine/' + pad3(enemyBase) + '.gif',
+        '/pok/shiny/' + pad3(enemyBase) + '.gif',
+        '/pok/back/' + enemyBase + '.jpg'
+      ]);
+    }
+
+    function renderBattleSpritesFromDebug(debug) {
+      const playerTag = String(debug && debug.poke_1 ? debug.poke_1 : '');
+      const enemyTag = String(debug && debug.poke_2 ? debug.poke_2 : '');
+      const playerId = Number((playerTag.match(/_(\d+)$/) || [])[1] || 0);
+      const enemyId = Number((enemyTag.match(/_(\d+)$/) || [])[1] || debug && debug.user_2 || 0);
+
+      const playerImg = document.getElementById('battlePlayerSpriteImg');
+      const enemyImg = document.getElementById('battleEnemySpriteImg');
+
+      // Тестовый рендер в "квадратиках", даже если backend еще не собрал state полностью.
+      setSpriteWithFallback(playerImg, [
+        '/pok/back/' + playerId + '.jpg',
+        '/pok/sback/' + playerId + '.jpg',
+        '/pok/back/' + pad3(playerId) + '.gif',
+        '/pok/back/1.jpg',
+      ]);
+      setSpriteWithFallback(enemyImg, [
+        '/pok/normal/' + pad3(enemyId) + '.gif',
+        '/pok/shine/' + pad3(enemyId) + '.gif',
+        '/pok/shiny/' + pad3(enemyId) + '.gif',
+        '/pok/normal/001.gif',
+      ]);
+    }
+
+    async function loadBattleState() {
+      try {
+        const response = await fetch('/api/battle/pve/state', { credentials: 'same-origin' });
+        const payload = await response.json();
+        renderBattle(payload);
+      } catch (error) {
+        setStatus('Не удалось обновить боевое состояние.', true);
+      }
+    }
+
+    async function battleAction(action, extra = {}) {
+      const body = new URLSearchParams();
+      body.set('_csrf', csrf);
+      body.set('action', action);
+      Object.entries(extra).forEach(([key, value]) => body.set(key, String(value)));
+
+      try {
+        const response = await fetch('/api/battle/pve/action', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body,
+        });
+        const payload = await response.json();
+        if (!payload || payload.ok !== true) {
+          setStatus(payload && payload.message ? payload.message : 'Боевое действие отклонено.', true);
+        }
+        if (action === 'item' || action === 'ball') {
+          battlePocket.loaded = false;
+        }
+        renderBattle(payload);
+      } catch (error) {
+        setStatus('Боевое действие не выполнено.', true);
+      }
+    }
+
+    async function acknowledgeBattleEnd() {
+      const body = new URLSearchParams();
+      body.set('_csrf', csrf);
+      try {
+        await fetch('/api/battle/pve/ack-end', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body,
+        });
+      } catch (e) {
+        // ignore
+      }
+      closeBattleOverlay();
+      document.getElementById('battleFinishBox').hidden = true;
+      loadState();
+    }
+
+    function renderInventoryGrid(sourceItems = null) {
+      const grid = document.getElementById('invGrid');
+      const items = (sourceItems || inventory.items).slice(0, 60);
+      grid.innerHTML = '';
+
+      for (let i = 0; i < 60; i++) {
+        const item = items[i] || null;
+        const slot = document.createElement('button');
+        slot.type = 'button';
+        slot.className = 'inv-slot' + (item ? '' : ' empty');
+
+        if (item) {
+          slot.innerHTML = '<img alt=""><span class="cnt"></span><span class="item-id"></span>';
+          slot.querySelector('img').src = '/img/items/' + Number(item.item_id || 0) + '.png';
+          slot.querySelector('.cnt').textContent = Number(item.count || 0).toLocaleString('ru-RU');
+          slot.querySelector('.item-id').textContent = '#' + Number(item.item_id || 0);
+          if (inventory.selected && Number(inventory.selected.id) === Number(item.id)) {
+            slot.classList.add('selected');
+          }
+          slot.addEventListener('click', () => {
+            inventory.selected = item;
+            renderInventoryGrid();
+          });
+          slot.addEventListener('mouseenter', (event) => showItemTooltip(event, item));
+          slot.addEventListener('mousemove', moveItemTooltip);
+          slot.addEventListener('mouseleave', hideItemTooltip);
+        } else {
+          slot.innerHTML = '<img alt="" src="/img/blank.gif">';
+          slot.disabled = true;
+        }
+        grid.appendChild(slot);
+      }
+
+      document.getElementById('invSlotsCount').textContent = String(items.length);
+      document.getElementById('invPageInfo').textContent = inventory.page + '/' + inventory.pages;
+    }
+
+    async function loadInventoryPage(page = 1) {
+      try {
+        const response = await fetch('/api/inventory/page?page=' + encodeURIComponent(page), { credentials: 'same-origin' });
+        const payload = await response.json();
+        if (!payload || payload.ok !== true) {
+          return;
+        }
+        inventory.page = Number(payload.page || 1);
+        inventory.pages = Number(payload.pages || 1);
+        inventory.items = Array.isArray(payload.items) ? payload.items : [];
+        inventory.selected = null;
+        renderInventoryGrid();
+      } catch (e) {
+        // ignore network error for now
+      }
+    }
+
+    function showItemTooltip(event, item) {
+      const tooltip = document.getElementById('invTooltip');
+      const name = String(item.name || 'Без названия');
+      const count = Number(item.count || 0).toLocaleString('ru-RU');
+      const id = Number(item.item_id || 0);
+      tooltip.innerHTML = '<strong>' + name + '</strong><br>ID: ' + id + ' / Кол-во: ' + count;
+      tooltip.style.display = 'block';
+      moveItemTooltip(event);
+    }
+
+    function moveItemTooltip(event) {
+      const tooltip = document.getElementById('invTooltip');
+      if (tooltip.style.display !== 'block') return;
+      tooltip.style.left = (event.clientX + 14) + 'px';
+      tooltip.style.top = (event.clientY + 14) + 'px';
+    }
+
+    function hideItemTooltip() {
+      document.getElementById('invTooltip').style.display = 'none';
     }
 
     async function openNpc(npc, overrideParams = null) {
@@ -511,6 +945,24 @@ use Pokemon8\View\View;
       }
     }
 
+    async function togglePveButton() {
+      try {
+        setStatus('Переключаем нападение...');
+        const body = new URLSearchParams();
+        body.set('_csrf', csrf);
+        body.set('mode', state.pveButton ? 'off' : 'on');
+        const response = await fetch('/api/game/pve-mode', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body,
+        });
+        render(await response.json());
+      } catch (error) {
+        setStatus('Не удалось переключить режим нападения.', true);
+      }
+    }
+
     document.getElementById('chatForm').addEventListener('submit', event => {
       event.preventDefault();
       const input = document.getElementById('chatInput');
@@ -520,8 +972,87 @@ use Pokemon8\View\View;
       document.getElementById('chatLog').appendChild(line);
       input.value = '';
     });
+    document.getElementById('pveButton').addEventListener('click', togglePveButton);
+    document.getElementById('debugForceBattleBtn').addEventListener('click', async () => {
+      try {
+        setStatus('DEBUG: запускаем бой...');
+        const body = new URLSearchParams();
+        body.set('_csrf', csrf);
+        const response = await fetch('/api/battle/pve/force', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body
+        });
+        render(await response.json());
+      } catch (e) {
+        setStatus('DEBUG: не удалось запустить бой.', true);
+      }
+    });
+
+    document.getElementById('inventoryLink').addEventListener('click', event => {
+      event.preventDefault();
+      openInventory();
+    });
+    document.getElementById('pokemonLink').addEventListener('click', event => {
+      event.preventDefault();
+      openPokemonModal();
+    });
+    document.getElementById('pokemonCloseBtn').addEventListener('click', closePokemonModal);
+    document.getElementById('pokemonOverlay').addEventListener('click', event => {
+      if (event.target.id === 'pokemonOverlay') {
+        closePokemonModal();
+      }
+    });
+    document.getElementById('invCloseBtn').addEventListener('click', closeInventory);
+    document.getElementById('invRefreshBtn').addEventListener('click', () => loadInventoryPage(inventory.page));
+    document.getElementById('invPrevBtn').addEventListener('click', () => loadInventoryPage(Math.max(1, inventory.page - 1)));
+    document.getElementById('invNextBtn').addEventListener('click', () => loadInventoryPage(Math.min(inventory.pages, inventory.page + 1)));
+    document.getElementById('inventoryOverlay').addEventListener('click', event => {
+      if (event.target.id === 'inventoryOverlay') {
+        closeInventory();
+      }
+    });
+    document.getElementById('inventoryOverlay').addEventListener('mouseleave', hideItemTooltip);
+    document.getElementById('invSearchInput').addEventListener('input', event => {
+      const query = String(event.target.value || '').trim().toLowerCase();
+      if (!query) {
+        renderInventoryGrid();
+        return;
+      }
+      const filtered = inventory.items.filter(item => String(item.name || '').toLowerCase().includes(query));
+      renderInventoryGrid(filtered);
+    });
+
+    for (let i = 1; i <= 4; i++) {
+      document.getElementById('battleMove' + i).addEventListener('click', event => {
+        const moveId = Number(event.currentTarget.dataset.moveId || 0);
+        if (moveId > 0) {
+          battleAction('attack', { move_id: moveId });
+        }
+      });
+    }
+    document.getElementById('battleSwitchBtn').addEventListener('click', () => {
+      const pokemonId = Number(document.getElementById('battleSwitchSelect').value || 0);
+      if (pokemonId > 0) {
+        battleAction('switch', { pokemon_id: pokemonId });
+      }
+    });
+    document.getElementById('battleEscapeBtn').addEventListener('click', () => {
+      battleAction('escape');
+    });
+    document.getElementById('battleDoneBtn').addEventListener('click', () => {
+      acknowledgeBattleEnd();
+    });
 
     loadState();
+    setInterval(loadState, 5000);
+    setInterval(() => {
+      if (battleState.active) {
+        loadBattleState();
+      }
+    }, 2000);
   </script>
+
 </body>
 </html>

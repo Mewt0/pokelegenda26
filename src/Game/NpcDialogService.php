@@ -6,6 +6,7 @@ namespace Pokemon8\Game;
 use Pokemon8\Repository\LocationRepository;
 use Pokemon8\Repository\InventoryRepository;
 use Pokemon8\Repository\QuestRepository;
+use Pokemon8\Repository\PokemonRepository;
 
 final class NpcDialogService
 {
@@ -13,6 +14,7 @@ final class NpcDialogService
         private LocationRepository $locations,
         private QuestRepository $quests,
         private InventoryRepository $inventory,
+        private PokemonRepository $pokemon,
         private LocationContentRepository $content,
     ) {
     }
@@ -25,6 +27,13 @@ final class NpcDialogService
 
         if ((int) ($params['quest_npc'] ?? 0) === 7) {
             return $this->billy($userId, (int) ($params['do'] ?? 1));
+        }
+
+        if ((int) ($params['npc'] ?? 0) === 1) {
+            if (!$this->hasSisterJoy($locationId)) {
+                return $this->error('Сестра Джой доступна только в покецентре.');
+            }
+            return $this->sisterJoy($userId, (string) ($params['do_npc'] ?? 'pc'));
         }
 
         return $this->genericDialog($locationId, $params);
@@ -57,7 +66,96 @@ final class NpcDialogService
             return $this->turnInBilly($userId);
         }
 
+        if ((int) ($params['npc'] ?? 0) === 1) {
+            if (!$this->hasSisterJoy($locationId)) {
+                return $this->error('Сестра Джой доступна только в покецентре.');
+            }
+            return $this->sisterJoyAction($userId, $action);
+        }
+
         return $this->error('Действие NPC пока не перенесено.');
+    }
+
+    private function sisterJoy(int $userId, string $mode): array
+    {
+        if ($mode === '2' || $mode === 'nursery') {
+            return $this->nurseryDialog($userId);
+        }
+
+        return $this->dialog('Сестра Джой', 'Здравствуйте, добро пожаловать в наш покецентр. Чем я могу Вам помочь?', [
+            ['label' => 'Вылечить покемонов', 'action' => 'joy_heal'],
+            ['label' => 'Питомник', 'params' => ['npc' => '1', 'do_npc' => 'nursery']],
+            ['label' => 'Уйти', 'close' => true],
+        ]);
+    }
+
+    private function sisterJoyAction(int $userId, string $action): array
+    {
+        if ($action === 'joy_heal') {
+            $this->pokemon->healActivePokemon($userId);
+            return $this->dialog('Сестра Джой', 'Ваши покемоны полностью вылечены. PP атак тоже восстановлены.', [
+                ['label' => 'Спасибо', 'close' => true],
+                ['label' => 'Питомник', 'params' => ['npc' => '1', 'do_npc' => 'nursery']],
+            ]);
+        }
+
+        if (str_starts_with($action, 'nursery_take:')) {
+            $pokemonId = (int) substr($action, strlen('nursery_take:'));
+            if (!$this->pokemon->moveFromNursery($userId, $pokemonId)) {
+                return $this->dialog('Сестра Джой', 'Не получилось забрать покемона: в команде должно быть меньше 6 покемонов.', [
+                    ['label' => 'Питомник', 'params' => ['npc' => '1', 'do_npc' => 'nursery']],
+                ]);
+            }
+
+            return $this->nurseryDialog($userId, 'Покемон добавлен в команду.');
+        }
+
+        if (str_starts_with($action, 'nursery_store:')) {
+            $pokemonId = (int) substr($action, strlen('nursery_store:'));
+            if (!$this->pokemon->moveToNursery($userId, $pokemonId)) {
+                return $this->dialog('Сестра Джой', 'Не получилось отправить покемона: при себе должен остаться хотя бы один активный покемон.', [
+                    ['label' => 'Питомник', 'params' => ['npc' => '1', 'do_npc' => 'nursery']],
+                ]);
+            }
+
+            return $this->nurseryDialog($userId, 'Покемон отправлен в питомник.');
+        }
+
+        return $this->error('Действие Сестры Джой не найдено.');
+    }
+
+    private function nurseryDialog(int $userId, string $prefix = ''): array
+    {
+        $active = $this->pokemon->listActivePokemon($userId, 6);
+        $stored = $this->pokemon->listNurseryPokemon($userId, 8);
+        $activeCount = $this->pokemon->countActivePokemon($userId);
+
+        $choices = [
+            ['label' => 'Вылечить команду', 'action' => 'joy_heal'],
+        ];
+
+        foreach ($stored as $pokemon) {
+            $choices[] = [
+                'label' => 'Забрать #' . $pokemon['name'] . ' Lv.' . $pokemon['level'],
+                'action' => 'nursery_take:' . $pokemon['id'],
+                'disabled' => $activeCount >= 6,
+                'hint' => $activeCount >= 6 ? 'В команде уже 6 покемонов.' : null,
+            ];
+        }
+
+        foreach ($active as $pokemon) {
+            $choices[] = [
+                'label' => 'В питомник #' . $pokemon['name'] . ' Lv.' . $pokemon['level'],
+                'action' => 'nursery_store:' . $pokemon['id'],
+                'disabled' => $activeCount <= 1 || $pokemon['starter'],
+                'hint' => $pokemon['starter'] ? 'Стартового покемона нельзя убрать.' : null,
+            ];
+        }
+
+        $choices[] = ['label' => 'Назад', 'params' => ['npc' => '1', 'do_npc' => 'pc']];
+        $text = trim(($prefix !== '' ? $prefix . ' ' : '') . 'В команде сейчас ' . $activeCount . '/6. В питомнике показаны первые ' . count($stored) . ' покемонов.');
+
+        return $this->dialog('Питомник', $text, $choices);
     }
 
     private function billy(int $userId, int $step): array
@@ -155,6 +253,11 @@ final class NpcDialogService
         }
 
         return null;
+    }
+
+    private function hasSisterJoy(int $locationId): bool
+    {
+        return $this->findNpc($locationId, ['npc' => '1', 'do_npc' => 'pc']) !== null;
     }
 
     private function dialog(string $title, string $text, array $choices): array
