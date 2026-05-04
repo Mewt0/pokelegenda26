@@ -46,6 +46,8 @@ use Pokemon8\View\View;
       <a href="/game/pokemon" id="pokemonLink">Покемоны</a>
       <a href="/game/items" id="inventoryLink">Инвентарь</a>
       <a href="/game/profile">Профиль</a>
+      <a href="#" data-open-dex="pokemon">Покедекс</a>
+      <a href="#" data-open-dex="attacks">Атакадекс</a>
       <a href="/game/quests">Квесты</a>
       <a href="/game/battle/pvp">Бои</a>
       <a href="/game/messages">Почта</a>
@@ -137,6 +139,23 @@ use Pokemon8\View\View;
             <button type="button" id="battleDoneBtn">Завершить бой</button>
           </div>
         </aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="dex-overlay" id="dexOverlay" aria-hidden="true">
+    <div class="dex-window" role="dialog" aria-label="Декс">
+      <header class="dex-head">
+        <nav>
+          <button type="button" class="is-active" data-dex-tab="pokemon">Покедекс</button>
+          <button type="button" data-dex-tab="attacks">Атакадекс</button>
+        </nav>
+        <input id="dexSearchInput" placeholder="Поиск по названию или ID">
+        <button type="button" id="dexCloseBtn">×</button>
+      </header>
+      <div class="dex-body">
+        <aside class="dex-list" id="dexList"></aside>
+        <main class="dex-details" id="dexDetails"></main>
       </div>
     </div>
   </section>
@@ -553,8 +572,8 @@ use Pokemon8\View\View;
       document.getElementById('battleEnemyName').textContent = enemy.name + ' Lv.' + enemy.level;
       document.getElementById('battlePlayerHp').textContent = 'HP ' + player.hp + '/' + player.hpMax;
       document.getElementById('battleEnemyHp').textContent = 'HP ' + enemy.hp + '/' + enemy.hpMax;
-      renderBattleStatuses('battlePlayerStatuses', player.statuses || []);
-      renderBattleStatuses('battleEnemyStatuses', enemy.statuses || []);
+      renderBattleStatuses('battlePlayerStatuses', player.statuses || [], player.majorStatuses || []);
+      renderBattleStatuses('battleEnemyStatuses', enemy.statuses || [], enemy.majorStatuses || []);
       battleHoverState.player = player;
       battleHoverState.enemy = enemy;
       setupBattlePokemonHover();
@@ -627,12 +646,20 @@ use Pokemon8\View\View;
       document.getElementById('battleEscapeBtn').disabled = disabled;
     }
 
-    function renderBattleStatuses(targetId, statuses) {
+    function renderBattleStatuses(targetId, statuses, majorStatuses = []) {
       const box = document.getElementById(targetId);
       if (!box) return;
       box.innerHTML = '';
+      if (Array.isArray(majorStatuses)) {
+        for (const status of majorStatuses.slice(0, 3)) {
+          const badge = document.createElement('span');
+          badge.className = 'major';
+          badge.textContent = String(status.name || ('Статус #' + status.id));
+          box.appendChild(badge);
+        }
+      }
       if (!Array.isArray(statuses)) return;
-      for (const status of statuses.slice(0, 4)) {
+      for (const status of statuses.slice(0, 5)) {
         const badge = document.createElement('span');
         badge.className = status.kind === 'minus' ? 'minus' : 'plus';
         badge.textContent = String(status.label || '') + ' ' + String(status.sign || '') + String(status.value || '');
@@ -666,9 +693,13 @@ use Pokemon8\View\View;
       const stats = pokemon.stats || {};
       const moves = Array.isArray(pokemon.movesPreview) ? pokemon.movesPreview.slice(0, 4) : [];
       const statuses = Array.isArray(pokemon.statuses) ? pokemon.statuses : [];
+      const majorStatuses = Array.isArray(pokemon.majorStatuses) ? pokemon.majorStatuses : [];
       const typeLabel = String(pokemon.tips || 'normal').toLowerCase().includes('shine') ? 'SHINY' : 'NORMAL';
-      const statusText = statuses.length
+      const statText = statuses.length
         ? statuses.map(s => escapeHtml(String(s.label || '') + ' ' + String(s.sign || '') + String(s.value || ''))).join(', ')
+        : 'нет';
+      const majorText = majorStatuses.length
+        ? majorStatuses.map(s => escapeHtml(String(s.name || 'Статус'))).join(', ')
         : 'нет';
       const movesText = moves.length
         ? moves.map(m => '<span class="tip-move">• ' + escapeHtml(m.name || 'Атака') + '</span> (' + Number(m.pp || 0) + '/' + Number(m.ppMax || 0) + ' | ' + Number(m.power || 0) + '/' + Number(m.accuracy || 0) + ')').join('<br>')
@@ -677,7 +708,8 @@ use Pokemon8\View\View;
         '<h4>' + escapeHtml(pokemon.name || 'Pokemon') + ' <small>Lv.' + Number(pokemon.level || 1) + '</small></h4>',
         '<span class="tip-type">' + typeLabel + '</span>',
         '<div>HP: ' + Math.round((hp / hpMax) * 100) + '% (' + hp + '/' + hpMax + ')</div>',
-        '<div>Модификаторы: ' + statusText + '</div>',
+        '<div>Статусы: ' + majorText + '</div>',
+        '<div>Модификаторы: ' + statText + '</div>',
         '<div>Раскрытые атаки:<br>' + movesText + '</div>',
         '<table><tr><th>Атака</th><th>Защита</th><th>С. Атака</th><th>С. Защита</th><th>Скорость</th></tr>',
         '<tr><td>' + Number(stats.atk || 0) + '</td><td>' + Number(stats.def || 0) + '</td><td>' + Number(stats.satk || 0) + '</td><td>' + Number(stats.sdef || 0) + '</td><td>' + Number(stats.speed || 0) + '</td></tr></table>',
@@ -835,6 +867,17 @@ use Pokemon8\View\View;
       return urls;
     }
 
+    function isShinyBattlePokemon(pokemon) {
+      const joined = [pokemon && pokemon.name, pokemon && pokemon.tips, pokemon && pokemon.status]
+        .map(v => String(v || '').toLowerCase())
+        .join(' ');
+      return joined.includes('shiny') || joined.includes('pokesshiny') || joined.includes('shine');
+    }
+
+    function spriteCandidatesAny(folder, base, extensions = ['gif', 'png', 'jpg']) {
+      return spriteCandidates(folder, base, extensions);
+    }
+
     function renderBattleSprites(player, enemy) {
       const playerBase = Number(player.baseNum || 0);
       const enemyBase = Number(enemy.baseNum || 0);
@@ -844,18 +887,36 @@ use Pokemon8\View\View;
       playerImg.alt = player.name || 'Ваш покемон';
       enemyImg.alt = enemy.name || 'Дикий покемон';
 
-      // Ваш покемон — обязательно из back (вид со спины), с fallback.
-      const playerTips = String(player.tips || 'normal').toLowerCase();
-      const playerCandidates = playerTips === 'shine' || playerTips === 'shiny'
-        ? spriteCandidates('sback', playerBase).concat(spriteCandidates('Sback', playerBase), spriteCandidates('back', playerBase), spriteCandidates('back', playerBase, ['jpg', 'png']))
-        : spriteCandidates('back', playerBase).concat(spriteCandidates('back', playerBase, ['jpg', 'png']));
-      setSpriteWithFallback(playerImg, playerCandidates);
+      const playerIsShiny = isShinyBattlePokemon(player);
+      const enemyIsShiny = isShinyBattlePokemon(enemy);
 
-      // Дикий покемон — фронтальный спрайт.
-      const enemyTips = String(enemy.tips || 'normal').toLowerCase();
-      const enemyCandidates = enemyTips === 'shine' || enemyTips === 'shiny'
-        ? spriteCandidates('shiny', enemyBase).concat(spriteCandidates('shine', enemyBase, ['png']))
-        : spriteCandidates('pok', enemyBase).concat(spriteCandidates('normal', enemyBase, ['png']));
+      // Back sprite for user's pokemon. Try shiny back first when name/tips says Shiny,
+      // then normal back, then front/anim fallbacks so the pokemon never disappears.
+      const playerCandidates = [];
+      if (playerIsShiny) {
+        playerCandidates.push(...spriteCandidatesAny('sback', playerBase));
+        playerCandidates.push(...spriteCandidatesAny('Sback', playerBase));
+      }
+      playerCandidates.push(...spriteCandidatesAny('back', playerBase));
+      if (playerIsShiny) {
+        playerCandidates.push(...spriteCandidatesAny('shiny', playerBase));
+        playerCandidates.push(...spriteCandidatesAny('shine', playerBase));
+      }
+      playerCandidates.push(...spriteCandidatesAny('anim', playerBase));
+      playerCandidates.push(...spriteCandidatesAny('pok', playerBase));
+      playerCandidates.push(...spriteCandidatesAny('normal', playerBase));
+
+      // Front sprite for wild pokemon. Legacy project often stores battle sprites in /pok/anim/.
+      const enemyCandidates = [];
+      if (enemyIsShiny) {
+        enemyCandidates.push(...spriteCandidatesAny('shiny', enemyBase));
+        enemyCandidates.push(...spriteCandidatesAny('shine', enemyBase));
+      }
+      enemyCandidates.push(...spriteCandidatesAny('anim', enemyBase));
+      enemyCandidates.push(...spriteCandidatesAny('pok', enemyBase));
+      enemyCandidates.push(...spriteCandidatesAny('normal', enemyBase));
+
+      setSpriteWithFallback(playerImg, playerCandidates);
       setSpriteWithFallback(enemyImg, enemyCandidates);
     }
 
@@ -868,18 +929,21 @@ use Pokemon8\View\View;
       const playerImg = document.getElementById('battlePlayerSpriteImg');
       const enemyImg = document.getElementById('battleEnemySpriteImg');
 
-      // Тестовый рендер в "квадратиках", даже если backend еще не собрал state полностью.
       setSpriteWithFallback(playerImg, [
+        '/pok/sback/' + pad3(playerId) + '.gif',
+        '/pok/sback/' + playerId + '.gif',
         '/pok/back/' + pad3(playerId) + '.gif',
         '/pok/back/' + playerId + '.gif',
-        '/pok/sback/' + playerId + '.gif',
-        '/pok/sback/' + pad3(playerId) + '.gif',
-        '/pok/back/1.jpg',
+        '/pok/anim/' + pad3(playerId) + '.gif',
+        '/pok/anim/' + playerId + '.gif',
+        '/pok/back/001.gif',
       ]);
       setSpriteWithFallback(enemyImg, [
+        '/pok/anim/' + pad3(enemyId) + '.gif',
+        '/pok/anim/' + enemyId + '.gif',
         '/pok/pok/' + pad3(enemyId) + '.gif',
         '/pok/shiny/' + pad3(enemyId) + '.gif',
-        '/pok/pok/001.gif',
+        '/pok/anim/001.gif',
       ]);
     }
 
@@ -1247,6 +1311,7 @@ use Pokemon8\View\View;
       }
     }, 2000);
   </script>
+  <script src="/public/js/dex-overlay.js"></script>
 
 </body>
 </html>

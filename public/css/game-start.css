@@ -921,3 +921,209 @@ body {
   .pokemon-overlay { inset: 0; }
   .pokemon-window { width: calc(100vw - 18px); height: calc(100vh - 18px); }
 }
+
+/* Dex overlay: Pokedex / Attackdex */
+.dex-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 98000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(14, 24, 38, .55);
+  backdrop-filter: blur(3px);
+}
+.dex-overlay.is-open { display: flex; }
+.dex-window {
+  width: min(1120px, calc(100vw - 32px));
+  height: min(720px, calc(100vh - 32px));
+  background: linear-gradient(180deg, #f8fbff, #e9eef6);
+  border: 1px solid rgba(41, 76, 115, .35);
+  border-radius: 14px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.35);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+.dex-head {
+  display: grid;
+  grid-template-columns: auto 1fr 44px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  background: linear-gradient(90deg, #dfefff, #eef7ff);
+  border-bottom: 1px solid #c6d7ec;
+}
+.dex-head nav { display: flex; gap: 8px; }
+.dex-head button,
+.dex-head input {
+  height: 38px;
+  border: 1px solid #b8c9dd;
+  border-radius: 9px;
+  background: #fff;
+  color: #1b3350;
+  font-weight: 700;
+}
+.dex-head button { padding: 0 13px; cursor: pointer; }
+.dex-head button.is-active { background: #1d66c2; color: #fff; border-color: #1d66c2; }
+.dex-head input { padding: 0 12px; font: inherit; }
+.dex-body {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 330px 1fr;
+}
+.dex-list {
+  overflow: auto;
+  border-right: 1px solid #c6d7ec;
+  background: rgba(255,255,255,.6);
+  padding: 10px;
+}
+.dex-row {
+  width: 100%;
+  text-align: left;
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  margin: 0 0 7px;
+  border: 1px solid #d3dfec;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+}
+.dex-row:hover { border-color: #1d66c2; box-shadow: 0 4px 12px rgba(29,102,194,.12); }
+.dex-row small { color: #66758a; }
+.dex-details {
+  min-width: 0;
+  overflow: auto;
+  padding: 18px;
+}
+.dex-details h2 { margin: 0 0 10px; color: #172033; }
+.dex-details h3 { margin: 18px 0 8px; }
+.dex-badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 14px; }
+.dex-badges span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #e8f2ff;
+  color: #174f91;
+  font-weight: 700;
+}
+.dex-stats {
+  display: grid;
+  grid-template-columns: repeat(6, auto);
+  gap: 8px;
+  align-items: center;
+  max-width: 760px;
+}
+.dex-stats b,
+.dex-stats span {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #d3dfec;
+}
+.dex-stats b { color: #53657c; }
+.dex-table-wrap { overflow: auto; border: 1px solid #d3dfec; border-radius: 10px; background: #fff; }
+.dex-table-wrap table { width: 100%; border-collapse: collapse; }
+.dex-table-wrap th,
+.dex-table-wrap td { padding: 8px 10px; border-bottom: 1px solid #edf2f7; text-align: left; }
+.dex-empty { padding: 18px; color: #66758a; }
+.battle-status-badges .major {
+  background: #fff2cc;
+  color: #7a4d00;
+  border-color: #e4b74f;
+}
+
+/* --- 2026-05-04 battle UI stability patch ---
+   Keeps battle window fixed-height, prevents log from expanding arena,
+   and keeps both sprites visible even after many rounds/status badges. */
+.battle-overlay {
+  inset: 0 0 0 0;
+  padding: 12px;
+  align-items: center;
+  justify-content: center;
+}
+.battle-window {
+  width: min(1180px, calc(100vw - 28px));
+  height: min(560px, calc(100vh - 28px));
+  max-height: calc(100vh - 28px);
+  left: auto;
+  top: auto;
+  transform: none;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.battle-window.is-dragged { position: absolute; }
+.battle-layout {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  grid-template-columns: 300px minmax(500px, 1fr) 320px;
+  overflow: hidden;
+}
+.battle-left,
+.battle-center,
+.battle-right {
+  min-height: 0;
+  overflow: hidden;
+}
+.battle-right {
+  display: flex;
+  flex-direction: column;
+}
+.battle-log {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+.battle-finish {
+  flex: 0 0 auto;
+}
+.battle-center {
+  display: flex;
+  flex-direction: column;
+}
+.battle-arena {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+.battle-arena-top,
+.battle-arena-bottom {
+  flex: 0 0 auto;
+  min-height: 86px;
+  max-height: 124px;
+  overflow: hidden;
+}
+.battle-status-badges {
+  max-height: 38px;
+  overflow: auto;
+}
+.battle-arena-field {
+  min-height: 210px;
+  overflow: hidden;
+}
+.sprite {
+  width: 150px;
+  height: 122px;
+  overflow: visible;
+}
+.sprite-enemy { right: 96px; top: 36px; }
+.sprite-player { left: 92px; bottom: 10px; }
+.sprite img {
+  max-width: 120px;
+  max-height: 116px;
+}
+@media (max-width: 980px) {
+  .battle-window { height: calc(100vh - 24px); }
+  .battle-layout { grid-template-columns: 1fr; overflow: auto; }
+  .battle-right { height: 220px; }
+}

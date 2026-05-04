@@ -13,9 +13,28 @@ final class BattleRepository
 
     public function findActivePveBattleIdForUser(int $userId): int
     {
-        $stmt = $this->db->prepare('SELECT battleid FROM users WHERE id = :id AND pve = 1 LIMIT 1');
+        // Active fight: user.pve = 1. Finished-but-not-acked fight: pve = 0,
+        // battleid still points to battles.pobeda != 0 so the client can show final log.
+        $stmt = $this->db->prepare('SELECT battleid, pve FROM users WHERE id = :id LIMIT 1');
         $stmt->execute(['id' => $userId]);
-        return (int) ($stmt->fetchColumn() ?: 0);
+        $user = $stmt->fetch();
+        if (!$user) {
+            return 0;
+        }
+
+        $battleId = (int) ($user['battleid'] ?? 0);
+        if ($battleId <= 0) {
+            return 0;
+        }
+        if ((int) ($user['pve'] ?? 0) === 1) {
+            return $battleId;
+        }
+
+        $battle = $this->db->prepare(
+            'SELECT id FROM battles WHERE id = :id AND user_1 = :user AND batl_tip = "pve" AND pobeda <> 0 LIMIT 1'
+        );
+        $battle->execute(['id' => $battleId, 'user' => $userId]);
+        return $battle->fetchColumn() !== false ? $battleId : 0;
     }
 
     public function findPveBattleForUser(int $userId, int $battleId): ?array
@@ -39,9 +58,10 @@ final class BattleRepository
 
         $table = $parsed['table'];
         $stmt = $this->db->prepare(
-            'SELECT *
-               FROM ' . $table . '
-              WHERE id = :id
+            'SELECT bp.*, pk.Element, pk.SubElement, pk.Name AS dex_name
+               FROM ' . $table . ' bp
+               LEFT JOIN pokemon pk ON pk.id = bp.basenum
+              WHERE bp.id = :id
               LIMIT 1'
         );
         $ok = $stmt->execute(['id' => $parsed['id']]);
@@ -174,24 +194,37 @@ final class BattleRepository
         $delta = max(1, min(6, $delta));
         $this->ensureBattleStatRow($battleId, $battlePokemon, $kind);
 
+        $read = $this->db->prepare(
+            sprintf(
+                'SELECT `%s` FROM statpokemonbatle WHERE battleid = :battle AND pokeid = :pokemon AND tip = :kind LIMIT 1',
+                $field
+            )
+        );
+        $read->execute(['battle' => $battleId, 'pokemon' => $battlePokemon, 'kind' => $kind]);
+        $before = max(0, min(6, (int) ($read->fetchColumn() ?: 0)));
+        $after = max(0, min(6, $before + $delta));
+        $applied = max(0, $after - $before);
+        if ($applied <= 0) {
+            return 0;
+        }
+
         $sql = sprintf(
             'UPDATE statpokemonbatle
-                SET `%s` = LEAST(6, GREATEST(0, `%s` + :delta))
+                SET `%s` = :value
               WHERE battleid = :battle AND pokeid = :pokemon AND tip = :kind
               LIMIT 1',
-            $field,
             $field
         );
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
-            'delta' => $delta,
+            'value' => $after,
             'battle' => $battleId,
             'pokemon' => $battlePokemon,
             'kind' => $kind,
         ]);
 
-        return $stmt->rowCount();
+        return $applied;
     }
 
     public function ensureBattleStatRow(int $battleId, string $battlePokemon, string $kind): void
@@ -252,7 +285,7 @@ final class BattleRepository
     {
         $stmt = $this->db->prepare(
             'SELECT ap.atac_id AS id, ap.atc_lvl,
-                    apw.atac_name, apw.atac_power, apw.atac_accuracy, apw.atac_categori, apw.critic, apw.priorety, apw.atac_pp
+                    apw.atac_name, apw.atac_tip, apw.atac_power, apw.atac_accuracy, apw.atac_categori, apw.critic, apw.priorety, apw.atac_pp, apw.chans_dop, apw.chans_effect, apw.atac_not, apw.stati, apw.attac_effecti
                FROM attac_poke ap
                LEFT JOIN attac_power apw ON apw.atac_id = ap.atac_id
               WHERE ap.poke_base_id = :base AND ap.atc_lvl <= :lvl
@@ -268,6 +301,7 @@ final class BattleRepository
                 'atac_name' => 'Tackle',
                 'atac_power' => 40,
                 'atac_accuracy' => 100,
+                'atac_tip' => 'Normal',
                 'atac_categori' => 1,
                 'critic' => 1,
                 'priorety' => 0,
@@ -319,7 +353,7 @@ final class BattleRepository
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $movesStmt = $this->db->prepare(
-            'SELECT atac_id AS id, atac_name, atac_power, atac_accuracy, atac_categori, critic, priorety, atac_pp
+            'SELECT atac_id AS id, atac_name, atac_tip, atac_power, atac_accuracy, atac_categori, critic, priorety, atac_pp, chans_dop, chans_effect, atac_not, stati, attac_effecti
                FROM attac_power
               WHERE atac_id IN (' . $placeholders . ')'
         );
@@ -479,10 +513,26 @@ final class BattleRepository
 
     public function insertBattleLog(int $battleId, int $round, string $message): void
     {
+        try {
+            $stmt = $this->db->prepare(
+                'INSERT INTO battle_log (battle_id, demage, raund) VALUES (:battle_id, :demage, :raund)'
+            );
+            $stmt->execute([
+                'battle_id' => $battleId,
+                'demage' => $message,
+                'raund' => $round,
+            ]);
+            return;
+        } catch (\Throwable) {
+            // Server DB keeps battle_log.id without AUTO_INCREMENT. Use safe fallback.
+        }
+
+        $nextId = (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM battle_log')->fetchColumn() ?: 1);
         $stmt = $this->db->prepare(
-            'INSERT INTO battle_log (battle_id, demage, raund) VALUES (:battle_id, :demage, :raund)'
+            'INSERT INTO battle_log (id, battle_id, demage, raund) VALUES (:id, :battle_id, :demage, :raund)'
         );
         $stmt->execute([
+            'id' => $nextId,
             'battle_id' => $battleId,
             'demage' => $message,
             'raund' => $round,
@@ -806,6 +856,279 @@ final class BattleRepository
         }
 
         $this->db->prepare('UPDATE users SET battleid = 0 WHERE id = :id LIMIT 1')->execute(['id' => $userId]);
+    }
+
+
+    /**
+     * Returns separate plus/minus stage storage. Do not collapse to one net value:
+     * legacy math uses (2 + plus) / (2 + minus).
+     *
+     * @return array{plus: array<string,int>, minus: array<string,int>}
+     */
+    public function findBattleStatStageParts(int $battleId, string $battlePokemon): array
+    {
+        $fields = ['attac', 'spattac', 'defend', 'spdefend', 'speed', 'acc', 'accuracy'];
+        $result = [
+            'plus' => array_fill_keys($fields, 0),
+            'minus' => array_fill_keys($fields, 0),
+        ];
+
+        if ($battleId <= 0 || $battlePokemon === '') {
+            return $result;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT attac, spattac, defend, spdefend, speed, acc, accuracy, tip
+               FROM statpokemonbatle
+              WHERE battleid = :battle AND pokeid = :pokemon'
+        );
+        $stmt->execute(['battle' => $battleId, 'pokemon' => $battlePokemon]);
+
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $kind = (string) ($row['tip'] ?? '') === 'minus' ? 'minus' : 'plus';
+            foreach ($fields as $field) {
+                $result[$kind][$field] += max(0, (int) ($row[$field] ?? 0));
+            }
+        }
+
+        foreach (['plus', 'minus'] as $kind) {
+            foreach ($fields as $field) {
+                $result[$kind][$field] = max(0, min(6, (int) $result[$kind][$field]));
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return list<array{target:string,kind:string,field:string,delta:int,label:string}>
+     */
+    public function findMoveStatEffects(int $moveId): array
+    {
+        if ($moveId <= 0) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT tip, def, atc, sdef, satc, speed, acc, accuracy,
+                    tip_b, def_b, atc_b, sdef_b, satc_b, speed_b, acc_b, accuracy_b
+               FROM stat_attak
+              WHERE id_atk = :move
+              LIMIT 1'
+        );
+        $stmt->execute(['move' => $moveId]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            return [];
+        }
+
+        $effects = [];
+        $this->appendStageEffectsFromRow($effects, $row, 'self', (string) ($row['tip'] ?? ''), false);
+        $this->appendStageEffectsFromRow($effects, $row, 'enemy', (string) ($row['tip_b'] ?? ''), true);
+        return $effects;
+    }
+
+    /** @return list<array{target:string,kind:string,field:string,delta:int,label:string,statusId?:int,chance?:int}> */
+    public function findMoveSecondaryEffects(int $moveId): array
+    {
+        if ($moveId <= 0) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT ad.dop_effc, ad.setting, ad.tip_s, ad.def, ad.atc, ad.sdef, ad.satc, ad.speed, ad.acc, ad.accuracy,
+                    ap.chans_dop, ap.chans_effect, ap.atac_not
+               FROM attac_dop ad
+               LEFT JOIN attac_power ap ON ap.atac_id = ad.id_attc
+              WHERE ad.id_attc = :move
+              LIMIT 1'
+        );
+        $stmt->execute(['move' => $moveId]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            return [];
+        }
+
+        $chance = (int) ($row['chans_dop'] ?? 0);
+        if ($chance <= 0) {
+            $chance = (int) ($row['chans_effect'] ?? 0);
+        }
+        $setting = (int) ($row['setting'] ?? 0);
+        // chans_dop/chans_effect = 0 means no random secondary effect.
+        // Do NOT convert 0 to 100, otherwise burn/paralyze/debuff becomes guaranteed.
+        if ($chance <= 0) {
+            return [];
+        }
+
+        if ($setting === 1 && (int) ($row['dop_effc'] ?? 0) > 0) {
+            return [[
+                'target' => 'enemy',
+                'kind' => 'status',
+                'field' => 'status',
+                'delta' => 0,
+                'label' => 'Статус',
+                'statusId' => (int) $row['dop_effc'],
+                'chance' => max(1, min(100, $chance)),
+            ]];
+        }
+
+        if ($setting === 2 || $setting === 3) {
+            $effects = [];
+            $target = $setting === 3 ? 'self' : 'enemy';
+            $kind = (string) ($row['tip_s'] ?? '') === 'plus' ? 'plus' : 'minus';
+            $this->appendStageEffectsFromSecondaryRow($effects, $row, $target, $kind, max(1, min(100, $chance)));
+            return $effects;
+        }
+
+        return [];
+    }
+
+    public function findMovePrimaryStatusId(int $moveId): int
+    {
+        if ($moveId <= 0) {
+            return 0;
+        }
+        $stmt = $this->db->prepare('SELECT atac_not FROM attac_power WHERE atac_id = :move LIMIT 1');
+        $stmt->execute(['move' => $moveId]);
+        return max(0, (int) ($stmt->fetchColumn() ?: 0));
+    }
+
+    /** @return list<array{id:int,name:string,endsAt:int}> */
+    public function findBattleMajorStatuses(int $battleId, string $battlePokemon): array
+    {
+        if ($battleId <= 0 || $battlePokemon === '') {
+            return [];
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT bs.namber_st, bs.raund_end, st.tittle_status
+               FROM bttle_status bs
+               LEFT JOIN status st ON st.id_status = bs.namber_st
+              WHERE bs.buttleid = :battle AND bs.pokeid = :pokemon'
+        );
+        $stmt->execute(['battle' => $battleId, 'pokemon' => $battlePokemon]);
+
+        $rows = [];
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $rows[] = [
+                'id' => (int) ($row['namber_st'] ?? 0),
+                'name' => (string) ($row['tittle_status'] ?? ('Статус #' . (int) ($row['namber_st'] ?? 0))),
+                'endsAt' => (int) ($row['raund_end'] ?? 0),
+            ];
+        }
+        return $rows;
+    }
+
+    public function hasBattleStatus(int $battleId, string $battlePokemon, int $statusId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id_sts FROM bttle_status WHERE buttleid = :battle AND pokeid = :pokemon AND namber_st = :status LIMIT 1'
+        );
+        $stmt->execute(['battle' => $battleId, 'pokemon' => $battlePokemon, 'status' => $statusId]);
+        return $stmt->fetchColumn() !== false;
+    }
+
+    public function applyBattleStatus(int $battleId, string $battlePokemon, int $statusId, int $currentRound, int $duration = 4): bool
+    {
+        if ($battleId <= 0 || $battlePokemon === '' || $statusId <= 0) {
+            return false;
+        }
+        if ($this->hasBattleStatus($battleId, $battlePokemon, $statusId)) {
+            return false;
+        }
+
+        $roundEnd = $statusId === 1 || $statusId === 3 ? 999999 : max($currentRound + 1, $currentRound + $duration);
+        try {
+            $stmt = $this->db->prepare(
+                'INSERT INTO bttle_status (namber_st, buttleid, pokeid, raund_end, tip_poke)
+                 VALUES (:status, :battle, :pokemon, :round_end, 1)'
+            );
+            $stmt->execute([
+                'status' => $statusId,
+                'battle' => $battleId,
+                'pokemon' => $battlePokemon,
+                'round_end' => $roundEnd,
+            ]);
+            return true;
+        } catch (\Throwable) {
+            // old dump without auto increment
+        }
+
+        try {
+            $nextId = (int) ($this->db->query('SELECT COALESCE(MAX(id_sts), 0) + 1 FROM bttle_status')->fetchColumn() ?: 1);
+            $stmt = $this->db->prepare(
+                'INSERT INTO bttle_status (id_sts, namber_st, buttleid, pokeid, raund_end, tip_poke)
+                 VALUES (:id, :status, :battle, :pokemon, :round_end, 1)'
+            );
+            $stmt->execute([
+                'id' => $nextId,
+                'status' => $statusId,
+                'battle' => $battleId,
+                'pokemon' => $battlePokemon,
+                'round_end' => $roundEnd,
+            ]);
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    public function deleteBattleStatus(int $battleId, string $battlePokemon, int $statusId): void
+    {
+        $stmt = $this->db->prepare('DELETE FROM bttle_status WHERE buttleid = :battle AND pokeid = :pokemon AND namber_st = :status');
+        $stmt->execute(['battle' => $battleId, 'pokemon' => $battlePokemon, 'status' => $statusId]);
+    }
+
+    public function deleteExpiredBattleStatuses(int $battleId, int $round): void
+    {
+        if ($battleId <= 0) {
+            return;
+        }
+        $stmt = $this->db->prepare('DELETE FROM bttle_status WHERE buttleid = :battle AND raund_end > 0 AND raund_end <= :round');
+        $stmt->execute(['battle' => $battleId, 'round' => $round]);
+    }
+
+    /** @param list<array<string,mixed>> $effects */
+    private function appendStageEffectsFromRow(array &$effects, array $row, string $target, string $kind, bool $suffixB): void
+    {
+        if (!in_array($kind, ['plus', 'minus'], true)) {
+            return;
+        }
+        $fields = $this->stageFieldMap($suffixB);
+        foreach ($fields as $column => [$field, $label]) {
+            $delta = max(0, (int) ($row[$column] ?? 0));
+            if ($delta <= 0) {
+                continue;
+            }
+            $effects[] = ['target' => $target, 'kind' => $kind, 'field' => $field, 'delta' => $delta, 'label' => $label];
+        }
+    }
+
+    /** @param list<array<string,mixed>> $effects */
+    private function appendStageEffectsFromSecondaryRow(array &$effects, array $row, string $target, string $kind, int $chance): void
+    {
+        foreach ($this->stageFieldMap(false) as $column => [$field, $label]) {
+            $delta = max(0, (int) ($row[$column] ?? 0));
+            if ($delta <= 0) {
+                continue;
+            }
+            $effects[] = ['target' => $target, 'kind' => $kind, 'field' => $field, 'delta' => $delta, 'label' => $label, 'chance' => $chance];
+        }
+    }
+
+    /** @return array<string, array{string,string}> */
+    private function stageFieldMap(bool $suffixB): array
+    {
+        $s = $suffixB ? '_b' : '';
+        return [
+            'atc' . $s => ['attac', 'Атака'],
+            'satc' . $s => ['spattac', 'Спец. Атака'],
+            'def' . $s => ['defend', 'Защита'],
+            'sdef' . $s => ['spdefend', 'Спец. Защита'],
+            'speed' . $s => ['speed', 'Скорость'],
+            'acc' . $s => ['acc', 'Ловкость'],
+            'accuracy' . $s => ['accuracy', 'Точность'],
+        ];
     }
 
     private function parseBattlePokemon(string $value): ?array

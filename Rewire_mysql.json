@@ -1,0 +1,288 @@
+{
+  "database_name": "pokelege_fh7904el_base",
+  "engine": "InnoDB",
+  "character_set": "utf8mb4",
+  "tables": {
+    "attac_my_poke": {
+      "description": "Экземпляры покемонов игроков (4 атаки, PP, уровни)",
+      "columns": {
+        "id": "int(11) PRIMARY KEY — уникальный ID записи",
+        "a_id": "int(11) — ID первой атаки (ссылка на attac_power)",
+        "a_pp_min": "int(11) — текущие очки использования атаки A",
+        "a_pp_max": "int(11) — максимальные очки использования атаки A",
+        "b_id": "int(11) — ID второй атаки",
+        "b_pp_min": "int(11) — текущие PP атаки B",
+        "b_pp_max": "int(11) — максимальные PP атаки B",
+        "c_id": "int(11) — ID третьей атаки",
+        "c_pp_min": "int(11) — текущие PP атаки C",
+        "c_pp_max": "int(11) — максимальные PP атаки C",
+        "d_id": "int(11) — ID четвертой атаки",
+        "d_pp_min": "int(11) — текущие PP атаки D",
+        "d_pp_max": "int(11) — максимальные PP атаки D",
+        "pok_id": "int(11) — уникальный ID покемона (первичный ключ для других таблиц)"
+      },
+      "sample_data": [
+        {"pok_id": 1, "a_id": 247, "b_id": 235, "c_id": 348, "d_id": 14},
+        {"pok_id": 1130257, "a_id": 156, "b_id": 89, "c_id": 53, "d_id": 332}
+      ]
+    },
+    "attac_poke": {
+      "description": "Какие атаки покемон изучает на каких уровнях",
+      "columns": {
+        "id_structure": "int(11) PRIMARY KEY",
+        "atac_id": "int(11) — ID атаки",
+        "poke_base_id": "int(11) — ID базовой формы покемона",
+        "atc_lvl": "int(11) — уровень, на котором атака становится доступна"
+      },
+      "sample_data": [
+        {"poke_base_id": 1, "atac_id": 33, "atc_lvl": 1},
+        {"poke_base_id": 1, "atac_id": 45, "atc_lvl": 3}
+      ]
+    },
+    "attac_power": {
+      "description": "Справочник всех атак с их характеристиками",
+      "columns": {
+        "atac_id": "int(11) PRIMARY KEY",
+        "atac_name": "text — название атаки",
+        "atac_tip": "text — тип (Fire, Water, Grass и т.д.)",
+        "atac_categori": "int(11) — 1=физическая, 2=специальная, 3=статусная",
+        "atac_pp": "int(11) — базовое количество использований",
+        "atac_power": "int(11) — сила урона",
+        "atac_accuracy": "int(11) — точность (0-100, 0 = всегда попадает)",
+        "atac_goal": "int(11) — цель (1=один враг, 2=себя, 3=все враги)",
+        "priorety": "int(11) — приоритет (выше → бьёт первым)",
+        "chans_dop": "int(11) — шанс дополнительного эффекта в %",
+        "dop_effect": "varchar(250) — особые флаги (dopropusk, propusk и т.д.)",
+        "stati": "int(11) — тип статусного эффекта",
+        "titles": "text — описание атаки для игрока"
+      },
+      "sample_data": [
+        {"atac_id": 1, "atac_name": "Pound", "atac_tip": "Normal", "atac_power": 40, "atac_accuracy": 100},
+        {"atac_id": 53, "atac_name": "Flamethrower", "atac_tip": "Fire", "atac_power": 95, "chans_dop": 10}
+      ]
+    },
+    "attac_dop": {
+      "description": "Дополнительные эффекты атак (баффы/дебаффы)",
+      "columns": {
+        "id": "int(11) PRIMARY KEY",
+        "id_attc": "int(11) — ID атаки",
+        "dop_effc": "int(11) — тип эффекта",
+        "setting": "int(11) — 1=обычный, 2=понижение, 3=повышение",
+        "tip_s": "varchar(10) — плюс/минус",
+        "def": "int(11) — изменение защиты",
+        "atc": "int(11) — изменение атаки",
+        "speed": "int(11) — изменение скорости"
+      },
+      "sample_data": [
+        {"id_attc": 7, "setting": 1, "tip_s": "", "def": 0, "atc": 0},
+        {"id_attc": 51, "setting": 2, "tip_s": "minus", "sdef": 1}
+      ]
+    },
+    "attac_egg": {
+      "description": "Атаки, которые покемон может унаследовать при разведении",
+      "columns": {
+        "id": "int(11) PRIMARY KEY",
+        "poke_base_id": "int(11) — ID покемона",
+        "atac_id": "int(11) — ID атаки"
+      }
+    },
+    "battles": {
+      "description": "Активные битвы между игроками",
+      "columns": {
+        "id": "int(11) PRIMARY KEY",
+        "user_1": "int(11) — первый игрок",
+        "user_2": "int(11) — второй игрок",
+        "poke_1": "char(50) — ID покемона первого",
+        "poke_2": "char(50) — ID покемона второго",
+        "raund": "int(11) — текущий раунд",
+        "effect_go": "int(11) — статус эффект на первом покемоне",
+        "effect_go2": "int(11) — статус эффект на втором",
+        "id_pogodi": "int(11) — текущая погода",
+        "hod_user_id": "int(11) — кто ходит сейчас",
+        "tips_battle": "int(11) — тип битвы (pvp/pve)",
+        "dates": "mediumtext — JSON-лог битвы"
+      }
+    },
+    "battle_log": {
+      "description": "История всех действий в битве",
+      "columns": {
+        "id": "int(250) PRIMARY KEY",
+        "battle_id": "int(11) — ID битвы",
+        "demage": "text — HTML-строка с описанием хода",
+        "raund": "int(11) — номер раунда"
+      }
+    },
+    "items": {
+      "description": "Справочник всех предметов",
+      "columns": {
+        "id": "int(11) unsigned PRIMARY KEY",
+        "cools": "int(11) — время перезарядки",
+        "name": "text — название предмета",
+        "category": "int(11) — категория",
+        "uses": "int(11) — количество использований",
+        "battleuse": "int(11) — можно ли использовать в бою (0/1)",
+        "times": "varchar(11) — длительность эффекта"
+      },
+      "sample_data": [
+        {"id": 1, "name": "Монета", "category": 0},
+        {"id": 3, "name": "Покебол", "battleuse": 1},
+        {"id": 45, "name": "Уникальный подарок", "category": 8}
+      ]
+    },
+    "items_users": {
+      "description": "Инвентарь игроков",
+      "columns": {
+        "id": "bigint(20) unsigned PRIMARY KEY",
+        "item_id": "int(20) — ID предмета",
+        "user_id": "int(11) — владелец",
+        "count": "int(11) — количество",
+        "dattimer": "varchar(15) — метка времени",
+        "timers": "varchar(18) — таймер использования"
+      }
+    },
+    "items_drop": {
+      "description": "Что выпадает с покемонов в разных локациях",
+      "columns": {
+        "id": "int(255) PRIMARY KEY",
+        "chance": "int(11) — шанс выпадения (1 = 0.0001%)",
+        "item_id": "int(11) — что выпадает",
+        "buildings_pokemons": "int(11) — ID локации/NPC",
+        "quest_id": "int(11) — ID квеста",
+        "nums": "int(11) — количество",
+        "top_poke": "int(11) — ID конкретного покемона"
+      }
+    },
+    "eggs": {
+      "description": "Яйца покемонов (разведение)",
+      "columns": {
+        "id_egg": "int(11) PRIMARY KEY",
+        "base_id_egg": "int(11) — ID покемона в яйце",
+        "dtime": "int(11) — время инкубации",
+        "users_egg": "int(11) — владелец",
+        "hp_iv": "int(11) — IV здоровья (0-31)",
+        "atk_iv": "int(11) — IV атаки",
+        "def_iv": "int(11) — IV защиты",
+        "sdef_iv": "int(11) — IV спец. защиты",
+        "satk_iv": "int(11) — IV спец. атаки",
+        "speed_iv": "int(11) — IV скорости",
+        "tips": "varchar(10) — тип (normal/special)",
+        "attac_one": "int(11) — унаследованная атака"
+      }
+    },
+    "clans": {
+      "description": "Кланы игроков",
+      "columns": {
+        "id_clan": "int(255) PRIMARY KEY",
+        "id_sozdatel": "int(255) — создатель клана",
+        "fond_maney": "int(255) — деньги клана",
+        "fond_energi": "int(255) — энергия клана",
+        "clan_img": "int(11) — иконка клана",
+        "clan_lvl": "int(255) — уровень клана",
+        "clan_reputation": "int(255) — репутация (может быть отрицательной)",
+        "clan_mesto": "int(255) — место в рейтинге",
+        "clan_name": "text — название клана"
+      }
+    },
+    "friends": {
+      "description": "Друзья игроков",
+      "columns": {
+        "id_fr": "int(11) PRIMARY KEY",
+        "id_user": "int(11) — кто добавил",
+        "id_my_friend": "int(11) — на кого подписан",
+        "tip": "int(11) — тип отношений (1=друзья)"
+      }
+    },
+    "build": {
+      "description": "Локации/карта мира",
+      "columns": {
+        "id": "int(11) PRIMARY KEY",
+        "town": "int(11) — ID города",
+        "title": "text — название локации",
+        "tipe": "int(11) — 0=суша, 1=вода",
+        "pve": "int(11) — есть ли PVE-противники (0/1)"
+      }
+    },
+    "diamond_shop": {
+      "description": "Магазин за алмазы",
+      "columns": {
+        "id_item": "int(11) PRIMARY KEY",
+        "id_tip_item": "int(11) — ID предмета",
+        "cool_item": "int(11) — кулдаун",
+        "cena_item": "int(11) — цена в алмазах",
+        "tipes_categori": "int(11) — категория для отображения",
+        "invize": "int(11) — видимость (0/1)"
+      }
+    },
+    "auction_items": {
+      "description": "Аукцион/торговля между игроками",
+      "columns": {
+        "id_lot": "int(255) PRIMARY KEY",
+        "item_id": "int(255) — что продаётся",
+        "created": "date — дата создания",
+        "cena": "int(255) — текущая цена",
+        "count": "int(255) — количество",
+        "user_id": "int(255) — продавец",
+        "time_rinok": "int(11) — время окончания",
+        "regions": "int(11) — регион"
+      }
+    },
+    "log_alm": {
+      "description": "Лог покупок за алмазы",
+      "columns": {
+        "id": "int(11) PRIMARY KEY",
+        "user_id": "int(11) — покупатель",
+        "item_id": "int(11) — что купили",
+        "cena": "int(11) — цена",
+        "date": "int(11) — время покупки"
+      }
+    },
+    "banip": {
+      "description": "Забаненные IP-адреса",
+      "columns": {
+        "id": "int(11) PRIMARY KEY",
+        "ip": "int(11) unsigned — IP в числовом виде",
+        "date": "datetime — дата блокировки"
+      }
+    },
+    "information_users": {
+      "description": "Права администраторов",
+      "columns": {
+        "id": "int(11) PRIMARY KEY",
+        "users_id": "int(11) — ID пользователя",
+        "admins_panels": "int(11) — уровень доступа (1=админ)"
+      }
+    },
+    "chats": {
+      "description": "Сообщения в чате",
+      "columns": {
+        "id": "int(11) PRIMARY KEY",
+        "author": "varchar(50) — автор",
+        "userto": "int(11) — получатель (0=общий чат)",
+        "private": "int(11) — приватный чат (0/1)",
+        "time": "int(11) — время отправки",
+        "text": "text — текст сообщения",
+        "room": "int(11) — комната чата",
+        "tipe": "int(11) — тип сообщения"
+      }
+    },
+    "bttle_status": {
+      "description": "Статусные эффекты в битве",
+      "columns": {
+        "id_sts": "int(11) PRIMARY KEY",
+        "namber_st": "int(11) — номер статуса",
+        "buttleid": "int(11) — ID битвы",
+        "pokeid": "char(50) — ID покемона",
+        "raund_end": "int(11) — раунд окончания эффекта"
+      }
+    }
+  },
+  "key_relationships": [
+    "attac_my_poke.a_id → attac_power.atac_id",
+    "attac_poke.atac_id → attac_power.atac_id",
+    "attac_dop.id_attc → attac_power.atac_id",
+    "battles.poke_1 → attac_my_poke.pok_id",
+    "items_users.item_id → items.id",
+    "items_drop.item_id → items.id",
+    "eggs.base_id_egg → attac_poke.poke_base_id"
+  ]
+}

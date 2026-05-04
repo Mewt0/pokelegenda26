@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use Pokemon8\Controller\AuthController;
+use Pokemon8\Controller\DexApiController;
 use Pokemon8\Controller\GameApiController;
 use Pokemon8\Controller\GameController;
 use Pokemon8\Controller\GameModuleController;
@@ -33,6 +34,7 @@ use Pokemon8\Repository\ProfileRepository;
 use Pokemon8\Repository\QuestRepository;
 use Pokemon8\Repository\UserRepository;
 use Pokemon8\Repository\BattleRepository;
+use Pokemon8\Repository\DexRepository;
 use Pokemon8\Security\BanGuard;
 use Pokemon8\Security\Csrf;
 use Pokemon8\Security\PasswordHasher;
@@ -68,6 +70,7 @@ $quests = new QuestRepository($db);
 $inventory = new InventoryRepository($db);
 $profiles = new ProfileRepository($db);
 $battleRepository = new BattleRepository($db);
+$dexRepository = new DexRepository($db);
 $locationGraph = LocationGraph::fromLegacyData(APP_ROOT . '/include/data.world.php');
 $locationContent = LocationContentRepository::fromFile(APP_ROOT . '/config/location_content.php');
 $locationState = new LocationStateService($locations, $locationGraph, APP_ROOT, $locationContent);
@@ -91,6 +94,7 @@ $gameApi = new GameApiController($session, $csrf, $locationState, $mapMoves, $wi
 $gameModules = new GameModuleController($session);
 $npcApi = new NpcApiController($session, $csrf, $npcDialogs);
 $pveBattleApi = new PveBattleApiController($session, $csrf, $battleEngine);
+$dexApi = new DexApiController($session, $dexRepository);
 
 $router = new Router();
 $router->get('/', fn (Request $request) => $home->index($request));
@@ -120,6 +124,10 @@ $router->get('/api/inventory/battle', fn (Request $request) => $inventoryApi->ba
 $router->post('/api/inventory/equip', fn (Request $request) => $inventoryApi->equip($request));
 $router->post('/api/inventory/unequip', fn (Request $request) => $inventoryApi->unequip($request));
 $router->get('/api/pokemon/moves', fn (Request $request) => $pokemonApi->moves($request));
+$router->get('/api/dex/pokemon', fn (Request $request) => $dexApi->pokemonList($request));
+$router->get('/api/dex/pokemon/show', fn (Request $request) => $dexApi->pokemon($request));
+$router->get('/api/dex/attacks', fn (Request $request) => $dexApi->attackList($request));
+$router->get('/api/dex/attack/show', fn (Request $request) => $dexApi->attack($request));
 $router->post('/api/pokemon/move', fn (Request $request) => $pokemonApi->setMove($request));
 $router->get('/api/location/npc', fn (Request $request) => $npcApi->show($request));
 $router->post('/api/location/npc/action', fn (Request $request) => $npcApi->action($request));

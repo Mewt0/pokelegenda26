@@ -7,8 +7,11 @@ use Pokemon8\Repository\BattleRepository;
 
 final class BattleEngineService
 {
+    private BattleMathService $math;
+
     public function __construct(private BattleRepository $battles)
     {
+        $this->math = new BattleMathService();
     }
 
     public function state(int $userId): array
@@ -22,6 +25,8 @@ final class BattleEngineService
         if ($battle === null) {
             return ['ok' => true, 'active' => false];
         }
+
+        $this->battles->deleteExpiredBattleStatuses($battleId, (int) ($battle['raund'] ?? 1));
 
         $player = $this->battles->findPokemon((string) ($battle['poke_1'] ?? ''));
         $enemy = $this->battles->findPokemon((string) ($battle['poke_2'] ?? ''));
@@ -44,24 +49,36 @@ final class BattleEngineService
 
         $log = $this->battles->getBattleLog((int) $battle['id']);
         $logRows = $this->formatLogRows($log);
+        $winner = (int) ($battle['pobeda'] ?? 0);
+        $finished = $winner !== 0;
+        $result = null;
+        if ($finished) {
+            $result = $winner === $userId ? 'win' : ($winner === -2 ? 'escape' : 'lose');
+        }
+        $moves = $finished ? [] : $this->formatMoves($player);
+        $switchOptions = $finished ? [] : $this->formatSwitchOptions($userId, (int) ($player['id'] ?? 0));
 
         return [
             'ok' => true,
             'active' => true,
+            'finished' => $finished,
+            'result' => $result,
             'battleId' => (int) $battle['id'], // backward compatibility
             'round' => (int) ($battle['raund'] ?? 1), // backward compatibility
             'player' => $this->formatPokemon($player), // backward compatibility
             'enemy' => $this->formatPokemon($enemy), // backward compatibility
-            'moves' => $this->formatMoves($player), // backward compatibility
-            'switchOptions' => $this->formatSwitchOptions($userId, (int) ($player['id'] ?? 0)), // backward compatibility
+            'moves' => $moves, // backward compatibility
+            'switchOptions' => $switchOptions, // backward compatibility
             'log' => $logRows,
             'battle' => [
                 'id' => (int) $battle['id'],
                 'round' => (int) ($battle['raund'] ?? 1),
+                'finished' => $finished,
+                'result' => $result,
                 'player' => $this->formatPokemon($player),
                 'enemy' => $this->formatPokemon($enemy),
-                'moves' => $this->formatMoves($player),
-                'switchOptions' => $this->formatSwitchOptions($userId, (int) ($player['id'] ?? 0)),
+                'moves' => $moves,
+                'switchOptions' => $switchOptions,
                 'log' => $logRows,
                 'logByRound' => $this->groupLogByRound($logRows),
             ],
@@ -97,6 +114,7 @@ final class BattleEngineService
         if ($battle === null) {
             return ['ok' => false, 'active' => false, 'message' => 'Бой завершен.'];
         }
+        $this->battles->deleteExpiredBattleStatuses($battleId, (int) ($battle['raund'] ?? 1));
 
         $player = $this->battles->findPokemon((string) ($battle['poke_1'] ?? ''));
         $enemy = $this->battles->findPokemon((string) ($battle['poke_2'] ?? ''));
@@ -125,19 +143,19 @@ final class BattleEngineService
         $playerFirst = $this->whoActsFirst(
             $playerMove,
             $enemyMove,
-            $this->effectiveStat((int) ($player['speed'] ?? 1), $this->stageFor($battleId, (string) ($player['battle_pokemon'] ?? ''), 'speed')),
-            $this->effectiveStat((int) ($enemy['speed'] ?? 1), $this->stageFor($battleId, (string) ($enemy['battle_pokemon'] ?? ''), 'speed'))
+            $this->effectiveStatFor($battleId, $player, 'speed', 'speed'),
+            $this->effectiveStatFor($battleId, $enemy, 'speed', 'speed')
         );
 
         if ($playerFirst) {
-            $messages[] = $this->applyMove((int) $battle['id'], $player, $enemy, $playerMove);
-            if ((int) $enemy['hp_my'] > 0) {
-                $messages[] = $this->applyMove((int) $battle['id'], $enemy, $player, $enemyMove);
+            $messages[] = $this->applyMove((int) $battle['id'], (int) ($battle['raund'] ?? 1), $player, $enemy, $playerMove);
+            if ((int) ($player['hp_my'] ?? 0) > 0 && (int) ($enemy['hp_my'] ?? 0) > 0) {
+                $messages[] = $this->applyMove((int) $battle['id'], (int) ($battle['raund'] ?? 1), $enemy, $player, $enemyMove);
             }
         } else {
-            $messages[] = $this->applyMove((int) $battle['id'], $enemy, $player, $enemyMove);
-            if ((int) $player['hp_my'] > 0) {
-                $messages[] = $this->applyMove((int) $battle['id'], $player, $enemy, $playerMove);
+            $messages[] = $this->applyMove((int) $battle['id'], (int) ($battle['raund'] ?? 1), $enemy, $player, $enemyMove);
+            if ((int) ($enemy['hp_my'] ?? 0) > 0 && (int) ($player['hp_my'] ?? 0) > 0) {
+                $messages[] = $this->applyMove((int) $battle['id'], (int) ($battle['raund'] ?? 1), $player, $enemy, $playerMove);
             }
         }
 
@@ -338,6 +356,7 @@ final class BattleEngineService
 
         if (!$caught) {
             $message = sprintf('Игрок #%d использует: Покебол, но #%s не хочет залазить в него.', $userId, $enemyName);
+            $this->battles->decrementInventoryItemRow($userId, $itemUserId);
             $this->battles->insertBattleLog((int) $battle['id'], $round, $message);
             $this->battles->incrementRoundAndResetActions((int) $battle['id']);
 
@@ -423,78 +442,226 @@ final class BattleEngineService
         return $catchValue > $catch;
     }
 
-    private function applyMove(int $battleId, array $attacker, array &$defender, array $move): string
+    private function applyMove(int $battleId, int $round, array &$attacker, array &$defender, array $move): string
+    {
+        $attackerName = strip_tags((string) ($attacker['names'] ?? 'Покемон'));
+        $defenderName = strip_tags((string) ($defender['names'] ?? 'Покемон'));
+        $moveName = (string) ($move['atac_name'] ?? 'Атака');
+        $moveId = (int) ($move['id'] ?? $move['atac_id'] ?? 0);
+        $category = (int) ($move['atac_categori'] ?? 1);
+        $power = (int) ($move['atac_power'] ?? 0);
+        $parts = [];
+
+        $statusGate = $this->applyStartOfTurnStatus($battleId, $round, $attacker);
+        foreach ($statusGate['messages'] as $m) {
+            $parts[] = $m;
+        }
+        if (!$statusGate['canAct']) {
+            return implode(' ', $parts);
+        }
+
+        $hitChance = $this->effectiveAccuracy($battleId, $attacker, $defender, $move);
+        if (random_int(1, 100) > $hitChance) {
+            return trim(implode(' ', $parts) . ' ' . sprintf('%s использует %s — промах!', $attackerName, $moveName));
+        }
+
+        $damageText = '';
+        if ($category < 3 && $power > 0) {
+            $damageText = $this->damageMove($battleId, $attacker, $defender, $move);
+        } else {
+            $damageText = sprintf('%s использует %s.', $attackerName, $moveName);
+        }
+        $parts[] = $damageText;
+
+        // Primary stat effects from stat_attak are authoritative. Fallback by name only if DB has no row.
+        $effects = $this->battles->findMoveStatEffects($moveId);
+        if ($effects === []) {
+            $effects = $this->statMoveEffects($moveName);
+        }
+        foreach ($effects as $effect) {
+            $text = $this->applyStageEffect($battleId, $attacker, $defender, $effect);
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        // Status from atac_not for pure status moves.
+        $primaryStatus = $this->battles->findMovePrimaryStatusId($moveId);
+        if ($primaryStatus > 0 && ($category >= 3 || $power <= 0)) {
+            $statusText = $this->tryApplyStatus($battleId, $round, $defender, $primaryStatus, 100);
+            if ($statusText !== '') {
+                $parts[] = $statusText;
+            }
+        }
+
+        // Secondary effects from attac_dop after a successful hit.
+        foreach ($this->battles->findMoveSecondaryEffects($moveId) as $effect) {
+            $chance = max(1, min(100, (int) ($effect['chance'] ?? 100)));
+            if (random_int(1, 100) > $chance) {
+                continue;
+            }
+            if (($effect['kind'] ?? '') === 'status') {
+                $target = ($effect['target'] ?? 'enemy') === 'self' ? $attacker : $defender;
+                $statusText = $this->tryApplyStatus($battleId, $round, $target, (int) ($effect['statusId'] ?? 0), $chance);
+                if ($statusText !== '') {
+                    $parts[] = $statusText;
+                }
+                continue;
+            }
+            $text = $this->applyStageEffect($battleId, $attacker, $defender, $effect);
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return implode(' ', array_values(array_filter($parts)));
+    }
+
+    private function damageMove(int $battleId, array $attacker, array &$defender, array $move): string
     {
         $attackerName = strip_tags((string) ($attacker['names'] ?? 'Покемон'));
         $defenderName = strip_tags((string) ($defender['names'] ?? 'Покемон'));
         $moveName = (string) ($move['atac_name'] ?? 'Атака');
         $category = (int) ($move['atac_categori'] ?? 1);
-        $power = (int) ($move['atac_power'] ?? 0);
-
-        $hitChance = $this->effectiveAccuracy($battleId, $attacker, $defender, $move);
-        if (random_int(1, 100) > $hitChance) {
-            return sprintf('%s использует %s — промах!', $attackerName, $moveName);
-        }
-
-        $effects = $this->statMoveEffects($moveName);
-        if ($effects !== []) {
-            $parts = [];
-            foreach ($effects as $effect) {
-                $target = $effect['target'] === 'self' ? $attacker : $defender;
-                $targetName = $effect['target'] === 'self' ? $attackerName : $defenderName;
-                $battlePokemon = (string) ($target['battle_pokemon'] ?? '');
-                $this->battles->applyBattleStatStage(
-                    $battleId,
-                    $battlePokemon,
-                    (string) $effect['kind'],
-                    (string) $effect['field'],
-                    (int) $effect['delta']
-                );
-
-                $sign = $effect['kind'] === 'minus' ? '-' : '+';
-                $parts[] = sprintf('%s: %s %s%d', $targetName, (string) $effect['label'], $sign, (int) $effect['delta']);
-            }
-
-            return sprintf('%s использует %s. %s.', $attackerName, $moveName, implode('; ', $parts));
-        }
-
-        // Статусные атаки без перенесенной legacy-механики не должны наносить урон.
-        if ($category >= 3 || $power <= 0) {
-            return sprintf('%s использует %s, но эффекта пока нет.', $attackerName, $moveName);
-        }
-
+        $power = max(1, (int) ($move['atac_power'] ?? 1));
         $isSpecial = $category === 2;
-        $atkField = $isSpecial ? 'satk' : 'atk';
-        $defField = $isSpecial ? 'spdefend' : 'defend';
-        $baseDefField = $isSpecial ? 'sdef' : 'def';
+        $atkDbField = $isSpecial ? 'satk' : 'atk';
+        $atkStageField = $isSpecial ? 'spattac' : 'attac';
+        $defDbField = $isSpecial ? 'sdef' : 'def';
+        $defStageField = $isSpecial ? 'spdefend' : 'defend';
 
-        $atk = $this->effectiveStat(
-            max(1, (int) ($attacker[$atkField] ?? 10)),
-            $this->stageFor($battleId, (string) ($attacker['battle_pokemon'] ?? ''), $isSpecial ? 'spattac' : 'attac')
-        );
-        $def = $this->effectiveStat(
-            max(1, (int) ($defender[$baseDefField] ?? 10)),
-            $this->stageFor($battleId, (string) ($defender['battle_pokemon'] ?? ''), $defField)
-        );
+        $atk = $this->effectiveStatFor($battleId, $attacker, $atkDbField, $atkStageField);
+        $def = $this->effectiveStatFor($battleId, $defender, $defDbField, $defStageField);
+        if (!$isSpecial && $this->hasMajorStatus($battleId, $attacker, 3)) {
+            // Burn halves physical attack.
+            $atk = max(1, (int) floor($atk / 2));
+        }
+
         $lvl = max(1, (int) ($attacker['lvl'] ?? 1));
+        $moveType = (string) ($move['atac_tip'] ?? 'Normal');
+        $attackerTypes = $this->math->typeLabelsFromPokemon($attacker);
+        $defenderTypes = $this->math->typeLabelsFromPokemon($defender);
+        $stab = $this->math->stab($moveType, $attackerTypes);
+        $typeEffect = $this->math->typeEffectiveness($moveType, $defenderTypes);
+        if ($typeEffect <= 0.0) {
+            return sprintf('%s использует %s. %s не получает урона. %s', $attackerName, $moveName, $defenderName, $this->math->typeMessage($typeEffect));
+        }
 
-        $base = (((2 * $lvl / 5 + 2) * max(1, $power) * $atk / max(1, $def)) / 50) + 2;
+        $base = (((2 * $lvl / 5 + 2) * $power * $atk / max(1, $def)) / 50) + 2;
         $rand = random_int(85, 100) / 100;
-        $critChance = max(0, min(100, (int) ($move['critic'] ?? 6)));
+        $critChance = $this->criticChance((string) ($move['critic'] ?? '3'));
         $isCrit = random_int(1, 100) <= $critChance;
         $crit = $isCrit ? 1.5 : 1.0;
-        $damage = max(1, (int) floor($base * $rand * $crit));
+        $damage = max(1, (int) floor($base * $stab * $typeEffect * $rand * $crit));
 
-        $defender['hp_my'] = max(0, (int) $defender['hp_my'] - $damage);
-
+        $defender['hp_my'] = max(0, (int) ($defender['hp_my'] ?? 0) - $damage);
         $hpLeft = (int) ($defender['hp_my'] ?? 0);
         $hpMax = max(1, (int) ($defender['hp_max'] ?? 1));
+        $typeText = $this->math->typeMessage($typeEffect);
+        $critText = $isCrit ? ' КРИТ!' : '';
+        $tail = trim($critText . ' ' . $typeText);
+        $tail = $tail !== '' ? ' ' . $tail : '';
 
-        if ($isCrit) {
-            return sprintf('%s использует %s — КРИТ! %s теряет %d HP (%d/%d).', $attackerName, $moveName, $defenderName, $damage, $hpLeft, $hpMax);
+        return sprintf('%s использует %s.%s %s теряет %d HP (%d/%d).', $attackerName, $moveName, $tail, $defenderName, $damage, $hpLeft, $hpMax);
+    }
+
+    /** @param array{target?:string,kind?:string,field?:string,delta?:int,label?:string} $effect */
+    private function applyStageEffect(int $battleId, array $attacker, array $defender, array $effect): string
+    {
+        $target = ($effect['target'] ?? 'enemy') === 'self' ? $attacker : $defender;
+        $targetName = strip_tags((string) ($target['names'] ?? 'Покемон'));
+        $battlePokemon = (string) ($target['battle_pokemon'] ?? '');
+        $kind = (string) ($effect['kind'] ?? 'minus');
+        $field = (string) ($effect['field'] ?? '');
+        $delta = max(1, min(6, (int) ($effect['delta'] ?? 1)));
+        $label = (string) ($effect['label'] ?? $field);
+        $applied = $this->battles->applyBattleStatStage($battleId, $battlePokemon, $kind, $field, $delta);
+        $sign = $kind === 'minus' ? '-' : '+';
+        if ($applied <= 0) {
+            return sprintf('%s: %s уже на пределе.', $targetName, $label);
+        }
+        return sprintf('%s: %s %s%d.', $targetName, $label, $sign, $applied);
+    }
+
+    private function tryApplyStatus(int $battleId, int $round, array $target, int $statusId, int $chance): string
+    {
+        if ($statusId <= 0 || random_int(1, 100) > max(1, min(100, $chance))) {
+            return '';
+        }
+        $targetName = strip_tags((string) ($target['names'] ?? 'Покемон'));
+        $battlePokemon = (string) ($target['battle_pokemon'] ?? '');
+        if ($this->battles->hasBattleStatus($battleId, $battlePokemon, $statusId)) {
+            return sprintf('%s уже имеет этот статус.', $targetName);
+        }
+        $duration = match ($statusId) {
+            2 => random_int(2, 4),
+            4 => random_int(1, 3),
+            6 => 1,
+            7 => random_int(2, 5),
+            default => 999999,
+        };
+        $ok = $this->battles->applyBattleStatus($battleId, $battlePokemon, $statusId, $round, $duration);
+        if (!$ok) {
+            return '';
+        }
+        return sprintf('%s получает статус: %s.', $targetName, $this->statusName($statusId));
+    }
+
+    /** @return array{canAct:bool,messages:list<string>} */
+    private function applyStartOfTurnStatus(int $battleId, int $round, array &$actor): array
+    {
+        $name = strip_tags((string) ($actor['names'] ?? 'Покемон'));
+        $battlePokemon = (string) ($actor['battle_pokemon'] ?? '');
+        $messages = [];
+        $canAct = true;
+
+        foreach ($this->battles->findBattleMajorStatuses($battleId, $battlePokemon) as $status) {
+            $id = (int) ($status['id'] ?? 0);
+            if ($id === 1) { // poison
+                $damage = max(1, (int) floor(max(1, (int) ($actor['hp_max'] ?? 1)) / 8));
+                $actor['hp_my'] = max(0, (int) ($actor['hp_my'] ?? 0) - $damage);
+                $messages[] = sprintf('%s страдает от яда и теряет %d HP.', $name, $damage);
+            } elseif ($id === 3) { // burn
+                $damage = max(1, (int) floor(max(1, (int) ($actor['hp_max'] ?? 1)) / 16));
+                $actor['hp_my'] = max(0, (int) ($actor['hp_my'] ?? 0) - $damage);
+                $messages[] = sprintf('%s получает урон от ожога: %d HP.', $name, $damage);
+            } elseif ($id === 2) { // sleep
+                if (random_int(1, 100) <= 65) {
+                    $canAct = false;
+                    $messages[] = sprintf('%s спит и пропускает ход.', $name);
+                }
+            } elseif ($id === 4) { // freeze
+                if (random_int(1, 100) <= 20) {
+                    $this->battles->deleteBattleStatus($battleId, $battlePokemon, 4);
+                    $messages[] = sprintf('%s разморозился.', $name);
+                } else {
+                    $canAct = false;
+                    $messages[] = sprintf('%s заморожен и не может атаковать.', $name);
+                }
+            } elseif ($id === 5) { // paralysis
+                if (random_int(1, 100) <= 25) {
+                    $canAct = false;
+                    $messages[] = sprintf('%s парализован и пропускает ход.', $name);
+                }
+            } elseif ($id === 6) { // flinch/fear
+                $canAct = false;
+                $messages[] = sprintf('%s напуган и пропускает ход.', $name);
+                $this->battles->deleteBattleStatus($battleId, $battlePokemon, 6);
+            } elseif ($id === 7) { // confusion
+                if (random_int(1, 100) <= 33) {
+                    $damage = max(1, (int) floor(max(1, (int) ($actor['hp_max'] ?? 1)) / 10));
+                    $actor['hp_my'] = max(0, (int) ($actor['hp_my'] ?? 0) - $damage);
+                    $canAct = false;
+                    $messages[] = sprintf('%s спутан и ранит себя на %d HP.', $name, $damage);
+                }
+            }
+            if ((int) ($actor['hp_my'] ?? 0) <= 0) {
+                $canAct = false;
+                break;
+            }
         }
 
-        return sprintf('%s использует %s. %s теряет %d HP (%d/%d).', $attackerName, $moveName, $defenderName, $damage, $hpLeft, $hpMax);
+        return ['canAct' => $canAct, 'messages' => $messages];
     }
 
     private function statMoveEffects(string $moveName): array
@@ -539,33 +706,56 @@ final class BattleEngineService
         return $effects[$key] ?? [];
     }
 
-    private function stageFor(int $battleId, string $battlePokemon, string $field): int
+    private function effectiveStatFor(int $battleId, array $pokemon, string $dbField, string $stageField): int
     {
-        $map = $this->battles->findBattleStatStageMap($battleId, $battlePokemon);
-        return max(-6, min(6, (int) ($map[$field] ?? 0)));
-    }
-
-    private function effectiveStat(int $base, int $stage): int
-    {
-        $base = max(1, $base);
-        $stage = max(-6, min(6, $stage));
-        $multiplier = $stage >= 0 ? ((2 + $stage) / 2) : (2 / (2 - $stage));
-        return max(1, (int) round($base * $multiplier));
+        $stages = $this->battles->findBattleStatStageParts($battleId, (string) ($pokemon['battle_pokemon'] ?? ''));
+        $value = $this->math->effectiveStat(
+            (int) ($pokemon[$dbField] ?? 1),
+            (int) ($stages['plus'][$stageField] ?? 0),
+            (int) ($stages['minus'][$stageField] ?? 0)
+        );
+        if ($stageField === 'speed' && $this->hasMajorStatus($battleId, $pokemon, 5)) {
+            $value = max(1, (int) floor($value / 2));
+        }
+        return $value;
     }
 
     private function effectiveAccuracy(int $battleId, array $attacker, array $defender, array $move): int
     {
-        $baseAccuracy = max(1, min(100, (int) ($move['atac_accuracy'] ?? 100)));
-        $attackerAccuracy = $this->stageMultiplier($this->stageFor($battleId, (string) ($attacker['battle_pokemon'] ?? ''), 'accuracy'));
-        $defenderEvasion = $this->stageMultiplier($this->stageFor($battleId, (string) ($defender['battle_pokemon'] ?? ''), 'acc'));
-        $chance = (int) round($baseAccuracy * $attackerAccuracy / max(0.1, $defenderEvasion));
-        return max(1, min(100, $chance));
+        $attackerStages = $this->battles->findBattleStatStageParts($battleId, (string) ($attacker['battle_pokemon'] ?? ''));
+        $defenderStages = $this->battles->findBattleStatStageParts($battleId, (string) ($defender['battle_pokemon'] ?? ''));
+        return $this->math->accuracyChance((int) ($move['atac_accuracy'] ?? 100), $attackerStages, $defenderStages);
     }
 
-    private function stageMultiplier(int $stage): float
+    private function hasMajorStatus(int $battleId, array $pokemon, int $statusId): bool
     {
-        $stage = max(-6, min(6, $stage));
-        return $stage >= 0 ? ((2 + $stage) / 2) : (2 / (2 - $stage));
+        return $this->battles->hasBattleStatus($battleId, (string) ($pokemon['battle_pokemon'] ?? ''), $statusId);
+    }
+
+    private function statusName(int $statusId): string
+    {
+        return match ($statusId) {
+            1 => 'Отравлен',
+            2 => 'Усыплен',
+            3 => 'В огне',
+            4 => 'Заморожен',
+            5 => 'Парализован',
+            6 => 'Напуган',
+            7 => 'Спутан',
+            8 => 'Растения-пиявки',
+            9 => 'Проклят',
+            default => 'Статус #' . $statusId,
+        };
+    }
+
+    private function criticChance(string $critic): int
+    {
+        $value = (int) $critic;
+        return match (true) {
+            $value >= 7 => 12,
+            $value <= 0 => 0,
+            default => 6,
+        };
     }
 
     private function whoActsFirst(array $firstMove, array $secondMove, int $firstSpeed, int $secondSpeed): bool
@@ -599,6 +789,8 @@ final class BattleEngineService
                 'atac_name' => 'Tackle',
                 'atac_power' => 40,
                 'atac_accuracy' => 100,
+                'atac_tip' => 'Normal',
+                'atac_categori' => 1,
                 'critic' => 6,
                 'priorety' => 0,
             ];
@@ -625,6 +817,8 @@ final class BattleEngineService
             ],
             'statuses' => is_array($pokemon['statuses'] ?? null) ? $pokemon['statuses'] : [],
             'movesPreview' => $this->formatMoves($pokemon),
+            'types' => $this->math->typeLabelsFromPokemon($pokemon),
+            'majorStatuses' => is_array($pokemon['majorStatuses'] ?? null) ? $pokemon['majorStatuses'] : [],
             'status' => '',
         ];
     }
@@ -639,6 +833,8 @@ final class BattleEngineService
                 'name' => (string) ($move['atac_name'] ?? ('Атака #' . (int) ($move['id'] ?? 0))),
                 'power' => (int) ($move['atac_power'] ?? 0),
                 'accuracy' => (int) ($move['atac_accuracy'] ?? 0),
+                'type' => (string) ($move['atac_tip'] ?? 'Normal'),
+                'category' => (int) ($move['atac_categori'] ?? 1),
                 'pp' => isset($move['pp_min']) ? max(0, (int) $move['pp_min']) : max(0, (int) ($move['atac_pp'] ?? 0)),
                 'ppMax' => isset($move['pp_max']) ? max(0, (int) $move['pp_max']) : max(0, (int) ($move['atac_pp'] ?? 0)),
             ];
@@ -745,16 +941,14 @@ final class BattleEngineService
     private function attachBattleStatuses(int $battleId, ?array &$player, ?array &$enemy): void
     {
         if ($player !== null) {
-            $player['statuses'] = $this->battles->findBattleStatuses(
-                $battleId,
-                (string) ($player['battle_pokemon'] ?? '')
-            );
+            $bp = (string) ($player['battle_pokemon'] ?? '');
+            $player['statuses'] = $this->battles->findBattleStatuses($battleId, $bp);
+            $player['majorStatuses'] = $this->battles->findBattleMajorStatuses($battleId, $bp);
         }
         if ($enemy !== null) {
-            $enemy['statuses'] = $this->battles->findBattleStatuses(
-                $battleId,
-                (string) ($enemy['battle_pokemon'] ?? '')
-            );
+            $bp = (string) ($enemy['battle_pokemon'] ?? '');
+            $enemy['statuses'] = $this->battles->findBattleStatuses($battleId, $bp);
+            $enemy['majorStatuses'] = $this->battles->findBattleMajorStatuses($battleId, $bp);
         }
     }
 }
