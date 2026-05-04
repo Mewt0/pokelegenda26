@@ -13,6 +13,7 @@
     let isPrivate = false;
     let pmToId = 0;
     let pmToName = '';
+    let currentLocationId = 0;
 
     const TIPE_ALL = 1;
     const TIPE_SYSTEM = 2;
@@ -31,6 +32,9 @@
         // Start polling
         fetchMessages();
         setInterval(fetchMessages, 3000);
+
+        // Listen for room changes (if your game core fires an event)
+        // For now we check if locationId changed during polling or game state updates
     }
 
     function createTabs() {
@@ -122,11 +126,25 @@
 
     async function fetchMessages() {
         try {
+            // Check if global state.locationId has changed
+            if (window.state && window.state.locationId !== currentLocationId) {
+                currentLocationId = window.state.locationId;
+                lastId = 0;
+                allMessages = [];
+                chatLog.innerHTML = '';
+            }
+
             const response = await fetch(`/api/chat/messages?after_id=${lastId}`, { credentials: 'same-origin' });
             const data = await response.json();
 
             if (data.ok && data.messages.length > 0) {
-                allMessages = allMessages.concat(data.messages);
+                // If it's a fresh load (afterId=0), we replace messages
+                if (lastId === 0) {
+                    allMessages = data.messages;
+                } else {
+                    allMessages = allMessages.concat(data.messages);
+                }
+
                 if (allMessages.length > 200) allMessages = allMessages.slice(-200);
 
                 lastId = data.lastId;
@@ -146,7 +164,6 @@
             }
 
             if (currentChannel === TIPE_ALL) {
-                // В общем показываем общие + системные (кроме боев/торга если нужно фильтровать, но обычно в общем всё)
                 return msg.private === false;
             }
 
@@ -170,7 +187,7 @@
         timeSpan.textContent = `[${time}] `;
         div.appendChild(timeSpan);
 
-        if (msg.author_id > 0) {
+        if (msg.author_id > 0 || msg.author_name === 'System') {
             const authorSpan = document.createElement('span');
             authorSpan.className = 'chat-author';
             authorSpan.dataset.id = msg.author_id;
@@ -199,6 +216,12 @@
 
     async function handleSend(e) {
         e.preventDefault();
+
+        if (isPrivate && pmToId <= 0) {
+            alert('Выберите получателя для личного сообщения (кликните по нику в чате).');
+            return;
+        }
+
         const text = chatInput.value.trim();
         if (!text) return;
 
@@ -226,9 +249,11 @@
                 fetchMessages();
             } else {
                 alert(data.message || 'Ошибка отправки');
+                chatInput.value = text; // Return text on error
             }
         } catch (e) {
             console.error('Chat send error:', e);
+            chatInput.value = text;
         }
     }
 

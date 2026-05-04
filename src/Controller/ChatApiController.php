@@ -9,6 +9,7 @@ use Pokemon8\Http\Response;
 use Pokemon8\Repository\LocationRepository;
 use Pokemon8\Security\Csrf;
 use Pokemon8\Security\Session;
+use Throwable;
 
 final class ChatApiController
 {
@@ -22,53 +23,61 @@ final class ChatApiController
 
     public function messages(Request $request): Response
     {
-        $userId = (int) $this->session->get('id', 0);
-        if ($userId <= 0) {
-            return $this->json(['ok' => false, 'error' => 'auth'], 401);
+        try {
+            $userId = (int) $this->session->get('id', 0);
+            if ($userId <= 0) {
+                return $this->json(['ok' => false, 'error' => 'auth'], 401);
+            }
+
+            $afterId = (int) $request->input('after_id', '0');
+
+            // Получаем текущую комнату игрока
+            $userState = $this->locationRepository.findUserState($userId);
+            $roomId = (int) ($userState['buildmy'] ?? 1);
+
+            $messages = $this->chatService.getMessages($userId, $roomId, $afterId);
+
+            return $this->json([
+                'ok'       => true,
+                'messages' => $messages,
+                'lastId'   => !empty($messages) ? (int) end($messages)['id'] : $afterId,
+            ]);
+        } catch (Throwable $e) {
+            return $this->json(['ok' => false, 'message' => 'Ошибка сервера при получении сообщений.'], 500);
         }
-
-        $afterId = (int) $request->input('after_id', '0');
-
-        // Получаем текущую комнату игрока
-        $userState = $this->locationRepository.findUserState($userId);
-        $roomId = (int) ($userState['buildmy'] ?? 1);
-
-        $messages = $this->chatService.getMessages($userId, $roomId, $afterId);
-
-        return $this->json([
-            'ok'       => true,
-            'messages' => $messages,
-            'lastId'   => !empty($messages) ? end($messages)['id'] : $afterId,
-        ]);
     }
 
     public function send(Request $request): Response
     {
-        $userId = (int) $this->session->get('id', 0);
-        if ($userId <= 0) {
-            return $this->json(['ok' => false, 'error' => 'auth'], 401);
+        try {
+            $userId = (int) $this->session->get('id', 0);
+            if ($userId <= 0) {
+                return $this->json(['ok' => false, 'error' => 'auth'], 401);
+            }
+
+            if (!$this->csrf->validate($request->input('_csrf'))) {
+                return $this->json(['ok' => false, 'error' => 'csrf', 'message' => 'Сессия устарела.'], 419);
+            }
+
+            $text = $request->input('text');
+            $tipe = (int) $request->input('tipe', '1');
+            $userto = (int) $request->input('userto', '0');
+            $private = (int) $request->input('private', '0');
+
+            $userState = $this->locationRepository.findUserState($userId);
+            $roomId = (int) ($userState['buildmy'] ?? 1);
+            $login = (string) ($userState['login'] ?? 'Unknown');
+
+            $result = $this->chatService.sendMessage($userId, $login, $roomId, $text, [
+                'tipe'    => $tipe,
+                'userto'  => $userto,
+                'private' => $private,
+            ]);
+
+            return $this->json($result);
+        } catch (Throwable $e) {
+            return $this->json(['ok' => false, 'message' => 'Ошибка сервера при отправке сообщения.'], 500);
         }
-
-        if (!$this->csrf->validate($request->input('_csrf'))) {
-            return $this->json(['ok' => false, 'error' => 'csrf', 'message' => 'Сессия устарела.'], 419);
-        }
-
-        $text = $request->input('text');
-        $tipe = (int) $request->input('tipe', '1');
-        $userto = (int) $request->input('userto', '0');
-        $private = (int) $request->input('private', '0');
-
-        $userState = $this->locationRepository.findUserState($userId);
-        $roomId = (int) ($userState['buildmy'] ?? 1);
-        $login = (string) ($userState['login'] ?? 'Unknown');
-
-        $result = $this->chatService.sendMessage($userId, $login, $roomId, $text, [
-            'tipe'    => $tipe,
-            'userto'  => $userto,
-            'private' => $private,
-        ]);
-
-        return $this->json($result);
     }
 
     private function json(array $payload, int $status = 200): Response

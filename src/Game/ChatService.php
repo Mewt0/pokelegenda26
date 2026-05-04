@@ -5,6 +5,7 @@ namespace Pokemon8\Game;
 
 use Pokemon8\Repository\ChatRepository;
 use Pokemon8\Repository\UserRepository;
+use Pokemon8\Security\Session;
 
 final class ChatService
 {
@@ -16,7 +17,8 @@ final class ChatService
 
     public function __construct(
         private ChatRepository $chatRepository,
-        private UserRepository $userRepository
+        private UserRepository $userRepository,
+        private Session $session
     ) {
     }
 
@@ -42,6 +44,12 @@ final class ChatService
 
     public function sendMessage(int $userId, string $login, int $roomId, string $text, array $options = []): array
     {
+        // Антиспам: ограничение на частоту сообщений (1 сообщение в 2 секунды)
+        $lastSent = (int) $this->session->get('chat_last_sent_time', 0);
+        if (time() - $lastSent < 2) {
+            return ['ok' => false, 'message' => 'Вы пишите слишком быстро. Пожалуйста, подождите.'];
+        }
+
         $text = $this->normalizeText($text);
         if ($text === '') {
             return ['ok' => false, 'message' => 'Сообщение не может быть пустым.'];
@@ -51,13 +59,33 @@ final class ChatService
             return ['ok' => false, 'message' => 'Сообщение слишком длинное.'];
         }
 
+        // Антиспам: проверка на дубликаты
+        $lastText = (string) $this->session->get('chat_last_sent_text', '');
+        if ($text === $lastText) {
+             return ['ok' => false, 'message' => 'Вы уже отправили такое сообщение.'];
+        }
+
         $tipe = (int) ($options['tipe'] ?? self::TIPE_ALL);
+
+        // Валидация типов для обычных игроков
+        $allowedTipes = [self::TIPE_ALL, self::TIPE_BATTLE, self::TIPE_TRADE, self::TIPE_CLAN];
+        if (!in_array($tipe, $allowedTipes, true)) {
+            $tipe = self::TIPE_ALL;
+        }
+
         $userto = (int) ($options['userto'] ?? 0);
         $private = (int) ($options['private'] ?? 0);
 
         // Если это приват, проверяем получателя
-        if ($private === 1 && $userto > 0) {
-            // Можно добавить проверку на существование пользователя
+        if ($private === 1) {
+            if ($userto <= 0) {
+                return ['ok' => false, 'message' => 'Выберите получателя для личного сообщения.'];
+            }
+            if ($userto === $userId) {
+                return ['ok' => false, 'message' => 'Вы не можете отправить личное сообщение самому себе.'];
+            }
+            // В идеале тут должен быть UserRepository::findById, но пока проверим хотя бы базовое наличие
+            // (Так как мы переходим на ID, это важно)
         }
 
         $data = [
@@ -71,6 +99,11 @@ final class ChatService
         ];
 
         $ok = $this->chatRepository.addMessage($data);
+
+        if ($ok) {
+            $this->session->put('chat_last_sent_time', time());
+            $this->session->put('chat_last_sent_text', $text);
+        }
 
         return $ok ? ['ok' => true] : ['ok' => false, 'message' => 'Ошибка базы данных.'];
     }
@@ -90,7 +123,7 @@ final class ChatService
 
     private function normalizeText(string $text): string
     {
-        $text = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+        // Убираем htmlspecialchars отсюда, так как фронт использует textContent
         $text = preg_replace('/\s+/', ' ', $text);
         return trim($text);
     }

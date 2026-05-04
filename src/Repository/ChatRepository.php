@@ -21,7 +21,9 @@ final class ChatRepository
         // 2. Личные сообщения, где пользователь - отправитель или получатель (независимо от комнаты).
         // 3. Системные сообщения (author_id = 0), которые либо глобальные (room = 0), либо текущей комнаты.
 
-        $stmt = $this->db->prepare('
+        $order = $afterId > 0 ? 'ASC' : 'DESC';
+
+        $stmt = $this->db->prepare("
             SELECT c.*, u.login as author_name, ut.login as to_name
             FROM chats c
             LEFT JOIN users u ON u.id = c.author_id
@@ -31,9 +33,9 @@ final class ChatRepository
                 (c.private = 0 AND (c.room = :room OR c.room = 0))
                 OR (c.private = 1 AND (c.author_id = :user_id OR c.userto = :user_id))
               )
-            ORDER BY c.id ASC
+            ORDER BY c.id $order
             LIMIT :limit
-        ');
+        ");
 
         $stmt->bindValue(':after_id', $afterId, PDO::PARAM_INT);
         $stmt->bindValue(':room', $roomId, PDO::PARAM_INT);
@@ -41,7 +43,12 @@ final class ChatRepository
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
 
-        return $stmt->fetchAll();
+        $rows = $stmt->fetchAll();
+        if ($afterId <= 0) {
+            $rows = array_reverse($rows);
+        }
+
+        return $rows;
     }
 
     public function addMessage(array $data): bool
