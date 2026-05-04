@@ -7,7 +7,7 @@ use Pokemon8\View\View;
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pokemon 8.0 - Игровой мир</title>
-  <link rel="stylesheet" href="/public/css/game-start.css">
+  <link rel="stylesheet" href="/css/game-start.css">
 </head>
 <body>
   <main class="world" data-csrf="<?= View::e($csrf) ?>">
@@ -27,7 +27,7 @@ use Pokemon8\View\View;
     <section class="chat">
       <div class="chat-log" id="chatLog"></div>
       <form class="chat-form" id="chatForm">
-        <input value="<?= View::e($login) ?>" readonly>
+        <input value="<?= View::e($login) ?>" readonly class="chat-my-login">
         <input id="chatInput" placeholder="Сообщение..." autocomplete="off">
         <button type="submit">▶</button>
       </form>
@@ -1218,15 +1218,6 @@ use Pokemon8\View\View;
       }
     }
 
-    document.getElementById('chatForm').addEventListener('submit', event => {
-      event.preventDefault();
-      const input = document.getElementById('chatInput');
-      if (!input.value.trim()) return;
-      const line = document.createElement('div');
-      line.textContent = input.value.trim();
-      document.getElementById('chatLog').appendChild(line);
-      input.value = '';
-    });
     document.getElementById('pveButton').addEventListener('click', togglePveButton);
     document.getElementById('debugForceBattleBtn').addEventListener('click', async () => {
       try {
@@ -1311,7 +1302,8 @@ use Pokemon8\View\View;
       }
     }, 2000);
   </script>
-  <script src="/public/js/dex-overlay.js"></script>
+  <script src="/js/chat.js"></script>
+  <script src="/js/dex-overlay.js"></script>
 
 </body>
 </html>
