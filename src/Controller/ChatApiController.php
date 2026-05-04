@@ -29,18 +29,32 @@ final class ChatApiController
                 return $this->json(['ok' => false, 'error' => 'auth'], 401);
             }
 
-            $afterId = (int) $request->input('after_id', '0');
+            $afterId = max(0, (int) $request->input('after_id', '0'));
+            $clientRoomId = max(0, (int) $request->input('client_room_id', '0'));
 
-            // Получаем текущую комнату игрока
-            $userState = $this->locationRepository.findUserState($userId);
+            $userState = $this->locationRepository->findUserState($userId);
             $roomId = (int) ($userState['buildmy'] ?? 1);
+            $roomChanged = $clientRoomId > 0 && $clientRoomId !== $roomId;
 
-            $messages = $this->chatService.getMessages($userId, $roomId, $afterId);
+            // Если игрок сменил локацию, старые сообщения на клиенте не очищаем,
+            // но для новой комнаты берем свежий срез истории, а не фильтруем по id старой комнаты.
+            if ($roomChanged) {
+                $afterId = 0;
+            }
+
+            $messages = $this->chatService->getMessages($userId, $roomId, $afterId);
+            $lastId = $afterId;
+            if (!empty($messages)) {
+                $lastMessage = end($messages);
+                $lastId = (int) ($lastMessage['id'] ?? $afterId);
+            }
 
             return $this->json([
-                'ok'       => true,
-                'messages' => $messages,
-                'lastId'   => !empty($messages) ? (int) end($messages)['id'] : $afterId,
+                'ok'          => true,
+                'messages'    => $messages,
+                'lastId'      => $lastId,
+                'roomId'      => $roomId,
+                'roomChanged' => $roomChanged,
             ]);
         } catch (Throwable $e) {
             return $this->json(['ok' => false, 'message' => 'Ошибка сервера при получении сообщений.'], 500);
@@ -64,17 +78,17 @@ final class ChatApiController
             $userto = (int) $request->input('userto', '0');
             $private = (int) $request->input('private', '0');
 
-            $userState = $this->locationRepository.findUserState($userId);
+            $userState = $this->locationRepository->findUserState($userId);
             $roomId = (int) ($userState['buildmy'] ?? 1);
-            $login = (string) ($userState['login'] ?? 'Unknown');
+            $login = (string) ($userState['login'] ?? $this->session->get('login', 'Unknown'));
 
-            $result = $this->chatService.sendMessage($userId, $login, $roomId, $text, [
+            $result = $this->chatService->sendMessage($userId, $login, $roomId, $text, [
                 'tipe'    => $tipe,
                 'userto'  => $userto,
                 'private' => $private,
             ]);
 
-            return $this->json($result);
+            return $this->json($result, (bool) ($result['ok'] ?? false) ? 200 : 422);
         } catch (Throwable $e) {
             return $this->json(['ok' => false, 'message' => 'Ошибка сервера при отправке сообщения.'], 500);
         }
