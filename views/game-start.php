@@ -25,7 +25,19 @@ use Pokemon8\View\View;
     </section>
 
     <section class="chat">
+      <nav class="chat-tabs">
+        <button type="button" class="chat-tab is-active" data-tab="all">Общий</button>
+        <button type="button" class="chat-tab" data-tab="trade">Торг</button>
+        <button type="button" class="chat-tab" data-tab="battle">Бой</button>
+        <button type="button" class="chat-tab" data-tab="private">Личный</button>
+        <button type="button" class="chat-tab" data-tab="clan">Клан</button>
+        <button type="button" class="chat-tab chat-scope-btn" id="chatScopeBtn">Все</button>
+      </nav>
       <div class="chat-log" id="chatLog"></div>
+      <div class="chat-pm-target" id="chatPmTarget">
+        Приват: <strong id="chatPmName"></strong>
+        <button type="button" class="chat-pm-clear" id="chatPmClear">&times;</button>
+      </div>
       <form class="chat-form" id="chatForm">
         <input value="<?= View::e($login) ?>" readonly>
         <input id="chatInput" placeholder="Сообщение..." autocomplete="off">
@@ -152,6 +164,7 @@ use Pokemon8\View\View;
     const battleWindowDrag = { ready: false, dragging: false, offsetX: 0, offsetY: 0 };
     const battleHoverState = { ready: false, player: null, enemy: null };
     const battlePocket = { loaded: false, items: [] };
+    const chatState = { channel: 'all', scope: 'all', pm: { id: 0, name: '' }, lastId: 0 };
 
     function setupBattleSideTabs() {
       const left = document.querySelector('.battle-left');
@@ -1110,6 +1123,131 @@ use Pokemon8\View\View;
       render(await response.json());
     }
 
+    async function loadChat() {
+      try {
+        const response = await fetch('/api/chat/messages', { credentials: 'same-origin' });
+        const payload = await response.json();
+        if (payload && payload.ok === true) {
+          renderChat(payload);
+        }
+      } catch (e) {}
+    }
+
+    function renderChat(payload) {
+      const log = document.getElementById('chatLog');
+      const rows = Array.isArray(payload.rows) ? payload.rows : [];
+      const currentScroll = log.scrollTop + log.clientHeight;
+      const wasAtBottom = currentScroll >= log.scrollHeight - 20;
+
+      chatState.scope = payload.scope || 'all';
+      document.getElementById('chatScopeBtn').textContent = chatState.scope === 'room' ? 'Комната' : 'Все';
+
+      log.innerHTML = '';
+      for (const row of rows) {
+        if (chatState.channel !== 'all' && row.channel !== chatState.channel) {
+          continue;
+        }
+
+        const div = document.createElement('div');
+        div.className = 'chat-row is-' + row.channel;
+        if (row.private) div.classList.add('is-private');
+
+        const time = document.createElement('time');
+        time.textContent = row.created_at.split(' ')[1];
+
+        const from = document.createElement('span');
+        from.className = 'from';
+        from.textContent = row.from_name;
+        from.addEventListener('click', () => setChatPm(row.from_user_id, row.from_name));
+
+        const text = document.createElement('span');
+        text.className = 'text';
+
+        if (row.private) {
+          const to = document.createElement('span');
+          to.className = 'to';
+          if (Number(row.from_user_id) === Number(<?= (int)($_SESSION['id'] ?? 0) ?>)) {
+            to.textContent = ' > ' + row.to_name;
+          } else {
+            to.textContent = ' шепчет';
+          }
+          div.append(time, from, to, ': ', text);
+        } else {
+          div.append(time, from, ': ', text);
+        }
+
+        text.textContent = row.text;
+        log.appendChild(div);
+      }
+
+      if (wasAtBottom) {
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+
+    function setChatPm(id, name) {
+      chatState.pm.id = id;
+      chatState.pm.name = name;
+      document.getElementById('chatPmName').textContent = name;
+      document.getElementById('chatPmTarget').classList.add('is-active');
+      document.getElementById('chatInput').focus();
+    }
+
+    function clearChatPm() {
+      chatState.pm.id = 0;
+      chatState.pm.name = '';
+      document.getElementById('chatPmTarget').classList.remove('is-active');
+    }
+
+    async function sendChatMsg(text) {
+      if (!text.trim()) return;
+      const body = new URLSearchParams();
+      body.set('_csrf', csrf);
+      body.set('text', text);
+      body.set('channel', chatState.channel);
+      if (chatState.pm.id > 0) {
+        body.set('to_user_id', chatState.pm.id);
+      }
+
+      try {
+        const response = await fetch('/api/chat/send', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body
+        });
+        const payload = await response.json();
+        if (payload && payload.ok === true) {
+          document.getElementById('chatInput').value = '';
+          loadChat();
+        } else {
+          setStatus(payload.message || 'Ошибка отправки.', true);
+        }
+      } catch (e) {
+        setStatus('Сетевая ошибка при отправке.', true);
+      }
+    }
+
+    async function toggleChatScope() {
+      const next = chatState.scope === 'room' ? 'all' : 'room';
+      const body = new URLSearchParams();
+      body.set('_csrf', csrf);
+      body.set('scope', next);
+      try {
+        const response = await fetch('/api/chat/scope', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body
+        });
+        const payload = await response.json();
+        if (payload && payload.ok === true) {
+          chatState.scope = payload.scope;
+          loadChat();
+        }
+      } catch (e) {}
+    }
+
     async function moveTo(locationId) {
       if (state.busy) return;
       state.busy = true;
@@ -1156,13 +1294,18 @@ use Pokemon8\View\View;
 
     document.getElementById('chatForm').addEventListener('submit', event => {
       event.preventDefault();
-      const input = document.getElementById('chatInput');
-      if (!input.value.trim()) return;
-      const line = document.createElement('div');
-      line.textContent = input.value.trim();
-      document.getElementById('chatLog').appendChild(line);
-      input.value = '';
+      sendChatMsg(document.getElementById('chatInput').value);
     });
+    document.querySelectorAll('.chat-tab[data-tab]').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.chat-tab').forEach(t => t.classList.remove('is-active'));
+        tab.classList.add('is-active');
+        chatState.channel = tab.dataset.tab;
+        loadChat();
+      });
+    });
+    document.getElementById('chatScopeBtn').addEventListener('click', toggleChatScope);
+    document.getElementById('chatPmClear').addEventListener('click', clearChatPm);
     document.getElementById('pveButton').addEventListener('click', togglePveButton);
     document.getElementById('debugForceBattleBtn').addEventListener('click', async () => {
       try {
@@ -1240,7 +1383,9 @@ use Pokemon8\View\View;
     });
 
     loadState();
+    loadChat();
     setInterval(loadState, 5000);
+    setInterval(loadChat, 4000);
     setInterval(() => {
       if (battleState.active && !battleState.reviewing) {
         loadBattleState();

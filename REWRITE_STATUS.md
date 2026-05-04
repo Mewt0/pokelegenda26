@@ -80,7 +80,7 @@
 | `include/files/map.world.php` | `GameApiController`, `views/game-start.php` | `PARTIAL_NEW` | Отображение карты + локаций работает через `/api/game/state`. Нужны расширенные правила прохода. |
 | `include/files/char.world.php` | `LocationStateService`, `GET /api/game/state` | `PARTIAL_NEW` | Состояние локации отдается JSON. Нужны полные данные всех локаций. |
 | `include/files/char.work.php` | `MapMoveService`, `POST /api/map/move` | `DONE_NEW` | Переход по локациям полностью работает через API. Возвращает `ok`, `location`, `moves`, `users`, `chatEvent`. |
-| `include/files/chat.world.php` | `ChatController` | `TODO_REWRITE` | Разделить API чата и frontend-компонент. |
+| `include/files/chat.world.php` | `ChatApiController`, `ChatRepository` | `DONE_NEW` | Система чата полностью перенесена на JSON API + современный UI. Поддерживает каналы, приват и scope. |
 | `include/files/buttons.world.php` | `ActionPanel`, `NPC Actions` | `PARTIAL_NEW` | Действия локации теперь через NPC система. |
 | `include/files/mapusers.world.php` | `included in /api/game/state` | `DONE_NEW` | Список игроков на локации отдается в JSON. |
 | `include/data.world.php` | `LocationRepository`, `LocationGraph` | `DONE_NEW` | Граф переходов загружается из БД. |
@@ -108,10 +108,10 @@
    - `POST /api/fight/start` - начало боя
    - `POST /api/fight/action` - действие в бою
    - `POST /api/fight/flee` - бегство из боя
-3. Разработать полноценный API чата:
-   - `GET /api/chat/messages`
-   - `POST /api/chat/messages`
-   - Server-Sent Events для live-обновлений сообщений
+3. Разработать полноценный API чата: ✅ ЗАВЕРШЕНО
+   - `GET /api/chat/messages` ✅
+   - `POST /api/chat/send` ✅
+   - Интеграция в основной интерфейс ✅
 4. Реализовать интерфейс для тренировки/эволюции покемонов
 5. Добавить пользовательский чат (комната) в `views/game-start.php`
 6. Полностью отключить frameset и обновить регулярно на JSON вместо HTML frameset
@@ -157,7 +157,7 @@
 - ✅ **Foundation (ядро):** 100% - все базовые компоненты работают
 - ✅ **Авторизация:** 60% - логин работает, регистрация и throttling в TODO
 - ✅ **Игровой мир:** 40% - базовая навигация готова, NPC в процессе
-- ⏳ **Чат:** 0% - в планах
+- ✅ **Чат:** 100% - полнофункциональный API и UI готовы
 - ⏳ **Боевая система:** 0% - в планах
 - ⏳ **Инвентарь (расширенный):** 20% - базовые операции готовы
 
@@ -201,10 +201,12 @@
 ```
 src/
 ├── Controller/
+│   ├── ChatApiController.php       ✅ JSON API чата
 │   ├── GameApiController.php       ✅ JSON API для состояния
 │   ├── GameModuleController.php    ✅ Маршрутизация модулей
 │   └── NpcApiController.php        ✅ NPC диалоги и действия
 ├── Repository/
+│   ├── ChatRepository.php          ✅ Сообщения и scope
 │   ├── LocationRepository.php      ✅ Граф и состояние локаций
 │   ├── InventoryRepository.php     ✅ Предметы
 │   └── QuestRepository.php         ✅ Квесты

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use Pokemon8\Controller\AuthController;
+use Pokemon8\Controller\ChatApiController;
 use Pokemon8\Controller\GameApiController;
 use Pokemon8\Controller\GameController;
 use Pokemon8\Controller\GameModuleController;
@@ -26,6 +27,7 @@ use Pokemon8\Http\Request;
 use Pokemon8\Http\Router;
 use Pokemon8\Repository\RankingRepository;
 use Pokemon8\Repository\BanRepository;
+use Pokemon8\Repository\ChatRepository;
 use Pokemon8\Repository\InventoryRepository;
 use Pokemon8\Repository\LocationRepository;
 use Pokemon8\Repository\PokemonRepository;
@@ -65,6 +67,7 @@ $rankings = new RankingRepository($db);
 $locations = new LocationRepository($db);
 $pokemonRepository = new PokemonRepository($db);
 $quests = new QuestRepository($db);
+$chat = new ChatRepository($db);
 $inventory = new InventoryRepository($db);
 $profiles = new ProfileRepository($db);
 $battleRepository = new BattleRepository($db);
@@ -91,6 +94,7 @@ $gameApi = new GameApiController($session, $csrf, $locationState, $mapMoves, $wi
 $gameModules = new GameModuleController($session);
 $npcApi = new NpcApiController($session, $csrf, $npcDialogs);
 $pveBattleApi = new PveBattleApiController($session, $csrf, $battleEngine);
+$chatApi = new ChatApiController($session, $csrf, $chat);
 
 $router = new Router();
 $router->get('/', fn (Request $request) => $home->index($request));
@@ -123,6 +127,9 @@ $router->get('/api/pokemon/moves', fn (Request $request) => $pokemonApi->moves($
 $router->post('/api/pokemon/move', fn (Request $request) => $pokemonApi->setMove($request));
 $router->get('/api/location/npc', fn (Request $request) => $npcApi->show($request));
 $router->post('/api/location/npc/action', fn (Request $request) => $npcApi->action($request));
+$router->get('/api/chat/messages', fn (Request $request) => $chatApi->messages($request));
+$router->post('/api/chat/send', fn (Request $request) => $chatApi->send($request));
+$router->post('/api/chat/scope', fn (Request $request) => $chatApi->scope($request));
 
 $request = Request::capture();
 $banResponse = $banGuard->check($request);
