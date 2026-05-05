@@ -256,6 +256,26 @@ use Pokemon8\View\View;
     }
     .ev-left { justify-self: end; color: #00a75f; font-weight: 900; }
     .meta { margin-top: 18px; color: #0d5ca8; font-weight: 700; }
+    .training-box {
+      margin-top: 14px;
+      padding: 10px;
+      border: 1px solid #b3c5d8;
+      border-radius: 6px;
+      background: rgba(255,255,255,.42);
+    }
+    .training-box strong { display:block; margin-bottom:4px; color:#102544; }
+    .training-box small { display:block; color:#526173; }
+    .training-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .training-actions button {
+      min-height: 28px;
+      padding: 0 9px;
+      border: 1px solid #9fb4cc;
+      border-radius: 5px;
+      background: #f7fbff;
+      color: #14395f;
+      font-weight: 800;
+    }
+    .training-actions button:hover { border-color:#4d8bea; color:#0d5ca8; }
     .starter {
       float: right;
       min-height: 26px;
@@ -283,6 +303,19 @@ use Pokemon8\View\View;
       color: #102544;
     }
     .learn-pop h3 { margin: 0 0 8px; color: #102544; font-size: 16px; }
+    .learn-search {
+      width: 100%;
+      height: 32px;
+      margin: 0 0 8px;
+      padding: 0 9px;
+      border: 1px solid #a8b8c9;
+      border-radius: 5px;
+      background: #f7fbff;
+      color: #102544;
+      outline: none;
+    }
+    .learn-search:focus { border-color: #4d8bea; box-shadow: 0 0 0 2px rgba(77,139,234,.16); }
+    .learn-results { display: grid; gap: 6px; }
     .learn-row {
       width: 100%;
       min-height: 56px;
@@ -297,7 +330,6 @@ use Pokemon8\View\View;
       padding: 4px;
       color: #5b3f86;
     }
-    .learn-row + .learn-row { margin-top: 6px; }
     .learn-row strong { display: block; color: #8d4aa2; font: 800 16px/1 Georgia, serif; text-transform: uppercase; }
     .learn-row small { display: block; color: #526173; text-align: right; }
     .learn-empty { color: #637589; padding: 8px 2px; }
@@ -530,6 +562,7 @@ use Pokemon8\View\View;
         '<div class="detail-sub"></div>',
         '<span class="badge">Обычный характер</span>',
         '<div class="stats"></div>',
+        '<div class="training-box"></div>',
         '<div class="meta">☻ ВаДИлаа 2 дня назад <button type="button" class="starter">стартовый</button></div>',
         '</div>'
       ].join('');
@@ -538,6 +571,7 @@ use Pokemon8\View\View;
       detail.querySelector('.detail-sub').textContent = '#' + pad3(poke.baseNum) + ' ' + displayName(poke) + '  ♂';
       detail.querySelector('.starter').hidden = !poke.starter;
       renderStats(poke);
+      renderTraining(poke);
     }
 
     function renderDetail(poke) {
@@ -551,6 +585,7 @@ use Pokemon8\View\View;
         '<div class="detail-sub"></div>',
         '<span class="badge">Обычный характер</span>',
         '<div class="stats"></div>',
+        '<div class="training-box"></div>',
         '<div class="meta">☻ ВадИлаа 2 дня назад <button type="button" class="starter">стартовый</button></div>',
         '</div>'
       ].join('');
@@ -562,6 +597,41 @@ use Pokemon8\View\View;
       detail.querySelector('.starter').hidden = !poke.starter;
       slots.forEach((slot, index) => detail.querySelector('.move-list').appendChild(renderMoveSlot(poke, slot, index)));
       renderStats(poke);
+      renderTraining(poke);
+    }
+
+    function renderTraining(poke) {
+      const box = detail.querySelector('.training-box');
+      if (!box || !poke) return;
+      const t = poke.training || {};
+      const stage = Number(t.stage || 0);
+      const named = t.namedEffect ? ', эффект: ' + namedEffectLabel(t.namedEffect) : '';
+      box.innerHTML = [
+        '<strong>Тренировка: ' + escapeHtml(t.stageName || 'Без тренировки') + '</strong>',
+        '<small>Бонус: +' + Number(t.bonus || 0) + '% к ' + escapeHtml(t.statLabel || 'Не выбран') + named + '</small>',
+        '<small>' + (t.tamed ? 'Приручен: нельзя передавать.' : 'Не приручен.') + '</small>',
+        '<div class="training-actions">',
+          '<button type="button" data-training-action="train">Набор тренировки</button>',
+          '<button type="button" data-training-action="weaken"' + (stage <= 0 ? ' disabled' : '') + '>Ослабить</button>',
+        '</div>',
+      ].join('');
+      box.querySelectorAll('[data-training-action]').forEach(button => {
+        button.addEventListener('click', event => {
+          event.stopPropagation();
+          useTrainingItem(Number(poke.id || 0), button.dataset.trainingAction || 'train');
+        });
+      });
+    }
+
+    function namedEffectLabel(effect) {
+      return {
+        burn: 'ожог',
+        paralyze: 'паралич',
+        freeze: 'заморозка',
+        poison: 'яд',
+        confuse: 'спутанность',
+        fear: 'страх',
+      }[String(effect || '')] || effect;
     }
 
     function renderMoveSlot(poke, slot, index) {
@@ -628,21 +698,45 @@ use Pokemon8\View\View;
 
     function showLearnPopup(anchor, poke, slot, current) {
       closePopups();
-      activeLearn = { pokeId: Number(poke.id), slot };
+      const currentId = Number(current && current.id || 0);
+      const moves = (poke.learnableMoves || []).filter(move => Number(move.id) !== currentId);
+      activeLearn = { pokeId: Number(poke.id), slot, moves, currentId };
       const pop = document.createElement('div');
       pop.className = 'learn-pop';
-      pop.innerHTML = '<h3>Изучить атаку!</h3>';
-      const currentId = Number(current && current.id || 0);
-      const moves = (poke.learnableMoves || []).filter(move => Number(move.id) !== currentId).slice(0, 12);
-      if (!moves.length) {
+      pop.innerHTML = '<h3>Изучить атаку!</h3><input class="learn-search" type="search" placeholder="Поиск по атаке, типу или ID"><div class="learn-results"></div>';
+      document.body.appendChild(pop);
+      const input = pop.querySelector('.learn-search');
+      const results = pop.querySelector('.learn-results');
+      const render = () => renderLearnResults(results, moves, input.value);
+      input.addEventListener('input', render);
+      render();
+      placePopup(pop, anchor, 8);
+      window.setTimeout(() => input.focus(), 0);
+    }
+
+    function normalizeSearch(value) {
+      return String(value || '').toLowerCase().replace(/[^a-z0-9а-яё]+/giu, '');
+    }
+
+    function renderLearnResults(target, moves, query) {
+      const q = normalizeSearch(query);
+      const filtered = moves.filter(move => {
+        if (!q) return true;
+        return normalizeSearch(move.name).includes(q)
+          || normalizeSearch(move.type).includes(q)
+          || String(Number(move.id || 0)).includes(q)
+          || String(Number(move.level || 0)).includes(q);
+      }).slice(0, 36);
+
+      target.innerHTML = '';
+      if (!filtered.length) {
         const empty = document.createElement('div');
         empty.className = 'learn-empty';
-        empty.textContent = 'Нет доступных атак.';
-        pop.appendChild(empty);
+        empty.textContent = moves.length ? 'Ничего не найдено.' : 'Нет доступных атак.';
+        target.appendChild(empty);
+        return;
       }
-      moves.forEach(move => pop.appendChild(renderLearnRow(move)));
-      document.body.appendChild(pop);
-      placePopup(pop, anchor, 8);
+      filtered.forEach(move => target.appendChild(renderLearnRow(move)));
     }
 
     function renderLearnRow(move) {
@@ -696,6 +790,26 @@ use Pokemon8\View\View;
     function closePopups() {
       document.querySelectorAll('.learn-pop,.ev-pop').forEach(node => node.remove());
       activeLearn = null;
+    }
+
+    async function useTrainingItem(pokemonId, action) {
+      const body = new URLSearchParams();
+      body.set('_csrf', csrf);
+      body.set('pokemon_id', String(pokemonId));
+      body.set('action', action);
+      try {
+        const response = await fetch('/api/pokemon/training', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', 'Accept': 'application/json' },
+          body
+        });
+        const payload = await response.json();
+        setStatus(payload && payload.message ? payload.message : 'Готово', !(payload && payload.ok));
+        await load(true);
+      } catch (error) {
+        setStatus('Тренировка не выполнена.', true);
+      }
     }
 
     async function setMove(pokemonId, slot, moveId) {
@@ -803,6 +917,12 @@ use Pokemon8\View\View;
         17: 'water'
       };
       return '/public/img/types/' + (names[map[typeKey(type)] || 12] || 'normal') + '.png';
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>'"]/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;'
+      }[c]));
     }
 
     function typeLabel(type) {

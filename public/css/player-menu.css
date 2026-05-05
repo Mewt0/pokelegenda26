@@ -128,3 +128,144 @@
   border-color: #fecaca;
   color: #991b1b;
 }
+
+.pvp-pokemon-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 140000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(14, 29, 49, .32);
+}
+
+.pvp-pokemon-modal[hidden] {
+  display: none;
+}
+
+.pvp-pokemon-dialog {
+  width: min(520px, 100%);
+  max-height: min(620px, calc(100vh - 36px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid #b8c7d9;
+  border-radius: 10px;
+  background: #e8f1fb;
+  box-shadow: 0 24px 54px rgba(20, 43, 72, .32);
+}
+
+.pvp-pokemon-dialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  background: linear-gradient(#f8fbff, #e3edf8);
+  color: #102544;
+}
+
+.pvp-pokemon-dialog header b {
+  display: block;
+  font-size: 18px;
+}
+
+.pvp-pokemon-dialog header span {
+  display: block;
+  margin-top: 2px;
+  color: #6b7f98;
+  font-size: 13px;
+}
+
+.pvp-pokemon-dialog header button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  color: #516a85;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.pvp-pokemon-list {
+  min-height: 0;
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+  padding: 12px;
+}
+
+.pvp-pokemon-choice {
+  min-height: 82px;
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #b7c7d8;
+  border-radius: 8px;
+  background: rgba(255,255,255,.58);
+  color: #112746;
+  text-align: left;
+}
+
+.pvp-pokemon-choice:hover {
+  border-color: #4d8bea;
+  background: #f8fbff;
+}
+
+.pvp-pokemon-art {
+  height: 74px;
+  display: grid;
+  place-items: center;
+}
+
+.pvp-pokemon-art img {
+  max-width: 78px;
+  max-height: 70px;
+  object-fit: contain;
+}
+
+.pvp-pokemon-main {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding-right: 10px;
+}
+
+.pvp-pokemon-main b {
+  overflow: hidden;
+  color: #102544;
+  font: 900 17px/1.1 Georgia, "Times New Roman", serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pvp-pokemon-main small {
+  color: #5a6d83;
+  font-weight: 700;
+}
+
+.pvp-pokemon-main i {
+  height: 8px;
+  overflow: hidden;
+  border: 1px solid #aab8c8;
+  border-radius: 999px;
+  background: #edf4fb;
+}
+
+.pvp-pokemon-main em {
+  display: block;
+  height: 100%;
+  background: #16c193;
+}
+
+.pvp-pokemon-empty {
+  padding: 18px;
+  color: #60758d;
+  text-align: center;
+  font-weight: 800;
+}
+
+.pvp-pokemon-empty.is-error {
+  color: #9b1c1c;
+}

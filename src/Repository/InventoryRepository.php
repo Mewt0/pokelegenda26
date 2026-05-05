@@ -113,15 +113,21 @@ final class InventoryRepository
         }
 
         $stmt = $this->db->prepare(
-            'INSERT INTO items_users (item_id, user_id, count, dattimer, timers) VALUES (:item, :user, :count, :dattimer, :timers)'
+            'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers) VALUES (:id, :item, :user, :count, :dattimer, :timers)'
         );
         $stmt->execute([
+            'id' => $this->nextItemsUsersId(),
             'item' => $itemId,
             'user' => $userId,
             'count' => $count,
             'dattimer' => 'not',
             'timers' => 'not',
         ]);
+    }
+
+    private function nextItemsUsersId(): int
+    {
+        return (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM items_users')->fetchColumn() ?: 1);
     }
 
     public function removeItem(int $userId, int $itemId, int $count): bool

@@ -28,7 +28,9 @@
 | `/api/battle/pvp/*` | `PARTIAL_NEW` | Добавлены заявки на PvP, старт боя между тренерами, состояние/действия через общий боевой UI, polling входящих вызовов и проверка кармы. |
 | `/api/inventory/*` | `PARTIAL_NEW` | Инвентарь и боевые предметы частично подключены. |
 | `/api/pokemon/*` | `PARTIAL_NEW` | Команда, атаки и лечение есть, UI/кодировку еще чистить. |
+| `/api/pokemon/training` | `PARTIAL_NEW` | Набор тренировки/ослабления применяются к активному покемону, тратят предметы и обновляют стадии. |
 | `/api/dex/*` | `PARTIAL_NEW` | Покедекс/атакадекс есть, требуется финальная проверка полного списка атак и данных. |
+| `/api/shop/training/buy` | `PARTIAL_NEW` | Покупка наборов тренировки/ослабления за алмазы или монеты. |
 
 ## База данных
 
@@ -39,7 +41,9 @@
 | `friends` | `DONE_NEW` | Добавлены `AUTO_INCREMENT`, primary key, unique pair, reverse index. |
 | `friends_zayv` | `DONE_NEW` | Добавлены `AUTO_INCREMENT`, primary key, unique request pair, incoming-request index. |
 | `pok_user` | `PARTIAL_NEW` | Для ловли новый `id` задается явно, потому что в живой БД не было `AUTO_INCREMENT`. |
+| `pok_user.training_*` | `PARTIAL_NEW` | Хранит стадию тренировки, выбранный стат, именной эффект и признак приручения. |
 | `attac_my_poke` | `PARTIAL_NEW` | Новые вставки указывают `id`; пойманным покемонам создаются стартовые атаки. |
+| `items` / `items_users` | `PARTIAL_NEW` | Добавлены предметы `330` Набор тренировки и `678` Набор ослабления; новые строки `items_users` теперь получают ручной id. |
 | `battles`, `battle_log` | `PARTIAL_NEW` | PvE использует новые репозитории, логирование еще нужно довести для PvP/истории. |
 | `battle_dop` | `PARTIAL_NEW` | Добавлены primary key и индекс `(battleid, pokeid)`; используется для полевых ловушек, временных боевых эффектов, запрета смены, side-field и погоды. |
 | `pvp_requests` | `DONE_NEW` | Новая таблица заявок на PvP с индексами входящих/исходящих вызовов, пары игроков и связанного боя. |
@@ -110,6 +114,7 @@
 - Вызов на бой теперь проверяет карму, ордеры и тип локации.
 - Входящие PvP-вызовы опрашиваются клиентом и показываются toast-уведомлением.
 - Если у текущего игрока есть входящий вызов от выбранного игрока, кнопка в меню меняется на `Принять бой`.
+- При вызове/принятии PvP открывается модальное окно выбора живого активного покемона; выбор первого игрока сохраняется в `pvp_requests`.
 - После принятия создается запись `battles` с `batl_tip = pvp`, обоим игрокам ставится `pvp = 1`, активные покемоны берутся из `pok_user`.
 - PvP состояние отдается через боевой API: UI показывает `PvP бой против ...`, покемона соперника, ожидание второго игрока и лог раундов.
 - Атаки, PP, порядок хода по скорости, урон, статусы/бафы и завершение боя используют общий `BattleEngineService`.
@@ -143,7 +148,12 @@
 - Плитка команды и детали покемона есть.
 - Лечение активных покемонов восстанавливает HP и PP.
 - Редактор атак работает через новый API.
+- В редакторе атак добавлен поиск по доступным атакам покемона: название, тип, ID и уровень.
 - Вставка первой строки `attac_my_poke` учитывает ручной `id`.
+- Добавлена система тренировок: набор тренировки повышает стадию с шансами League-17, выбирает случайный стат кроме HP и переносит бонус на новый стат; набор ослабления понижает стадию на 1, сохраняет стат и приручает монстра.
+- Бонус тренировки применяется в бою к выбранному стату без перезаписи базовых значений покемона.
+- Именная тренировка хранит случайный доп. эффект и дает 5% шанс наложить его при damaging-атаке.
+- В `/game/diamond-shop` и `/game/market/items` добавлена покупка наборов тренировки/ослабления: 10 алмазов или 500000 монет за предмет.
 
 Статус: `PARTIAL_NEW`.
 
@@ -151,7 +161,8 @@
 
 - Покедекс и атакадекс открываются в overlay.
 - Атакадекс использует иконки типов.
-- Нужна дальнейшая проверка полного списка атак и пагинации.
+- Поиск атакадекса ищет по названию, типу, описанию, ID, категории и компактному названию без пробелов/дефисов.
+- В живой БД проверено 562 атаки, максимум `atac_id = 999`; поиск не ограничен первыми 100 строками.
 
 Статус: `PARTIAL_NEW`.
 
@@ -167,8 +178,8 @@
 
 ## Последние проверки
 
-- PHP lint: `src/Game/BattleEngineService.php`, `src/Repository/BattleRepository.php`, `src/Repository/MessageRepository.php`, `src/Controller/GameModuleController.php`, `src/Game/GameRoutes.php`, `views/game-module.php`, `views/game-messages.php`, `public/index.php`.
+- PHP lint: `src/Game/BattleEngineService.php`, `src/Repository/BattleRepository.php`, `src/Repository/MessageRepository.php`, `src/Repository/TrainingRepository.php`, `src/Repository/InventoryRepository.php`, `src/Repository/PokemonRepository.php`, `src/Repository/DexRepository.php`, `src/Controller/GameModuleController.php`, `src/Controller/PokemonApiController.php`, `src/Controller/ShopApiController.php`, `src/Game/GameRoutes.php`, `views/game-module.php`, `views/game-messages.php`, `views/game-training-shop.php`, `views/game-pokemon.php`, `public/index.php`.
 - JS syntax: `public/js/player-menu.js`.
 - DB schema check: `battle_dop` primary key и индекс `(battleid, pokeid)`, `pvp_requests` индексы входящих/исходящих/пары/боя.
-- DB smoke: добавление ловушки, защита от дубля, чтение ловушек, Fire Punch -> burn, Leech Seed -> status 8, Toxic -> progressive poison, Spikes/Sticky Web hazards, Fire Spin -> partial trap, Sunny Day -> weather, Double-Edge -> recoil, Taunt blocks Thunder Wave, иммунитет Fire к Burn, запрет второго stable-статуса, 3 слоя Spikes, Trick Room order, Reflect damage reduction, weather ability synergy (`Морось`, `Водоплавающий`, `Дождефаг`, `Сухая кожа`, `Засуха`, `Солнечная батарея`, `Лиственный щит`, `Песочник`, `Метеочувствительность`), чтение inbox, PvP заявка/принятие/два хода в транзакции с rollback, карма/ордеры/безопасные и запрещенные локации в транзакции с rollback.
+- DB smoke: добавление ловушки, защита от дубля, чтение ловушек, Fire Punch -> burn, Leech Seed -> status 8, Toxic -> progressive poison, Spikes/Sticky Web hazards, Fire Spin -> partial trap, Sunny Day -> weather, Double-Edge -> recoil, Taunt blocks Thunder Wave, иммунитет Fire к Burn, запрет второго stable-статуса, 3 слоя Spikes, Trick Room order, Reflect damage reduction, weather ability synergy (`Морось`, `Водоплавающий`, `Дождефаг`, `Сухая кожа`, `Засуха`, `Солнечная батарея`, `Лиственный щит`, `Песочник`, `Метеочувствительность`), чтение inbox, PvP заявка/принятие/два хода в транзакции с rollback, карма/ордеры/безопасные и запрещенные локации в транзакции с rollback, поиск атак `Teleport/100/double slap/физическая/status`, покупка наборов за монеты/алмазы, тренировка и ослабление в транзакции с rollback.
 - Render smoke: `game-module` и `game-messages` рендерятся через `View::render`.

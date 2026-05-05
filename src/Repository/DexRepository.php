@@ -92,18 +92,54 @@ final class DexRepository
             $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
             $stmt->execute();
         } else {
+            $id = (int) (preg_replace('/\D+/', '', $query) ?: 0);
+            $compact = '%' . mb_strtolower((string) preg_replace('/[^a-z0-9а-яё]+/iu', '', $query), 'UTF-8') . '%';
+            $category = $this->categoryFromSearch($query);
             $stmt = $this->db->prepare(
                 $select . $from .
-                ' WHERE atac_name LIKE :q OR atac_tip LIKE :q OR titles LIKE :q OR atac_id = :id
+                ' WHERE atac_name LIKE :q_name
+                    OR atac_tip LIKE :q_type
+                    OR titles LIKE :q_titles
+                    OR atac_tittle LIKE :q_title
+                    OR tittle_effect LIKE :q_effect
+                    OR atac_id = :id
+                    OR (:category_filter > 0 AND atac_categori = :category_value)
+                    OR LOWER(REPLACE(REPLACE(REPLACE(atac_name, " ", ""), "-", ""), "_", "")) LIKE :compact
                   ORDER BY atac_id ASC LIMIT :limit'
             );
-            $stmt->bindValue(':q', '%' . $query . '%');
-            $stmt->bindValue(':id', ctype_digit($query) ? (int)$query : 0, PDO::PARAM_INT);
+            $like = '%' . $query . '%';
+            $stmt->bindValue(':q_name', $like);
+            $stmt->bindValue(':q_type', $like);
+            $stmt->bindValue(':q_titles', $like);
+            $stmt->bindValue(':q_title', $like);
+            $stmt->bindValue(':q_effect', $like);
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+            $stmt->bindValue(':category_filter', $category, PDO::PARAM_INT);
+            $stmt->bindValue(':category_value', $category, PDO::PARAM_INT);
+            $stmt->bindValue(':compact', $compact);
             $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
             $stmt->execute();
         }
 
         return array_map([$this, 'attackSummary'], $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    private function categoryFromSearch(string $query): int
+    {
+        $q = mb_strtolower(trim($query), 'UTF-8');
+        if ($q === '') {
+            return 0;
+        }
+        if (str_contains($q, 'физ') || str_contains($q, 'physical')) {
+            return 1;
+        }
+        if (str_contains($q, 'спец') || str_contains($q, 'special')) {
+            return 2;
+        }
+        if (str_contains($q, 'стат') || str_contains($q, 'status')) {
+            return 3;
+        }
+        return 0;
     }
 
     public function attack(int $id): ?array

@@ -38,6 +38,16 @@ final class PvpBattleApiController
         return $this->json($this->battleEngine->pvpRequests($userId));
     }
 
+    public function pokemonOptions(Request $request): Response
+    {
+        $userId = $this->userId();
+        if ($userId <= 0) {
+            return $this->json(['ok' => false, 'error' => 'auth'], 401);
+        }
+
+        return $this->json($this->battleEngine->pvpPokemonOptions($userId));
+    }
+
     public function request(Request $request): Response
     {
         $userId = $this->userId();
@@ -48,7 +58,11 @@ final class PvpBattleApiController
             return $this->json(['ok' => false, 'error' => 'csrf', 'message' => 'Сессия устарела. Обнови страницу.'], 419);
         }
 
-        return $this->json($this->battleEngine->requestPvp($userId, (int) $request->input('user_id', '0')));
+        return $this->json($this->battleEngine->requestPvp(
+            $userId,
+            (int) $request->input('user_id', '0'),
+            (int) $request->input('pokemon_id', '0')
+        ));
     }
 
     public function accept(Request $request): Response
@@ -61,7 +75,11 @@ final class PvpBattleApiController
             return $this->json(['ok' => false, 'error' => 'csrf', 'message' => 'Сессия устарела. Обнови страницу.'], 419);
         }
 
-        return $this->json($this->battleEngine->acceptPvp($userId, (int) $request->input('request_id', '0')));
+        return $this->json($this->battleEngine->acceptPvp(
+            $userId,
+            (int) $request->input('request_id', '0'),
+            (int) $request->input('pokemon_id', '0')
+        ));
     }
 
     public function decline(Request $request): Response

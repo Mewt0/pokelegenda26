@@ -107,6 +107,22 @@ final class BattleRepository
         return $pokemonId > 0 ? $this->findPokemon('pvp_' . $pokemonId) : null;
     }
 
+    public function findChosenBattlePokemonForUser(int $userId, int $pokemonId): ?array
+    {
+        if ($userId <= 0 || $pokemonId <= 0) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT id
+               FROM pok_user
+              WHERE id = :pokemon AND users = :user AND active = 1 AND hp_my > 0
+              LIMIT 1'
+        );
+        $stmt->execute(['pokemon' => $pokemonId, 'user' => $userId]);
+        return $stmt->fetchColumn() !== false ? $this->findPokemon('pvp_' . $pokemonId) : null;
+    }
+
     public function pvpAttackPermission(int $attackerId, int $targetId): array
     {
         if ($attackerId <= 0 || $targetId <= 0 || $attackerId === $targetId) {
@@ -271,10 +287,15 @@ final class BattleRepository
         return $result;
     }
 
-    public function requestOrAcceptPvp(int $fromUserId, int $toUserId): array
+    public function requestOrAcceptPvp(int $fromUserId, int $toUserId, int $fromPokemonId = 0): array
     {
         if ($fromUserId <= 0 || $toUserId <= 0 || $fromUserId === $toUserId) {
             return ['ok' => false, 'message' => 'Нельзя вызвать этого игрока.'];
+        }
+
+        $chosenPokemon = $this->findChosenBattlePokemonForUser($fromUserId, $fromPokemonId);
+        if ($chosenPokemon === null) {
+            return ['ok' => false, 'message' => 'Выберите живого покемона из активной команды.'];
         }
 
         $incoming = $this->db->prepare(
@@ -287,7 +308,7 @@ final class BattleRepository
         $incoming->execute(['target' => $toUserId, 'current' => $fromUserId]);
         $incomingId = (int) ($incoming->fetchColumn() ?: 0);
         if ($incomingId > 0) {
-            return $this->acceptPvpRequest($fromUserId, $incomingId);
+            return $this->acceptPvpRequest($fromUserId, $incomingId, $fromPokemonId);
         }
 
         $permission = $this->pvpAttackPermission($fromUserId, $toUserId);
@@ -317,26 +338,32 @@ final class BattleRepository
         if ($existingId > 0) {
             $this->db->prepare(
                 'UPDATE pvp_requests
-                    SET updated_at = :now
+                    SET from_pokemon_id = :pokemon, updated_at = :now
                   WHERE id = :id
                   LIMIT 1'
-            )->execute(['now' => $now, 'id' => $existingId]);
+            )->execute(['pokemon' => $fromPokemonId, 'now' => $now, 'id' => $existingId]);
 
             return ['ok' => true, 'status' => 'outgoing', 'message' => 'Вызов на бой уже отправлен.'];
         }
 
         $this->db->prepare(
-            'INSERT INTO pvp_requests (from_user_id, to_user_id, status, battle_id, created_at, updated_at)
-             VALUES (:from, :to, "pending", 0, :created_at, :updated_at)'
-        )->execute(['from' => $fromUserId, 'to' => $toUserId, 'created_at' => $now, 'updated_at' => $now]);
+            'INSERT INTO pvp_requests (from_user_id, to_user_id, from_pokemon_id, to_pokemon_id, status, battle_id, created_at, updated_at)
+             VALUES (:from, :to, :pokemon, 0, "pending", 0, :created_at, :updated_at)'
+        )->execute([
+            'from' => $fromUserId,
+            'to' => $toUserId,
+            'pokemon' => $fromPokemonId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
 
         return ['ok' => true, 'status' => 'outgoing', 'message' => 'Вызов на бой отправлен.'];
     }
 
-    public function acceptPvpRequest(int $userId, int $requestId): array
+    public function acceptPvpRequest(int $userId, int $requestId, int $toPokemonId = 0): array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, from_user_id, to_user_id
+            'SELECT id, from_user_id, to_user_id, from_pokemon_id
                FROM pvp_requests
               WHERE id = :id AND to_user_id = :user AND status = "pending"
               LIMIT 1'
@@ -349,6 +376,7 @@ final class BattleRepository
 
         $fromUserId = (int) ($request['from_user_id'] ?? 0);
         $toUserId = (int) ($request['to_user_id'] ?? 0);
+        $fromPokemonId = (int) ($request['from_pokemon_id'] ?? 0);
         $permission = $this->pvpAttackPermission($fromUserId, $toUserId);
         if (empty($permission['allowed'])) {
             return [
@@ -363,10 +391,11 @@ final class BattleRepository
             return ['ok' => false, 'message' => 'Бой нельзя начать: один из игроков уже занят.'];
         }
 
-        $firstPokemon = $this->findFirstBattlePokemonForUser($fromUserId);
-        $secondPokemon = $this->findFirstBattlePokemonForUser($toUserId);
+        $firstPokemon = $this->findChosenBattlePokemonForUser($fromUserId, $fromPokemonId)
+            ?? $this->findFirstBattlePokemonForUser($fromUserId);
+        $secondPokemon = $this->findChosenBattlePokemonForUser($toUserId, $toPokemonId);
         if ($firstPokemon === null || $secondPokemon === null) {
-            return ['ok' => false, 'message' => 'У одного из игроков нет живого активного покемона.'];
+            return ['ok' => false, 'message' => 'Выберите живого покемона из активной команды.'];
         }
 
         $battleId = $this->createPvpBattle($fromUserId, $toUserId, (int) $firstPokemon['id'], (int) $secondPokemon['id']);
@@ -374,10 +403,10 @@ final class BattleRepository
         $now = time();
         $this->db->prepare(
             'UPDATE pvp_requests
-                SET status = "accepted", battle_id = :battle, updated_at = :now
+                SET status = "accepted", battle_id = :battle, to_pokemon_id = :pokemon, updated_at = :now
               WHERE id = :id
               LIMIT 1'
-        )->execute(['battle' => $battleId, 'now' => $now, 'id' => $requestId]);
+        )->execute(['battle' => $battleId, 'pokemon' => (int) $secondPokemon['id'], 'now' => $now, 'id' => $requestId]);
         $this->db->prepare(
             'UPDATE pvp_requests
                 SET status = "expired", updated_at = :now
@@ -473,7 +502,30 @@ final class BattleRepository
         }
 
         $row['battle_pokemon'] = $battlePokemon;
+        $this->applyTrainingBonus($row);
         return $row;
+    }
+
+    private function applyTrainingBonus(array &$pokemon): void
+    {
+        $stage = max(0, min(6, (int) ($pokemon['training_stage'] ?? 0)));
+        $stat = (string) ($pokemon['training_stat'] ?? '');
+        $bonus = match ($stage) {
+            1 => 10,
+            2 => 18,
+            3 => 25,
+            4 => 31,
+            5 => 36,
+            6 => 40,
+            default => 0,
+        };
+        if ($bonus <= 0 || !in_array($stat, ['atk', 'def', 'satk', 'sdef', 'speed'], true)) {
+            return;
+        }
+
+        $base = max(1, (int) ($pokemon[$stat] ?? 0));
+        $pokemon[$stat] = max(1, (int) floor($base * (1 + $bonus / 100)));
+        $pokemon['training_bonus_percent'] = $bonus;
     }
 
     public function findUserBattlePokemonOptions(int $userId): array

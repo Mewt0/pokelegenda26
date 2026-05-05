@@ -10,6 +10,11 @@
   toastStack.className = 'game-toast-stack';
   document.body.appendChild(toastStack);
 
+  const pvpModal = document.createElement('div');
+  pvpModal.className = 'pvp-pokemon-modal';
+  pvpModal.hidden = true;
+  document.body.appendChild(pvpModal);
+
   let activeRow = null;
   let activeLogin = '';
   let activePlayerId = 0;
@@ -89,6 +94,19 @@
       toast.classList.remove('is-visible');
       window.setTimeout(() => toast.remove(), 220);
     }, 4200);
+  }
+
+  function pad3(value) {
+    return String(Math.max(0, Number(value || 0))).padStart(3, '0');
+  }
+
+  function pokemonSprite(pokemon) {
+    const base = Math.max(0, Number(pokemon && pokemon.baseNum || 0));
+    return base > 0 ? '/Pok/normal/' + base + '.png' : '/public/img/ui/menu-pokemon.png';
+  }
+
+  function hpPercent(pokemon) {
+    return Math.max(0, Math.min(100, Number(pokemon && pokemon.hp || 0) / Math.max(1, Number(pokemon && pokemon.hpMax || 1)) * 100));
   }
 
   function closeMenu() {
@@ -287,10 +305,16 @@
       return null;
     }
 
+    const pokemon = await choosePvpPokemon(activePvpStatus === 'incoming' ? 'Кого отправить в ответ?' : 'Кого отправить в бой?');
+    if (!pokemon) {
+      return null;
+    }
+
     try {
       const body = new URLSearchParams();
       body.set('_csrf', csrf);
       body.set('user_id', String(id));
+      body.set('pokemon_id', String(pokemon.id));
 
       const response = await fetch('/api/battle/pvp/request', {
         method: 'POST',
@@ -312,6 +336,81 @@
       notify('Ошибка сервера при вызове на бой.', 'error');
       return null;
     }
+  }
+
+  async function loadPvpPokemonOptions() {
+    const response = await fetch('/api/battle/pvp/pokemon-options', {
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json' },
+    });
+    const data = await response.json();
+    if (!data || data.ok !== true) {
+      throw new Error(data && data.message ? data.message : 'Не удалось загрузить команду.');
+    }
+    return Array.isArray(data.pokemon) ? data.pokemon : [];
+  }
+
+  function choosePvpPokemon(title) {
+    return new Promise(async resolve => {
+      let settled = false;
+      const done = value => {
+        if (settled) return;
+        settled = true;
+        pvpModal.hidden = true;
+        pvpModal.innerHTML = '';
+        document.removeEventListener('keydown', onKey);
+        resolve(value);
+      };
+      const onKey = event => {
+        if (event.key === 'Escape') done(null);
+      };
+      document.addEventListener('keydown', onKey);
+
+      pvpModal.hidden = false;
+      pvpModal.innerHTML = [
+        '<div class="pvp-pokemon-dialog" role="dialog" aria-modal="true">',
+          '<header><div><b></b><span>Выберите живого покемона из активной команды</span></div><button type="button" data-pvp-close>&times;</button></header>',
+          '<div class="pvp-pokemon-list"><div class="pvp-pokemon-empty">Загружаю команду...</div></div>',
+        '</div>',
+      ].join('');
+      pvpModal.querySelector('header b').textContent = title || 'Выбор покемона';
+      pvpModal.querySelector('[data-pvp-close]').addEventListener('click', () => done(null));
+      pvpModal.addEventListener('click', event => {
+        if (event.target === pvpModal) done(null);
+      }, { once: true });
+
+      const list = pvpModal.querySelector('.pvp-pokemon-list');
+      try {
+        const pokemon = await loadPvpPokemonOptions();
+        if (!pokemon.length) {
+          list.innerHTML = '<div class="pvp-pokemon-empty">Нет живых активных покемонов.</div>';
+          return;
+        }
+        list.innerHTML = pokemon.map(item => {
+          const hp = hpPercent(item);
+          const name = String(item.name || ('Pokemon #' + Number(item.baseNum || 0))).replace(/^#?\d+\s*/, '');
+          return [
+            '<button type="button" class="pvp-pokemon-choice" data-pokemon-id="' + Number(item.id || 0) + '">',
+              '<span class="pvp-pokemon-art"><img src="' + pokemonSprite(item) + '" alt=""></span>',
+              '<span class="pvp-pokemon-main">',
+                '<b>#' + pad3(item.baseNum) + ' ' + name + '</b>',
+                '<small>Lv.' + Number(item.level || 0) + ' · HP ' + Number(item.hp || 0) + '/' + Number(item.hpMax || 0) + '</small>',
+                '<i><em style="width:' + hp + '%"></em></i>',
+              '</span>',
+            '</button>',
+          ].join('');
+        }).join('');
+        list.querySelectorAll('[data-pokemon-id]').forEach(button => {
+          button.addEventListener('click', () => {
+            const id = Number(button.dataset.pokemonId || 0);
+            done(pokemon.find(item => Number(item.id || 0) === id) || null);
+          });
+        });
+      } catch (error) {
+        console.error('PvP pokemon options failed:', error);
+        list.innerHTML = '<div class="pvp-pokemon-empty is-error">Не удалось загрузить команду.</div>';
+      }
+    });
   }
 
   async function pollIncomingRequests() {

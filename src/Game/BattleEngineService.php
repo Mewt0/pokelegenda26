@@ -119,14 +119,14 @@ final class BattleEngineService
         return ['ok' => true, 'active' => false, 'userId' => $userId];
     }
 
-    public function requestPvp(int $userId, int $targetUserId): array
+    public function requestPvp(int $userId, int $targetUserId, int $pokemonId = 0): array
     {
-        return $this->battles->requestOrAcceptPvp($userId, $targetUserId);
+        return $this->battles->requestOrAcceptPvp($userId, $targetUserId, $pokemonId);
     }
 
-    public function acceptPvp(int $userId, int $requestId): array
+    public function acceptPvp(int $userId, int $requestId, int $pokemonId = 0): array
     {
-        return $this->battles->acceptPvpRequest($userId, $requestId);
+        return $this->battles->acceptPvpRequest($userId, $requestId, $pokemonId);
     }
 
     public function declinePvp(int $userId, int $requestId): array
@@ -143,12 +143,40 @@ final class BattleEngineService
         return ['ok' => true, 'requests' => $this->battles->incomingPvpRequests($userId)];
     }
 
+    public function pvpPokemonOptions(int $userId): array
+    {
+        return [
+            'ok' => true,
+            'pokemon' => array_map(
+                fn (array $pokemon): array => $this->formatPvpOption($pokemon),
+                $this->battles->findUserBattlePokemonOptions($userId)
+            ),
+        ];
+    }
+
     public function pvpStatus(int $userId, int $targetUserId): array
     {
         return [
             'ok' => true,
             'status' => $this->battles->pvpRequestStatus($userId, $targetUserId),
             'permission' => $this->battles->pvpAttackPermission($userId, $targetUserId),
+        ];
+    }
+
+    private function formatPvpOption(array $pokemon): array
+    {
+        $baseNum = (int) ($pokemon['basenum'] ?? 0);
+        $code = str_pad((string) max(0, $baseNum), 3, '0', STR_PAD_LEFT);
+
+        return [
+            'id' => (int) ($pokemon['id'] ?? 0),
+            'name' => trim(strip_tags((string) ($pokemon['names'] ?? ''))) ?: ('Pokemon #' . $baseNum),
+            'baseNum' => $baseNum,
+            'code' => $code,
+            'level' => (int) ($pokemon['lvl'] ?? 0),
+            'hp' => (int) ($pokemon['hp_my'] ?? 0),
+            'hpMax' => (int) ($pokemon['hp_max'] ?? 0),
+            'starter' => (int) ($pokemon['startepoke'] ?? 0) === 1,
         ];
     }
 
@@ -890,6 +918,11 @@ final class BattleEngineService
             }
         }
 
+        $trainingText = $this->applyNamedTrainingEffect($battleId, $round, $attacker, $defender, $move);
+        if ($trainingText !== '') {
+            $parts[] = $trainingText;
+        }
+
         $specialText = $this->applySpecialMoveEffect($battleId, $round, $attacker, $defender, $move);
         if ($specialText !== '') {
             $parts[] = $specialText;
@@ -901,6 +934,35 @@ final class BattleEngineService
         }
 
         return implode(' ', array_values(array_filter($parts)));
+    }
+
+    private function applyNamedTrainingEffect(int $battleId, int $round, array $attacker, array $defender, array $move): string
+    {
+        if ((int) ($attacker['training_stage'] ?? 0) < 6 || $this->lastDamageDealt <= 0) {
+            return '';
+        }
+        if ((int) ($move['atac_categori'] ?? 1) >= 3 || (int) ($move['atac_power'] ?? 0) <= 0) {
+            return '';
+        }
+        if (random_int(1, 100) > 5) {
+            return '';
+        }
+
+        $effect = (string) ($attacker['training_named_effect'] ?? '');
+        $statusId = match ($effect) {
+            'poison' => 1,
+            'burn' => 3,
+            'freeze' => 4,
+            'paralyze' => 5,
+            'fear' => 6,
+            'confuse' => 7,
+            default => 0,
+        };
+        if ($statusId <= 0) {
+            return '';
+        }
+
+        return $this->tryApplyStatus($battleId, $round, $defender, $statusId, 100, (string) ($move['atac_tip'] ?? ''), (string) ($move['atac_name'] ?? ''));
     }
 
     private function applySpecialMoveEffect(int $battleId, int $round, array &$attacker, array &$defender, array $move): string

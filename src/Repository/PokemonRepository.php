@@ -163,13 +163,13 @@ final class PokemonRepository
         ]);
         $move = $learn->fetch();
         if (!$move) {
-            return ['ok' => false, 'message' => 'Р­С‚РѕС‚ РїРѕРєРµРјРѕРЅ РЅРµ РјРѕР¶РµС‚ РёР·СѓС‡РёС‚СЊ РІС‹Р±СЂР°РЅРЅСѓСЋ Р°С‚Р°РєСѓ.'];
+            return ['ok' => false, 'message' => 'Этот покемон не может изучить выбранную атаку.'];
         }
 
         if ($row) {
             foreach (['a_id', 'b_id', 'c_id', 'd_id'] as $moveColumn) {
                 if ($moveColumn !== $slotMap[$slot]['id'] && (int) ($row[$moveColumn] ?? 0) === $moveId) {
-                    return ['ok' => false, 'message' => 'Р­С‚Р° Р°С‚Р°РєР° СѓР¶Рµ СЃС‚РѕРёС‚ Сѓ РїРѕРєРµРјРѕРЅР°.'];
+                    return ['ok' => false, 'message' => 'Эта атака уже стоит у покемона.'];
                 }
             }
         }
@@ -213,7 +213,7 @@ final class PokemonRepository
             ]);
         }
 
-        return ['ok' => true, 'message' => 'РђС‚Р°РєР° РѕР±РЅРѕРІР»РµРЅР°.'];
+        return ['ok' => true, 'message' => 'Атака обновлена.'];
     }
 
     private function nextAttacMyPokeId(): int
@@ -234,7 +234,8 @@ final class PokemonRepository
     private function listPokemonByActive(int $userId, int $active, int $limit): array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, names, basenum, lvl, hp_my, hp_max, startepoke
+            'SELECT id, names, basenum, lvl, hp_my, hp_max, startepoke,
+                    training_stage, training_stat, training_named_effect, training_tamed
                FROM pok_user
               WHERE users = :user AND active = :active
               ORDER BY startepoke DESC, basenum ASC, id ASC
@@ -255,10 +256,47 @@ final class PokemonRepository
                 'hp' => (int) $row['hp_my'],
                 'hpMax' => (int) $row['hp_max'],
                 'starter' => (int) $row['startepoke'] === 1,
+                'training' => $this->trainingInfo($row),
             ];
         }
 
         return $rows;
+    }
+
+    private function trainingInfo(array $row): array
+    {
+        $stage = max(0, min(6, (int) ($row['training_stage'] ?? 0)));
+        $stages = [
+            0 => ['name' => 'Без тренировки', 'bonus' => 0],
+            1 => ['name' => 'Начальная', 'bonus' => 10],
+            2 => ['name' => 'Расширенная', 'bonus' => 18],
+            3 => ['name' => 'Мастерская', 'bonus' => 25],
+            4 => ['name' => 'Знаменитая', 'bonus' => 31],
+            5 => ['name' => 'Легендарная', 'bonus' => 36],
+            6 => ['name' => 'Именная', 'bonus' => 40],
+        ];
+        $stat = (string) ($row['training_stat'] ?? '');
+        return [
+            'stage' => $stage,
+            'stageName' => $stages[$stage]['name'],
+            'bonus' => $stages[$stage]['bonus'],
+            'stat' => $stat,
+            'statLabel' => $this->trainingStatLabel($stat),
+            'namedEffect' => (string) ($row['training_named_effect'] ?? ''),
+            'tamed' => (int) ($row['training_tamed'] ?? 0) === 1,
+        ];
+    }
+
+    private function trainingStatLabel(string $stat): string
+    {
+        return match ($stat) {
+            'atk' => 'Атака',
+            'def' => 'Защита',
+            'satk' => 'Спец. атака',
+            'sdef' => 'Спец. защита',
+            'speed' => 'Скорость',
+            default => 'Не выбран',
+        };
     }
 
     private function selectedMoves(int $pokemonId): array
@@ -313,7 +351,7 @@ final class PokemonRepository
                INNER JOIN attac_power apw ON apw.atac_id = ap.atac_id
               WHERE ap.poke_base_id = :base AND ap.atc_lvl <= :lvl
               ORDER BY ap.atc_lvl DESC, ap.atac_id DESC
-              LIMIT 80'
+              LIMIT 240'
         );
         $stmt->execute(['base' => $baseNum, 'lvl' => $level]);
 

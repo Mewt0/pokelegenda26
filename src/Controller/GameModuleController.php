@@ -7,12 +7,18 @@ use Pokemon8\Game\GameRoutes;
 use Pokemon8\Http\Request;
 use Pokemon8\Http\Response;
 use Pokemon8\Repository\MessageRepository;
+use Pokemon8\Repository\TrainingRepository;
+use Pokemon8\Security\Csrf;
 use Pokemon8\Security\Session;
 use Pokemon8\View\View;
 
 final class GameModuleController
 {
-    public function __construct(private Session $session, private ?MessageRepository $messages = null)
+    public function __construct(
+        private Session $session,
+        private Csrf $csrf,
+        private ?MessageRepository $messages = null,
+    )
     {
     }
 
@@ -32,6 +38,32 @@ final class GameModuleController
                 'module' => $module,
                 'slug' => $slug,
                 'messages' => $this->messages->inboxForUser((int) $this->session->get('id')),
+                'modules' => GameRoutes::MODULES,
+            ]));
+        }
+
+        if ($slug === 'diamond-shop' || $slug === 'market/items') {
+            $shop = $slug === 'diamond-shop' ? 'diamond' : 'market';
+            return new Response(View::render('game-training-shop', [
+                'module' => $module,
+                'slug' => $slug,
+                'shop' => $shop,
+                'csrf' => $this->csrf->token(),
+                'items' => [
+                    [
+                        'id' => TrainingRepository::TRAINING_ITEM_ID,
+                        'name' => 'Набор тренировки',
+                        'description' => 'Повышает стадию тренировки монстра. Стат выбирается случайно, HP не участвует.',
+                        'image' => '/public/img/items/330.png',
+                    ],
+                    [
+                        'id' => TrainingRepository::WEAKENING_ITEM_ID,
+                        'name' => 'Набор ослабления',
+                        'description' => 'Понижает стадию на 1, сохраняет текущий стат и делает монстра прирученным.',
+                        'image' => '/public/img/items/678.png',
+                    ],
+                ],
+                'currency' => $shop === 'diamond' ? ['name' => 'алмазов', 'itemId' => 2, 'price' => 10] : ['name' => 'монет', 'itemId' => 1, 'price' => 500000],
                 'modules' => GameRoutes::MODULES,
             ]));
         }
