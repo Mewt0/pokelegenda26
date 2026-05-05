@@ -52,6 +52,7 @@ final class BattleEngineService
                 ],
             ];
         }
+        $this->applyEntryWeatherAbilities($battleId, (int) ($battle['raund'] ?? 1), $player, $enemy);
 
         $log = $this->battles->getBattleLog((int) $battle['id']);
         $logRows = $this->formatLogRows($log);
@@ -171,6 +172,7 @@ final class BattleEngineService
         if ($player === null || $enemy === null) {
             return ['ok' => false, 'active' => false, 'message' => 'Не удалось получить покемонов.'];
         }
+        $this->applyEntryWeatherAbilities($battleId, (int) ($battle['raund'] ?? 1), $player, $enemy);
 
         $playerMove = $this->selectMove($this->movesForPokemon($player), $moveId);
         $enemyMove = $this->randomMove($this->battles->findAvailableMoves((int) ($enemy['basenum'] ?? 0), (int) ($enemy['lvl'] ?? 1)));
@@ -318,6 +320,7 @@ final class BattleEngineService
                 ],
             ];
         }
+        $this->applyEntryWeatherAbilities($battleId, (int) ($battle['raund'] ?? 1), $player, $enemy);
 
         $winner = (int) ($battle['pobeda'] ?? 0);
         $finished = $winner !== 0;
@@ -442,6 +445,7 @@ final class BattleEngineService
             return;
         }
         $this->attachBattleStatuses($battleId, $first, $second);
+        $this->applyEntryWeatherAbilities($battleId, $round, $first, $second);
 
         $firstAction = (int) ($battle['attac_1'] ?? 0);
         $secondAction = (int) ($battle['attac_2'] ?? 0);
@@ -523,6 +527,12 @@ final class BattleEngineService
 
         $this->battles->setPvpBattleAction($battleId, $side, -$pokemonId);
         $battle = $this->battles->findPvpBattleForUser($userId, $battleId);
+        if ($battle !== null) {
+            $newPokemon = $this->battles->findPokemon((string) ($battle['poke_' . $side] ?? ''));
+            if ($newPokemon !== null) {
+                $this->applySingleEntryWeatherAbility($battleId, (int) ($battle['raund'] ?? 1), $newPokemon);
+            }
+        }
         $this->battles->insertBattleLog($battleId, (int) ($battle['raund'] ?? 1), $this->battles->findUserLoginById($userId) . ' меняет покемона.');
         if ($battle !== null && (int) ($battle['attac_1'] ?? 0) !== 0 && (int) ($battle['attac_2'] ?? 0) !== 0) {
             $this->resolvePvpRound($battle);
@@ -578,6 +588,7 @@ final class BattleEngineService
         if ($battle !== null) {
             $pokemon = $this->battles->findPokemon((string) ($battle['poke_1'] ?? ('pvp_' . $pokemonId)));
             if ($pokemon !== null) {
+                $this->applySingleEntryWeatherAbility($battleId, (int) ($battle['raund'] ?? 1), $pokemon);
                 $hazardMessages = $this->applySwitchHazards($battleId, (int) ($battle['raund'] ?? 1), $pokemon);
             }
         }
@@ -616,6 +627,7 @@ final class BattleEngineService
         if ($player === null || $enemy === null) {
             return ['ok' => false, 'active' => false, 'message' => 'Не удалось получить покемонов.'];
         }
+        $this->applyEntryWeatherAbilities((int) ($battle['id'] ?? 0), (int) ($battle['raund'] ?? 1), $player, $enemy);
 
         $itemId = (int) ($item['item_id'] ?? 0);
         $playerName = strip_tags((string) ($player['names'] ?? 'Покемон'));
@@ -812,6 +824,9 @@ final class BattleEngineService
             $effects = $this->statMoveEffects($moveName);
         }
         foreach ($effects as $effect) {
+            if (BattleMoveEffectCatalog::key($moveName) === 'growth' && (string) (($this->battles->findBattleWeather($battleId)['kind'] ?? '') ) === 'sun') {
+                $effect['delta'] = 2;
+            }
             $text = $this->applyStageEffect($battleId, $attacker, $defender, $effect);
             if ($text !== '') {
                 $parts[] = $text;
@@ -916,7 +931,7 @@ final class BattleEngineService
 
         $weather = BattleMoveEffectCatalog::weather($moveId, $moveName);
         if ($weather !== null) {
-            $this->battles->setBattleWeather($battleId, (string) $weather['kind'], $round + 5);
+            $this->battles->setBattleWeather($battleId, (string) $weather['kind'], $round + $this->weatherDuration($attacker, (string) $weather['kind']));
             return sprintf('%s меняет погоду: %s.', $attackerName, (string) $weather['label']);
         }
 
@@ -1079,6 +1094,40 @@ final class BattleEngineService
         return str_starts_with($battlePokemon, 'pve_') ? 2 : 1;
     }
 
+    private function applyEntryWeatherAbilities(int $battleId, int $round, array $first, array $second): void
+    {
+        $this->applySingleEntryWeatherAbility($battleId, $round, $first);
+        $this->applySingleEntryWeatherAbility($battleId, $round, $second);
+    }
+
+    private function applySingleEntryWeatherAbility(int $battleId, int $round, array $pokemon): void
+    {
+        $ability = BattleAbilityCatalog::key($pokemon);
+        if ($ability === '') {
+            return;
+        }
+        if ($ability === 'weather_lock') {
+            $this->battles->clearBattleWeather($battleId);
+            return;
+        }
+
+        $weather = BattleAbilityCatalog::startsWeather($ability);
+        if ($weather === null) {
+            return;
+        }
+        $battlePokemon = (string) ($pokemon['battle_pokemon'] ?? '');
+        if ($battlePokemon !== '' && $this->battles->hasBattleVolatile($battleId, $battlePokemon, 'weather_started')) {
+            return;
+        }
+        $current = (string) (($this->battles->findBattleWeather($battleId)['kind'] ?? ''));
+        if ($current !== $weather) {
+            $this->battles->setBattleWeather($battleId, $weather, $round + $this->weatherDuration($pokemon, $weather));
+        }
+        if ($battlePokemon !== '') {
+            $this->battles->addBattleVolatile($battleId, $battlePokemon, 'weather_started', 999999);
+        }
+    }
+
     /** @return list<string> */
     private function applySwitchHazards(int $battleId, int $round, array &$pokemon): array
     {
@@ -1106,7 +1155,7 @@ final class BattleEngineService
                 }
             } elseif ($hazard === 'stealth_rock' || $hazard === 'steel_spikes') {
                 $multiplier = $hazard === 'stealth_rock'
-                    ? max(0.25, min(4.0, $this->math->typeEffectiveness('Rock', $this->math->typeLabelsFromPokemon($pokemon))))
+                    ? max(0.25, min(4.0, $this->math->typeEffectiveness('Rock', $this->effectiveTypeLabels($battleId, $pokemon))))
                     : 1.0;
                 $damage = max(1, (int) floor(max(1, (int) ($pokemon['hp_max'] ?? 1)) / 8 * $multiplier));
                 $pokemon['hp_my'] = max(0, (int) ($pokemon['hp_my'] ?? 0) - $damage);
@@ -1172,8 +1221,8 @@ final class BattleEngineService
             };
             $power *= 2;
         }
-        $attackerTypes = $this->math->typeLabelsFromPokemon($attacker);
-        $defenderTypes = $this->math->typeLabelsFromPokemon($defender);
+        $attackerTypes = $this->effectiveTypeLabels($battleId, $attacker);
+        $defenderTypes = $this->effectiveTypeLabels($battleId, $defender);
         $stab = $this->math->stab($moveType, $attackerTypes);
         $typeEffect = $this->math->typeEffectiveness($moveType, $defenderTypes);
         if ($typeEffect <= 0.0) {
@@ -1187,10 +1236,17 @@ final class BattleEngineService
         $isCrit = random_int(1, 100) <= $critChance;
         $crit = $isCrit ? 1.5 : 1.0;
         $weatherPower = $this->weatherPowerModifier($weatherKind, $moveType);
+        if (BattleMoveEffectCatalog::key($moveName) === 'solarbeam' || BattleMoveEffectCatalog::key($moveName) === 'solar beam') {
+            $weatherPower *= in_array($weatherKind, ['rain', 'sandstorm', 'hail'], true) ? 0.5 : 1.0;
+        }
+        $abilityPower = BattleAbilityCatalog::weatherAttackMultiplier(BattleAbilityCatalog::key($attacker), $weatherKind, $moveType);
+        if (BattleAbilityCatalog::key($defender) === 'dry_skin' && strtolower($moveType) === 'fire') {
+            $abilityPower *= 1.25;
+        }
         $terrainKind = (string) (($this->battles->findBattleTerrain($battleId)['kind'] ?? ''));
         $terrainPower = $this->terrainPowerModifier($terrainKind, $moveType);
         $screenPower = $this->screenDamageModifier($battleId, $defender, $isSpecial);
-        $damage = max(1, (int) floor($base * $stab * $typeEffect * $rand * $crit * $weatherPower * $terrainPower * $screenPower));
+        $damage = max(1, (int) floor($base * $stab * $typeEffect * $rand * $crit * $weatherPower * $abilityPower * $terrainPower * $screenPower));
         $this->lastDamageDealt = $damage;
 
         $defender['hp_my'] = max(0, (int) ($defender['hp_my'] ?? 0) - $damage);
@@ -1310,7 +1366,7 @@ final class BattleEngineService
                 }
             }
             if ($id === 8) { // leech seed
-                if (in_array('grass', $this->math->typeLabelsFromPokemon($actor), true)) {
+                if (in_array('grass', $this->effectiveTypeLabels($battleId, $actor), true)) {
                     $this->battles->deleteBattleStatus($battleId, $battlePokemon, 8);
                     $messages[] = sprintf('%s невосприимчив к семенам-пиявкам.', $name);
                     continue;
@@ -1387,11 +1443,11 @@ final class BattleEngineService
         $weather = $this->battles->findBattleWeather($battleId);
         $weatherKind = (string) ($weather['kind'] ?? '');
         if (in_array($weatherKind, ['sandstorm', 'hail'], true) && (int) ($actor['hp_my'] ?? 0) > 0) {
-            $types = array_map('strtolower', $this->math->typeLabelsFromPokemon($actor));
+            $types = $this->effectiveTypeLabels($battleId, $actor);
             $immune = $weatherKind === 'sandstorm'
                 ? array_intersect($types, ['rock', 'ground', 'steel']) !== []
                 : in_array('ice', $types, true);
-            if (!$immune) {
+            if (!$immune && !BattleAbilityCatalog::weatherDamageImmune(BattleAbilityCatalog::key($actor), $weatherKind)) {
                 $damage = max(1, (int) floor(max(1, (int) ($actor['hp_max'] ?? 1)) / 16));
                 $actor['hp_my'] = max(0, (int) ($actor['hp_my'] ?? 0) - $damage);
                 $messages[] = sprintf('%s получает %d HP урона от погоды.', $name, $damage);
@@ -1399,6 +1455,34 @@ final class BattleEngineService
                     $canAct = false;
                 }
             }
+        }
+
+        $ability = BattleAbilityCatalog::key($actor);
+        if ($ability === 'rain_dish' && $weatherKind === 'rain' && !$this->battles->hasBattleVolatile($battleId, $battlePokemon, 'heal_block')) {
+            $healed = $this->healPokemon($actor, max(1, (int) floor(max(1, (int) ($actor['hp_max'] ?? 1)) / 16)));
+            if ($healed > 0) {
+                $messages[] = sprintf('%s восстанавливает %d HP благодаря дождю.', $name, $healed);
+            }
+        } elseif ($ability === 'ice_body' && $weatherKind === 'hail' && !$this->battles->hasBattleVolatile($battleId, $battlePokemon, 'heal_block')) {
+            $healed = $this->healPokemon($actor, max(1, (int) floor(max(1, (int) ($actor['hp_max'] ?? 1)) / 16)));
+            if ($healed > 0) {
+                $messages[] = sprintf('%s восстанавливает %d HP ледяным телом.', $name, $healed);
+            }
+        } elseif ($ability === 'dry_skin') {
+            if ($weatherKind === 'rain' && !$this->battles->hasBattleVolatile($battleId, $battlePokemon, 'heal_block')) {
+                $healed = $this->healPokemon($actor, max(1, (int) floor(max(1, (int) ($actor['hp_max'] ?? 1)) / 8)));
+                if ($healed > 0) {
+                    $messages[] = sprintf('%s восстанавливает %d HP сухой кожей.', $name, $healed);
+                }
+            } elseif ($weatherKind === 'sun') {
+                $damage = max(1, (int) floor(max(1, (int) ($actor['hp_max'] ?? 1)) / 8));
+                $actor['hp_my'] = max(0, (int) ($actor['hp_my'] ?? 0) - $damage);
+                $messages[] = sprintf('%s теряет %d HP из-за сухой кожи на солнце.', $name, $damage);
+            }
+        } elseif ($ability === 'solar_power' && $weatherKind === 'sun') {
+            $damage = max(1, (int) floor(max(1, (int) ($actor['hp_max'] ?? 1)) / 8));
+            $actor['hp_my'] = max(0, (int) ($actor['hp_my'] ?? 0) - $damage);
+            $messages[] = sprintf('%s теряет %d HP от солнечной батареи.', $name, $damage);
         }
 
         $terrainKind = (string) (($this->battles->findBattleTerrain($battleId)['kind'] ?? ''));
@@ -1427,6 +1511,21 @@ final class BattleEngineService
         );
         if ($stageField === 'speed' && $this->hasMajorStatus($battleId, $pokemon, 5)) {
             $value = max(1, (int) floor($value / 4));
+        }
+        $weatherKind = (string) (($this->battles->findBattleWeather($battleId)['kind'] ?? ''));
+        $ability = BattleAbilityCatalog::key($pokemon);
+        if ($stageField === 'speed') {
+            $value = max(1, (int) floor($value * BattleAbilityCatalog::speedMultiplier($ability, $weatherKind)));
+        }
+        if ($dbField === 'satk' && $ability === 'solar_power' && $weatherKind === 'sun') {
+            $value = max(1, (int) floor($value * 1.5));
+        }
+        $types = $this->effectiveTypeLabels($battleId, $pokemon);
+        if ($dbField === 'sdef' && $weatherKind === 'sandstorm' && in_array('rock', $types, true)) {
+            $value = max(1, (int) floor($value * 1.5));
+        }
+        if ($dbField === 'def' && $weatherKind === 'hail' && in_array('ice', $types, true)) {
+            $value = max(1, (int) floor($value * 1.5));
         }
         return $value;
     }
@@ -1460,6 +1559,36 @@ final class BattleEngineService
             return $type === 'water' ? 1.5 : ($type === 'fire' ? 0.5 : 1.0);
         }
         return 1.0;
+    }
+
+    /** @return list<string> */
+    private function effectiveTypeLabels(int $battleId, array $pokemon): array
+    {
+        $weatherKind = (string) (($this->battles->findBattleWeather($battleId)['kind'] ?? ''));
+        $forecast = BattleAbilityCatalog::forecastType(BattleAbilityCatalog::key($pokemon), $weatherKind);
+        if ($forecast !== null) {
+            return [$forecast];
+        }
+        return $this->math->typeLabelsFromPokemon($pokemon);
+    }
+
+    private function weatherDuration(array $pokemon, string $weather): int
+    {
+        $itemText = mb_strtolower((string) (($pokemon['held_item_name'] ?? '') . ' ' . ($pokemon['held_item_title'] ?? '')), 'UTF-8');
+        $itemText = str_replace('ё', 'е', $itemText);
+        $stoneMatches = match ($weather) {
+            'rain' => ['damp rock', 'дожд', 'влажн'],
+            'sun' => ['heat rock', 'солнеч', 'жар'],
+            'sandstorm' => ['smooth rock', 'песчан'],
+            'hail' => ['icy rock', 'ледян', 'снеж'],
+            default => [],
+        };
+        foreach ([...$stoneMatches, 'погодн'] as $needle) {
+            if ($needle !== '' && str_contains($itemText, $needle)) {
+                return 10;
+            }
+        }
+        return 5;
     }
 
     private function terrainPowerModifier(string $terrainKind, string $moveType): float
@@ -1497,8 +1626,12 @@ final class BattleEngineService
 
     private function isStatusImmune(int $battleId, array $target, int $statusId, string $moveType): bool
     {
-        $types = $this->math->typeLabelsFromPokemon($target);
+        $types = $this->effectiveTypeLabels($battleId, $target);
         $terrainKind = (string) (($this->battles->findBattleTerrain($battleId)['kind'] ?? ''));
+        $weatherKind = (string) (($this->battles->findBattleWeather($battleId)['kind'] ?? ''));
+        if (BattleAbilityCatalog::key($target) === 'leaf_guard' && $weatherKind === 'sun' && $this->isPersistentStatus($statusId)) {
+            return true;
+        }
         if ($terrainKind === 'misty' && $this->isPersistentStatus($statusId)) {
             return true;
         }

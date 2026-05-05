@@ -451,10 +451,14 @@ final class BattleRepository
         }
 
         $table = $parsed['table'];
+        $heldSelect = $table === 'pok_user' ? ', held.name AS held_item_name, held.tittle AS held_item_title' : ', NULL AS held_item_name, NULL AS held_item_title';
+        $heldJoin = $table === 'pok_user' ? ' LEFT JOIN items held ON held.id = bp.item' : '';
         $stmt = $this->db->prepare(
-            'SELECT bp.*, pk.Element, pk.SubElement, pk.Name AS dex_name
+            'SELECT bp.*, pk.Element, pk.SubElement, pk.Name AS dex_name,
+                    pb.ability_key AS base_ability_key' . $heldSelect . '
                FROM ' . $table . ' bp
                LEFT JOIN pokemon pk ON pk.id = bp.basenum
+               LEFT JOIN poke_base pb ON pb.id = bp.basenum' . $heldJoin . '
               WHERE bp.id = :id
               LIMIT 1'
         );
@@ -1142,6 +1146,15 @@ final class BattleRepository
         return $kind === '' ? null : ['kind' => $kind, 'roundEnd' => (int) ($row['vulnerability'] ?? 0)];
     }
 
+    public function clearBattleWeather(int $battleId): void
+    {
+        if ($battleId <= 0) {
+            return;
+        }
+        $this->db->prepare('DELETE FROM battle_dop WHERE battleid = :battle AND pokeid = "field:weather"')
+            ->execute(['battle' => $battleId]);
+    }
+
     public function setBattleTerrain(int $battleId, string $kind, int $roundEnd): void
     {
         $kind = $this->normalizeTerrainKind($kind);
@@ -1324,7 +1337,7 @@ final class BattleRepository
               WHERE battleid = :battle
                 AND pokeid LIKE :prefix
                 AND propusk = :battle_pokemon
-                AND mess IN ("trap", "partial_trap", "confusion", "leech_seed", "nightmare", "perish_song", "taunt", "heal_block", "encore", "torment", "disable", "knock_off")'
+                AND mess IN ("trap", "partial_trap", "confusion", "leech_seed", "nightmare", "perish_song", "taunt", "heal_block", "encore", "torment", "disable", "knock_off", "weather_started")'
         )->execute([
             'battle' => $battleId,
             'prefix' => $prefix,
@@ -2436,6 +2449,7 @@ final class BattleRepository
         return match ($kind) {
             'trap', 'partial_trap', 'badly_poisoned', 'confusion', 'curse', 'leech_seed', 'nightmare', 'perish_song',
             'destiny_bond', 'taunt', 'heal_block', 'encore', 'torment', 'disable', 'knock_off' => $kind,
+            'weather_started' => $kind,
             default => '',
         };
     }
