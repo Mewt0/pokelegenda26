@@ -29,6 +29,14 @@ final class PokemonRepository
                         d_pp_min = d_pp_max
                   WHERE pok_id = :pokemon'
             )->execute(['pokemon' => $pokemonId]);
+
+            // Clear battle statuses (poison, sleep, etc.) when healing at Nurse Joy / PokeCenter
+            $this->db->prepare(
+                'DELETE FROM bttle_status WHERE pokeid IN (:id1, :id2)'
+            )->execute([
+                'id1' => (string) $pokemonId,
+                'id2' => 'pvp_' . $pokemonId
+            ]);
         }
 
         return $healed;
@@ -163,13 +171,13 @@ final class PokemonRepository
         ]);
         $move = $learn->fetch();
         if (!$move) {
-            return ['ok' => false, 'message' => 'Р­С‚РѕС‚ РїРѕРєРµРјРѕРЅ РЅРµ РјРѕР¶РµС‚ РёР·СѓС‡РёС‚СЊ РІС‹Р±СЂР°РЅРЅСѓСЋ Р°С‚Р°РєСѓ.'];
+            return ['ok' => false, 'message' => 'Этот покемон не может изучить выбранную атаку.'];
         }
 
         if ($row) {
             foreach (['a_id', 'b_id', 'c_id', 'd_id'] as $moveColumn) {
                 if ($moveColumn !== $slotMap[$slot]['id'] && (int) ($row[$moveColumn] ?? 0) === $moveId) {
-                    return ['ok' => false, 'message' => 'Р­С‚Р° Р°С‚Р°РєР° СѓР¶Рµ СЃС‚РѕРёС‚ Сѓ РїРѕРєРµРјРѕРЅР°.'];
+                    return ['ok' => false, 'message' => 'Эта атака уже стоит у покемона.'];
                 }
             }
         }
@@ -201,7 +209,7 @@ final class PokemonRepository
             ]);
         }
 
-        return ['ok' => true, 'message' => 'РђС‚Р°РєР° РѕР±РЅРѕРІР»РµРЅР°.'];
+        return ['ok' => true, 'message' => 'Атака обновлена.'];
     }
 
     /**

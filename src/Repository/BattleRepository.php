@@ -632,6 +632,11 @@ final class BattleRepository
         }
 
         $stats = $this->calculateStats($pokemon, $level);
+
+        // Preserve damage: if pokemon was at 50/100 HP, and now has 110 max HP, set it to 60/110.
+        $damage = max(0, (int)($pokemon['hp_max'] ?? 0) - (int)($pokemon['hp_my'] ?? 0));
+        $newHp = max(1, $stats['hp'] - $damage);
+
         $this->db->prepare(
             'UPDATE pok_user
                 SET exp = :exp, exp_b = :exp_b, evcount = :evcount, lvl = :lvl,
@@ -644,7 +649,7 @@ final class BattleRepository
             'exp_b' => $this->levelExp($level + 1),
             'evcount' => $newEv,
             'lvl' => $level,
-            'hp_my' => $stats['hp'],
+            'hp_my' => $newHp,
             'hp_max' => $stats['hp'],
             'atk' => $stats['atk'],
             'def' => $stats['def'],
@@ -851,6 +856,7 @@ final class BattleRepository
         $enemyBattlePokemon = (string) ($row['poke_2'] ?? '');
 
         $this->db->prepare('DELETE FROM statpokemonbatle WHERE battleid = :id')->execute(['id' => $battleId]);
+        $this->db->prepare('DELETE FROM bttle_status WHERE buttleid = :id')->execute(['id' => $battleId]);
         $this->db->prepare('DELETE FROM battle_log WHERE battle_id = :id')->execute(['id' => $battleId]);
         $this->db->prepare('DELETE FROM battles WHERE id = :id LIMIT 1')->execute(['id' => $battleId]);
 
