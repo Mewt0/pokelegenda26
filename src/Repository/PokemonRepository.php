@@ -177,13 +177,25 @@ final class PokemonRepository
         $pp = max(1, (int) ($move['atac_pp'] ?? 15));
         if (!$row) {
             $this->db->prepare(
-                'INSERT INTO attac_my_poke (pok_id, ' . $slotMap[$slot]['id'] . ', ' . $slotMap[$slot]['ppMin'] . ', ' . $slotMap[$slot]['ppMax'] . ')
-                 VALUES (:pokemon, :move, :pp_min, :pp_max)'
+                'INSERT INTO attac_my_poke
+                    (id, pok_id, a_id, a_pp_min, a_pp_max, b_id, b_pp_min, b_pp_max, c_id, c_pp_min, c_pp_max, d_id, d_pp_min, d_pp_max)
+                 VALUES
+                    (:id, :pokemon, :a_id, :a_pp_min, :a_pp_max, :b_id, :b_pp_min, :b_pp_max, :c_id, :c_pp_min, :c_pp_max, :d_id, :d_pp_min, :d_pp_max)'
             )->execute([
+                'id' => $this->nextAttacMyPokeId(),
                 'pokemon' => $pokemonId,
-                'move' => $moveId,
-                'pp_min' => $pp,
-                'pp_max' => $pp,
+                'a_id' => $slot === 'a' ? $moveId : 0,
+                'a_pp_min' => $slot === 'a' ? $pp : 0,
+                'a_pp_max' => $slot === 'a' ? $pp : 0,
+                'b_id' => $slot === 'b' ? $moveId : 0,
+                'b_pp_min' => $slot === 'b' ? $pp : 0,
+                'b_pp_max' => $slot === 'b' ? $pp : 0,
+                'c_id' => $slot === 'c' ? $moveId : 0,
+                'c_pp_min' => $slot === 'c' ? $pp : 0,
+                'c_pp_max' => $slot === 'c' ? $pp : 0,
+                'd_id' => $slot === 'd' ? $moveId : 0,
+                'd_pp_min' => $slot === 'd' ? $pp : 0,
+                'd_pp_max' => $slot === 'd' ? $pp : 0,
             ]);
         } else {
             $this->db->prepare(
@@ -202,6 +214,11 @@ final class PokemonRepository
         }
 
         return ['ok' => true, 'message' => 'РђС‚Р°РєР° РѕР±РЅРѕРІР»РµРЅР°.'];
+    }
+
+    private function nextAttacMyPokeId(): int
+    {
+        return (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM attac_my_poke')->fetchColumn() ?: 1);
     }
 
     /**

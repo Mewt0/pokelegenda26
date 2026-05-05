@@ -55,7 +55,7 @@ final class BattleEngineService
         if ($finished) {
             $result = $winner === $userId ? 'win' : ($winner === -2 ? 'escape' : 'lose');
         }
-        $moves = $finished ? [] : $this->formatMoves($player);
+        $moves = $this->formatMoves($player);
         $switchOptions = $finished ? [] : $this->formatSwitchOptions($userId, (int) ($player['id'] ?? 0));
 
         return [
@@ -397,7 +397,7 @@ final class BattleEngineService
                 'round' => $round,
                 'player' => $this->formatPokemon($player),
                 'enemy' => $this->formatPokemon($enemy),
-                'moves' => [],
+                'moves' => $this->formatMoves($player),
                 'switchOptions' => [],
                 'log' => $logRows,
                 'logByRound' => $this->groupLogByRound($logRows),

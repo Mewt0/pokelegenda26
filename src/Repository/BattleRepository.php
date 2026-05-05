@@ -742,20 +742,22 @@ final class BattleRepository
         $sprz = (int) ($wild['sprz'] ?? 0);
         $startone = in_array($sprz, [2, 3], true) ? 1 : 0;
         $reproduction = in_array($sprz, [1, 2], true) ? 1 : 0;
+        $pokemonId = $this->nextTableId('pok_user', 'id');
 
         $insert = $this->db->prepare(
             'INSERT INTO pok_user
-                (users, basenum, names, active, evcount, lvl, sex, har, hp_my, hp_max, exp, exp_b,
+                (id, users, basenum, names, active, evcount, lvl, sex, har, hp_my, hp_max, exp, exp_b,
                  atk, def, satk, sdef, speed, hp_ev, atk_ev, def_ev, satk_ev, sdef_ev, speed_ev,
                  hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv, tips, startone, startepoke,
                  reproduction, happy, datemay, usersone, sprz, item)
              VALUES
-                (:users, :basenum, :names, :active, :evcount, :lvl, :sex, :har, :hp_my, :hp_max, :exp, :exp_b,
+                (:id, :users, :basenum, :names, :active, :evcount, :lvl, :sex, :har, :hp_my, :hp_max, :exp, :exp_b,
                  :atk, :def, :satk, :sdef, :speed, :hp_ev, :atk_ev, :def_ev, :satk_ev, :sdef_ev, :speed_ev,
                  :hp_iv, :atk_iv, :def_iv, :satk_iv, :sdef_iv, :speed_iv, :tips, :startone, 0,
                  :reproduction, :happy, :datemay, :usersone, :sprz, 0)'
         );
         $insert->execute([
+            'id' => $pokemonId,
             'users' => $userId,
             'basenum' => (int) ($wild['basenum'] ?? 0),
             'names' => substr(strip_tags((string) ($wild['names'] ?? 'Pokemon')), 0, 80),
@@ -794,7 +796,74 @@ final class BattleRepository
             'sprz' => $sprz,
         ]);
 
-        return (int) $this->db->lastInsertId();
+        $this->ensureDefaultMovesForCaughtPokemon(
+            $pokemonId,
+            (int) ($wild['basenum'] ?? 0),
+            (int) ($wild['lvl'] ?? 1)
+        );
+
+        return $pokemonId;
+    }
+
+    private function ensureDefaultMovesForCaughtPokemon(int $pokemonId, int $baseId, int $level): void
+    {
+        if ($pokemonId <= 0) {
+            return;
+        }
+
+        $exists = $this->db->prepare('SELECT id FROM attac_my_poke WHERE pok_id = :pokemon LIMIT 1');
+        $exists->execute(['pokemon' => $pokemonId]);
+        if ($exists->fetchColumn() !== false) {
+            return;
+        }
+
+        $moves = array_slice($this->findAvailableMoves($baseId, $level), 0, 4);
+        $slots = [
+            'a' => ['id' => 0, 'pp' => 0],
+            'b' => ['id' => 0, 'pp' => 0],
+            'c' => ['id' => 0, 'pp' => 0],
+            'd' => ['id' => 0, 'pp' => 0],
+        ];
+
+        foreach (array_values($moves) as $index => $move) {
+            $slotKey = ['a', 'b', 'c', 'd'][$index] ?? null;
+            if ($slotKey === null) {
+                break;
+            }
+
+            $moveId = (int) ($move['id'] ?? 0);
+            if ($moveId <= 0) {
+                continue;
+            }
+
+            $slots[$slotKey] = [
+                'id' => $moveId,
+                'pp' => max(1, (int) ($move['atac_pp'] ?? 15)),
+            ];
+        }
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO attac_my_poke
+                (id, pok_id, a_id, a_pp_min, a_pp_max, b_id, b_pp_min, b_pp_max, c_id, c_pp_min, c_pp_max, d_id, d_pp_min, d_pp_max)
+             VALUES
+                (:id, :pokemon, :a_id, :a_pp_min, :a_pp_max, :b_id, :b_pp_min, :b_pp_max, :c_id, :c_pp_min, :c_pp_max, :d_id, :d_pp_min, :d_pp_max)'
+        );
+        $stmt->execute([
+            'id' => $this->nextTableId('attac_my_poke', 'id'),
+            'pokemon' => $pokemonId,
+            'a_id' => $slots['a']['id'],
+            'a_pp_min' => $slots['a']['pp'],
+            'a_pp_max' => $slots['a']['pp'],
+            'b_id' => $slots['b']['id'],
+            'b_pp_min' => $slots['b']['pp'],
+            'b_pp_max' => $slots['b']['pp'],
+            'c_id' => $slots['c']['id'],
+            'c_pp_min' => $slots['c']['pp'],
+            'c_pp_max' => $slots['c']['pp'],
+            'd_id' => $slots['d']['id'],
+            'd_pp_min' => $slots['d']['pp'],
+            'd_pp_max' => $slots['d']['pp'],
+        ]);
     }
 
     public function finishBattle(int $battleId, int $userId, int $winner): void
@@ -1204,6 +1273,21 @@ final class BattleRepository
             || str_contains($name, 'скоб')
             || str_contains($name, 'macho')
             || str_contains($name, 'brace');
+    }
+
+    private function nextTableId(string $table, string $column): int
+    {
+        $allowed = [
+            'pok_user' => ['id'],
+            'attac_my_poke' => ['id'],
+        ];
+        if (!isset($allowed[$table]) || !in_array($column, $allowed[$table], true)) {
+            throw new \InvalidArgumentException('Unsupported sequence target.');
+        }
+
+        return (int) ($this->db
+            ->query(sprintf('SELECT COALESCE(MAX(%s), 0) + 1 FROM %s', $column, $table))
+            ->fetchColumn() ?: 1);
     }
 
     private function calculateStats(array $pokemon, int $level): array
