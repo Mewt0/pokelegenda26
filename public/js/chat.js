@@ -11,7 +11,7 @@
     const myLogin = myLoginInput ? myLoginInput.value.trim() : '';
 
     let lastId = 0;
-    let currentChannel = 1; // All
+    let currentChannel = 1;
     let isPrivate = false;
     let pmToId = 0;
     let pmToName = '';
@@ -19,6 +19,7 @@
     let userMenu = null;
     let autoScroll = true;
     let syncedInitialHistory = false;
+    let allMessages = [];
 
     const TIPE_ALL = 1;
     const TIPE_SYSTEM = 2;
@@ -31,10 +32,8 @@
 
         createTabs();
         setupPmTarget();
-        
         chatForm.addEventListener('submit', handleSend);
-        
-        // Start polling from the current moment without loading old history.
+
         fetchMessages(true);
         setInterval(fetchMessages, 3000);
     }
@@ -66,9 +65,9 @@
                 currentChannel = TIPE_ALL;
             } else {
                 isPrivate = false;
-                currentChannel = parseInt(tipe);
+                currentChannel = parseInt(tipe, 10);
             }
-            
+
             updatePmDisplay();
             renderVisibleMessages();
         });
@@ -82,14 +81,13 @@
             <button type="button" class="chat-tool-btn is-active" data-chat-tool="scroll" title="Автопрокрутка включена">⇣</button>
         `;
         tabsContainer.appendChild(tools);
+
         const clearIcon = tools.querySelector('[data-chat-tool="clear"]');
         const scrollIcon = tools.querySelector('[data-chat-tool="scroll"]');
         if (clearIcon) {
-            clearIcon.title = 'Очистить чат';
             clearIcon.innerHTML = '<img src="/public/img/ui/chat/clear.png" alt="">';
         }
         if (scrollIcon) {
-            scrollIcon.title = 'Автопрокрутка включена';
             scrollIcon.innerHTML = '<img src="/public/img/ui/chat/autoscroll-on.png" alt="">';
         }
 
@@ -146,7 +144,7 @@
             e.preventDefault();
             e.stopPropagation();
 
-            const id = parseInt(author.dataset.id);
+            const id = parseInt(author.dataset.id, 10);
             const name = author.textContent;
             const isSystem = author.dataset.system === '1';
 
@@ -161,7 +159,7 @@
         });
         document.addEventListener('player-menu-action', (e) => {
             const detail = e.detail || {};
-            const id = parseInt(detail.id || '0');
+            const id = parseInt(detail.id || '0', 10);
             const name = String(detail.login || '');
             if (!name) return;
 
@@ -183,6 +181,11 @@
                     insertPublicReply(name);
                 }
                 chatInput.focus();
+                return;
+            }
+
+            if (detail.action === 'friend') {
+                requestFriend(id, name);
             }
         });
     }
@@ -207,7 +210,7 @@
             const button = e.target.closest('button[data-action]');
             if (!button) return;
 
-            const id = parseInt(userMenu.dataset.userId || '0');
+            const id = parseInt(userMenu.dataset.userId || '0', 10);
             const name = userMenu.dataset.userName || '';
             handleUserMenuAction(button.dataset.action, id, name);
         });
@@ -280,12 +283,46 @@
             return;
         }
 
+        if (action === 'friend') {
+            requestFriend(id, name);
+            return;
+        }
+
         const labels = {
             info: 'Информация об игроке пока не подключена.',
-            friend: 'Добавление в друзья пока не подключено.',
             ignore: 'Игнорирование пока не подключено.'
         };
         alert(labels[action] || 'Действие пока не подключено.');
+    }
+
+    async function requestFriend(id, name) {
+        if (window.PokemonSocial && typeof window.PokemonSocial.requestFriend === 'function') {
+            window.PokemonSocial.requestFriend(id, name);
+            return;
+        }
+
+        if (!id) {
+            alert('Игрок не выбран.');
+            return;
+        }
+
+        try {
+            const body = new URLSearchParams();
+            body.set('_csrf', csrf);
+            body.set('user_id', String(id));
+
+            const response = await fetch('/api/friends/request', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+                body
+            });
+            const data = await response.json();
+            alert(data.message || (data.ok ? 'Заявка в друзья отправлена.' : 'Не удалось отправить заявку.'));
+        } catch (e) {
+            console.error('Friend request error:', e);
+            alert('Ошибка сервера при отправке заявки в друзья.');
+        }
     }
 
     function switchToPublicChat() {
@@ -307,7 +344,7 @@
     function updatePmDisplay() {
         const display = document.getElementById('pmTargetDisplay');
         const nameNode = document.getElementById('pmTargetName');
-        
+
         if (isPrivate && pmToId > 0) {
             display.style.display = 'flex';
             nameNode.textContent = pmToName;
@@ -315,8 +352,6 @@
             display.style.display = 'none';
         }
     }
-
-    let allMessages = [];
 
     function mergeMessages(messages) {
         const byId = new Map();
@@ -336,7 +371,6 @@
 
     async function fetchMessages(syncOnly = false) {
         try {
-            // Check if global state.locationId has changed
             if (window.state && window.state.locationId !== currentLocationId) {
                 currentLocationId = window.state.locationId;
                 lastId = 0;
@@ -362,15 +396,14 @@
             }
 
             if (data.messages.length > 0) {
-                // If it's a fresh load (afterId=0), we replace messages
                 if (lastId === 0) {
                     allMessages = data.messages;
                 } else {
                     mergeMessages(data.messages);
                 }
-                
+
                 if (allMessages.length > 200) allMessages = allMessages.slice(-200);
-                
+
                 lastId = data.lastId;
                 renderVisibleMessages();
             }
@@ -381,16 +414,16 @@
 
     function renderVisibleMessages() {
         chatLog.innerHTML = '';
-        
+
         const filtered = allMessages.filter(msg => {
             if (isPrivate) {
                 return msg.private === true;
             }
-            
+
             if (currentChannel === TIPE_ALL) {
                 return msg.private === false;
             }
-            
+
             return msg.private === false && msg.tipe === currentChannel;
         });
 
@@ -409,7 +442,7 @@
         if (msg.tipe === TIPE_SYSTEM) div.classList.add('is-system');
 
         const time = new Date(msg.time * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        
+
         const timeSpan = document.createElement('span');
         timeSpan.className = 'chat-time';
         timeSpan.textContent = `[${time}] `;
@@ -423,14 +456,14 @@
             authorSpan.dataset.system = systemAuthor ? '1' : '0';
             authorSpan.textContent = msg.author_name;
             div.appendChild(authorSpan);
-            
+
             if (msg.private && msg.to_id > 0) {
                 const toSpan = document.createElement('span');
                 toSpan.className = 'chat-to';
                 toSpan.textContent = ` -> ${msg.to_name}`;
                 div.appendChild(toSpan);
             }
-            
+
             const sep = document.createElement('span');
             sep.textContent = ': ';
             div.appendChild(sep);
@@ -438,7 +471,7 @@
 
         const textSpan = document.createElement('span');
         textSpan.className = 'chat-text';
-        textSpan.textContent = text; // XSS Protection
+        textSpan.textContent = text;
         div.appendChild(textSpan);
 
         chatLog.appendChild(div);
@@ -482,7 +515,7 @@
         body.set('_csrf', csrf);
         body.set('text', text);
         body.set('tipe', currentChannel);
-        
+
         if (isPrivate && pmToId > 0) {
             body.set('private', '1');
             body.set('userto', pmToId);
@@ -502,7 +535,7 @@
                 fetchMessages();
             } else {
                 alert(data.message || 'Ошибка отправки');
-                chatInput.value = text; // Return text on error
+                chatInput.value = text;
             }
         } catch (e) {
             console.error('Chat send error:', e);
@@ -510,10 +543,8 @@
         }
     }
 
-    // Export to global if needed
     window.Chat = { init };
 
-    // Auto-init
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {

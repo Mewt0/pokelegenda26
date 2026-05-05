@@ -49,10 +49,9 @@ final class ChatService
 
     public function sendMessage(int $userId, string $login, int $roomId, string $text, array $options = []): array
     {
-        // Антиспам: ограничение на частоту сообщений (1 сообщение в 2 секунды)
         $lastSent = (int) $this->session->get('chat_last_sent_time', 0);
         if (time() - $lastSent < 2) {
-            return ['ok' => false, 'message' => 'Вы пишите слишком быстро. Пожалуйста, подождите.'];
+            return ['ok' => false, 'message' => 'Вы пишете слишком быстро. Пожалуйста, подождите.'];
         }
 
         $text = $this->normalizeText($text);
@@ -64,15 +63,12 @@ final class ChatService
             return ['ok' => false, 'message' => 'Сообщение слишком длинное.'];
         }
 
-        // Антиспам: проверка на дубликаты
         $lastText = (string) $this->session->get('chat_last_sent_text', '');
         if ($text === $lastText) {
-             return ['ok' => false, 'message' => 'Вы уже отправили такое сообщение.'];
+            return ['ok' => false, 'message' => 'Вы уже отправили такое сообщение.'];
         }
 
         $tipe = (int) ($options['tipe'] ?? self::TIPE_ALL);
-        
-        // Валидация типов для обычных игроков
         $allowedTipes = [self::TIPE_ALL, self::TIPE_BATTLE, self::TIPE_TRADE, self::TIPE_CLAN];
         if (!in_array($tipe, $allowedTipes, true)) {
             $tipe = self::TIPE_ALL;
@@ -81,7 +77,6 @@ final class ChatService
         $userto = (int) ($options['userto'] ?? 0);
         $private = (int) ($options['private'] ?? 0) === 1 ? 1 : 0;
 
-        // Если это приват, проверяем получателя
         if ($private === 1) {
             if ($userto <= 0) {
                 return ['ok' => false, 'message' => 'Выберите получателя для личного сообщения.'];
@@ -89,13 +84,11 @@ final class ChatService
             if ($userto === $userId) {
                 return ['ok' => false, 'message' => 'Вы не можете отправить личное сообщение самому себе.'];
             }
-            // В идеале тут должен быть UserRepository::findById, но пока проверим хотя бы базовое наличие
-            // (Так как мы переходим на ID, это важно)
         } else {
             $userto = 0;
         }
 
-        $data = [
+        $ok = $this->chatRepository->addMessage([
             'author_id' => $userId,
             'author'    => $login,
             'userto'    => $userto,
@@ -103,9 +96,7 @@ final class ChatService
             'text'      => $text,
             'tipe'      => $tipe,
             'room'      => $roomId,
-        ];
-
-        $ok = $this->chatRepository->addMessage($data);
+        ]);
 
         if ($ok) {
             $this->session->put('chat_last_sent_time', time());
@@ -130,7 +121,6 @@ final class ChatService
 
     private function normalizeText(string $text): string
     {
-        // Убираем htmlspecialchars отсюда, так как фронт использует textContent
         $text = preg_replace('/\s+/', ' ', $text);
         return trim($text);
     }

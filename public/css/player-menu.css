@@ -64,6 +64,16 @@
   color: #1d5fa8;
 }
 
+.player-context-menu button:disabled {
+  opacity: .62;
+  cursor: default;
+}
+
+.player-context-menu button:disabled:hover {
+  background: transparent;
+  color: #536070;
+}
+
 .pcm-icon {
   width: 24px;
   height: 24px;
@@ -77,4 +87,44 @@
   margin: 0;
   border: 0;
   border-top: 1px solid #c7d4e2;
+}
+
+.game-toast-stack {
+  position: fixed;
+  right: 18px;
+  bottom: 74px;
+  z-index: 130000;
+  display: grid;
+  gap: 8px;
+  width: min(320px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.game-toast {
+  transform: translateY(10px);
+  opacity: 0;
+  padding: 10px 12px;
+  border: 1px solid #bdd1e8;
+  border-radius: 10px;
+  background: rgba(255,255,255,.96);
+  color: #193150;
+  font-weight: 800;
+  box-shadow: 0 12px 28px rgba(25, 49, 80, .18);
+  transition: opacity .18s ease, transform .18s ease;
+}
+
+.game-toast.is-visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.game-toast-success,
+.game-toast-friend {
+  border-color: #9bd8b8;
+  color: #14532d;
+}
+
+.game-toast-error {
+  border-color: #fecaca;
+  color: #991b1b;
 }
