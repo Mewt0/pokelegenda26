@@ -1,6 +1,6 @@
 # Pokemon 8.0 Rewrite Status
 
-Обновлено: 2026-05-05.
+Обновлено: 2026-05-06.
 
 Этот файл фиксирует реальное состояние нового слоя игры. Старые файлы можно читать как источник правил, но новые функции пишем через контроллеры, репозитории, JSON API, CSRF, PDO и UTF-8.
 
@@ -41,7 +41,7 @@
 | `pok_user` | `PARTIAL_NEW` | Для ловли новый `id` задается явно, потому что в живой БД не было `AUTO_INCREMENT`. |
 | `attac_my_poke` | `PARTIAL_NEW` | Новые вставки указывают `id`; пойманным покемонам создаются стартовые атаки. |
 | `battles`, `battle_log` | `PARTIAL_NEW` | PvE использует новые репозитории, логирование еще нужно довести для PvP/истории. |
-| `battle_dop` | `PARTIAL_NEW` | Добавлены primary key и индекс `(battleid, pokeid)`; используется для полевых ловушек. |
+| `battle_dop` | `PARTIAL_NEW` | Добавлены primary key и индекс `(battleid, pokeid)`; используется для полевых ловушек, временных боевых эффектов, запрета смены, side-field и погоды. |
 | `pvp_requests` | `DONE_NEW` | Новая таблица заявок на PvP с индексами входящих/исходящих вызовов, пары игроков и связанного боя. |
 | `users.karma_score`, `karma_events` | `DONE_NEW` | Новая система кармы: явный счет репутации, лог изменений и мост для старых групп 7/10 как плохой репутации. |
 
@@ -89,6 +89,10 @@
 - Добавлены эффекты начала хода: яд, ожог, сон, заморозка, паралич, страх, спутанность, пиявки, проклятие.
 - Добавлены специальные эффекты: Recover/Softboiled, Heal Pulse, Rest, Belly Drum, Selfdestruct/Explosion.
 - Добавлено хранение и срабатывание ловушек: Spikes, Toxic Spikes, Stealth Rock.
+- Добавлен каталог боевых эффектов атак: яд/тяжелый яд Toxic/ожог/сон/паралич/заморозка, шипы/паутина/камни/стальные шипы, удерживающие ловушки, отдача, crash-урон Jump Kick/High Jump Kick, погода, Nightmare/Perish Song/Destiny Bond/Taunt/Encore/Torment/Disable/Knock Off.
+- Погода влияет на бой: солнце усиливает Fire и режет Water, дождь усиливает Water и режет Fire, Thunder/Hurricane получают точность в дождь/солнце, Blizzard получает точность в град, Weather Ball меняет тип/силу.
+- В БД добавлена миграция `2026_05_06_000002_enrich_battle_move_effects.sql`, которая дополняет legacy-атаки статусами и шансами эффектов.
+- Проверено по списку эффектов: в живой `attac_power` есть 71 атака из переданного списка; отсутствующие современные атаки покрыты PHP-каталогом по имени и заработают после добавления самих атак в БД.
 
 Статус: `PARTIAL_NEW`.
 
@@ -158,5 +162,5 @@
 - PHP lint: `src/Game/BattleEngineService.php`, `src/Repository/BattleRepository.php`, `src/Repository/MessageRepository.php`, `src/Controller/GameModuleController.php`, `src/Game/GameRoutes.php`, `views/game-module.php`, `views/game-messages.php`, `public/index.php`.
 - JS syntax: `public/js/player-menu.js`.
 - DB schema check: `battle_dop` primary key и индекс `(battleid, pokeid)`, `pvp_requests` индексы входящих/исходящих/пары/боя.
-- DB smoke: добавление ловушки, защита от дубля, чтение ловушек, Fire Punch -> burn, Leech Seed -> status 8, чтение inbox, PvP заявка/принятие/два хода в транзакции с rollback, карма/ордеры/безопасные и запрещенные локации в транзакции с rollback.
+- DB smoke: добавление ловушки, защита от дубля, чтение ловушек, Fire Punch -> burn, Leech Seed -> status 8, Toxic -> poison, Spikes/Sticky Web hazards, Fire Spin -> partial trap, Sunny Day -> weather, Double-Edge -> recoil, Taunt blocks Thunder Wave, чтение inbox, PvP заявка/принятие/два хода в транзакции с rollback, карма/ордеры/безопасные и запрещенные локации в транзакции с rollback.
 - Render smoke: `game-module` и `game-messages` рендерятся через `View::render`.
