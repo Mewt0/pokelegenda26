@@ -559,6 +559,76 @@ final class BattleRepository
         return array_reverse(is_array($rows) ? $rows : []);
     }
 
+    public function addBattleHazard(int $battleId, int $side, string $kind): bool
+    {
+        $kind = $this->normalizeHazardKind($kind);
+        $side = $side === 2 ? 2 : 1;
+        if ($battleId <= 0 || $kind === '') {
+            return false;
+        }
+
+        $pokeId = 'hazard:' . $side . ':' . $kind;
+        $exists = $this->db->prepare(
+            'SELECT id FROM battle_dop WHERE battleid = :battle AND pokeid = :poke LIMIT 1'
+        );
+        $exists->execute(['battle' => $battleId, 'poke' => $pokeId]);
+        if ($exists->fetchColumn() !== false) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO battle_dop (id, battleid, pokeid, propusk, vulnerability, at_dop, mess)
+             VALUES (:id, :battle, :poke, 0, 0, 0, :kind)'
+        );
+        $stmt->execute([
+            'id' => $this->nextTableId('battle_dop', 'id'),
+            'battle' => $battleId,
+            'poke' => $pokeId,
+            'kind' => $kind,
+        ]);
+
+        return true;
+    }
+
+    /** @return list<string> */
+    public function findBattleHazards(int $battleId, int $side): array
+    {
+        $side = $side === 2 ? 2 : 1;
+        if ($battleId <= 0) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT mess
+               FROM battle_dop
+              WHERE battleid = :battle AND pokeid LIKE :prefix
+              ORDER BY id ASC'
+        );
+        $stmt->execute([
+            'battle' => $battleId,
+            'prefix' => 'hazard:' . $side . ':%',
+        ]);
+
+        $result = [];
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $kind = $this->normalizeHazardKind((string) ($row['mess'] ?? ''));
+            if ($kind !== '' && !in_array($kind, $result, true)) {
+                $result[] = $kind;
+            }
+        }
+        return $result;
+    }
+
+    public function clearBattleHazards(int $battleId): void
+    {
+        if ($battleId <= 0) {
+            return;
+        }
+
+        $this->db->prepare('DELETE FROM battle_dop WHERE battleid = :battle AND pokeid LIKE "hazard:%"')
+            ->execute(['battle' => $battleId]);
+    }
+
     public function addCoins(int $userId, int $coins): void
     {
         if ($userId <= 0 || $coins <= 0) {
@@ -920,6 +990,7 @@ final class BattleRepository
         $enemyBattlePokemon = (string) ($row['poke_2'] ?? '');
 
         $this->db->prepare('DELETE FROM statpokemonbatle WHERE battleid = :id')->execute(['id' => $battleId]);
+        $this->db->prepare('DELETE FROM battle_dop WHERE battleid = :id')->execute(['id' => $battleId]);
         $this->db->prepare('DELETE FROM battle_log WHERE battle_id = :id')->execute(['id' => $battleId]);
         $this->db->prepare('DELETE FROM battles WHERE id = :id LIMIT 1')->execute(['id' => $battleId]);
 
@@ -1280,6 +1351,7 @@ final class BattleRepository
         $allowed = [
             'pok_user' => ['id'],
             'attac_my_poke' => ['id'],
+            'battle_dop' => ['id'],
         ];
         if (!isset($allowed[$table]) || !in_array($column, $allowed[$table], true)) {
             throw new \InvalidArgumentException('Unsupported sequence target.');
@@ -1288,6 +1360,15 @@ final class BattleRepository
         return (int) ($this->db
             ->query(sprintf('SELECT COALESCE(MAX(%s), 0) + 1 FROM %s', $column, $table))
             ->fetchColumn() ?: 1);
+    }
+
+    private function normalizeHazardKind(string $kind): string
+    {
+        $kind = strtolower(trim($kind));
+        return match ($kind) {
+            'spikes', 'toxic_spikes', 'stealth_rock' => $kind,
+            default => '',
+        };
     }
 
     private function calculateStats(array $pokemon, int $level): array

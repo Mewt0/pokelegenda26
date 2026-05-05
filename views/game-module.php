@@ -1,5 +1,11 @@
 <?php
 use Pokemon8\View\View;
+
+$statusLabels = [
+    'done' => 'готово',
+    'partial' => 'частично',
+    'todo' => 'нужно перенести',
+];
 ?>
 <!doctype html>
 <html lang="ru">
@@ -14,9 +20,11 @@ use Pokemon8\View\View;
     .top a, .grid a { color: #1d5faf; text-decoration: none; font-weight: 700; }
     .panel { background: #fff; border: 1px solid #cfd8e3; border-radius: 8px; padding: 18px; }
     .badge { display: inline-block; padding: 3px 8px; border-radius: 999px; background: #e8f2ff; color: #174f91; font-weight: 700; }
-    .todo { background: #fff7e6; color: #8a4b00; }
+    .badge.todo { background: #fff7e6; color: #8a4b00; }
+    .badge.done { background: #e8f8ee; color: #17663a; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 16px; }
     .card { background: #fff; border: 1px solid #cfd8e3; border-radius: 8px; padding: 12px; }
+    .card small { color: #5f6f86; }
   </style>
 </head>
 <body>
@@ -30,13 +38,13 @@ use Pokemon8\View\View;
     <section class="panel">
       <h1><?= View::e($module['title']) ?></h1>
       <p>
-        <span class="badge <?= $module['status'] === 'todo' ? 'todo' : '' ?>">
-          <?= View::e($module['status']) ?>
+        <span class="badge <?= View::e($module['status']) ?>">
+          <?= View::e($statusLabels[$module['status']] ?? $module['status']) ?>
         </span>
       </p>
       <p>
-        Этот раздел уже имеет новый маршрут <code>/game/<?= View::e($slug) ?></code>.
-        Legacy-вход <code>game.php?go=<?= View::e($module['legacy']) ?></code> отключается как источник исполнения.
+        Раздел уже имеет новый маршрут <code>/game/<?= View::e($slug) ?></code>.
+        Legacy-вход <code>game.php?go=<?= View::e($module['legacy']) ?></code> больше не должен быть основным источником логики.
       </p>
       <p>
         Следующий шаг переноса: вынести бизнес-логику этого раздела из legacy PHP в сервисы, репозитории и JSON API.
@@ -47,7 +55,7 @@ use Pokemon8\View\View;
       <?php foreach ($modules as $path => $item): ?>
         <a class="card" href="/game/<?= View::e($path) ?>">
           <?= View::e($item['title']) ?><br>
-          <small><?= View::e($item['status']) ?></small>
+          <small><?= View::e($statusLabels[$item['status']] ?? $item['status']) ?></small>
         </a>
       <?php endforeach; ?>
     </section>

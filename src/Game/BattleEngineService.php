@@ -256,9 +256,18 @@ final class BattleEngineService
             return ['ok' => false, 'active' => true, 'message' => 'Смена покемона недоступна.'];
         }
 
+        $hazardMessages = [];
+        $battle = $this->battles->findPveBattleForUser($userId, $battleId);
+        if ($battle !== null) {
+            $pokemon = $this->battles->findPokemon((string) ($battle['poke_1'] ?? ('pvp_' . $pokemonId)));
+            if ($pokemon !== null) {
+                $hazardMessages = $this->applySwitchHazards($battleId, (int) ($battle['raund'] ?? 1), $pokemon);
+            }
+        }
+
         $state = $this->state($userId);
         $state['ok'] = true;
-        $state['messages'] = ['Покемон успешно заменен.'];
+        $state['messages'] = array_merge(['Покемон успешно заменен.'], $hazardMessages);
         return $state;
     }
 
@@ -452,7 +461,7 @@ final class BattleEngineService
         $power = (int) ($move['atac_power'] ?? 0);
         $parts = [];
 
-        $statusGate = $this->applyStartOfTurnStatus($battleId, $round, $attacker);
+        $statusGate = $this->applyStartOfTurnStatus($battleId, $round, $attacker, $defender);
         foreach ($statusGate['messages'] as $m) {
             $parts[] = $m;
         }
@@ -514,7 +523,110 @@ final class BattleEngineService
             }
         }
 
+        $specialText = $this->applySpecialMoveEffect($battleId, $round, $attacker, $defender, $move);
+        if ($specialText !== '') {
+            $parts[] = $specialText;
+        }
+
         return implode(' ', array_values(array_filter($parts)));
+    }
+
+    private function applySpecialMoveEffect(int $battleId, int $round, array &$attacker, array &$defender, array $move): string
+    {
+        $moveId = (int) ($move['id'] ?? $move['atac_id'] ?? 0);
+        $moveName = (string) ($move['atac_name'] ?? 'Атака');
+        $attackerName = strip_tags((string) ($attacker['names'] ?? 'Покемон'));
+        $defenderName = strip_tags((string) ($defender['names'] ?? 'Покемон'));
+
+        if (in_array($moveId, [191, 390, 446], true)) {
+            $kind = match ($moveId) {
+                191 => 'spikes',
+                390 => 'toxic_spikes',
+                default => 'stealth_rock',
+            };
+            $side = $this->battleSideForPokemon($defender);
+            $added = $this->battles->addBattleHazard($battleId, $side, $kind);
+            return $added
+                ? sprintf('%s расставляет ловушку: %s.', $attackerName, $moveName)
+                : sprintf('Ловушка %s уже лежит на поле.', $moveName);
+        }
+
+        if ($moveId === 156) {
+            $attacker['hp_my'] = max(1, (int) ($attacker['hp_max'] ?? 1));
+            $this->battles->applyBattleStatus($battleId, (string) ($attacker['battle_pokemon'] ?? ''), 2, $round, 2);
+            return sprintf('%s полностью восстанавливает здоровье и засыпает.', $attackerName);
+        }
+
+        if (in_array($moveId, [105, 135], true)) {
+            $healed = $this->healPokemon($attacker, (int) floor(max(1, (int) ($attacker['hp_max'] ?? 1)) / 2));
+            return $healed > 0 ? sprintf('%s восстанавливает %d HP.', $attackerName, $healed) : sprintf('%s уже полностью здоров.', $attackerName);
+        }
+
+        if ($moveId === 505) {
+            $healed = $this->healPokemon($defender, (int) floor(max(1, (int) ($defender['hp_max'] ?? 1)) / 2));
+            return $healed > 0 ? sprintf('%s лечит %s на %d HP.', $attackerName, $defenderName, $healed) : sprintf('%s уже полностью здоров.', $defenderName);
+        }
+
+        if ($moveId === 187) {
+            $cost = max(1, (int) floor(max(1, (int) ($attacker['hp_max'] ?? 1)) / 2));
+            $attacker['hp_my'] = max(1, (int) ($attacker['hp_my'] ?? 1) - $cost);
+            return sprintf('%s жертвует %d HP ради усиления.', $attackerName, $cost);
+        }
+
+        if (in_array($moveId, [120, 153], true)) {
+            $attacker['hp_my'] = 0;
+            return sprintf('%s теряет все HP после %s.', $attackerName, $moveName);
+        }
+
+        return '';
+    }
+
+    private function healPokemon(array &$pokemon, int $amount): int
+    {
+        $before = max(0, (int) ($pokemon['hp_my'] ?? 0));
+        $max = max(1, (int) ($pokemon['hp_max'] ?? 1));
+        $after = min($max, $before + max(0, $amount));
+        $pokemon['hp_my'] = $after;
+        return max(0, $after - $before);
+    }
+
+    private function battleSideForPokemon(array $pokemon): int
+    {
+        $battlePokemon = (string) ($pokemon['battle_pokemon'] ?? '');
+        return str_starts_with($battlePokemon, 'pve_') ? 2 : 1;
+    }
+
+    /** @return list<string> */
+    private function applySwitchHazards(int $battleId, int $round, array &$pokemon): array
+    {
+        $side = $this->battleSideForPokemon($pokemon);
+        $name = strip_tags((string) ($pokemon['names'] ?? 'Покемон'));
+        $messages = [];
+
+        foreach ($this->battles->findBattleHazards($battleId, $side) as $hazard) {
+            if ($hazard === 'spikes') {
+                $damage = max(1, (int) floor(max(1, (int) ($pokemon['hp_max'] ?? 1)) / 8));
+                $pokemon['hp_my'] = max(0, (int) ($pokemon['hp_my'] ?? 0) - $damage);
+                $messages[] = sprintf('%s получает %d HP урона от шипов.', $name, $damage);
+            } elseif ($hazard === 'toxic_spikes') {
+                if ($this->battles->applyBattleStatus($battleId, (string) ($pokemon['battle_pokemon'] ?? ''), 1, $round)) {
+                    $messages[] = sprintf('%s отравлен токсичными шипами.', $name);
+                }
+            } elseif ($hazard === 'stealth_rock') {
+                $damage = max(1, (int) floor(max(1, (int) ($pokemon['hp_max'] ?? 1)) / 8));
+                $pokemon['hp_my'] = max(0, (int) ($pokemon['hp_my'] ?? 0) - $damage);
+                $messages[] = sprintf('%s получает %d HP урона от острых камней.', $name, $damage);
+            }
+        }
+
+        if ($messages !== []) {
+            $this->battles->updatePokemonHp((string) ($pokemon['battle_pokemon'] ?? ''), (int) ($pokemon['hp_my'] ?? 0));
+            foreach ($messages as $message) {
+                $this->battles->insertBattleLog($battleId, $round, $message);
+            }
+        }
+
+        return $messages;
     }
 
     private function damageMove(int $battleId, array $attacker, array &$defender, array $move): string
@@ -608,7 +720,7 @@ final class BattleEngineService
     }
 
     /** @return array{canAct:bool,messages:list<string>} */
-    private function applyStartOfTurnStatus(int $battleId, int $round, array &$actor): array
+    private function applyStartOfTurnStatus(int $battleId, int $round, array &$actor, ?array &$opponent = null): array
     {
         $name = strip_tags((string) ($actor['names'] ?? 'Покемон'));
         $battlePokemon = (string) ($actor['battle_pokemon'] ?? '');
@@ -622,7 +734,7 @@ final class BattleEngineService
                 $actor['hp_my'] = max(0, (int) ($actor['hp_my'] ?? 0) - $damage);
                 $messages[] = sprintf('%s страдает от яда и теряет %d HP.', $name, $damage);
             } elseif ($id === 3) { // burn
-                $damage = max(1, (int) floor(max(1, (int) ($actor['hp_max'] ?? 1)) / 16));
+                $damage = max(1, (int) floor(max(1, (int) ($actor['hp_max'] ?? 1)) / 8));
                 $actor['hp_my'] = max(0, (int) ($actor['hp_my'] ?? 0) - $damage);
                 $messages[] = sprintf('%s получает урон от ожога: %d HP.', $name, $damage);
             } elseif ($id === 2) { // sleep
@@ -654,6 +766,25 @@ final class BattleEngineService
                     $canAct = false;
                     $messages[] = sprintf('%s спутан и ранит себя на %d HP.', $name, $damage);
                 }
+            }
+            if ($id === 8) { // leech seed
+                $damage = max(1, (int) floor(max(1, (int) ($actor['hp_max'] ?? 1)) / 8));
+                $actor['hp_my'] = max(0, (int) ($actor['hp_my'] ?? 0) - $damage);
+                if ($opponent !== null) {
+                    $opponent['hp_my'] = min(
+                        max(1, (int) ($opponent['hp_max'] ?? 1)),
+                        (int) ($opponent['hp_my'] ?? 0) + $damage
+                    );
+                    $opponentName = strip_tags((string) ($opponent['names'] ?? 'Покемон'));
+                    $messages[] = sprintf('%s теряет %d HP от пиявок. %s восстанавливает %d HP.', $name, $damage, $opponentName, $damage);
+                } else {
+                    $messages[] = sprintf('%s теряет %d HP от пиявок.', $name, $damage);
+                }
+            }
+            if ($id === 9) { // curse
+                $damage = max(1, (int) floor(max(1, (int) ($actor['hp_max'] ?? 1)) / 4));
+                $actor['hp_my'] = max(0, (int) ($actor['hp_my'] ?? 0) - $damage);
+                $messages[] = sprintf('%s страдает от проклятия и теряет %d HP.', $name, $damage);
             }
             if ((int) ($actor['hp_my'] ?? 0) <= 0) {
                 $canAct = false;
