@@ -6,6 +6,7 @@ $clan = $u['clan'];
 $party = $party ?? [];
 $awards = $awards ?? [];
 $gifts = $gifts ?? [];
+$karma = $u['karma'] ?? ['score' => 0, 'state' => 'neutral', 'title' => 'Нейтральная репутация'];
 
 $fmt = static fn (int $value): string => number_format($value, 0, '.', ' ');
 $pokemonFrontSrc = static function (array $poke): string {
@@ -61,6 +62,9 @@ $lastOnlineText = $lastOnline > 0 ? date('Y-m-d H:i', $lastOnline) : 'нет д�
     .score b { display:block; margin-top:3px; font-size:22px; }
     .score.pvp b { color:var(--blue); }
     .score.pve b { color:var(--green); }
+    .score.karma.good b { color:var(--green); }
+    .score.karma.bad b { color:#c73333; }
+    .score.karma.neutral b { color:#64748b; }
     .present-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; min-height:42px; }
     .present { aspect-ratio:1/1; display:grid; place-items:center; border:1px solid var(--line); border-radius:8px; background:#fff; }
     .present img { width:36px; height:36px; object-fit:contain; }
@@ -150,6 +154,7 @@ $lastOnlineText = $lastOnline > 0 ? date('Y-m-d H:i', $lastOnline) : 'нет д�
             <h2>Рейтинг</h2>
             <div class="score pvp"><span>PVP: <?= View::e($u['pvpTitle']) ?></span><b><?= $fmt((int) $u['pvpRating']) ?></b></div>
             <div class="score pve" style="margin-top:8px"><span>PVE: <?= View::e($u['pveTitle']) ?></span><b><?= $fmt((int) $u['pveRating']) ?></b></div>
+            <div class="score karma <?= View::e($karma['state']) ?>" style="margin-top:8px"><span><?= View::e($karma['title']) ?></span><b><?= $fmt((int) $karma['score']) ?></b></div>
             <div class="kv" style="margin-top:10px">
               <div class="k">Квестовые очки</div><div class="v"><?= $fmt((int) $u['questRating']) ?></div>
               <div class="k">Ранг</div><div class="v"><?= View::e($u['rank']) ?></div>

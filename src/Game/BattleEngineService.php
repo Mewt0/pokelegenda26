@@ -143,7 +143,11 @@ final class BattleEngineService
 
     public function pvpStatus(int $userId, int $targetUserId): array
     {
-        return ['ok' => true, 'status' => $this->battles->pvpRequestStatus($userId, $targetUserId)];
+        return [
+            'ok' => true,
+            'status' => $this->battles->pvpRequestStatus($userId, $targetUserId),
+            'permission' => $this->battles->pvpAttackPermission($userId, $targetUserId),
+        ];
     }
 
     private function attack(int $userId, int $moveId): array

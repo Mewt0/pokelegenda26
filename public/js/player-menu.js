@@ -30,6 +30,7 @@
     acceptBattle: 'Принять бой',
     battleSent: 'Вызов отправлен',
     battleActive: 'Игрок в бою',
+    battleRestricted: 'Карма не позволяет',
     trade: 'Предложить обмен',
     friend: 'Добавить в друзья',
     acceptFriend: 'Принять заявку',
@@ -120,6 +121,7 @@
     if (status === 'incoming') return menuButton('battle-accept', '&#9876;', text.acceptBattle);
     if (status === 'outgoing') return menuButton('battle-pending', '&#8987;', text.battleSent, true);
     if (status === 'active') return menuButton('battle-pending', '&#8987;', text.battleActive, true);
+    if (status === 'restricted') return menuButton('battle-pending', '&#9888;', text.battleRestricted, true);
     if (status === 'loading') return menuButton('battle-pending', '&#8987;', 'Проверяем бой...', true);
     return menuButton('battle', '&#9876;', text.battle);
   }

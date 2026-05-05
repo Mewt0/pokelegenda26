@@ -33,7 +33,7 @@ final class ProfileRepository
     {
         $stmt = $this->db->prepare(
             'SELECT u.id, u.login, u.online, u.onlinetime, u.datereg, u.avatars, u.groups, u.rang,
-                    u.rang_a, u.rang_b, u.rang_c, u.count_poke, u.count_poke_s, u.info, u.gender,
+                    u.rang_a, u.rang_b, u.rang_c, u.karma_score, u.count_poke, u.count_poke_s, u.info, u.gender,
                     u.clanid, u.clan_point, u.status_klan, u.buildmy, u.youtuber, u.prefics,
                     b.title AS build_title, t.townName AS town_name,
                     c.clan_name, c.clan_img, c.clan_reputation
@@ -81,6 +81,7 @@ final class ProfileRepository
             'pvpRating' => $rangA,
             'pveRating' => $rangB,
             'questRating' => (int) ($user['rang_c'] ?? 0),
+            'karma' => $this->karmaInfo((int) ($user['karma_score'] ?? 0), (int) ($user['groups'] ?? 6)),
             'pvpTitle' => $this->pvpTitle($rangA, $rangB),
             'pveTitle' => $this->pveTitle($rangB, $rangA),
             'normalDex' => $normalDex,
@@ -184,6 +185,20 @@ final class ProfileRepository
             10 => 'Забанен',
             default => 'Тренер',
         };
+    }
+
+    private function karmaInfo(int $score, int $group): array
+    {
+        $state = ($score <= -10 || in_array($group, [7, 10], true)) ? 'bad' : ($score >= 10 ? 'good' : 'neutral');
+        return [
+            'score' => $score,
+            'state' => $state,
+            'title' => match ($state) {
+                'bad' => 'Плохая репутация',
+                'good' => 'Хорошая репутация',
+                default => 'Нейтральная репутация',
+            },
+        ];
     }
 
     private function pvpTitle(int $rangA, int $rangB): string

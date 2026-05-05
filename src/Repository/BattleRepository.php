@@ -107,6 +107,81 @@ final class BattleRepository
         return $pokemonId > 0 ? $this->findPokemon('pvp_' . $pokemonId) : null;
     }
 
+    public function pvpAttackPermission(int $attackerId, int $targetId): array
+    {
+        if ($attackerId <= 0 || $targetId <= 0 || $attackerId === $targetId) {
+            return ['allowed' => false, 'message' => 'Нельзя вызвать этого игрока.'];
+        }
+
+        $users = $this->karmaUsers([$attackerId, $targetId]);
+        if (!isset($users[$attackerId], $users[$targetId])) {
+            return ['allowed' => false, 'message' => 'Игрок не найден.'];
+        }
+
+        $attacker = $users[$attackerId];
+        $target = $users[$targetId];
+        $attackerState = $this->karmaState($attacker);
+        $targetState = $this->karmaState($target);
+        $location = $this->karmaBattleLocation((int) ($attacker['buildmy'] ?? 0), (int) ($target['buildmy'] ?? 0));
+        $base = [
+            'attacker' => $this->karmaSummary($attacker),
+            'target' => $this->karmaSummary($target),
+            'location' => $location,
+        ];
+
+        if (!$location['sameLocation']) {
+            return $base + ['allowed' => false, 'message' => 'Нападение возможно только на игрока в той же локации.'];
+        }
+        if ($location['type'] === 'forbidden') {
+            return $base + ['allowed' => false, 'message' => 'В этой локации нападения полностью запрещены: стадионы, арены и аукционы охраняются стражей.'];
+        }
+
+        if ($attackerState === 'good' && $targetState === 'bad') {
+            return [
+                'allowed' => true,
+                'rule' => 'protector_hunts_criminal',
+                'requiresWarrant' => false,
+                'message' => 'Защитник может охотиться на преступника в любой локации, кроме полностью запрещенных.',
+            ] + $base;
+        }
+        if ($attackerState === 'bad' && $targetState === 'good' && $location['type'] === 'dangerous') {
+            return [
+                'allowed' => true,
+                'rule' => 'criminal_attacks_protector',
+                'requiresWarrant' => false,
+                'message' => 'Преступник может нападать на защитников в опасных локациях без ордера.',
+            ] + $base;
+        }
+
+        if ($location['type'] !== 'dangerous') {
+            return $base + ['allowed' => false, 'message' => 'В безопасной локации можно нападать только Защитнику на Преступника.'];
+        }
+
+        $warrant = $this->bestAvailableWarrant($attackerId);
+        if ($warrant === null) {
+            return $base + ['allowed' => false, 'message' => 'Для нападения в опасной локации нужен ордер Команды R.'];
+        }
+        if ((int) ($attacker['rang_a'] ?? 0) < 400) {
+            return $base + ['allowed' => false, 'message' => 'Для использования ордера нужно минимум 400 очков репутации.'];
+        }
+        if (!$this->targetAboveBeginner($target)) {
+            return $base + ['allowed' => false, 'message' => 'Ордер не позволяет нападать на тренеров ранга Начинающий и ниже.'];
+        }
+        if ((int) $warrant['level'] === 1 && !$this->popularityAllowedByWarrant($attacker, $target)) {
+            return $base + ['allowed' => false, 'message' => 'Ордер I уровня требует, чтобы популярность цели была не ниже 30% от вашей.'];
+        }
+
+        return [
+            'allowed' => true,
+            'rule' => $targetState === 'bad' ? 'warrant_attack_criminal' : 'warrant_attack_neutral',
+            'requiresWarrant' => true,
+            'warrant' => $warrant,
+            'message' => $targetState === 'bad'
+                ? 'Ордер Команды R позволяет напасть на преступника. Ордер будет потрачен.'
+                : 'Ордер Команды R позволяет напасть в опасной локации. За нападение на нейтрального игрока карма снизится.',
+        ] + $base;
+    }
+
     public function usersCanStartPvp(int $firstUserId, int $secondUserId): bool
     {
         if ($firstUserId <= 0 || $secondUserId <= 0 || $firstUserId === $secondUserId) {
@@ -164,7 +239,8 @@ final class BattleRepository
         ]);
         $row = $stmt->fetch();
         if (!$row) {
-            return 'none';
+            $permission = $this->pvpAttackPermission($currentUserId, $targetUserId);
+            return !empty($permission['allowed']) ? 'none' : 'restricted';
         }
 
         return (int) ($row['to_user_id'] ?? 0) === $currentUserId ? 'incoming' : 'outgoing';
@@ -212,6 +288,16 @@ final class BattleRepository
         $incomingId = (int) ($incoming->fetchColumn() ?: 0);
         if ($incomingId > 0) {
             return $this->acceptPvpRequest($fromUserId, $incomingId);
+        }
+
+        $permission = $this->pvpAttackPermission($fromUserId, $toUserId);
+        if (empty($permission['allowed'])) {
+            return [
+                'ok' => false,
+                'status' => 'restricted',
+                'message' => (string) ($permission['message'] ?? 'По карме нельзя вызвать этого игрока.'),
+                'karma' => $permission,
+            ];
         }
 
         if (!$this->usersCanStartPvp($fromUserId, $toUserId)) {
@@ -263,6 +349,16 @@ final class BattleRepository
 
         $fromUserId = (int) ($request['from_user_id'] ?? 0);
         $toUserId = (int) ($request['to_user_id'] ?? 0);
+        $permission = $this->pvpAttackPermission($fromUserId, $toUserId);
+        if (empty($permission['allowed'])) {
+            return [
+                'ok' => false,
+                'status' => 'restricted',
+                'message' => (string) ($permission['message'] ?? 'По карме нельзя начать этот бой.'),
+                'karma' => $permission,
+            ];
+        }
+
         if (!$this->usersCanStartPvp($fromUserId, $toUserId)) {
             return ['ok' => false, 'message' => 'Бой нельзя начать: один из игроков уже занят.'];
         }
@@ -274,6 +370,7 @@ final class BattleRepository
         }
 
         $battleId = $this->createPvpBattle($fromUserId, $toUserId, (int) $firstPokemon['id'], (int) $secondPokemon['id']);
+        $this->applyPvpStartKarma($fromUserId, $toUserId, $battleId, $permission);
         $now = time();
         $this->db->prepare(
             'UPDATE pvp_requests
@@ -1717,6 +1814,205 @@ final class BattleRepository
             || str_contains($name, 'скоб')
             || str_contains($name, 'macho')
             || str_contains($name, 'brace');
+    }
+
+    /** @param list<int> $ids */
+    private function karmaUsers(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        if ($ids === []) {
+            return [];
+        }
+
+        $placeholders = [];
+        $params = [];
+        foreach ($ids as $index => $id) {
+            $key = 'id' . $index;
+            $placeholders[] = ':' . $key;
+            $params[$key] = $id;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT id, login, groups, karma_score, rang_a, rang_b, buildmy
+               FROM users
+              WHERE id IN (' . implode(',', $placeholders) . ') AND activation = 1'
+        );
+        $stmt->execute($params);
+
+        $users = [];
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $users[(int) $row['id']] = $row;
+        }
+        return $users;
+    }
+
+    private function karmaState(array $user): string
+    {
+        $group = (int) ($user['groups'] ?? 6);
+        $score = (int) ($user['karma_score'] ?? 0);
+        if (in_array($group, [7, 10], true) || $score <= -10) {
+            return 'bad';
+        }
+        if ($score >= 10) {
+            return 'good';
+        }
+        return 'neutral';
+    }
+
+    private function karmaSummary(array $user): array
+    {
+        $state = $this->karmaState($user);
+        return [
+            'id' => (int) ($user['id'] ?? 0),
+            'login' => (string) ($user['login'] ?? ''),
+            'score' => (int) ($user['karma_score'] ?? 0),
+            'state' => $state,
+            'title' => match ($state) {
+                'bad' => 'Плохая репутация',
+                'good' => 'Хорошая репутация',
+                default => 'Нейтральная репутация',
+            },
+        ];
+    }
+
+    private function karmaBattleLocation(int $attackerLocationId, int $targetLocationId): array
+    {
+        if ($attackerLocationId <= 0 || $targetLocationId <= 0 || $attackerLocationId !== $targetLocationId) {
+            return [
+                'id' => $attackerLocationId,
+                'sameLocation' => false,
+                'type' => 'unknown',
+                'title' => '',
+            ];
+        }
+
+        $stmt = $this->db->prepare('SELECT id, title, pve, zax FROM build WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $attackerLocationId]);
+        $location = $stmt->fetch() ?: [];
+        $title = (string) ($location['title'] ?? '');
+        $type = $this->karmaLocationType($title, (int) ($location['pve'] ?? 0), (int) ($location['zax'] ?? 0));
+
+        return [
+            'id' => $attackerLocationId,
+            'sameLocation' => true,
+            'type' => $type,
+            'title' => $title,
+        ];
+    }
+
+    private function karmaLocationType(string $title, int $pve, int $zax): string
+    {
+        $name = function_exists('mb_strtolower') ? mb_strtolower($title) : strtolower($title);
+        foreach (['стадион', 'арена', 'аукцион', 'турнир'] as $word) {
+            if (str_contains($name, $word)) {
+                return 'forbidden';
+            }
+        }
+        foreach (['дорога', 'лес', 'пещер', 'озеро', 'туннел', 'пустын', 'гора', 'подвал', 'шахт', 'путь'] as $word) {
+            if (str_contains($name, $word)) {
+                return 'dangerous';
+            }
+        }
+        return 'safe';
+    }
+
+    private function bestAvailableWarrant(int $userId): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT item_id, count
+               FROM items_users
+              WHERE user_id = :user AND item_id IN (90001, 90002) AND count > 0
+              ORDER BY item_id DESC
+              LIMIT 1'
+        );
+        $stmt->execute(['user' => $userId]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            return null;
+        }
+
+        $itemId = (int) ($row['item_id'] ?? 0);
+        return [
+            'itemId' => $itemId,
+            'level' => $itemId === 90002 ? 2 : 1,
+        ];
+    }
+
+    private function consumeWarrant(int $userId, int $itemId): bool
+    {
+        if (!in_array($itemId, [90001, 90002], true)) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare(
+            'UPDATE items_users
+                SET count = count - 1
+              WHERE user_id = :user AND item_id = :item AND count > 0
+              LIMIT 1'
+        );
+        $stmt->execute(['user' => $userId, 'item' => $itemId]);
+        if ($stmt->rowCount() <= 0) {
+            return false;
+        }
+
+        $this->db->prepare('DELETE FROM items_users WHERE user_id = :user AND item_id = :item AND count <= 0')
+            ->execute(['user' => $userId, 'item' => $itemId]);
+        return true;
+    }
+
+    private function targetAboveBeginner(array $target): bool
+    {
+        return (int) ($target['rang_a'] ?? 0) > 250 || (int) ($target['rang_b'] ?? 0) > 250;
+    }
+
+    private function popularityAllowedByWarrant(array $attacker, array $target): bool
+    {
+        $attackerPopularity = max(0, (int) ($attacker['rang_b'] ?? 0));
+        $targetPopularity = max(0, (int) ($target['rang_b'] ?? 0));
+        return $targetPopularity >= (int) ceil($attackerPopularity * 0.3);
+    }
+
+    private function applyPvpStartKarma(int $attackerId, int $targetId, int $battleId, array $permission): void
+    {
+        if (!empty($permission['requiresWarrant']) && !empty($permission['warrant']['itemId'])) {
+            $this->consumeWarrant($attackerId, (int) $permission['warrant']['itemId']);
+        }
+
+        $rule = (string) ($permission['rule'] ?? '');
+        if (in_array($rule, ['protector_hunts_criminal', 'warrant_attack_criminal'], true)) {
+            $this->changeKarma($attackerId, $targetId, $battleId, 1, $rule);
+            return;
+        }
+        if ($rule === 'warrant_attack_neutral') {
+            $this->changeKarma($attackerId, $targetId, $battleId, -1, $rule);
+        }
+    }
+
+    private function changeKarma(int $userId, int $targetUserId, int $battleId, int $delta, string $reason): void
+    {
+        if ($userId <= 0 || $delta === 0) {
+            return;
+        }
+
+        $this->db->prepare('UPDATE users SET karma_score = karma_score + :delta WHERE id = :id LIMIT 1')
+            ->execute(['delta' => $delta, 'id' => $userId]);
+
+        $stmt = $this->db->prepare('SELECT karma_score FROM users WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $userId]);
+        $scoreAfter = (int) ($stmt->fetchColumn() ?: 0);
+
+        $this->db->prepare(
+            'INSERT INTO karma_events (user_id, target_user_id, battle_id, delta, score_after, reason, created_at)
+             VALUES (:user, :target, :battle, :delta, :score, :reason, :created)'
+        )->execute([
+            'user' => $userId,
+            'target' => $targetUserId,
+            'battle' => $battleId,
+            'delta' => $delta,
+            'score' => $scoreAfter,
+            'reason' => $reason,
+            'created' => time(),
+        ]);
     }
 
     private function nextTableId(string $table, string $column): int
