@@ -1,7 +1,3 @@
-No syntax errors detected in /mnt/data/pokemon8_ui_dex_battle_fix/src/Game/BattleMathService.php
-No syntax errors detected in /mnt/data/pokemon8_ui_dex_battle_fix/src/Game/BattleEngineService.php
-No syntax errors detected in /mnt/data/pokemon8_ui_dex_battle_fix/src/Repository/BattleRepository.php
-No syntax errors detected in /mnt/data/pokemon8_ui_dex_battle_fix/src/Repository/DexRepository.php
-No syntax errors detected in /mnt/data/pokemon8_ui_dex_battle_fix/src/Controller/DexApiController.php
-No syntax errors detected in /mnt/data/pokemon8_ui_dex_battle_fix/public/index.php
-No syntax errors detected in /mnt/data/pokemon8_ui_dex_battle_fix/views/game-start.php
+node --check public/js/dex-overlay.js: OK
+php -l src/Repository/DexRepository.php: OK
+php -l src/Controller/DexApiController.php: OK

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use Pokemon8\Controller\AuthController;
+use Pokemon8\Controller\ChatApiController;
 use Pokemon8\Controller\DexApiController;
 use Pokemon8\Controller\GameApiController;
 use Pokemon8\Controller\GameController;
@@ -15,6 +16,7 @@ use Pokemon8\Controller\PokemonController;
 use Pokemon8\Controller\ProfileController;
 use Pokemon8\Controller\PveBattleApiController;
 use Pokemon8\Database\Connection;
+use Pokemon8\Game\ChatService;
 use Pokemon8\Game\GameRoutes;
 use Pokemon8\Game\LocationContentRepository;
 use Pokemon8\Game\LocationGraph;
@@ -25,6 +27,7 @@ use Pokemon8\Game\WildEncounterService;
 use Pokemon8\Game\BattleEngineService;
 use Pokemon8\Http\Request;
 use Pokemon8\Http\Router;
+use Pokemon8\Repository\ChatRepository;
 use Pokemon8\Repository\RankingRepository;
 use Pokemon8\Repository\BanRepository;
 use Pokemon8\Repository\InventoryRepository;
@@ -71,6 +74,7 @@ $inventory = new InventoryRepository($db);
 $profiles = new ProfileRepository($db);
 $battleRepository = new BattleRepository($db);
 $dexRepository = new DexRepository($db);
+$chatRepository = new ChatRepository($db);
 $locationGraph = LocationGraph::fromLegacyData(APP_ROOT . '/include/data.world.php');
 $locationContent = LocationContentRepository::fromFile(APP_ROOT . '/config/location_content.php');
 $locationState = new LocationStateService($locations, $locationGraph, APP_ROOT, $locationContent);
@@ -78,6 +82,7 @@ $mapMoves = new MapMoveService($locations, $locationGraph, $locationState);
 $wildEncounters = new WildEncounterService($db);
 $battleEngine = new BattleEngineService($battleRepository);
 $npcDialogs = new NpcDialogService($locations, $quests, $inventory, $pokemonRepository, $locationContent);
+$chatService = new ChatService($chatRepository, $users, $session);
 $passwords = new PasswordHasher();
 $csrf = new Csrf($session);
 $banGuard = new BanGuard($bans);
@@ -93,6 +98,7 @@ $profilePage = new ProfileController($session, $profiles);
 $gameApi = new GameApiController($session, $csrf, $locationState, $mapMoves, $wildEncounters, $battleEngine, $locations);
 $gameModules = new GameModuleController($session);
 $npcApi = new NpcApiController($session, $csrf, $npcDialogs);
+$chatApi = new ChatApiController($session, $csrf, $chatService, $locations);
 $pveBattleApi = new PveBattleApiController($session, $csrf, $battleEngine);
 $dexApi = new DexApiController($session, $dexRepository);
 
@@ -131,6 +137,8 @@ $router->get('/api/dex/attack/show', fn (Request $request) => $dexApi->attack($r
 $router->post('/api/pokemon/move', fn (Request $request) => $pokemonApi->setMove($request));
 $router->get('/api/location/npc', fn (Request $request) => $npcApi->show($request));
 $router->post('/api/location/npc/action', fn (Request $request) => $npcApi->action($request));
+$router->get('/api/chat/messages', fn (Request $request) => $chatApi->messages($request));
+$router->post('/api/chat/messages', fn (Request $request) => $chatApi->send($request));
 
 $request = Request::capture();
 $banResponse = $banGuard->check($request);

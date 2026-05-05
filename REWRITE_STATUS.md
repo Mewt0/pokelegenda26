@@ -9,31 +9,33 @@
 Они могут временно оставаться только как совместимый слой, пока переносится логика. Новая игра должна работать так:
 
 - один игровой экран без frameset;
-- PHP 8.3+;
+- PHP 8.1+ минимум, целевой стиль PHP 8.3+ без использования несовместимых фич там, где нужна совместимость;
 - front controller `public/index.php`;
 - роутинг через контроллеры;
-- JSON API для действий карты, чата, NPC, боев и инвентаря;
+- JSON API для действий карты, чата, NPC, боев, покедекса, атакадекса и инвентаря;
 - PDO и prepared statements вместо `mysql_*`;
-- UTF-8 в коде, шаблонах и API;
+- UTF-8 в коде, шаблонах, БД и API;
 - CSRF для POST/command-запросов;
-- отдельные сервисы домена: карта, локации, квесты, NPC, чат, бой, инвентарь;
+- отдельные сервисы домена: карта, локации, квесты, NPC, чат, бой, инвентарь, покедекс, атакадекс;
 - frontend обновляет только нужные области экрана через `fetch`, без перезагрузки всей страницы.
 
 ## Статусы
 
-- `DONE_NEW` - написано с нуля под новую архитектуру.
-- `PARTIAL_NEW` - новый каркас есть, но бизнес-логика перенесена не полностью.
-- `LEGACY_COMPAT` - временный совместимый слой старой игры.
-- `TODO_REWRITE` - нужно переписать с нуля.
-- `DO_NOT_PORT` - не переносить.
+- `DONE_NEW` — написано с нуля под новую архитектуру и стабильно работает.
+- `PARTIAL_NEW` — новый каркас есть, часть бизнес-логики перенесена, но модуль ещё требует доработки.
+- `LEGACY_COMPAT` — временный совместимый слой старой игры.
+- `TODO_REWRITE` — нужно переписать с нуля.
+- `DO_NOT_PORT` — не переносить.
+
+---
 
 ## Новое ядро
 
 | Файл | Статус | Комментарий |
 |---|---:|---|
 | `public/index.php` | `DONE_NEW` | Новый front controller. |
-| `public/.htaccess` | `DONE_NEW` | Rewrite всех новых запросов в `public/index.php`. |
-| `composer.json` | `DONE_NEW` | Описание PHP 8.3+ проекта и PSR-4. |
+| `public/.htaccess` | `DONE_NEW` | Rewrite новых запросов в `public/index.php`. |
+| `composer.json` | `DONE_NEW` | Описание PHP-проекта и PSR-4. |
 | `.editorconfig` | `DONE_NEW` | Единый стиль файлов: UTF-8, LF. |
 | `config/app.php` | `DONE_NEW` | Конфиг приложения из `.env`. |
 | `config/database.php` | `DONE_NEW` | Конфиг базы из `.env`. |
@@ -43,84 +45,273 @@
 | `src/Http/Response.php` | `DONE_NEW` | Объект ответа. |
 | `src/Http/Router.php` | `DONE_NEW` | Мини-роутер нового ядра. |
 | `src/Database/Connection.php` | `DONE_NEW` | PDO-подключение к базе. |
-| `src/Security/Session.php` | `DONE_NEW` | Работа с сессиями. |
+| `src/Security/Session.php` | `DONE_NEW` | Работа с сессиями. Требование: совместимость с PHP 8.1+. |
 | `src/Security/Csrf.php` | `DONE_NEW` | CSRF-токены. |
 | `src/Security/BanGuard.php` | `DONE_NEW` | Проверка IP-банов. |
 | `src/Security/PasswordHasher.php` | `DONE_NEW` | Поддержка старого хэша и нового `password_hash`. |
 | `src/Repository/BanRepository.php` | `DONE_NEW` | Репозиторий банов. |
-| `src/Repository/UserRepository.php` | `PARTIAL_NEW` | Логин и online-данные есть, нужно расширить. |
+| `src/Repository/UserRepository.php` | `PARTIAL_NEW` | Логин и online-данные есть, нужно расширить профиль/игровые поля. |
 | `src/Repository/RankingRepository.php` | `PARTIAL_NEW` | Рейтинги частично перенесены. |
-| `src/Repository/LocationRepository.php` | `DONE_NEW` | Граф локаций и их состояния. |
-| `src/Repository/InventoryRepository.php` | `DONE_NEW` | Работа с предметами пользователя. |
-| `src/Repository/QuestRepository.php` | `DONE_NEW` | Квесты и их состояния. |
 | `src/Controller/HomeController.php` | `DONE_NEW` | Главная страница. |
-| `src/Controller/AuthController.php` | `PARTIAL_NEW` | Логин есть, регистрация и throttling еще нужны. |
-| `src/Controller/GameController.php` | `PARTIAL_NEW` | Заглушка игры есть, игровой мир еще не перенесен. |
-| `src/Controller/GameApiController.php` | `DONE_NEW` | JSON API для состояния игры (`/api/game/state`, `/api/map/move`). |
-| `src/Controller/GameModuleController.php` | `DONE_NEW` | Маршрутизация игровых модулей на новый shell. |
-| `src/Controller/NpcApiController.php` | `DONE_NEW` | JSON API для NPC диалогов и действий. |
-| `src/Game/LocationGraph.php` | `DONE_NEW` | Граф переходов между локациями. |
-| `src/Game/LocationStateService.php` | `DONE_NEW` | Получение состояния локации с пользователями и NPC. |
-| `src/Game/MapMoveService.php` | `DONE_NEW` | Логика перемещения по карте с проверками. |
-| `src/Game/GameRoutes.php` | `DONE_NEW` | Реестр маршрутов игры. |
-| `src/Game/LegacyRoomDataExtractor.php` | `DONE_NEW` | Читает статические данные локаций из legacy PHP. |
-| `src/Game/NpcDialogService.php` | `DONE_NEW` | Диалоги NPC и их действия. |
+| `src/Controller/AuthController.php` | `PARTIAL_NEW` | Логин есть, регистрация и throttling ещё нужны. |
+| `src/Controller/GameController.php` | `PARTIAL_NEW` | Новый `/game` shell есть, но не все модули перенесены. |
 | `src/View/View.php` | `DONE_NEW` | Рендер шаблонов и escaping. |
 | `views/home.php` | `DONE_NEW` | Новая главная. |
 | `views/error.php` | `DONE_NEW` | Шаблон ошибки. |
-| `views/game-start.php` | `PARTIAL_NEW` | Игровой экран без frameset. С локациями, NPC, переходами. |
+| `views/game-start.php` | `PARTIAL_NEW` | Новый игровой экран без frameset, но UI и модули ещё дорабатываются. |
 
-## Игровой Мир
+---
 
-Игровой мир теперь построен на JSON API + новом shell вместо frameset.
+## Новый игровой экран `/game`
 
-| Legacy файл | Новый модуль | Статус | Что сделать |
+Текущий `/game` уже не является простой заглушкой. Он работает как новый shell, который получает данные через JSON API.
+
+| Модуль | Статус | Комментарий |
+|---|---:|---|
+| Новый `/game` shell | `PARTIAL_NEW` | Работает без frameset, но UI ещё стабилизируется. |
+| `views/game-start.php` | `PARTIAL_NEW` | Рендерит карту, локацию, игроков, NPC, нижнюю панель, PvE overlay, Dex overlay. |
+| `public/css/game-start.css` | `PARTIAL_NEW` | Стили нового игрового экрана, боёвки и overlay. |
+| `public/js/dex-overlay.js` | `PARTIAL_NEW` | Новый overlay для покедекса/атакадекса. Требует финальной проверки маршрутов. |
+
+---
+
+## API игрового мира
+
+| API / Файл | Статус | Комментарий |
+|---|---:|---|
+| `GET /api/game/state` | `PARTIAL_NEW` | Возвращает пользователя, локацию, переходы, NPC, игроков, PvE-состояние. |
+| `POST /api/map/move` | `PARTIAL_NEW` | Базовые переходы работают. Сложные legacy-правила прохода ещё не все перенесены. |
+| `GET /api/location/npc` | `PARTIAL_NEW` | Загружает NPC-диалог без legacy `game.php?go=char`. |
+| `POST /api/location/npc/action` | `PARTIAL_NEW` | Выполняет действие NPC через CSRF. |
+| `GET /api/battle/pve/state` | `PARTIAL_NEW` | Возвращает состояние PvE-боя. |
+| `POST /api/battle/pve/action` | `PARTIAL_NEW` | Выполняет действие игрока в PvE. |
+| `POST /api/battle/pve/ack-end` | `PARTIAL_NEW` | Подтверждает конец боя и возвращает игрока в мир. |
+| `GET /api/dex/pokemon` | `PARTIAL_NEW` | Новый API покедекса. Требует проверки данных и UI. |
+| `GET /api/dex/attack` | `PARTIAL_NEW` | Новый API атакадекса. Требует проверки данных и UI. |
+| `GET /api/chat/messages` | `TODO_REWRITE` | Полноценный новый чат ещё не перенесён. |
+| `POST /api/chat/messages` | `TODO_REWRITE` | Отправка сообщений в новом чате ещё не готова. |
+
+---
+
+## Карта и локации
+
+| Legacy файл | Новый модуль | Статус | Комментарий |
 |---|---|---:|---|
-| `game.php` | `GameRoutes`, `GameModuleController` | `DONE_NEW` | Маршреутизация переведена. Возвращает `410 Gone` для старых UI маршрутов. |
-| `include/files/map.world.php` | `GameApiController`, `views/game-start.php` | `PARTIAL_NEW` | Отображение карты + локаций работает через `/api/game/state`. Нужны расширенные правила прохода. |
-| `include/files/char.world.php` | `LocationStateService`, `GET /api/game/state` | `PARTIAL_NEW` | Состояние локации отдается JSON. Нужны полные данные всех локаций. |
-| `include/files/char.work.php` | `MapMoveService`, `POST /api/map/move` | `DONE_NEW` | Переход по локациям полностью работает через API. Возвращает `ok`, `location`, `moves`, `users`, `chatEvent`. |
-| `include/files/chat.world.php` | `ChatController` | `TODO_REWRITE` | Разделить API чата и frontend-компонент. |
-| `include/files/buttons.world.php` | `ActionPanel`, `NPC Actions` | `PARTIAL_NEW` | Действия локации теперь через NPC система. |
-| `include/files/mapusers.world.php` | `included in /api/game/state` | `DONE_NEW` | Список игроков на локации отдается в JSON. |
-| `include/data.world.php` | `LocationRepository`, `LocationGraph` | `DONE_NEW` | Граф переходов загружается из БД. |
-| `include/loc.world.php` | `LocationRuleService` | `TODO_REWRITE` | Некоторые правила работают, нужны все условия прохода. |
-| `include/rooms/*.php` | `LegacyRoomDataExtractor` | `DONE_NEW` | Описания локаций читаются статически без исполнения PHP. |
-| `include/rooms/npc/*.php` | `NpcDialogService`, `NpcApiController` | `PARTIAL_NEW` | Первый полный NPC (`Коллекционер Билли`) работает с диалогами и квестами. |
+| `game.php` | `GameController`, `GameApiController` | `LEGACY_COMPAT` / `PARTIAL_NEW` | Старый роутер не расширять. Новый `/game` уже работает отдельно. |
+| `include/files/map.world.php` | `views/game-start.php`, `GameApiController` | `PARTIAL_NEW` | Новый экран есть, но старый файл остаётся как образец. |
+| `include/files/char.world.php` | `LocationStateService` | `PARTIAL_NEW` | Текущая локация уже отдаётся через API. |
+| `include/files/char.work.php` | `MapMoveService`, `POST /api/map/move` | `PARTIAL_NEW` | Базовый переход работает через JSON. |
+| `include/files/mapusers.world.php` | `LocationUsersController` / `GameApiController` | `PARTIAL_NEW` | Список игроков на локации уже отдаётся в `state`, но отдельный модуль ещё можно улучшить. |
+| `include/data.world.php` | `LocationGraph`, `LocationRepository` | `PARTIAL_NEW` | Граф переходов частично перенесён. |
+| `include/loc.world.php` | `LocationRuleService` | `TODO_REWRITE` | Сложные правила прохода ещё нужно вынести в сервис. |
+| `include/rooms/*.php` | `LegacyRoomDataExtractor`, `LocationRepository` | `PARTIAL_NEW` | Данные локаций читаются, но нужно постепенно вынести в нормальный слой данных. |
 
-## Ближайший План
+### Новые файлы карты/локаций
 
-### ✅ Завершено в текущем срезе
+| Файл | Статус | Комментарий |
+|---|---:|---|
+| `src/Repository/LocationRepository.php` | `PARTIAL_NEW` | Получение данных локаций. |
+| `src/Game/LocationGraph.php` | `PARTIAL_NEW` | Граф переходов. |
+| `src/Game/LocationStateService.php` | `PARTIAL_NEW` | Сбор состояния текущей локации. |
+| `src/Game/MapMoveService.php` | `PARTIAL_NEW` | Логика переходов. |
+| `src/Game/LegacyRoomDataExtractor.php` | `PARTIAL_NEW` | Временно читает данные из legacy rooms без исполнения старых скриптов. |
+| `src/Controller/GameApiController.php` | `PARTIAL_NEW` | API состояния мира и переходов. |
 
-- ✅ Переместить навигацию из frameset на JSON API
-- ✅ Создать GameRoutes и GameModuleController для маршрутизации
-- ✅ Реализовать `/api/game/state` для получения состояния локации
-- ✅ Реализовать `/api/map/move` для передвижения между локациями
-- ✅ Загружать описания локаций из `include/rooms/*.php` через статический extractор
-- ✅ Реализовать `/api/location/npc` и `/api/location/npc/action` для NPC взаимодействия
-- ✅ Создать первый полностью функциональный NPC - `Коллекционер Билли` с квестом 7
-- ✅ Реализовать систему квестов с проверкой предметов и завершением
+---
 
-### 📅 Следующие этапы
+## NPC и квесты
 
-1. Добавить все остальные NPC и их диалоги/квесты по той же схеме
-2. Реализовать полную систему боевой механики:
-   - `POST /api/fight/start` - начало боя
-   - `POST /api/fight/action` - действие в бою
-   - `POST /api/fight/flee` - бегство из боя
-3. Разработать полноценный API чата:
-   - `GET /api/chat/messages`
-   - `POST /api/chat/messages`
-   - Server-Sent Events для live-обновлений сообщений
-4. Реализовать интерфейс для тренировки/эволюции покемонов
-5. Добавить пользовательский чат (комната) в `views/game-start.php`
-6. Полностью отключить frameset и обновить регулярно на JSON вместо HTML frameset
-7. Расширить InventoryRepository для полного управления инвентарем
-8. Добавить систему достижений и значков
+| Legacy файл | Новый модуль | Статус | Комментарий |
+|---|---|---:|---|
+| `include/rooms/npc/*.php` | `NpcDialogService`, `NpcApiController`, `QuestService` | `PARTIAL_NEW` | Перенесён первый реальный NPC-flow, остальные ещё нужно переносить. |
+| `Коллекционер Билли` | `NpcDialogService` + `QuestRepository` | `PARTIAL_NEW` | Диалог, старт/проверка/сдача квеста 7 работают через новый слой. |
+| `items_users` для квестов | `InventoryRepository` | `PARTIAL_NEW` | Используется для проверки и списания предметов в квесте. |
+
+### Новые файлы NPC/квестов
+
+| Файл | Статус | Комментарий |
+|---|---:|---|
+| `src/Game/NpcDialogService.php` | `PARTIAL_NEW` | Новый сервис NPC-диалогов. |
+| `src/Controller/NpcApiController.php` | `PARTIAL_NEW` | API NPC. |
+| `src/Repository/QuestRepository.php` | `PARTIAL_NEW` | Работа с квестами. |
+| `src/Repository/InventoryRepository.php` | `PARTIAL_NEW` | Работа с предметами игрока. Пока не полноценный инвентарь. |
+
+---
+
+## PvE бой
+
+PvE-бой уже перенесён в новый слой, но ещё требует стабилизации математики, статусов, UI и наград.
+
+| Модуль | Статус | Комментарий |
+|---|---:|---|
+| `src/Controller/PveBattleApiController.php` | `PARTIAL_NEW` | API PvE боя. |
+| `src/Game/WildEncounterService.php` | `PARTIAL_NEW` | Создание дикого боя. Важно использовать `battle_id_sequence`, если `battles.id` не AUTO_INCREMENT. |
+| `src/Game/BattleEngineService.php` | `PARTIAL_NEW` | Основная логика боя: атаки, раунды, статусы, конец боя. |
+| `src/Game/BattleMathService.php` | `PARTIAL_NEW` | Расчёт статов, точности, урона, эффективности типов. Требуется финальное тестирование. |
+| `src/Repository/BattleRepository.php` | `PARTIAL_NEW` | Работа с `battles`, `battle_log`, `statpokemonbatle`, `bttle_status`, `pok_user`, `pok_pve`. |
+| Battle overlay в `/game` | `PARTIAL_NEW` | Работает, но UI ещё исправляется: лог, высота окна, спрайты, конец боя. |
+
+### Что уже сделано по PvE
+
+- бой запускается через новый overlay в `/game`;
+- действия идут через JSON API;
+- есть лог раундов;
+- подключена таблица `statpokemonbatle`;
+- подключаются бафы/дебафы через боевую математику;
+- `+6` и `-6` должны считаться как стадии, а не как стартовые бафы;
+- старт боя должен быть без активных бафов: `plus = 0`, `minus = 0`;
+- `attac_dop` начал использоваться для вторичных эффектов;
+- `status` / `bttle_status` начали использоваться для яд/сон/ожог/паралич;
+- type effectiveness начал переноситься в новую математику;
+- конец боя не должен мгновенно удалять лог до `ack-end`.
+
+### Что ещё проверить по PvE
+
+- корректность формулы статов:
+  - обычные статы: `base * ((2 + plus) / (2 + minus))`;
+  - `+6 = x4`;
+  - `-6 = x0.25`;
+  - одновременные plus/minus считаются ratio-формулой, а не простым `plus - minus`;
+- точность и ловкость:
+  - `atac_accuracy = 0` означает “всегда попадает”;
+  - точность атакующего и ловкость защитника считаются отдельно;
+- `attac_dop`:
+  - шанс `0` не должен превращаться в `100%`;
+  - вторичные эффекты должны срабатывать только по `chans_dop` / реальному шансу;
+- статусы:
+  - яд наносит урон по раундам;
+  - ожог режет физическую атаку;
+  - паралич режет скорость и может пропускать ход;
+  - сон/заморозка/испуг/спутанность не должны ломать очередь хода;
+- конец боя:
+  - победа;
+  - поражение;
+  - побег;
+  - `ack-end`;
+  - refresh страницы до `ack-end`;
+- награды:
+  - опыт;
+  - деньги;
+  - дроп;
+  - рейтинг;
+  - счастье/энергия/ивенты;
+- смена покемона;
+- использование предметов в бою;
+- поимка покемона.
+
+---
+
+## Пokedex / Attackdex
+
+| Модуль | Статус | Комментарий |
+|---|---:|---|
+| `src/Repository/DexRepository.php` | `PARTIAL_NEW` | Читает данные из `pokemon`, `poke_base`, `attac_power`, `attac_poke`, `attac_egg`, локаций. |
+| `src/Controller/DexApiController.php` | `PARTIAL_NEW` | API покедекса и атакадекса. |
+| `public/js/dex-overlay.js` | `PARTIAL_NEW` | Frontend overlay. Нужно проверить маршруты и открытие из старых ссылок. |
+| Pokedex overlay | `PARTIAL_NEW` | Каркас есть, надо довести до нормального UI. |
+| Attackdex overlay | `PARTIAL_NEW` | Каркас есть, надо довести до нормального UI. |
+
+### Что надо проверить по Dex
+
+- переходы:
+  - `game.php?go=pokedex&id=...` должны открывать новый overlay;
+  - `game.php?go=atk&id=...` должны открывать новый overlay;
+- поиск покемонов;
+- поиск атак;
+- отображение:
+  - номер покемона;
+  - имя;
+  - типы;
+  - базовые статы;
+  - атаки по уровням;
+  - egg moves;
+  - локации появления;
+  - описание атаки;
+  - сила;
+  - точность;
+  - PP;
+  - категория;
+  - тип;
+  - вторичные эффекты.
+
+---
+
+## Чат
+
+| Legacy файл | Новый модуль | Статус | Комментарий |
+|---|---|---:|---|
+| `include/files/chat.world.php` | `ChatController`, `ChatRepository`, Chat API | `TODO_REWRITE` | Полноценный новый чат ещё не перенесён. |
+| Старые вкладки чата | Новый frontend-компонент чата | `TODO_REWRITE` | Нужны вкладки общий/торговля/бои/помощь/приват/клан. |
+
+### План по чату
+
+- `GET /api/chat/messages`;
+- `POST /api/chat/messages`;
+- `ChatRepository`;
+- `ChatController`;
+- CSRF для отправки;
+- защита от XSS;
+- автообновление без iframe;
+- вкладки каналов;
+- приватные сообщения;
+- системные сообщения боя/локации.
+
+---
+
+## Инвентарь
+
+| Legacy файл | Новый модуль | Статус | Комментарий |
+|---|---|---:|---|
+| `include/files/items*`, `function.items.php`, `function.post.items.php` | `InventoryController`, `InventoryService`, `InventoryRepository` | `TODO_REWRITE` / `PARTIAL_NEW` | Репозиторий есть частично, полноценный UI/API ещё не готов. |
+| `items_users` | `InventoryRepository` | `PARTIAL_NEW` | Используется для квеста Билли и базовых операций. |
+| Использование предметов | `InventoryService` | `TODO_REWRITE` | Нужно переносить логику лечения, эволюции, конфет, подарков, статусов. |
+
+### План по инвентарю
+
+- `GET /api/inventory`;
+- `POST /api/inventory/use`;
+- `POST /api/inventory/drop`;
+- `POST /api/inventory/give` только для админки;
+- overlay инвентаря в `/game`;
+- поддержка боевых предметов;
+- поддержка предметов эволюции;
+- поддержка лечения;
+- поддержка подарков/рандомных предметов.
+
+---
+
+## Пользователь / профиль / команда покемонов
+
+| Модуль | Статус | Комментарий |
+|---|---:|---|
+| `UserRepository` | `PARTIAL_NEW` | Логин/онлайн есть, игровые поля нужно расширить. |
+| Команда покемонов | `TODO_REWRITE` | Нужно вынести из legacy-файлов. |
+| Профиль тренера | `TODO_REWRITE` | Старый `trenInfo` ещё не перенесён. |
+| Список покемонов игрока | `TODO_REWRITE` | Нужен новый API и overlay. |
+
+---
+
+## Админка
+
+Админка пока не считается частью нового ядра.
+
+| Legacy файл/папка | Статус | Комментарий |
+|---|---:|---|
+| `admin/*` | `LEGACY_COMPAT` | Временно может работать отдельно. |
+| `poke.php` | `LEGACY_COMPAT` | Ранее правился визуально, но не считается новым модулем. |
+| `gitem.php` | `LEGACY_COMPAT` | Выдача предметов пока legacy. |
+| `attak_pokes.php` | `LEGACY_COMPAT` | Админка атак пока legacy. |
+| `bb_news_admin.php` | `LEGACY_COMPAT` | Новости пока legacy. |
+
+Правило: админку переносить отдельной задачей после стабилизации игрового ядра.
+
+---
 
 ## Legacy Правило
 
-Если файл лежит в `include/`, `admin/` или root старого проекта, его нельзя считать новым кодом. Его можно:
+Если файл лежит в `include/`, `admin/` или root старого проекта, его нельзя считать новым кодом.
+
+Его можно:
 
 - читать для понимания бизнес-логики;
 - временно чинить, если игра полностью сломана;
@@ -131,6 +322,8 @@
 - расширять новой архитектурой;
 - превращать в источник истины;
 - смешивать с новым frontend/API как постоянное решение.
+
+---
 
 ## Что Не Переносить
 
@@ -144,129 +337,175 @@
 | `index_old.php` | `DO_NOT_PORT` | Старый дубль. |
 | `1index.html` | `DO_NOT_PORT` | Старый статический дубль. |
 | `testx.php`, `testind.php`, `text.php` | `DO_NOT_PORT` | Отладочные файлы. |
+| Старые кэши изображений | `DO_NOT_PORT` | Не являются бизнес-логикой. |
 
-## Последнее Обновление
+---
 
-### 2026-05-03 FULL STATUS REPORT
+## Текущая оценка готовности
 
-#### 📊 Общая оценка статуса
+| Область | Готовность | Комментарий |
+|---|---:|---|
+| Новое ядро | 80–90% | Основа готова. |
+| Новый `/game` shell | 55–65% | Работает, но UI и модули ещё стабилизируются. |
+| Карта / переходы | 55–60% | Базовый JSON-flow есть. |
+| Локации | 45–55% | Данные читаются, но нужно вынести из legacy в нормальный источник. |
+| NPC / квесты | 20–30% | Есть первый рабочий slice с Билли. |
+| PvE бой | 55–65% | Работает, но нужно добить математику, статусы, UI, награды. |
+| BattleMath | 55–65% | Формулы есть, требуется тестирование на серверной БД. |
+| Покедекс | 35–45% | Каркас есть, нужно довести маршруты и UI. |
+| Атакадекс | 35–45% | Каркас есть, нужно довести маршруты и UI. |
+| Чат | 10–15% | Почти весь новый чат ещё впереди. |
+| Инвентарь | 20–25% | Репозиторий частично есть, UI/API нет. |
+| Админка | legacy | Переносить отдельно. |
 
-**Проект находится на этапе функциональной алфа-версии (α).**
+---
 
-**Готовность компонентов:**
-- ✅ **Foundation (ядро):** 100% - все базовые компоненты работают
-- ✅ **Авторизация:** 60% - логин работает, регистрация и throttling в TODO
-- ✅ **Игровой мир:** 40% - базовая навигация готова, NPC в процессе
-- ⏳ **Чат:** 0% - в планах
-- ⏳ **Боевая система:** 0% - в планах
-- ⏳ **Инвентарь (расширенный):** 20% - базовые операции готовы
+## Ближайший инженерный план
 
-**Готовность кода по архитектуре:**
-- ✅ Front-controller pattern: готов
-- ✅ MVC архитектура: готова
-- ✅ Routing система: готова
-- ✅ Database layer (PDO + Repository): готова
-- ✅ Security (Sessions, CSRF, Ban Guard): готова
-- ✅ API (JSON responses): готова
-- ✅ Views (escaping + templates): готова
+### Приоритет 1 — стабилизация PvE боя
 
-#### 🎮 Что играбельно прямо сейчас
+1. Проверить и зафиксировать создание battle id через серверную схему:
+   - если `battles.id` не AUTO_INCREMENT, использовать `battle_id_sequence`;
+   - не использовать опасный `MAX(id)+1` для боёв.
+2. Проверить старт боя:
+   - нет фейковых `acc +6`;
+   - `statpokemonbatle` стартует с нулями.
+3. Проверить математику:
+   - `+6 = x4`;
+   - `-6 = x0.25`;
+   - plus/minus считаются ratio-формулой;
+   - `atac_accuracy = 0` означает “всегда попадает”.
+4. Проверить `attac_dop`:
+   - шанс 0 не равен 100%;
+   - вторичные эффекты применяются по реальному шансу.
+5. Проверить статусы:
+   - poison;
+   - burn;
+   - paralysis;
+   - sleep;
+   - freeze;
+   - confusion;
+   - flinch.
+6. Починить UI боя:
+   - окно не растягивается от длинного лога;
+   - лог скроллится;
+   - фон арены не увеличивается;
+   - спрайт игрока не пропадает;
+   - кнопки не дают двойной action.
+7. Проверить конец боя:
+   - победа;
+   - поражение;
+   - побег;
+   - refresh до `ack-end`;
+   - очистка после `ack-end`.
 
-1. **Вход в аккаунт** - полностью работает с проверкой банов
-2. **Главная страница** - отображается новая версия
-3. **Навигация по карте** - переходы между локациями через API
-4. **Просмотр локаций** - описание, изображение, список игроков
-5. **Взаимодействие с первым NPC** - `Коллекционер Билли` (Дорога 1)
-   - Диалог: "Помоги мне собрать перья"
-   - Квест 7: Сдать 10 перьев (13) и 10 перьев (14)
-   - Награда: Опыт + Деньги
-6. **Система предметов** - счет в инвентаре, добавление/удаление
+### Приоритет 2 — Pokedex / Attackdex
 
-#### 🛠️ Технические достижения этого спринта
+1. Заменить заглушки на рабочие overlay.
+2. Перехватить старые ссылки:
+   - `game.php?go=pokedex&id=...`;
+   - `game.php?go=atk&id=...`.
+3. Сделать поиск покемонов и атак.
+4. Подтянуть данные:
+   - `pokemon`;
+   - `poke_base`;
+   - `attac_power`;
+   - `attac_poke`;
+   - `attac_egg`;
+   - `attac_dop`;
+   - `stat_attak`;
+   - локации появления.
 
-**Архитектурные решения:**
-- ✅ Полностью отказались от фреймсета в пользу JSON API + живого shell
-- ✅ Legacy код читается но не исполняется (LegacyRoomDataExtractor)
-- ✅ Четкое разделение маршрутов старых и новых (GameRoutes)
-- ✅ CSRF токены для всех POST-операций
+### Приоритет 3 — чат
 
-**Срезы реализации:**
-1. **Route cutover**: Переведена маршрутизация на новую систему с 410 Gone
-2. **Live navigation**: Данные локаций загружаются из legacy без выполнения PHP
-3. **NPC API**: Полнофункциональный JSON API для NPC диалогов/действий
-4. **Quest system**: Квесты с проверкой условий и выдачей наград
+1. `ChatRepository`.
+2. `ChatController`.
+3. `GET /api/chat/messages`.
+4. `POST /api/chat/messages`.
+5. Frontend-компонент чата без iframe.
+6. Вкладки каналов.
 
-#### 📁 Структура кода
+### Приоритет 4 — инвентарь
 
-```
-src/
-├── Controller/
-│   ├── GameApiController.php       ✅ JSON API для состояния
-│   ├── GameModuleController.php    ✅ Маршрутизация модулей
-│   └── NpcApiController.php        ✅ NPC диалоги и действия
-├── Repository/
-│   ├── LocationRepository.php      ✅ Граф и состояние локаций
-│   ├── InventoryRepository.php     ✅ Предметы
-│   └── QuestRepository.php         ✅ Квесты
-├── Game/
-│   ├── GameRoutes.php              ✅ Реестр маршрутов
-│   ├── LocationGraph.php           ✅ Граф переходов
-│   ├── LocationStateService.php    ✅ Состояние локации
-│   ├── MapMoveService.php          ✅ Логика движения
-│   ├── NpcDialogService.php        ✅ Диалоги NPC
-│   └── LegacyRoomDataExtractor.php ✅ Чтение legacy данных
-└── [Security, Http, Database, Support] ... ✅ готово
-```
+1. Полноценный `InventoryService`.
+2. `GET /api/inventory`.
+3. `POST /api/inventory/use`.
+4. Overlay инвентаря.
+5. Перенос логики из `function.items.php` и `function.post.items.php`.
 
-#### 🚨 Известные ограничения
+### Приоритет 5 — перенос остальных NPC/квестов
 
-1. PHP 8.1 совместимость - заменены `readonly class` на обычные `final class`
-2. Первый NPC - только демонстрация, остальные еще в TODO
-3. Нет live-обновлений данных на странице (требуется JavaScript polling)
-4. Боевая система еще не реализована
-5. Чат еще полностью на legacy коде
+1. По одному NPC-flow.
+2. Не переносить все скрипты сразу.
+3. Каждый NPC — отдельный вертикальный slice:
+   - диалог;
+   - условия;
+   - действия;
+   - награда;
+   - тест.
 
+---
 
+## Последнее обновление
 
-- Создан новый вертикальный срез переходов без frameset:
-  - `src/Repository/LocationRepository.php`
-  - `src/Game/LocationGraph.php`
-  - `src/Game/LocationStateService.php`
-  - `src/Game/MapMoveService.php`
-  - `src/Controller/GameApiController.php`
-  - `GET /api/game/state`
-  - `POST /api/map/move`
-  - новый экран `/game` в `views/game-start.php`
-- Корневой `.htaccess` отправляет `/game` и `/api/...` в новый `public/index.php`.
-- Новое ядро приведено к совместимости с установленным PHP 8.1: `readonly class` заменены на обычные `final class`, BOM удален.
-- Зафиксировано решение: целевая архитектура игры - новый shell + JSON API, не frameset.
-- Legacy-переход `charWork` временно стабилизирован: после смены `buildmy` он принудительно обновляет фрейм локации и список игроков.
-- `game.php`, `include/files/*`, `include/rooms/*` остаются `LEGACY_COMPAT/TODO_REWRITE`, а не новым кодом.
-- Следующая инженерная задача: перенести описания локаций и NPC из legacy PHP в новый слой данных/сервисов.
+2026-05-03:
 
-2026-05-03 route cutover:
+- Зафиксировано решение: целевая архитектура игры — новый shell + JSON API, не frameset.
+- Создано новое ядро: front controller, router, request/response, PDO, session, CSRF, repositories, controllers.
+- Новый `/game` shell начал работать без frameset.
+- Добавлены:
+  - `GET /api/game/state`;
+  - `POST /api/map/move`;
+  - `GET /api/location/npc`;
+  - `POST /api/location/npc/action`;
+  - `GET /api/battle/pve/state`;
+  - `POST /api/battle/pve/action`;
+  - `POST /api/battle/pve/ack-end`.
+- Создан вертикальный slice карты:
+  - `LocationRepository`;
+  - `LocationGraph`;
+  - `LocationStateService`;
+  - `MapMoveService`;
+  - `GameApiController`.
+- Создан временный extractor для legacy rooms:
+  - `LegacyRoomDataExtractor`.
+- `/api/game/state` отдаёт:
+  - локацию;
+  - описание;
+  - картинку;
+  - переходы;
+  - NPC;
+  - игроков;
+  - признак PvE.
+- Создан первый NPC API slice:
+  - `NpcDialogService`;
+  - `NpcApiController`;
+  - `QuestRepository`.
+- Перенесён первый реальный NPC-flow:
+  - `Коллекционер Билли`;
+  - старт/проверка/сдача квеста 7.
+- Добавлен `InventoryRepository` для работы с предметами в квестах.
+- Начат перенос PvE боя:
+  - `WildEncounterService`;
+  - `BattleRepository`;
+  - `BattleEngineService`;
+  - `BattleMathService`;
+  - `PveBattleApiController`;
+  - battle overlay в `views/game-start.php`.
+- Начат перенос Dex:
+  - `DexRepository`;
+  - `DexApiController`;
+  - `dex-overlay.js`.
+- Выявлены текущие проблемы:
+  - длинный лог растягивает окно боя;
+  - нужен скролл лога;
+  - иногда пропадает спрайт игрока;
+  - заглушки покедекса/атакадекса нужно заменить рабочим overlay;
+  - нужно финально проверить математику `+6/-6`, `attac_dop`, `status`, `type effectiveness`.
+- `game.php`, `include/files/*`, `include/rooms/*`, `admin/*` остаются `LEGACY_COMPAT/TODO_REWRITE`, а не новым кодом.
 
-- `src/Game/GameRoutes.php` is the new route registry for old `game.php?go=...` names and new `/game/...` paths.
-- `src/Controller/GameModuleController.php` handles the new `/game/...` module pages.
-- `public/index.php` registers all mapped game module paths from `GameRoutes::MODULES`.
-- `game.php` now returns `410 Gone` for old UI routes such as `char`, `charWork`, `chat`, `mapusers`, `buttons`, `gameload`, `fight_pve`, `fight_pvp`, `trenInfo`, `pokedex`, `atk`, `friends`, `quest_list`, `moderpanel`, `admingo`, `pokemon`, `sends`, `users`, `items`, `eventsNewYear`, `eggs`, `profile`, `diamond_shop`, `rinok`, `clans`, and `pokerinok`.
-- The next rewrite step is to replace each placeholder module with real services/repositories/API, not to revive legacy includes.
-2026-05-03 live navigation slice:
+Следующая инженерная задача:
 
-- `src/Game/LegacyRoomDataExtractor.php` reads static location data from `include/rooms/*.php` without executing legacy scripts.
-- `/api/game/state` now includes location description, legacy image path, and NPC/action links prepared for the new UI.
-- `views/game-start.php` renders real location descriptions, transition buttons, location users, and NPC buttons with compact icons.
-- `MapMoveService` and `GameApiController` visible messages were rewritten as clean UTF-8.
-2026-05-03 NPC API slice:
-
-- Added `GET /api/location/npc` for loading NPC dialogs without legacy `game.php?go=char`.
-- Added `POST /api/location/npc/action` for state-changing NPC actions with CSRF.
-- Added `NpcDialogService`, `NpcApiController`, and `QuestRepository`.
-- Migrated the first real NPC flow: `Коллекционер Билли` on `Дорога 1` can open dialog and start/check quest 7 through the new service layer.
-- `views/game-start.php` now renders server-provided NPC text and choices instead of a placeholder panel.
-2026-05-03 Billy quest turn-in:
-
-- Added `InventoryRepository` for `items_users` count/add/remove operations.
-- `Коллекционер Билли` now enables `Сдать перья` when the user has item 13 x10 and item 14 x10.
-- `turn_in_billy_quest` now removes the feathers, gives the legacy rewards, and marks quest 7 completed.
-- Test account `Tacos` was given item 13 x10 and item 14 x10 for manual verification.
+1. стабилизировать PvE бой;
+2. довести Pokedex / Attackdex overlay;
+3. затем переносить чат и инвентарь.

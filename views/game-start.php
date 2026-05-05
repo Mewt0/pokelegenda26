@@ -27,7 +27,7 @@ use Pokemon8\View\View;
     <section class="chat">
       <div class="chat-log" id="chatLog"></div>
       <form class="chat-form" id="chatForm">
-        <input value="<?= View::e($login) ?>" readonly>
+        <input value="<?= View::e($login) ?>" readonly class="chat-my-login">
         <input id="chatInput" placeholder="Сообщение..." autocomplete="off">
         <button type="submit">▶</button>
       </form>
@@ -166,6 +166,7 @@ use Pokemon8\View\View;
     const app = document.querySelector('.world');
     const csrf = app.dataset.csrf;
     const state = { busy: false, locationId: 0, activeNpc: null, pveButton: false };
+    window.state = state;
     const inventory = { page: 1, pages: 1, items: [], selected: null };
     const battleState = { active: false, reviewing: false, moves: [] };
     const battleWindowDrag = { ready: false, dragging: false, offsetX: 0, offsetY: 0 };
@@ -1218,15 +1219,6 @@ use Pokemon8\View\View;
       }
     }
 
-    document.getElementById('chatForm').addEventListener('submit', event => {
-      event.preventDefault();
-      const input = document.getElementById('chatInput');
-      if (!input.value.trim()) return;
-      const line = document.createElement('div');
-      line.textContent = input.value.trim();
-      document.getElementById('chatLog').appendChild(line);
-      input.value = '';
-    });
     document.getElementById('pveButton').addEventListener('click', togglePveButton);
     document.getElementById('debugForceBattleBtn').addEventListener('click', async () => {
       try {
@@ -1311,6 +1303,7 @@ use Pokemon8\View\View;
       }
     }, 2000);
   </script>
+  <script src="/public/js/chat.js"></script>
   <script src="/public/js/dex-overlay.js"></script>
 
 </body>
