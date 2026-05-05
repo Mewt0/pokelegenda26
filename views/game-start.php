@@ -808,11 +808,13 @@ $itemIconIndex = is_file($itemIconIndexPath)
       const player = battle.player || { name: 'Ваш покемон', level: 1, hp: 0, hpMax: 1, baseNum: 0 };
       const enemy = battle.enemy || { name: 'Дикий покемон', level: 1, hp: 0, hpMax: 1, baseNum: 0 };
 
-      document.getElementById('battleTitle').textContent = 'PvE бой #' + battle.id;
+      document.getElementById('battleTitle').textContent = battle.title || ((battle.mode === 'pvp' ? 'PvP бой #' : 'PvE бой #') + battle.id);
       document.getElementById('battleRound').textContent = 'Раунд ' + (battle.round || 1);
       const turnLabel = document.getElementById('battleTurnLabel');
       if (turnLabel) {
-        turnLabel.textContent = payload.finished ? 'Бой завершен' : 'Ваш ход';
+        turnLabel.textContent = payload.finished
+          ? 'Бой завершен'
+          : (battle.waitingForOpponent ? 'Ждем соперника' : 'Ваш ход');
       }
       const weatherLabel = document.getElementById('battleWeatherLabel');
       if (weatherLabel) {
@@ -912,7 +914,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
 
       const doneBox = document.getElementById('battleFinishBox');
       doneBox.hidden = !payload.finished;
-      setBattleControlsDisabled(!!payload.finished);
+      setBattleControlsDisabled(!!payload.finished || battle.canAct === false || battle.waitingForOpponent === true);
     }
 
     function setBattleControlsDisabled(disabled) {
@@ -1423,6 +1425,15 @@ $itemIconIndex = is_file($itemIconIndexPath)
       document.getElementById('battleFinishBox').hidden = true;
       loadState();
     }
+
+    window.PokemonBattle = window.PokemonBattle || {};
+    window.PokemonBattle.loadState = loadState;
+    window.PokemonBattle.loadBattleState = loadBattleState;
+    document.addEventListener('pvp-battle-started', () => {
+      openBattleOverlay();
+      loadBattleState();
+      loadState();
+    });
 
     function renderInventoryGrid(sourceItems = null) {
       const grid = document.getElementById('invGrid');

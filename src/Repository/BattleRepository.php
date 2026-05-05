@@ -49,6 +49,303 @@ final class BattleRepository
         return $stmt->fetch() ?: null;
     }
 
+    public function findActivePvpBattleIdForUser(int $userId): int
+    {
+        $stmt = $this->db->prepare('SELECT battleid, pvp FROM users WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $userId]);
+        $user = $stmt->fetch();
+        if (!$user) {
+            return 0;
+        }
+
+        $battleId = (int) ($user['battleid'] ?? 0);
+        if ($battleId <= 0) {
+            return 0;
+        }
+
+        if ((int) ($user['pvp'] ?? 0) === 1) {
+            return $battleId;
+        }
+
+        $battle = $this->db->prepare(
+            'SELECT id FROM battles WHERE id = :id AND (user_1 = :user_1 OR user_2 = :user_2) AND batl_tip = "pvp" AND pobeda <> 0 LIMIT 1'
+        );
+        $battle->execute(['id' => $battleId, 'user_1' => $userId, 'user_2' => $userId]);
+        return $battle->fetchColumn() !== false ? $battleId : 0;
+    }
+
+    public function findPvpBattleForUser(int $userId, int $battleId): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, user_1, user_2, poke_1, poke_2, attac_1, attac_2, raund, hod_user_id, pobeda
+               FROM battles
+              WHERE id = :id AND (user_1 = :user_1 OR user_2 = :user_2) AND batl_tip = "pvp"
+              LIMIT 1'
+        );
+        $stmt->execute(['id' => $battleId, 'user_1' => $userId, 'user_2' => $userId]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function findUserLoginById(int $userId): string
+    {
+        $stmt = $this->db->prepare('SELECT login FROM users WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $userId]);
+        return (string) ($stmt->fetchColumn() ?: ('Игрок #' . $userId));
+    }
+
+    public function findFirstBattlePokemonForUser(int $userId): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id
+               FROM pok_user
+              WHERE users = :user AND active = 1 AND hp_my > 0
+              ORDER BY startepoke DESC, id ASC
+              LIMIT 1'
+        );
+        $stmt->execute(['user' => $userId]);
+        $pokemonId = (int) ($stmt->fetchColumn() ?: 0);
+        return $pokemonId > 0 ? $this->findPokemon('pvp_' . $pokemonId) : null;
+    }
+
+    public function usersCanStartPvp(int $firstUserId, int $secondUserId): bool
+    {
+        if ($firstUserId <= 0 || $secondUserId <= 0 || $firstUserId === $secondUserId) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT id, pve, pvp
+               FROM users
+              WHERE id IN (:first, :second) AND activation = 1'
+        );
+        $stmt->execute(['first' => $firstUserId, 'second' => $secondUserId]);
+        $rows = $stmt->fetchAll();
+        if (!is_array($rows) || count($rows) !== 2) {
+            return false;
+        }
+
+        foreach ($rows as $row) {
+            if ((int) ($row['pve'] ?? 0) !== 0 || (int) ($row['pvp'] ?? 0) !== 0) {
+                return false;
+            }
+        }
+
+        return $this->findFirstBattlePokemonForUser($firstUserId) !== null
+            && $this->findFirstBattlePokemonForUser($secondUserId) !== null;
+    }
+
+    public function pvpRequestStatus(int $currentUserId, int $targetUserId): string
+    {
+        if ($currentUserId <= 0 || $targetUserId <= 0) {
+            return 'none';
+        }
+        if ($currentUserId === $targetUserId) {
+            return 'self';
+        }
+
+        if ($this->findActivePvpBattleIdForUser($currentUserId) > 0) {
+            return 'active';
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT from_user_id, to_user_id
+               FROM pvp_requests
+              WHERE status = "pending"
+                AND ((from_user_id = :current_a AND to_user_id = :target_a)
+                  OR (from_user_id = :target_b AND to_user_id = :current_b))
+              ORDER BY id DESC
+              LIMIT 1'
+        );
+        $stmt->execute([
+            'current_a' => $currentUserId,
+            'target_a' => $targetUserId,
+            'target_b' => $targetUserId,
+            'current_b' => $currentUserId,
+        ]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            return 'none';
+        }
+
+        return (int) ($row['to_user_id'] ?? 0) === $currentUserId ? 'incoming' : 'outgoing';
+    }
+
+    /** @return list<array{id:int,fromUserId:int,login:string,createdAt:int}> */
+    public function incomingPvpRequests(int $userId): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT pr.id, pr.from_user_id, pr.created_at, u.login
+               FROM pvp_requests pr
+               LEFT JOIN users u ON u.id = pr.from_user_id
+              WHERE pr.to_user_id = :user AND pr.status = "pending"
+              ORDER BY pr.id DESC
+              LIMIT 20'
+        );
+        $stmt->execute(['user' => $userId]);
+
+        $result = [];
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $result[] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'fromUserId' => (int) ($row['from_user_id'] ?? 0),
+                'login' => (string) ($row['login'] ?? ('Игрок #' . (int) ($row['from_user_id'] ?? 0))),
+                'createdAt' => (int) ($row['created_at'] ?? 0),
+            ];
+        }
+        return $result;
+    }
+
+    public function requestOrAcceptPvp(int $fromUserId, int $toUserId): array
+    {
+        if ($fromUserId <= 0 || $toUserId <= 0 || $fromUserId === $toUserId) {
+            return ['ok' => false, 'message' => 'Нельзя вызвать этого игрока.'];
+        }
+
+        $incoming = $this->db->prepare(
+            'SELECT id
+               FROM pvp_requests
+              WHERE from_user_id = :target AND to_user_id = :current AND status = "pending"
+              ORDER BY id DESC
+              LIMIT 1'
+        );
+        $incoming->execute(['target' => $toUserId, 'current' => $fromUserId]);
+        $incomingId = (int) ($incoming->fetchColumn() ?: 0);
+        if ($incomingId > 0) {
+            return $this->acceptPvpRequest($fromUserId, $incomingId);
+        }
+
+        if (!$this->usersCanStartPvp($fromUserId, $toUserId)) {
+            return ['ok' => false, 'message' => 'Один из игроков уже занят или у него нет живого активного покемона.'];
+        }
+
+        $now = time();
+        $existing = $this->db->prepare(
+            'SELECT id
+               FROM pvp_requests
+              WHERE from_user_id = :from AND to_user_id = :to AND status = "pending"
+              ORDER BY id DESC
+              LIMIT 1'
+        );
+        $existing->execute(['from' => $fromUserId, 'to' => $toUserId]);
+        $existingId = (int) ($existing->fetchColumn() ?: 0);
+        if ($existingId > 0) {
+            $this->db->prepare(
+                'UPDATE pvp_requests
+                    SET updated_at = :now
+                  WHERE id = :id
+                  LIMIT 1'
+            )->execute(['now' => $now, 'id' => $existingId]);
+
+            return ['ok' => true, 'status' => 'outgoing', 'message' => 'Вызов на бой уже отправлен.'];
+        }
+
+        $this->db->prepare(
+            'INSERT INTO pvp_requests (from_user_id, to_user_id, status, battle_id, created_at, updated_at)
+             VALUES (:from, :to, "pending", 0, :created_at, :updated_at)'
+        )->execute(['from' => $fromUserId, 'to' => $toUserId, 'created_at' => $now, 'updated_at' => $now]);
+
+        return ['ok' => true, 'status' => 'outgoing', 'message' => 'Вызов на бой отправлен.'];
+    }
+
+    public function acceptPvpRequest(int $userId, int $requestId): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, from_user_id, to_user_id
+               FROM pvp_requests
+              WHERE id = :id AND to_user_id = :user AND status = "pending"
+              LIMIT 1'
+        );
+        $stmt->execute(['id' => $requestId, 'user' => $userId]);
+        $request = $stmt->fetch();
+        if (!$request) {
+            return ['ok' => false, 'message' => 'Заявка на бой не найдена.'];
+        }
+
+        $fromUserId = (int) ($request['from_user_id'] ?? 0);
+        $toUserId = (int) ($request['to_user_id'] ?? 0);
+        if (!$this->usersCanStartPvp($fromUserId, $toUserId)) {
+            return ['ok' => false, 'message' => 'Бой нельзя начать: один из игроков уже занят.'];
+        }
+
+        $firstPokemon = $this->findFirstBattlePokemonForUser($fromUserId);
+        $secondPokemon = $this->findFirstBattlePokemonForUser($toUserId);
+        if ($firstPokemon === null || $secondPokemon === null) {
+            return ['ok' => false, 'message' => 'У одного из игроков нет живого активного покемона.'];
+        }
+
+        $battleId = $this->createPvpBattle($fromUserId, $toUserId, (int) $firstPokemon['id'], (int) $secondPokemon['id']);
+        $now = time();
+        $this->db->prepare(
+            'UPDATE pvp_requests
+                SET status = "accepted", battle_id = :battle, updated_at = :now
+              WHERE id = :id
+              LIMIT 1'
+        )->execute(['battle' => $battleId, 'now' => $now, 'id' => $requestId]);
+        $this->db->prepare(
+            'UPDATE pvp_requests
+                SET status = "expired", updated_at = :now
+              WHERE status = "pending"
+                AND (from_user_id IN (:from_a, :from_b) OR to_user_id IN (:to_a, :to_b))'
+        )->execute([
+            'now' => $now,
+            'from_a' => $fromUserId,
+            'from_b' => $toUserId,
+            'to_a' => $fromUserId,
+            'to_b' => $toUserId,
+        ]);
+
+        return [
+            'ok' => true,
+            'status' => 'active',
+            'battleId' => $battleId,
+            'message' => 'PvP бой начался.',
+        ];
+    }
+
+    public function declinePvpRequest(int $userId, int $requestId): bool
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE pvp_requests
+                SET status = "declined", updated_at = :now
+              WHERE id = :id AND to_user_id = :user AND status = "pending"
+              LIMIT 1'
+        );
+        $stmt->execute(['now' => time(), 'id' => $requestId, 'user' => $userId]);
+        return $stmt->rowCount() > 0;
+    }
+
+    public function createPvpBattle(int $firstUserId, int $secondUserId, int $firstPokemonId, int $secondPokemonId): int
+    {
+        $battleId = $this->nextTableId('battles', 'id');
+        $now = time();
+        $stmt = $this->db->prepare(
+            'INSERT INTO battles
+                (id, user_1, user_2, poke_1, poke_2, attac_1, attac_2, item_1, item_2,
+                 to_p, to_p2, batl_tip, time, pobeda, raund, effect_go, effect_go2,
+                 effect, effect2, id_pogodi, times, time_1, time_2, to_it, to_it2,
+                 hod_user_id, tips_battle, zamtru_1, zamtru_2, room, dates)
+             VALUES
+                (:id, :user_1, :user_2, :poke_1, :poke_2, 0, 0, 0, 0,
+                 0, 0, "pvp", 0, 0, 1, 0, 0,
+                 0, 0, 1, :now, 0, 0, 0, 0,
+                 0, 0, 0, 0, 0, "")'
+        );
+        $stmt->execute([
+            'id' => $battleId,
+            'user_1' => $firstUserId,
+            'user_2' => $secondUserId,
+            'poke_1' => 'pvp_' . $firstPokemonId,
+            'poke_2' => 'pvp_' . $secondPokemonId,
+            'now' => $now,
+        ]);
+
+        $this->db->prepare(
+            'UPDATE users SET pvp = 1, pve = 0, battleid = :battle WHERE id IN (:first, :second)'
+        )->execute(['battle' => $battleId, 'first' => $firstUserId, 'second' => $secondUserId]);
+
+        return $battleId;
+    }
+
     public function findPokemon(string $battlePokemon): ?array
     {
         $parsed = $this->parseBattlePokemon($battlePokemon);
@@ -442,6 +739,23 @@ final class BattleRepository
         ]);
     }
 
+    public function setPvpBattleAction(int $battleId, int $side, int $moveId): void
+    {
+        $column = $side === 2 ? 'attac_2' : 'attac_1';
+        $stmt = $this->db->prepare(
+            sprintf('UPDATE battles SET %s = :move WHERE id = :id AND batl_tip = "pvp" AND %s = 0 LIMIT 1', $column, $column)
+        );
+        $stmt->execute(['move' => $moveId, 'id' => $battleId]);
+    }
+
+    public function resetPvpBattleActionsAndIncrementRound(int $battleId): void
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE battles SET attac_1 = 0, attac_2 = 0, raund = raund + 1 WHERE id = :id AND batl_tip = "pvp" LIMIT 1'
+        );
+        $stmt->execute(['id' => $battleId]);
+    }
+
     public function incrementRoundAndResetActions(int $battleId): void
     {
         $stmt = $this->db->prepare(
@@ -480,6 +794,32 @@ final class BattleRepository
             'poke' => 'pvp_' . $pokemonId,
             'battle' => $battleId,
             'user' => $userId,
+        ]);
+        return true;
+    }
+
+    public function switchPvpPokemon(int $battleId, int $userId, int $pokemonId): bool
+    {
+        $battle = $this->findPvpBattleForUser($userId, $battleId);
+        if ($battle === null) {
+            return false;
+        }
+
+        $side = (int) ($battle['user_2'] ?? 0) === $userId ? 2 : 1;
+        $check = $this->db->prepare(
+            'SELECT id FROM pok_user WHERE id = :id AND users = :user AND active = 1 AND hp_my > 0 LIMIT 1'
+        );
+        $check->execute(['id' => $pokemonId, 'user' => $userId]);
+        if (!$check->fetch()) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare(
+            sprintf('UPDATE battles SET poke_%d = :poke WHERE id = :battle AND batl_tip = "pvp" LIMIT 1', $side)
+        );
+        $stmt->execute([
+            'poke' => 'pvp_' . $pokemonId,
+            'battle' => $battleId,
         ]);
         return true;
     }
@@ -953,6 +1293,39 @@ final class BattleRepository
         ]);
     }
 
+    public function finishPvpBattle(int $battleId, int $winner): void
+    {
+        $this->db->prepare(
+            'UPDATE battles SET pobeda = :winner WHERE id = :id AND batl_tip = "pvp" LIMIT 1'
+        )->execute(['winner' => $winner, 'id' => $battleId]);
+
+        $this->db->prepare(
+            'UPDATE users
+                SET pvp = 0, battleid = :set_battle
+              WHERE battleid = :where_battle AND pvp = 1'
+        )->execute(['set_battle' => $battleId, 'where_battle' => $battleId]);
+    }
+
+    public function acknowledgePvpBattleForUser(int $userId): void
+    {
+        if ($userId <= 0) {
+            return;
+        }
+
+        $battleId = $this->findActivePvpBattleIdForUser($userId);
+        if ($battleId <= 0) {
+            $this->db->prepare('UPDATE users SET pvp = 0, battleid = 0 WHERE id = :id AND pvp = 0 LIMIT 1')
+                ->execute(['id' => $userId]);
+            return;
+        }
+
+        $battle = $this->findPvpBattleForUser($userId, $battleId);
+        if ($battle !== null && (int) ($battle['pobeda'] ?? 0) !== 0) {
+            $this->db->prepare('UPDATE users SET pvp = 0, battleid = 0 WHERE id = :id LIMIT 1')
+                ->execute(['id' => $userId]);
+        }
+    }
+
     public function cleanupFinishedBattleForUser(int $userId): void
     {
         if ($userId <= 0) {
@@ -1352,6 +1725,7 @@ final class BattleRepository
             'pok_user' => ['id'],
             'attac_my_poke' => ['id'],
             'battle_dop' => ['id'],
+            'battles' => ['id'],
         ];
         if (!isset($allowed[$table]) || !in_array($column, $allowed[$table], true)) {
             throw new \InvalidArgumentException('Unsupported sequence target.');

@@ -14,7 +14,9 @@
   let activeLogin = '';
   let activePlayerId = 0;
   let activeFriendStatus = 'loading';
+  let activePvpStatus = 'loading';
   let knownIncomingRequests = new Set(loadSeenRequests());
+  let knownIncomingPvpRequests = new Set(loadSeenPvpRequests());
 
   const app = document.querySelector('.world');
   const csrf = app ? app.dataset.csrf : '';
@@ -25,6 +27,9 @@
     dialog: 'Открыть диалог',
     private: 'Написать в ЛС',
     battle: 'Вызвать на бой',
+    acceptBattle: 'Принять бой',
+    battleSent: 'Вызов отправлен',
+    battleActive: 'Игрок в бою',
     trade: 'Предложить обмен',
     friend: 'Добавить в друзья',
     acceptFriend: 'Принять заявку',
@@ -52,6 +57,24 @@
     }
   }
 
+  function loadSeenPvpRequests() {
+    try {
+      return JSON.parse(localStorage.getItem('pokemon_pvp_seen_requests') || '[]')
+        .map(id => Number(id))
+        .filter(Boolean);
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function saveSeenPvpRequests() {
+    try {
+      localStorage.setItem('pokemon_pvp_seen_requests', JSON.stringify([...knownIncomingPvpRequests].slice(-200)));
+    } catch (error) {
+      // Local storage can be disabled; notifications still work for this session.
+    }
+  }
+
   function notify(message, variant = 'info') {
     if (!message) return;
 
@@ -73,6 +96,7 @@
     activeLogin = '';
     activePlayerId = 0;
     activeFriendStatus = 'loading';
+    activePvpStatus = 'loading';
     menu.hidden = true;
     menu.innerHTML = '';
     menu.dataset.playerId = '';
@@ -91,6 +115,15 @@
     return menuButton('friend', '&#9793;', text.friend);
   }
 
+  function battleButtonForStatus(status) {
+    if (status === 'self') return '';
+    if (status === 'incoming') return menuButton('battle-accept', '&#9876;', text.acceptBattle);
+    if (status === 'outgoing') return menuButton('battle-pending', '&#8987;', text.battleSent, true);
+    if (status === 'active') return menuButton('battle-pending', '&#8987;', text.battleActive, true);
+    if (status === 'loading') return menuButton('battle-pending', '&#8987;', 'Проверяем бой...', true);
+    return menuButton('battle', '&#9876;', text.battle);
+  }
+
   function renderMenu() {
     if (!activeRow || !activeLogin) return;
 
@@ -104,7 +137,7 @@
       menuButton('dialog', '&#9743;', text.dialog),
       menuButton('private', '&#9998;', text.private),
       '<hr>',
-      menuButton('battle', '&#9876;', text.battle),
+      battleButtonForStatus(activePvpStatus),
       menuButton('trade', '&#8644;', text.trade),
       '<hr>',
       friendButtonForStatus(activeFriendStatus),
@@ -147,6 +180,22 @@
     }
   }
 
+  async function loadPvpStatus(playerId) {
+    if (!playerId) return 'none';
+
+    try {
+      const response = await fetch('/api/battle/pvp/status?user_id=' + encodeURIComponent(String(playerId)), {
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json' },
+      });
+      const data = await response.json();
+      return data.ok ? String(data.status || 'none') : 'none';
+    } catch (error) {
+      console.error('PvP status failed:', error);
+      return 'none';
+    }
+  }
+
   async function openMenu(row) {
     const login = row.dataset.playerLogin || row.querySelector('.user-name')?.textContent || '';
     if (!login) return;
@@ -161,15 +210,20 @@
     activeLogin = login;
     activePlayerId = Number(row.dataset.playerId || 0);
     activeFriendStatus = 'loading';
+    activePvpStatus = 'loading';
     menu.dataset.playerId = String(activePlayerId || '');
     row.classList.add('is-menu-open');
 
     renderMenu();
     positionMenu(row);
 
-    const status = await loadFriendStatus(activePlayerId);
+    const [status, pvpStatus] = await Promise.all([
+      loadFriendStatus(activePlayerId),
+      loadPvpStatus(activePlayerId),
+    ]);
     if (activeRow !== row || menu.hidden) return;
     activeFriendStatus = status;
+    activePvpStatus = pvpStatus;
     renderMenu();
     positionMenu(row);
   }
@@ -225,6 +279,39 @@
     return postFriendAction('/api/friends/remove', id, 'Игрок удалён из друзей.');
   }
 
+  async function requestBattle(id) {
+    if (!id) {
+      notify('Игрок не выбран.', 'error');
+      return null;
+    }
+
+    try {
+      const body = new URLSearchParams();
+      body.set('_csrf', csrf);
+      body.set('user_id', String(id));
+
+      const response = await fetch('/api/battle/pvp/request', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        },
+        body
+      });
+      const data = await response.json();
+      notify(data.message || (data.ok ? 'Вызов на бой отправлен.' : 'Бой не удалось начать.'), data.ok ? 'success' : 'error');
+      if (data.ok && (data.status === 'active' || Number(data.battleId || 0) > 0)) {
+        document.dispatchEvent(new CustomEvent('pvp-battle-started', { detail: data }));
+      }
+      return data;
+    } catch (error) {
+      console.error('PvP action failed:', error);
+      notify('Ошибка сервера при вызове на бой.', 'error');
+      return null;
+    }
+  }
+
   async function pollIncomingRequests() {
     try {
       const response = await fetch('/api/friends/requests', {
@@ -247,11 +334,34 @@
     }
   }
 
+  async function pollIncomingPvpRequests() {
+    try {
+      const response = await fetch('/api/battle/pvp/requests', {
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json' },
+      });
+      const data = await response.json();
+      if (!data.ok || !Array.isArray(data.requests)) return;
+
+      data.requests.forEach(request => {
+        const id = Number(request.id || 0);
+        if (!id || knownIncomingPvpRequests.has(id)) return;
+
+        knownIncomingPvpRequests.add(id);
+        notify((request.login || 'Игрок') + ' вызывает вас на PvP бой.', 'friend');
+      });
+      saveSeenPvpRequests();
+    } catch (error) {
+      // Silent: this endpoint polls often and should not annoy the player on transient errors.
+    }
+  }
+
   window.PokemonSocial = window.PokemonSocial || {};
   window.PokemonSocial.notify = notify;
   window.PokemonSocial.requestFriend = requestFriend;
   window.PokemonSocial.acceptFriend = acceptFriend;
   window.PokemonSocial.removeFriend = removeFriend;
+  window.PokemonSocial.requestBattle = requestBattle;
 
   document.addEventListener('click', async event => {
     const actionButton = event.target.closest('[data-player-action]');
@@ -263,6 +373,11 @@
       if (action === 'friend') friendResult = await requestFriend(playerId);
       if (action === 'friend-accept') friendResult = await acceptFriend(playerId);
       if (action === 'friend-remove') friendResult = await removeFriend(playerId);
+      if (action === 'battle' || action === 'battle-accept') {
+        await requestBattle(playerId);
+        closeMenu();
+        return;
+      }
 
       if (action.startsWith('friend')) {
         closeMenu();
@@ -309,5 +424,7 @@
   window.addEventListener('scroll', closeMenu, true);
 
   pollIncomingRequests();
+  pollIncomingPvpRequests();
   window.setInterval(pollIncomingRequests, 10000);
+  window.setInterval(pollIncomingPvpRequests, 10000);
 }());

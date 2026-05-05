@@ -35,13 +35,17 @@ final class GameApiController
             return $this->json(['ok' => false, 'error' => 'auth'], 401);
         }
 
-        $encounter = $this->wildEncounter->tryStartForUser($userId);
         $worldState = $this->state->currentStateForUser($userId);
         $battleState = $this->battleEngine->state($userId);
         $worldState['battle'] = [
             'active' => (bool) ($battleState['active'] ?? false),
             'id' => (int) ($battleState['battle']['id'] ?? 0),
         ];
+
+        $encounter = null;
+        if (!$worldState['battle']['active'] && empty($battleState['finished'])) {
+            $encounter = $this->wildEncounter->tryStartForUser($userId);
+        }
 
         if ($encounter !== null && isset($encounter['wildEncounter'])) {
             $worldState['wildEncounter'] = $encounter['wildEncounter'];

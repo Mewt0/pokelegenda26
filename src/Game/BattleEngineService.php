@@ -16,6 +16,11 @@ final class BattleEngineService
 
     public function state(int $userId): array
     {
+        $pvpBattleId = $this->battles->findActivePvpBattleIdForUser($userId);
+        if ($pvpBattleId > 0) {
+            return $this->pvpState($userId, $pvpBattleId);
+        }
+
         $battleId = $this->battles->findActivePveBattleIdForUser($userId);
         if ($battleId <= 0) {
             return ['ok' => true, 'active' => false];
@@ -87,6 +92,10 @@ final class BattleEngineService
 
     public function action(int $userId, string $action, array $payload): array
     {
+        if ($this->battles->findActivePvpBattleIdForUser($userId) > 0) {
+            return $this->pvpAction($userId, $action, $payload);
+        }
+
         return match ($action) {
             'attack' => $this->attack($userId, (int) ($payload['move_id'] ?? 0)),
             'switch' => $this->switchPokemon($userId, (int) ($payload['pokemon_id'] ?? 0)),
@@ -99,8 +108,42 @@ final class BattleEngineService
 
     public function acknowledgeEnd(int $userId): array
     {
+        if ($this->battles->findActivePvpBattleIdForUser($userId) > 0) {
+            $this->battles->acknowledgePvpBattleForUser($userId);
+            return ['ok' => true, 'active' => false, 'userId' => $userId];
+        }
+
         $this->battles->cleanupFinishedBattleForUser($userId);
         return ['ok' => true, 'active' => false, 'userId' => $userId];
+    }
+
+    public function requestPvp(int $userId, int $targetUserId): array
+    {
+        return $this->battles->requestOrAcceptPvp($userId, $targetUserId);
+    }
+
+    public function acceptPvp(int $userId, int $requestId): array
+    {
+        return $this->battles->acceptPvpRequest($userId, $requestId);
+    }
+
+    public function declinePvp(int $userId, int $requestId): array
+    {
+        $ok = $this->battles->declinePvpRequest($userId, $requestId);
+        return [
+            'ok' => $ok,
+            'message' => $ok ? 'Вызов на бой отклонен.' : 'Заявка на бой не найдена.',
+        ];
+    }
+
+    public function pvpRequests(int $userId): array
+    {
+        return ['ok' => true, 'requests' => $this->battles->incomingPvpRequests($userId)];
+    }
+
+    public function pvpStatus(int $userId, int $targetUserId): array
+    {
+        return ['ok' => true, 'status' => $this->battles->pvpRequestStatus($userId, $targetUserId)];
     }
 
     private function attack(int $userId, int $moveId): array
@@ -239,6 +282,255 @@ final class BattleEngineService
         $state['battle']['logByRound'] = $this->groupLogByRound($state['log'] ?? []);
 
         return $state;
+    }
+
+    private function pvpState(int $userId, int $battleId): array
+    {
+        $battle = $this->battles->findPvpBattleForUser($userId, $battleId);
+        if ($battle === null) {
+            return ['ok' => true, 'active' => false];
+        }
+
+        $this->battles->deleteExpiredBattleStatuses($battleId, (int) ($battle['raund'] ?? 1));
+
+        $side = (int) ($battle['user_2'] ?? 0) === $userId ? 2 : 1;
+        $opponentUserId = $side === 1 ? (int) ($battle['user_2'] ?? 0) : (int) ($battle['user_1'] ?? 0);
+        $player = $this->battles->findPokemon((string) ($battle['poke_' . $side] ?? ''));
+        $enemy = $this->battles->findPokemon((string) ($battle['poke_' . ($side === 1 ? 2 : 1)] ?? ''));
+        $this->attachBattleStatuses((int) ($battle['id'] ?? 0), $player, $enemy);
+
+        if ($player === null || $enemy === null) {
+            return [
+                'ok' => false,
+                'active' => true,
+                'message' => 'Состояние PvP боя повреждено.',
+                'debug' => [
+                    'battle_id' => (int) ($battle['id'] ?? 0),
+                    'poke_1' => (string) ($battle['poke_1'] ?? ''),
+                    'poke_2' => (string) ($battle['poke_2'] ?? ''),
+                    'side' => $side,
+                ],
+            ];
+        }
+
+        $winner = (int) ($battle['pobeda'] ?? 0);
+        $finished = $winner !== 0;
+        $ownAction = (int) ($battle['attac_' . $side] ?? 0);
+        $enemyAction = (int) ($battle['attac_' . ($side === 1 ? 2 : 1)] ?? 0);
+        $ownActionSet = $ownAction !== 0;
+        $enemyActionSet = $enemyAction !== 0;
+        $opponentLogin = $this->battles->findUserLoginById($opponentUserId);
+        $logRows = $this->formatLogRows($this->battles->getBattleLog((int) $battle['id']));
+        $playerData = $this->formatPokemon($player);
+        $enemyData = $this->formatPokemon($enemy);
+        $enemyData['trainer'] = [
+            'id' => $opponentUserId,
+            'login' => $opponentLogin,
+        ];
+
+        return [
+            'ok' => true,
+            'active' => !$finished,
+            'finished' => $finished,
+            'result' => $finished ? ($winner === $userId ? 'win' : 'lose') : null,
+            'waitingForOpponent' => !$finished && $ownActionSet && !$enemyActionSet,
+            'canAct' => !$finished && !$ownActionSet,
+            'battleId' => (int) $battle['id'],
+            'round' => (int) ($battle['raund'] ?? 1),
+            'player' => $playerData,
+            'enemy' => $enemyData,
+            'moves' => $this->formatMoves($player),
+            'switchOptions' => $finished ? [] : $this->formatSwitchOptions($userId, (int) ($player['id'] ?? 0)),
+            'log' => $logRows,
+            'battle' => [
+                'id' => (int) $battle['id'],
+                'mode' => 'pvp',
+                'title' => 'PvP бой против ' . $opponentLogin,
+                'round' => (int) ($battle['raund'] ?? 1),
+                'finished' => $finished,
+                'result' => $finished ? ($winner === $userId ? 'win' : 'lose') : null,
+                'waitingForOpponent' => !$finished && $ownActionSet && !$enemyActionSet,
+                'canAct' => !$finished && !$ownActionSet,
+                'player' => $playerData,
+                'enemy' => $enemyData,
+                'moves' => $this->formatMoves($player),
+                'switchOptions' => $finished ? [] : $this->formatSwitchOptions($userId, (int) ($player['id'] ?? 0)),
+                'log' => $logRows,
+                'logByRound' => $this->groupLogByRound($logRows),
+            ],
+        ];
+    }
+
+    private function pvpAction(int $userId, string $action, array $payload): array
+    {
+        return match ($action) {
+            'attack' => $this->pvpAttack($userId, (int) ($payload['move_id'] ?? 0)),
+            'switch' => $this->pvpSwitchPokemon($userId, (int) ($payload['pokemon_id'] ?? 0)),
+            'escape' => $this->pvpEscape($userId),
+            default => [
+                'ok' => false,
+                'active' => true,
+                'message' => 'В PvP сейчас доступны атака, смена покемона и сдача боя.',
+                'battle' => $this->state($userId)['battle'] ?? [],
+            ],
+        };
+    }
+
+    private function pvpAttack(int $userId, int $moveId): array
+    {
+        $battleId = $this->battles->findActivePvpBattleIdForUser($userId);
+        $battle = $battleId > 0 ? $this->battles->findPvpBattleForUser($userId, $battleId) : null;
+        if ($battle === null) {
+            return ['ok' => false, 'active' => false, 'message' => 'PvP бой не найден.'];
+        }
+        if ((int) ($battle['pobeda'] ?? 0) !== 0) {
+            return $this->pvpState($userId, $battleId);
+        }
+
+        $side = (int) ($battle['user_2'] ?? 0) === $userId ? 2 : 1;
+        if ((int) ($battle['attac_' . $side] ?? 0) !== 0) {
+            $state = $this->pvpState($userId, $battleId);
+            $state['messages'] = ['Ход уже выбран. Ждем соперника.'];
+            return $state;
+        }
+
+        $player = $this->battles->findPokemon((string) ($battle['poke_' . $side] ?? ''));
+        if ($player === null) {
+            return ['ok' => false, 'active' => true, 'message' => 'Активный покемон не найден.'];
+        }
+
+        $playerMove = $this->findMoveById($this->movesForPokemon($player), $moveId);
+        if ($playerMove === null) {
+            return ['ok' => false, 'active' => true, 'message' => 'Эта атака недоступна.', 'battle' => $this->state($userId)['battle'] ?? []];
+        }
+        if (isset($playerMove['pp_min'], $playerMove['pp_max']) && (int) ($playerMove['pp_min'] ?? 0) <= 0) {
+            return ['ok' => false, 'active' => true, 'message' => 'У этой атаки закончились PP.', 'battle' => $this->state($userId)['battle'] ?? []];
+        }
+
+        if (isset($playerMove['pp_min'], $playerMove['pp_max'])) {
+            $this->battles->decrementSelectedMovePp((int) ($player['id'] ?? 0), (int) ($playerMove['id'] ?? 0));
+        }
+        $this->battles->setPvpBattleAction($battleId, $side, (int) ($playerMove['id'] ?? 0));
+
+        $battle = $this->battles->findPvpBattleForUser($userId, $battleId);
+        if ($battle === null) {
+            return ['ok' => false, 'active' => false, 'message' => 'PvP бой не найден.'];
+        }
+        if ((int) ($battle['attac_1'] ?? 0) === 0 || (int) ($battle['attac_2'] ?? 0) === 0) {
+            $state = $this->pvpState($userId, $battleId);
+            $state['messages'] = ['Ход принят. Ждем соперника.'];
+            return $state;
+        }
+
+        $this->resolvePvpRound($battle);
+        return $this->pvpState($userId, $battleId);
+    }
+
+    private function resolvePvpRound(array $battle): void
+    {
+        $battleId = (int) ($battle['id'] ?? 0);
+        $round = (int) ($battle['raund'] ?? 1);
+        $first = $this->battles->findPokemon((string) ($battle['poke_1'] ?? ''));
+        $second = $this->battles->findPokemon((string) ($battle['poke_2'] ?? ''));
+        if ($first === null || $second === null) {
+            return;
+        }
+        $this->attachBattleStatuses($battleId, $first, $second);
+
+        $firstAction = (int) ($battle['attac_1'] ?? 0);
+        $secondAction = (int) ($battle['attac_2'] ?? 0);
+        $firstMove = $firstAction > 0 ? ($this->findMoveById($this->movesForPokemon($first), $firstAction) ?? $this->randomMove($this->movesForPokemon($first))) : null;
+        $secondMove = $secondAction > 0 ? ($this->findMoveById($this->movesForPokemon($second), $secondAction) ?? $this->randomMove($this->movesForPokemon($second))) : null;
+        $firstActs = $firstMove !== null && $secondMove !== null
+            ? $this->whoActsFirst(
+                $firstMove,
+                $secondMove,
+                $this->effectiveStatFor($battleId, $first, 'speed', 'speed'),
+                $this->effectiveStatFor($battleId, $second, 'speed', 'speed')
+            )
+            : $firstMove !== null;
+
+        $messages = [];
+        if ($firstMove !== null && $secondMove !== null && $firstActs) {
+            $messages[] = $this->applyMove($battleId, $round, $first, $second, $firstMove);
+            if ((int) ($first['hp_my'] ?? 0) > 0 && (int) ($second['hp_my'] ?? 0) > 0) {
+                $messages[] = $this->applyMove($battleId, $round, $second, $first, $secondMove);
+            }
+        } elseif ($firstMove !== null && $secondMove !== null) {
+            $messages[] = $this->applyMove($battleId, $round, $second, $first, $secondMove);
+            if ((int) ($first['hp_my'] ?? 0) > 0 && (int) ($second['hp_my'] ?? 0) > 0) {
+                $messages[] = $this->applyMove($battleId, $round, $first, $second, $firstMove);
+            }
+        } elseif ($firstMove !== null) {
+            $messages[] = $this->applyMove($battleId, $round, $first, $second, $firstMove);
+        } elseif ($secondMove !== null) {
+            $messages[] = $this->applyMove($battleId, $round, $second, $first, $secondMove);
+        }
+
+        $this->battles->updatePokemonHp((string) ($battle['poke_1'] ?? ''), (int) ($first['hp_my'] ?? 0));
+        $this->battles->updatePokemonHp((string) ($battle['poke_2'] ?? ''), (int) ($second['hp_my'] ?? 0));
+        foreach ($messages as $message) {
+            $this->battles->insertBattleLog($battleId, $round, $message);
+        }
+
+        if ((int) ($first['hp_my'] ?? 0) <= 0) {
+            $this->battles->finishPvpBattle($battleId, (int) ($battle['user_2'] ?? 0));
+            $this->battles->insertBattleLog($battleId, $round, 'Победа тренера ' . $this->battles->findUserLoginById((int) ($battle['user_2'] ?? 0)) . '.');
+            return;
+        }
+        if ((int) ($second['hp_my'] ?? 0) <= 0) {
+            $this->battles->finishPvpBattle($battleId, (int) ($battle['user_1'] ?? 0));
+            $this->battles->insertBattleLog($battleId, $round, 'Победа тренера ' . $this->battles->findUserLoginById((int) ($battle['user_1'] ?? 0)) . '.');
+            return;
+        }
+
+        $this->battles->resetPvpBattleActionsAndIncrementRound($battleId);
+    }
+
+    private function pvpSwitchPokemon(int $userId, int $pokemonId): array
+    {
+        $battleId = $this->battles->findActivePvpBattleIdForUser($userId);
+        if ($battleId <= 0) {
+            return ['ok' => false, 'active' => false, 'message' => 'PvP бой не найден.'];
+        }
+        $battle = $this->battles->findPvpBattleForUser($userId, $battleId);
+        if ($battle === null) {
+            return ['ok' => false, 'active' => false, 'message' => 'PvP бой не найден.'];
+        }
+        $side = (int) ($battle['user_2'] ?? 0) === $userId ? 2 : 1;
+        if ((int) ($battle['attac_' . $side] ?? 0) !== 0) {
+            $state = $this->pvpState($userId, $battleId);
+            $state['messages'] = ['Ход уже выбран. Ждем соперника.'];
+            return $state;
+        }
+        if (!$this->battles->switchPvpPokemon($battleId, $userId, $pokemonId)) {
+            return ['ok' => false, 'active' => true, 'message' => 'Смена покемона недоступна.', 'battle' => $this->state($userId)['battle'] ?? []];
+        }
+
+        $this->battles->setPvpBattleAction($battleId, $side, -$pokemonId);
+        $battle = $this->battles->findPvpBattleForUser($userId, $battleId);
+        $this->battles->insertBattleLog($battleId, (int) ($battle['raund'] ?? 1), $this->battles->findUserLoginById($userId) . ' меняет покемона.');
+        if ($battle !== null && (int) ($battle['attac_1'] ?? 0) !== 0 && (int) ($battle['attac_2'] ?? 0) !== 0) {
+            $this->resolvePvpRound($battle);
+        }
+        $state = $this->pvpState($userId, $battleId);
+        $state['messages'] = ['Покемон успешно заменен.'];
+        return $state;
+    }
+
+    private function pvpEscape(int $userId): array
+    {
+        $battleId = $this->battles->findActivePvpBattleIdForUser($userId);
+        $battle = $battleId > 0 ? $this->battles->findPvpBattleForUser($userId, $battleId) : null;
+        if ($battle === null) {
+            return ['ok' => true, 'active' => false];
+        }
+
+        $winner = (int) ($battle['user_1'] ?? 0) === $userId ? (int) ($battle['user_2'] ?? 0) : (int) ($battle['user_1'] ?? 0);
+        $this->battles->insertBattleLog($battleId, (int) ($battle['raund'] ?? 1), $this->battles->findUserLoginById($userId) . ' сдается.');
+        $this->battles->finishPvpBattle($battleId, $winner);
+
+        return $this->pvpState($userId, $battleId);
     }
 
     private function switchPokemon(int $userId, int $pokemonId): array
@@ -910,6 +1202,19 @@ final class BattleEngineService
             }
         }
         return $this->randomMove($moves);
+    }
+
+    private function findMoveById(array $moves, int $moveId): ?array
+    {
+        if ($moveId <= 0) {
+            return null;
+        }
+        foreach ($moves as $move) {
+            if ((int) ($move['id'] ?? 0) === $moveId) {
+                return $move;
+            }
+        }
+        return null;
     }
 
     private function randomMove(array $moves): array

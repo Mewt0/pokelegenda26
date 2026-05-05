@@ -16,6 +16,7 @@ use Pokemon8\Controller\PokemonApiController;
 use Pokemon8\Controller\PokemonController;
 use Pokemon8\Controller\ProfileController;
 use Pokemon8\Controller\PveBattleApiController;
+use Pokemon8\Controller\PvpBattleApiController;
 use Pokemon8\Database\Connection;
 use Pokemon8\Game\ChatService;
 use Pokemon8\Game\GameRoutes;
@@ -105,6 +106,7 @@ $gameModules = new GameModuleController($session, $messageRepository);
 $npcApi = new NpcApiController($session, $csrf, $npcDialogs);
 $chatApi = new ChatApiController($session, $csrf, $chatService, $locations);
 $pveBattleApi = new PveBattleApiController($session, $csrf, $battleEngine);
+$pvpBattleApi = new PvpBattleApiController($session, $csrf, $battleEngine);
 $dexApi = new DexApiController($session, $dexRepository);
 $friendApi = new FriendApiController($session, $csrf, $friendRepository);
 
@@ -131,6 +133,11 @@ $router->post('/api/battle/pve/force', fn (Request $request) => $gameApi->forceP
 $router->get('/api/battle/pve/state', fn (Request $request) => $pveBattleApi->state($request));
 $router->post('/api/battle/pve/action', fn (Request $request) => $pveBattleApi->action($request));
 $router->post('/api/battle/pve/ack-end', fn (Request $request) => $pveBattleApi->ackEnd($request));
+$router->get('/api/battle/pvp/status', fn (Request $request) => $pvpBattleApi->status($request));
+$router->get('/api/battle/pvp/requests', fn (Request $request) => $pvpBattleApi->requests($request));
+$router->post('/api/battle/pvp/request', fn (Request $request) => $pvpBattleApi->request($request));
+$router->post('/api/battle/pvp/accept', fn (Request $request) => $pvpBattleApi->accept($request));
+$router->post('/api/battle/pvp/decline', fn (Request $request) => $pvpBattleApi->decline($request));
 $router->get('/api/inventory/page', fn (Request $request) => $inventoryApi->page($request));
 $router->get('/api/inventory/battle', fn (Request $request) => $inventoryApi->battle($request));
 $router->post('/api/inventory/equip', fn (Request $request) => $inventoryApi->equip($request));
