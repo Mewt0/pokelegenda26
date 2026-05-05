@@ -216,6 +216,31 @@
         </div>${arrow}`;
     }).join('') || '<div class="dex-empty">Нет эволюций</div>';
 
+    const evolutionOptions = (p.evolutionOptions || []).slice(0, 40).map(option => {
+      const from = option.from || {};
+      const to = option.to || {};
+      const req = option.requirement || {};
+      const fromSprite = activeSprite(from);
+      const toSprite = activeSprite(to);
+      const fromFallback = activeFallback(from);
+      const toFallback = activeFallback(to);
+      const requirement = req.kind === 'item'
+        ? `<span class="dex-evo-requirement"><img src="${esc(req.itemIcon || '/public/img/ui/menu-inventory.png')}" alt=""> + ${esc(req.itemName || 'Предмет')}</span>`
+        : `<span class="dex-evo-requirement text-only">${esc(req.condition || 'Особое условие')}</span>`;
+      return `
+        <div class="dex-evo-option">
+          <button type="button" class="dex-evo-pokemon" data-dex-pokemon-id="${Number(from.id || 0)}">
+            ${imgTag(fromSprite, from.name || '', '', fromFallback)}
+            <b>${esc(from.name || ('#' + Number(from.id || 0)))}</b>
+          </button>
+          <div class="dex-evo-middle"><span>→</span>${requirement}</div>
+          <button type="button" class="dex-evo-pokemon" data-dex-pokemon-id="${Number(to.id || 0)}">
+            ${imgTag(toSprite, to.name || '', '', toFallback)}
+            <b>${esc(to.name || ('#' + Number(to.id || 0)))}</b>
+          </button>
+        </div>`;
+    }).join('');
+
     const learn = (p.learnset || []).slice(0, 160).map(m => `
       <tr>
         <td>${Number(m.level || 0)}</td>
@@ -279,6 +304,8 @@
             </div>
           </div>
         </div>
+
+        ${evolutionOptions ? `<h3>${sectionTitle('evolution', 'Способы эволюции')}</h3><div class="dex-evo-options">${evolutionOptions}</div>` : ''}
 
         <h3>${sectionTitle('pokedex', 'Описание')}</h3>
         <p class="dex-description">${esc(p.description || '')}</p>

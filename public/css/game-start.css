@@ -707,6 +707,71 @@ body {
   font-weight: 900;
   text-align: center;
 }
+.dex-evo-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+}
+.dex-evo-option {
+  display: grid;
+  grid-template-columns: minmax(74px, .8fr) minmax(110px, 1fr) minmax(74px, .8fr);
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #d3dfec;
+  border-radius: 10px;
+  background: rgba(255,255,255,.78);
+}
+.dex-evo-pokemon {
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: #102544;
+  font-weight: 900;
+}
+.dex-evo-pokemon img {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+}
+.dex-evo-pokemon b {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dex-evo-middle {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  color: #293b52;
+  text-align: center;
+  font-weight: 800;
+}
+.dex-evo-middle > span {
+  font-size: 24px;
+  line-height: 1;
+}
+.dex-evo-requirement {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  max-width: 100%;
+  color: #1d4f91;
+}
+.dex-evo-requirement img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+.dex-evo-requirement.text-only {
+  color: #34465f;
+  font-size: 13px;
+}
 .attack-detail-head {
   justify-content: flex-start;
   padding: 14px;

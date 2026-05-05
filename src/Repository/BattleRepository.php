@@ -160,22 +160,18 @@ final class BattleRepository
                 'message' => 'Защитник может охотиться на преступника в любой локации, кроме полностью запрещенных.',
             ] + $base;
         }
-        if ($attackerState === 'bad' && $targetState === 'good' && $location['type'] === 'dangerous') {
+        if ($attackerState === 'bad' && $targetState === 'good') {
             return [
                 'allowed' => true,
                 'rule' => 'criminal_attacks_protector',
                 'requiresWarrant' => false,
-                'message' => 'Преступник может нападать на защитников в опасных локациях без ордера.',
+                'message' => 'Преступник может нападать на защитников без ордера, кроме закрытых административных локаций.',
             ] + $base;
-        }
-
-        if ($location['type'] !== 'dangerous') {
-            return $base + ['allowed' => false, 'message' => 'В безопасной локации можно нападать только Защитнику на Преступника.'];
         }
 
         $warrant = $this->bestAvailableWarrant($attackerId);
         if ($warrant === null) {
-            return $base + ['allowed' => false, 'message' => 'Для нападения в опасной локации нужен ордер Команды R.'];
+            return $base + ['allowed' => false, 'message' => 'Для принудительного нападения нужен ордер Команды R. Добровольный бой через запрос ордер не требует.'];
         }
         if ((int) ($attacker['rang_a'] ?? 0) < 400) {
             return $base + ['allowed' => false, 'message' => 'Для использования ордера нужно минимум 400 очков репутации.'];
@@ -194,7 +190,7 @@ final class BattleRepository
             'warrant' => $warrant,
             'message' => $targetState === 'bad'
                 ? 'Ордер Команды R позволяет напасть на преступника. Ордер будет потрачен.'
-                : 'Ордер Команды R позволяет напасть в опасной локации. За нападение на нейтрального игрока карма снизится.',
+                : 'Ордер Команды R позволяет принудительно напасть почти в любой локации. За нападение на нейтрального игрока карма снизится.',
         ] + $base;
     }
 
@@ -255,8 +251,7 @@ final class BattleRepository
         ]);
         $row = $stmt->fetch();
         if (!$row) {
-            $permission = $this->pvpAttackPermission($currentUserId, $targetUserId);
-            return !empty($permission['allowed']) ? 'none' : 'restricted';
+            return 'none';
         }
 
         return (int) ($row['to_user_id'] ?? 0) === $currentUserId ? 'incoming' : 'outgoing';
@@ -309,16 +304,6 @@ final class BattleRepository
         $incomingId = (int) ($incoming->fetchColumn() ?: 0);
         if ($incomingId > 0) {
             return $this->acceptPvpRequest($fromUserId, $incomingId, $fromPokemonId);
-        }
-
-        $permission = $this->pvpAttackPermission($fromUserId, $toUserId);
-        if (empty($permission['allowed'])) {
-            return [
-                'ok' => false,
-                'status' => 'restricted',
-                'message' => (string) ($permission['message'] ?? 'По карме нельзя вызвать этого игрока.'),
-                'karma' => $permission,
-            ];
         }
 
         if (!$this->usersCanStartPvp($fromUserId, $toUserId)) {
@@ -377,16 +362,6 @@ final class BattleRepository
         $fromUserId = (int) ($request['from_user_id'] ?? 0);
         $toUserId = (int) ($request['to_user_id'] ?? 0);
         $fromPokemonId = (int) ($request['from_pokemon_id'] ?? 0);
-        $permission = $this->pvpAttackPermission($fromUserId, $toUserId);
-        if (empty($permission['allowed'])) {
-            return [
-                'ok' => false,
-                'status' => 'restricted',
-                'message' => (string) ($permission['message'] ?? 'По карме нельзя начать этот бой.'),
-                'karma' => $permission,
-            ];
-        }
-
         if (!$this->usersCanStartPvp($fromUserId, $toUserId)) {
             return ['ok' => false, 'message' => 'Бой нельзя начать: один из игроков уже занят.'];
         }
@@ -399,7 +374,6 @@ final class BattleRepository
         }
 
         $battleId = $this->createPvpBattle($fromUserId, $toUserId, (int) $firstPokemon['id'], (int) $secondPokemon['id']);
-        $this->applyPvpStartKarma($fromUserId, $toUserId, $battleId, $permission);
         $now = time();
         $this->db->prepare(
             'UPDATE pvp_requests
@@ -2330,7 +2304,7 @@ final class BattleRepository
     private function karmaLocationType(string $title, int $pve, int $zax): string
     {
         $name = function_exists('mb_strtolower') ? mb_strtolower($title) : strtolower($title);
-        foreach (['стадион', 'арена', 'аукцион', 'турнир'] as $word) {
+        foreach (['админист', 'зона админ', 'тюрьм', 'стадион', 'арена', 'аукцион', 'турнир'] as $word) {
             if (str_contains($name, $word)) {
                 return 'forbidden';
             }

@@ -8,6 +8,7 @@ use Pokemon8\Http\Request;
 use Pokemon8\Http\Response;
 use Pokemon8\Repository\MessageRepository;
 use Pokemon8\Repository\TrainingRepository;
+use Pokemon8\Repository\TransportRepository;
 use Pokemon8\Security\Csrf;
 use Pokemon8\Security\Session;
 use Pokemon8\View\View;
@@ -17,6 +18,7 @@ final class GameModuleController
     public function __construct(
         private Session $session,
         private Csrf $csrf,
+        private ?TransportRepository $transport = null,
         private ?MessageRepository $messages = null,
     )
     {
@@ -64,6 +66,16 @@ final class GameModuleController
                     ],
                 ],
                 'currency' => $shop === 'diamond' ? ['name' => 'алмазов', 'itemId' => 2, 'price' => 10] : ['name' => 'монет', 'itemId' => 1, 'price' => 500000],
+                'modules' => GameRoutes::MODULES,
+            ]));
+        }
+
+        if ($slug === 'transport' && $this->transport !== null) {
+            return new Response(View::render('game-transport', [
+                'module' => $module,
+                'slug' => $slug,
+                'csrf' => $this->csrf->token(),
+                'routes' => $this->transport->routesForUser((int) $this->session->get('id')),
                 'modules' => GameRoutes::MODULES,
             ]));
         }

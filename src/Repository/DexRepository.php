@@ -70,6 +70,7 @@ final class DexRepository
             'category' => $this->pokemonMetaValue($id, ['category', 'class', 'species'], 'Pokémon'),
         ];
         $data['evolutions'] = $this->evolutionChain($id);
+        $data['evolutionOptions'] = $this->evolutionOptions($id);
         $data['evolution'] = $this->evolutionTextFromChain($data['evolutions']);
         $data['learnset'] = $this->pokemonLearnset($id);
         $data['eggMoves'] = $this->pokemonEggMoves($id);
@@ -408,6 +409,195 @@ final class DexRepository
             $parts[] = $prefix . '#' . ($evo['code'] ?? $evo['id']) . ' ' . ($evo['name'] ?? 'Pokemon');
         }
         return ['next' => (int)($chain[1]['id'] ?? 0), 'level' => (int)($chain[1]['level'] ?? 0), 'text' => implode(' / ', $parts)];
+    }
+
+    private function evolutionOptions(int $id): array
+    {
+        $rows = [];
+        foreach ($this->levelEvolutionOptions($id) as $row) {
+            $rows[] = $row;
+        }
+        foreach ($this->itemEvolutionMap() as $fromId => $targets) {
+            foreach ($targets as $target) {
+                if ($fromId === $id || (int) $target['to'] === $id) {
+                    $rows[] = $this->buildEvolutionOption($fromId, (int) $target['to'], [
+                        'kind' => 'item',
+                        'itemId' => (int) $target['itemId'],
+                        'itemName' => (string) $target['itemName'],
+                        'condition' => (string) ($target['condition'] ?? ''),
+                    ]);
+                }
+            }
+        }
+        foreach ($this->specialEvolutionMap() as $fromId => $targets) {
+            foreach ($targets as $target) {
+                if ($fromId === $id || (int) $target['to'] === $id) {
+                    $rows[] = $this->buildEvolutionOption($fromId, (int) $target['to'], [
+                        'kind' => 'condition',
+                        'condition' => (string) $target['condition'],
+                    ]);
+                }
+            }
+        }
+
+        $seen = [];
+        $result = [];
+        foreach ($rows as $row) {
+            if ($row === null) {
+                continue;
+            }
+            $key = (int) ($row['from']['id'] ?? 0) . ':' . (int) ($row['to']['id'] ?? 0) . ':' . (string) ($row['requirement']['kind'] ?? '');
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $row['selected'] = (int) ($row['from']['id'] ?? 0) === $id || (int) ($row['to']['id'] ?? 0) === $id;
+            $result[] = $row;
+        }
+
+        return $result;
+    }
+
+    private function levelEvolutionOptions(int $id): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT id, evolution_type, evolution_lvl
+               FROM poke_base
+              WHERE (id = :source_id AND evolution_type > 0)
+                 OR evolution_type = :target_id
+              ORDER BY id ASC'
+        );
+        $stmt->execute(['source_id' => $id, 'target_id' => $id]);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $fromId = (int) ($row['id'] ?? 0);
+            $toId = (int) ($row['evolution_type'] ?? 0);
+            if ($fromId <= 0 || $toId <= 0 || $fromId === $toId) {
+                continue;
+            }
+            $rows[] = $this->buildEvolutionOption($fromId, $toId, [
+                'kind' => 'level',
+                'level' => (int) ($row['evolution_lvl'] ?? 0),
+                'condition' => ((int) ($row['evolution_lvl'] ?? 0) > 0 ? 'Уровень ' . (int) ($row['evolution_lvl'] ?? 0) : 'Уровневая эволюция'),
+            ]);
+        }
+        return $rows;
+    }
+
+    private function buildEvolutionOption(int $fromId, int $toId, array $requirement): ?array
+    {
+        $from = $this->basePokemonRow($fromId);
+        $to = $this->basePokemonRow($toId);
+        if (!$from || !$to) {
+            return null;
+        }
+        $fromSummary = $this->pokemonSummary($from);
+        $toSummary = $this->pokemonSummary($to);
+        if (($requirement['kind'] ?? '') === 'item') {
+            $itemId = (int) ($requirement['itemId'] ?? 0);
+            $requirement['itemIcon'] = $this->itemIconPath($itemId);
+        }
+
+        return [
+            'from' => $fromSummary,
+            'to' => $toSummary,
+            'requirement' => $requirement,
+        ];
+    }
+
+    private function itemIconPath(int $itemId): string
+    {
+        if ($itemId <= 0) {
+            return '/public/img/ui/menu-inventory.png';
+        }
+        $indexed = $this->indexedItemIconPath($itemId);
+        if ($indexed !== '') {
+            return $indexed;
+        }
+        $public = '/public/img/items/' . $itemId . '.png';
+        if ($this->existingPublicPath($public) !== '') {
+            return $public;
+        }
+        $legacy = '/img/items/' . $itemId . '.png';
+        if ($this->existingPublicPath($legacy) !== '') {
+            return $legacy;
+        }
+        return '/public/img/ui/menu-inventory.png';
+    }
+
+    private function indexedItemIconPath(int $itemId): string
+    {
+        static $index = null;
+        if ($index === null) {
+            $index = [];
+            if (defined('APP_ROOT')) {
+                $path = APP_ROOT . '/public/img/items/index.json';
+                if (is_file($path)) {
+                    $decoded = json_decode((string) file_get_contents($path), true);
+                    if (is_array($decoded)) {
+                        $index = $decoded;
+                    }
+                }
+            }
+        }
+
+        $file = (string) ($index[(string) $itemId] ?? '');
+        if ($file === '') {
+            return '';
+        }
+        $public = '/public/img/items/' . basename($file);
+        return $this->existingPublicPath($public);
+    }
+
+    private function itemEvolutionMap(): array
+    {
+        return [
+            25 => [['to' => 26, 'itemId' => 40, 'itemName' => 'Громовой камень']],
+            30 => [['to' => 31, 'itemId' => 44, 'itemName' => 'Лунный камень']],
+            33 => [['to' => 34, 'itemId' => 44, 'itemName' => 'Лунный камень']],
+            35 => [['to' => 36, 'itemId' => 44, 'itemName' => 'Лунный камень']],
+            37 => [['to' => 38, 'itemId' => 41, 'itemName' => 'Огненный камень']],
+            39 => [['to' => 40, 'itemId' => 44, 'itemName' => 'Лунный камень']],
+            44 => [
+                ['to' => 45, 'itemId' => 43, 'itemName' => 'Лиственный камень'],
+                ['to' => 182, 'itemId' => 6, 'itemName' => 'Солнечный камень'],
+            ],
+            58 => [['to' => 59, 'itemId' => 41, 'itemName' => 'Огненный камень']],
+            61 => [['to' => 62, 'itemId' => 42, 'itemName' => 'Водный камень']],
+            70 => [['to' => 71, 'itemId' => 43, 'itemName' => 'Лиственный камень']],
+            90 => [['to' => 91, 'itemId' => 42, 'itemName' => 'Водный камень']],
+            102 => [['to' => 103, 'itemId' => 43, 'itemName' => 'Лиственный камень']],
+            120 => [['to' => 121, 'itemId' => 42, 'itemName' => 'Водный камень']],
+            133 => [
+                ['to' => 134, 'itemId' => 42, 'itemName' => 'Водный камень'],
+                ['to' => 135, 'itemId' => 40, 'itemName' => 'Громовой камень'],
+                ['to' => 136, 'itemId' => 41, 'itemName' => 'Огненный камень'],
+            ],
+            271 => [['to' => 272, 'itemId' => 42, 'itemName' => 'Водный камень']],
+            274 => [['to' => 275, 'itemId' => 43, 'itemName' => 'Лиственный камень']],
+            300 => [['to' => 301, 'itemId' => 44, 'itemName' => 'Лунный камень']],
+            315 => [['to' => 407, 'itemId' => 8, 'itemName' => 'Светящийся камень']],
+            511 => [['to' => 512, 'itemId' => 43, 'itemName' => 'Лиственный камень']],
+            513 => [['to' => 514, 'itemId' => 41, 'itemName' => 'Огненный камень']],
+            515 => [['to' => 516, 'itemId' => 42, 'itemName' => 'Водный камень']],
+            517 => [['to' => 518, 'itemId' => 44, 'itemName' => 'Лунный камень']],
+            603 => [['to' => 604, 'itemId' => 40, 'itemName' => 'Громовой камень']],
+        ];
+    }
+
+    private function specialEvolutionMap(): array
+    {
+        return [
+            133 => [
+                ['to' => 196, 'condition' => 'Дневное время + 100% счастья'],
+                ['to' => 197, 'condition' => 'Ночное время + 100% счастья'],
+            ],
+            193 => [['to' => 469, 'condition' => '50% счастья + Ancient Power']],
+            220 => [['to' => 221, 'condition' => 'Уровень 33']],
+            221 => [['to' => 473, 'condition' => '50% счастья + Ancient Power']],
+            406 => [['to' => 315, 'condition' => '100% счастья']],
+            527 => [['to' => 528, 'condition' => '100% счастья']],
+        ];
     }
 
     private function pokemonLearnset(int $id): array
