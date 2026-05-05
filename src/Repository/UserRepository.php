@@ -37,6 +37,17 @@ final class UserRepository
     }
 
     /**
+     * Берет состояние аккаунта по id, чтобы проверять права для уже открытой сессии.
+     */
+    public function findStateById(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT id, activation, groups FROM users WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+
+        return $stmt->fetch() ?: null;
+    }
+
+    /**
      * Помечает пользователя онлайн после успешного входа.
      */
     public function markOnline(int $id, string $ip): void

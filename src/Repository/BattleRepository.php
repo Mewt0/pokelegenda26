@@ -285,7 +285,9 @@ final class BattleRepository
     {
         $stmt = $this->db->prepare(
             'SELECT ap.atac_id AS id, ap.atc_lvl,
-                    apw.atac_name, apw.atac_tip, apw.atac_power, apw.atac_accuracy, apw.atac_categori, apw.critic, apw.priorety, apw.atac_pp, apw.chans_dop, apw.chans_effect, apw.atac_not, apw.stati, apw.attac_effecti
+                    apw.atac_name, apw.atac_tip, apw.atac_power, apw.atac_accuracy, apw.atac_categori,
+                    apw.critic, apw.priorety, apw.atac_pp, apw.chans_dop, apw.chans_effect, apw.atac_not,
+                    apw.stati, apw.attac_effecti, apw.titles, apw.atac_tittle, apw.tittle_effect
                FROM attac_poke ap
                LEFT JOIN attac_power apw ON apw.atac_id = ap.atac_id
               WHERE ap.poke_base_id = :base AND ap.atc_lvl <= :lvl
@@ -353,7 +355,9 @@ final class BattleRepository
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $movesStmt = $this->db->prepare(
-            'SELECT atac_id AS id, atac_name, atac_tip, atac_power, atac_accuracy, atac_categori, critic, priorety, atac_pp, chans_dop, chans_effect, atac_not, stati, attac_effecti
+            'SELECT atac_id AS id, atac_name, atac_tip, atac_power, atac_accuracy, atac_categori,
+                    critic, priorety, atac_pp, chans_dop, chans_effect, atac_not, stati, attac_effecti,
+                    titles, atac_tittle, tittle_effect
                FROM attac_power
               WHERE atac_id IN (' . $placeholders . ')'
         );

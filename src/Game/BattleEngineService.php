@@ -828,18 +828,95 @@ final class BattleEngineService
         $moves = $this->movesForPokemon($pokemon);
         $result = [];
         foreach (array_slice($moves, 0, 4) as $move) {
+            $moveId = (int) ($move['id'] ?? 0);
+            $description = trim(strip_tags((string) (
+                ($move['atac_tittle'] ?? '')
+                ?: ($move['titles'] ?? '')
+                ?: ($move['tittle_effect'] ?? '')
+            )));
             $result[] = [
-                'id' => (int) ($move['id'] ?? 0),
-                'name' => (string) ($move['atac_name'] ?? ('Атака #' . (int) ($move['id'] ?? 0))),
+                'id' => $moveId,
+                'name' => (string) ($move['atac_name'] ?? ('Атака #' . $moveId)),
                 'power' => (int) ($move['atac_power'] ?? 0),
                 'accuracy' => (int) ($move['atac_accuracy'] ?? 0),
                 'type' => (string) ($move['atac_tip'] ?? 'Normal'),
                 'category' => (int) ($move['atac_categori'] ?? 1),
+                'categoryName' => $this->moveCategoryName((int) ($move['atac_categori'] ?? 1)),
                 'pp' => isset($move['pp_min']) ? max(0, (int) $move['pp_min']) : max(0, (int) ($move['atac_pp'] ?? 0)),
                 'ppMax' => isset($move['pp_max']) ? max(0, (int) $move['pp_max']) : max(0, (int) ($move['atac_pp'] ?? 0)),
+                'description' => $description,
+                'details' => trim(strip_tags((string) (($move['tittle_effect'] ?? '') ?: ($move['titles'] ?? '')))),
+                'effects' => $this->formatMoveEffects($moveId),
             ];
         }
         return $result;
+    }
+
+    private function moveCategoryName(int $category): string
+    {
+        return match ($category) {
+            1 => 'Физическая',
+            2 => 'Специальная',
+            default => 'Статусная',
+        };
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function formatMoveEffects(int $moveId): array
+    {
+        if ($moveId <= 0) {
+            return [];
+        }
+
+        $effects = [];
+        foreach (array_merge($this->battles->findMoveStatEffects($moveId), $this->battles->findMoveSecondaryEffects($moveId)) as $effect) {
+            $field = (string) ($effect['field'] ?? '');
+            $statusId = (int) ($effect['statusId'] ?? 0);
+            $kind = (string) ($effect['kind'] ?? '');
+            $delta = (int) ($effect['delta'] ?? 0);
+
+            $effects[] = [
+                'target' => (string) ($effect['target'] ?? 'enemy'),
+                'kind' => $kind,
+                'field' => $field,
+                'label' => $statusId > 0 ? $this->battleStatusLabel($statusId) : $this->stageLabel($field),
+                'value' => $statusId > 0 ? '' : (($kind === 'plus' ? '+' : '-') . max(1, $delta)),
+                'chance' => isset($effect['chance']) ? (int) $effect['chance'] : 100,
+                'statusId' => $statusId,
+            ];
+        }
+
+        return $effects;
+    }
+
+    private function stageLabel(string $field): string
+    {
+        return match ($field) {
+            'attac' => 'Атака',
+            'spattac' => 'Спец. атака',
+            'defend' => 'Защита',
+            'spdefend' => 'Спец. защита',
+            'speed' => 'Скорость',
+            'acc' => 'Ловкость',
+            'accuracy' => 'Точность',
+            default => 'Параметр',
+        };
+    }
+
+    private function battleStatusLabel(int $statusId): string
+    {
+        return match ($statusId) {
+            1 => 'Отравление',
+            2 => 'Сон',
+            3 => 'Ожог',
+            4 => 'Заморозка',
+            5 => 'Паралич',
+            6 => 'Страх',
+            7 => 'Спутанность',
+            8 => 'Растения-пиявки',
+            9 => 'Проклятие',
+            default => 'Статус #' . $statusId,
+        };
     }
 
     private function movesForPokemon(array $pokemon): array

@@ -71,6 +71,7 @@ final class AuthController
         $this->session->put('id', (int) $user['id']);
         $this->session->put('login', (string) $user['login']);
         $this->session->put('password', (string) $user['password']);
+        $this->session->put('groups', (int) $user['groups']);
 
         $this->users->markOnline((int) $user['id'], ClientIp::fromServer($request->server));
 

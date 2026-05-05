@@ -1,5 +1,10 @@
 <?php
 use Pokemon8\View\View;
+
+$itemIconIndexPath = APP_ROOT . '/public/img/items/index.json';
+$itemIconIndex = is_file($itemIconIndexPath)
+    ? (json_decode((string) file_get_contents($itemIconIndexPath), true) ?: [])
+    : [];
 ?>
 <!doctype html>
 <html lang="ru">
@@ -132,6 +137,7 @@ use Pokemon8\View\View;
     </div>
   </main>
   <script>
+    const itemIconIndex = <?= json_encode($itemIconIndex, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}' ?>;
     const csrf = document.body.dataset.csrf || '';
     const state = { page: 1, pages: 1, selected: null, items: [] };
 
@@ -142,6 +148,21 @@ use Pokemon8\View\View;
 
     function clearToast() {
       document.getElementById('toast').textContent = '';
+    }
+
+    function itemIconSrc(item) {
+      const id = Number(item && item.item_id || 0);
+      const indexed = itemIconIndex[String(id)];
+      return '/public/img/items/' + (indexed || (id + '.png'));
+    }
+
+    function setItemIcon(img, item) {
+      const id = Number(item && item.item_id || 0);
+      img.onerror = () => {
+        img.onerror = () => { img.src = '/img/blank.gif'; };
+        img.src = '/img/items/' + id + '.png';
+      };
+      img.src = itemIconSrc(item);
     }
 
     function itemTitle(item) {
@@ -168,7 +189,7 @@ use Pokemon8\View\View;
         return;
       }
 
-      imgEl.src = '/img/items/' + Number(item.item_id || 0) + '.png';
+      setItemIcon(imgEl, item);
       nameEl.textContent = itemTitle(item);
 
       const hints = [];
@@ -285,9 +306,9 @@ use Pokemon8\View\View;
         slot.className = 'slot' + (item ? '' : ' empty');
 
         if (item) {
-          slot.innerHTML = '<img alt=""><span class="count"></span>';
-          slot.querySelector('img').src = '/img/items/' + Number(item.item_id || 0) + '.png';
-          slot.querySelector('.count').textContent = Number(item.count || 0).toLocaleString('ru-RU');
+          slot.innerHTML = '<img alt=""><span class="cnt"></span>';
+          setItemIcon(slot.querySelector('img'), item);
+          slot.querySelector('.cnt').textContent = Number(item.count || 0).toLocaleString('ru-RU');
           slot.title = itemTitle(item);
           slot.addEventListener('click', () => {
             state.selected = item;

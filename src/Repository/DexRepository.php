@@ -66,8 +66,6 @@ final class DexRepository
         $data['baseExp'] = (int)($row['Base'] ?? $row['base_exp'] ?? 0);
         $data['description'] = $this->pokemonDescription($id, (string)$data['name']);
         $data['info'] = [
-            'height' => $this->pokemonMetaValue($id, ['height', 'rost', 'height_m'], '—'),
-            'weight' => $this->pokemonMetaValue($id, ['weight', 'ves', 'weight_kg'], '—'),
             'generation' => $this->generationById($id),
             'category' => $this->pokemonMetaValue($id, ['category', 'class', 'species'], 'Pokémon'),
         ];
@@ -80,9 +78,9 @@ final class DexRepository
         return $data;
     }
 
-    public function searchAttacks(string $query = '', int $limit = 100): array
+    public function searchAttacks(string $query = '', int $limit = 700): array
     {
-        $limit = max(1, min(220, $limit));
+        $limit = max(1, min(1000, $limit));
         $query = trim($query);
 
         $select = 'SELECT atac_id, atac_name, atac_tip, atac_categori, atac_pp, atac_power, atac_accuracy,
@@ -157,7 +155,7 @@ final class DexRepository
             'code' => $code,
             'name' => $name,
             'types' => $this->pokemonTypes($row),
-            'sprites' => $this->pokemonSprites($code),
+            'sprites' => $this->pokemonSprites($code, $name),
             'stats' => [
                 'hp' => (int)($row['base_hp'] ?? $row['hp'] ?? $row['HP'] ?? 0),
                 'atk' => (int)($row['base_atk'] ?? $row['atk'] ?? $row['Attack'] ?? 0),
@@ -203,14 +201,43 @@ final class DexRepository
         return $types ?: ['Normal'];
     }
 
-    private function pokemonSprites(string $code): array
+    private function pokemonSprites(string $code, string $name = ''): array
     {
+        $num = (string) max(0, (int) $code);
+        $normal = $this->existingPublicPath('/Pok/normal/' . $num . '.png');
+        $shiny = $this->existingPublicPath('/Pok/shine/' . $num . '.png');
+        $fallbackNormal = $this->existingPublicPath('/Pok/pok/' . $code . '.gif');
+        $fallbackShiny = $this->existingPublicPath('/Pok/shiny/' . $code . '.gif');
+        $assetNormal = $this->pokemonAssetPath($name, false);
+        $assetShiny = $this->pokemonAssetPath($name, true);
+
         return [
-            'normal' => '/pok/normal/' . $code . '.png',
-            'shiny' => '/pok/shine/' . $code . '.png',
-            'fallbackNormal' => '/pok/pok/' . $code . '.gif',
-            'fallbackShiny' => '/pok/shiny/' . $code . '.gif',
+            'normal' => $normal ?: ($assetNormal ?: ($fallbackNormal ?: '/public/img/ui/dex/pokedex.png')),
+            'shiny' => $shiny ?: ($assetShiny ?: ($assetNormal ?: ($fallbackShiny ?: '/public/img/ui/dex/pokedex.png'))),
+            'fallbackNormal' => $fallbackNormal,
+            'fallbackShiny' => $fallbackShiny,
         ];
+    }
+
+    private function existingPublicPath(string $path): string
+    {
+        if (!defined('APP_ROOT')) {
+            return $path;
+        }
+        return is_file(APP_ROOT . $path) ? $path : '';
+    }
+
+    private function pokemonAssetPath(string $name, bool $small): string
+    {
+        $slug = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $name));
+        if ($slug === '') {
+            return '';
+        }
+        $path = ($small ? '/public/img/pokemon/small/' : '/public/img/pokemon/art/') . $slug . '.png';
+        if (defined('APP_ROOT') && !is_file(APP_ROOT . $path)) {
+            return '';
+        }
+        return $path;
     }
 
     private function pokemonDescription(int $id, string $name): string
@@ -373,15 +400,32 @@ final class DexRepository
 
     private function pokemonEggMoves(int $id): array
     {
-        $stmt = $this->db->prepare(
-            'SELECT aw.atac_id AS id, aw.atac_name AS name, aw.atac_tip AS type, aw.atac_categori AS category, aw.atac_power AS power, aw.atac_accuracy AS accuracy, aw.atac_pp AS pp
-               FROM attac_egg ae
-         INNER JOIN attac_power aw ON aw.atac_id = ae.atac_id
-              WHERE ae.poke_base_id = :id
-              ORDER BY aw.atac_id ASC'
-        );
-        $stmt->execute(['id' => $id]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT aw.atac_id AS id,
+                        aw.atac_name AS name,
+                        aw.atac_tip AS type,
+                        aw.atac_categori AS category,
+                        aw.atac_power AS power,
+                        aw.atac_accuracy AS accuracy,
+                        aw.atac_pp AS pp
+                   FROM attac_egg ae
+             INNER JOIN attac_power aw ON aw.atac_id = ae.atac_id
+                  WHERE ae.poke_base_id = :id
+                  ORDER BY aw.atac_id ASC'
+            );
+            $stmt->execute(['id' => $id]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable) {
+            return [];
+        }
+
+        foreach ($rows as &$row) {
+            $row['categoryName'] = $this->categoryName((int)($row['category'] ?? 0));
+        }
+        unset($row);
+
+        return $rows;
     }
 
     private function pokemonHabitats(int $id): array
@@ -432,7 +476,15 @@ final class DexRepository
               LIMIT 160'
         );
         $stmt->execute(['id' => $id]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as &$row) {
+            $code = $this->pokemonCode(['Code' => $row['code'] ?? ''], (int)($row['id'] ?? 0));
+            $row['code'] = $code;
+            $row['sprite'] = $this->pokemonSprites($code, (string)($row['name'] ?? ''))['normal'];
+        }
+        unset($row);
+
+        return $rows;
     }
 
     private function attackStatEffects(int $id): array

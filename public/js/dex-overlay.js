@@ -80,6 +80,41 @@
     return 'type-' + String(type || 'normal').toLowerCase().replace(/[^a-z0-9]+/g, '-');
   }
 
+  const TYPE_ALIASES = {
+    normal: 'normal', fire: 'fire', water: 'water', grass: 'grass', electric: 'electric', ice: 'ice',
+    fighting: 'fighting', fight: 'fighting', poison: 'poison', ground: 'ground', flying: 'flying',
+    psychic: 'psychic', bug: 'bug', rock: 'rock', ghost: 'ghost', dragon: 'dragon', dark: 'dark',
+    steel: 'steel', fairy: 'fairy',
+  };
+
+  function typeKey(type) {
+    const raw = String(type || 'normal').toLowerCase().replace(/[^a-z0-9]+/g, '');
+    return TYPE_ALIASES[raw] || raw || 'normal';
+  }
+
+  function typeIconSrc(type) {
+    const key = typeKey(type);
+    const known = {
+      bug: true, dark: true, dragon: true, electric: true, fighting: true, fire: true,
+      flying: true, ghost: true, grass: true, ground: true, ice: true, normal: true,
+      poison: true, psychic: true, rock: true, steel: true, water: true,
+    };
+    return `/public/img/types/${known[key] ? key : 'normal'}.png`;
+  }
+
+  function iconImg(src, alt, className = '') {
+    return `<img class="${esc(className)}" src="${esc(src)}" alt="${esc(alt)}" loading="lazy">`;
+  }
+
+  function sectionTitle(icon, title) {
+    return `<span class="dex-section-title">${iconImg(`/public/img/ui/dex/${icon}.png`, title, 'dex-section-icon')}<span>${esc(title)}</span></span>`;
+  }
+
+  function typeBadge(type, mini = false) {
+    const label = type || 'Normal';
+    return `<span class="dex-type ${mini ? 'mini ' : ''}${typeClass(label)}">${iconImg(typeIconSrc(label), label, 'dex-type-icon')}<span>${esc(label)}</span></span>`;
+  }
+
   function imgTag(src, alt, className = '', fallback = '') {
     const fb = fallback ? ` data-fallback="${esc(fallback)}"` : '';
     return `<img class="${esc(className)}" src="${esc(src)}" alt="${esc(alt)}"${fb} loading="lazy">`;
@@ -94,7 +129,7 @@
           <button type="button" class="dex-row dex-pokemon-row" data-id="${Number(item.id)}">
             <div class="dex-row-info">
               <b>#${esc(item.code || item.number || item.id)} ${esc(item.name)}</b>
-              <div class="dex-row-types">${types.map(t => `<span class="dex-type ${typeClass(t)}">${esc(t)}</span>`).join('')}</div>
+              <div class="dex-row-types">${types.map(t => typeBadge(t, true)).join('')}</div>
             </div>
             <div class="dex-row-thumb">
               ${imgTag(sprites.normal || `/pok/normal/${esc(item.code || item.id)}.png`, item.name, '', sprites.fallbackNormal || '')}
@@ -105,10 +140,10 @@
       const tClass = typeClass(item.type);
       return `
         <button type="button" class="dex-row dex-attack-row" data-id="${Number(item.id)}">
-          <div class="attack-row-icon ${tClass}">${esc(typeIcon(item.type))}</div>
+          <div class="attack-row-icon ${tClass}">${iconImg(typeIconSrc(item.type), item.type || 'Normal')}</div>
           <div class="dex-row-info">
             <b>#${Number(item.id)} ${esc(item.name)}</b>
-            <div class="dex-row-types"><span class="dex-type mini ${tClass}">${esc(item.type)}</span><span class="dex-mini-muted">${esc(item.categoryName || '')}</span></div>
+            <div class="dex-row-types">${typeBadge(item.type, true)}<span class="dex-mini-muted">${esc(item.categoryName || '')}</span></div>
           </div>
           <div class="attack-row-stats">
             <span><small>Сила</small><b>${Number(item.power || 0) || '-'}</b></span>
@@ -185,7 +220,7 @@
       <tr>
         <td>${Number(m.level || 0)}</td>
         <td><a href="#" data-dex-attack-id="${Number(m.id || 0)}">${esc(m.name)}</a></td>
-        <td><span class="dex-type mini ${typeClass(m.type)}">${esc(m.type)}</span></td>
+        <td>${typeBadge(m.type, true)}</td>
         <td>${esc(m.categoryName || categoryName(m.category))}</td>
         <td>${Number(m.power || 0) || '-'}</td>
         <td>${Number(m.accuracy || 0) <= 0 ? '∞' : Number(m.accuracy || 0)}</td>
@@ -195,7 +230,7 @@
     const egg = (p.eggMoves || []).slice(0, 100).map(m => `
       <tr>
         <td><a href="#" data-dex-attack-id="${Number(m.id || 0)}">${esc(m.name)}</a></td>
-        <td><span class="dex-type mini ${typeClass(m.type)}">${esc(m.type || '')}</span></td>
+        <td>${typeBadge(m.type || 'Normal', true)}</td>
         <td>${Number(m.power || 0) || '-'}</td>
         <td>${Number(m.accuracy || 0) <= 0 ? '∞' : Number(m.accuracy || 0)}</td>
         <td>${Number(m.pp || 0)}</td>
@@ -222,7 +257,7 @@
           </div>
 
           <div class="dex-data-card">
-            <div class="dex-badges">${types.map(t => `<span class="dex-type ${typeClass(t)}">${esc(t)}</span>`).join('')}</div>
+            <div class="dex-badges">${types.map(t => typeBadge(t)).join('')}</div>
             <div class="dex-stats modern">
               <div><b>HP</b><span>${Number(stats.hp || 0)}</span></div>
               <div><b>ATK</b><span>${Number(stats.atk || 0)}</span></div>
@@ -233,27 +268,25 @@
             </div>
             <div class="dex-info-evo-grid">
               <div class="dex-info-block">
-                <h3>Информация</h3>
-                <p><b>Рост:</b> ${esc(info.height || '—')}</p>
-                <p><b>Вес:</b> ${esc(info.weight || '—')}</p>
+                <h3>${sectionTitle('info', 'Информация')}</h3>
                 <p><b>Поколение:</b> ${Number(info.generation || 1)}</p>
                 <p><b>Категория:</b> ${esc(info.category || 'Pokémon')}</p>
               </div>
               <div class="dex-evo-block">
-                <h3>Эволюция</h3>
+                <h3>${sectionTitle('evolution', 'Эволюция')}</h3>
                 <div class="dex-evo-chain">${evolutions}</div>
               </div>
             </div>
           </div>
         </div>
 
-        <h3>Описание</h3>
+        <h3>${sectionTitle('pokedex', 'Описание')}</h3>
         <p class="dex-description">${esc(p.description || '')}</p>
 
-        <h3>Атаки по уровню</h3>
+        <h3>${sectionTitle('moves', 'Атаки по уровню')}</h3>
         <div class="dex-table-wrap"><table><thead><tr><th>Ур.</th><th>Атака</th><th>Тип</th><th>Категория</th><th>Сила</th><th>Точн.</th><th>PP</th></tr></thead><tbody>${learn}</tbody></table></div>
-        ${egg ? `<h3>Яйцевые атаки</h3><div class="dex-table-wrap"><table><thead><tr><th>Атака</th><th>Тип</th><th>Сила</th><th>Точн.</th><th>PP</th></tr></thead><tbody>${egg}</tbody></table></div>` : ''}
-        ${habitats ? `<h3>Где обитает</h3><ul class="dex-habitats">${habitats}</ul>` : ''}
+        ${egg ? `<h3>${sectionTitle('egg', 'Яйцевые атаки')}</h3><div class="dex-table-wrap"><table><thead><tr><th>Атака</th><th>Тип</th><th>Сила</th><th>Точн.</th><th>PP</th></tr></thead><tbody>${egg}</tbody></table></div>` : ''}
+        ${habitats ? `<h3>${sectionTitle('habitat', 'Где обитает')}</h3><ul class="dex-habitats">${habitats}</ul>` : ''}
       </section>`;
   }
 
@@ -265,14 +298,6 @@
     const a = state.selectedAttack;
     if (!a) return;
     details.innerHTML = attackHtml(a);
-  }
-
-  function typeIcon(type) {
-    const key = String(type || 'Normal').toLowerCase();
-    return ({
-      normal: '●', fire: '🔥', water: '💧', grass: '🌿', electric: '⚡', ice: '❄', fighting: '拳', poison: '☠',
-      ground: '◆', flying: '羽', psychic: '✦', bug: '🐞', rock: '⬟', ghost: '☾', dragon: '龍', dark: '◆', steel: '▣', fairy: '✿'
-    })[key] || '●';
   }
 
   function flagChip(label, active) {
@@ -295,7 +320,7 @@
     const statEffects = formatAttackEffectList(a.statEffects || []);
     const secondary = formatAttackEffectList(a.secondaryEffects || []);
     const learnedRows = (a.learnedBy || []).slice(0, 160).map(p => {
-      const sprite = p.sprite || `/pok/normal/${esc(p.code || String(p.id || 0).padStart(3, '0'))}.png`;
+      const sprite = p.sprite || '/public/img/ui/dex/pokedex.png';
       return `<tr>
         <td><img class="attack-learn-sprite" src="${esc(sprite)}" alt="${esc(p.name || '')}" loading="lazy"></td>
         <td><a href="#" data-dex-pokemon-id="${Number(p.id || 0)}">#${esc(p.code || p.id)} ${esc(p.name)}</a></td>
@@ -306,11 +331,11 @@
     return `
       <section class="dex-attack-detail attack-theme">
         <div class="attack-detail-head">
-          <div class="attack-big-icon ${typeCls}">${esc(typeIcon(type))}</div>
+          <div class="attack-big-icon ${typeCls}">${iconImg(typeIconSrc(type), type || 'Normal')}</div>
           <div class="attack-title-block">
             <h2>#${Number(a.id || 0)} ${esc(a.name)}</h2>
             <div class="dex-badges attack-badges">
-              <span class="dex-type ${typeCls}">${esc(type)}</span>
+              ${typeBadge(type)}
               <span>${esc(category)}</span>
               <span>PP ${Number(a.pp || 0)}</span>
             </div>
@@ -328,7 +353,7 @@
         </div>
 
         <div class="attack-tag-card">
-          <h3>Метки атаки</h3>
+          <h3>${sectionTitle('attackdex', 'Метки атаки')}</h3>
           <div class="attack-flags">
             ${flagChip('Контактная', !!tags.contact)}
             ${flagChip('Блокируется', !!tags.blocked)}
@@ -341,7 +366,7 @@
 
         <div class="attack-info-grid">
           <div class="attack-info-card">
-            <h3>Детали</h3>
+            <h3>${sectionTitle('info', 'Детали')}</h3>
             <p>${esc(a.details || a.effectText || a.description || 'Дополнительные детали отсутствуют.')}</p>
             <div class="attack-code-lines">
               ${flags.dopEffect && flags.dopEffect !== '0' ? `<span>DOP: ${esc(flags.dopEffect)}</span>` : ''}
@@ -350,16 +375,16 @@
             </div>
           </div>
           <div class="attack-info-card">
-            <h3>Стат-эффекты</h3>
+            <h3>${sectionTitle('moves', 'Стат-эффекты')}</h3>
             ${statEffects}
           </div>
           <div class="attack-info-card">
-            <h3>Доп. эффекты</h3>
+            <h3>${sectionTitle('moves', 'Доп. эффекты')}</h3>
             ${secondary}
           </div>
         </div>
 
-        <h3>Кто учит эту атаку</h3>
+        <h3>${sectionTitle('pokedex', 'Кто учит эту атаку')}</h3>
         <div class="dex-table-wrap attack-learn-table"><table><thead><tr><th></th><th>Покемон</th><th>Как изучает?</th></tr></thead><tbody>${learnedRows}</tbody></table></div>
       </section>`;
   }

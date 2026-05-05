@@ -10,6 +10,7 @@ use Pokemon8\Game\BattleEngineService;
 use Pokemon8\Http\Request;
 use Pokemon8\Http\Response;
 use Pokemon8\Repository\LocationRepository;
+use Pokemon8\Repository\UserRepository;
 use Pokemon8\Security\Csrf;
 use Pokemon8\Security\Session;
 
@@ -23,6 +24,7 @@ final class GameApiController
         private WildEncounterService $wildEncounter,
         private BattleEngineService $battleEngine,
         private LocationRepository $locations,
+        private UserRepository $users,
     ) {
     }
 
@@ -98,6 +100,10 @@ final class GameApiController
             return $this->json(['ok' => false, 'error' => 'auth', 'message' => 'Нужно войти в игру.'], 401);
         }
 
+        if (!$this->isAdmin($userId)) {
+            return $this->json(['ok' => false, 'error' => 'forbidden', 'message' => 'Недостаточно прав.'], 403);
+        }
+
         if (!$this->csrf->validate($request->input('_csrf'))) {
             return $this->json(['ok' => false, 'error' => 'csrf', 'message' => 'Сессия устарела. Обнови страницу.'], 419);
         }
@@ -121,6 +127,12 @@ final class GameApiController
 
         $worldState['message'] = $encounter['wildEncounter']['message'] ?? 'Отладочный бой: нет сообщения.';
         return $this->json($worldState);
+    }
+
+    private function isAdmin(int $userId): bool
+    {
+        $state = $this->users->findStateById($userId);
+        return (int) ($state['groups'] ?? $this->session->get('groups', 0)) === 1;
     }
 
     private function json(array $payload, int $status = 200): Response

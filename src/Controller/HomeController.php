@@ -21,7 +21,7 @@ final class HomeController
 
     public function index(Request $request): Response
     {
-        // Р“Р»Р°РІРЅР°СЏ РїРѕРєР° РїРѕРєР°Р·С‹РІР°РµС‚ СЃС‚Р°СЂС‚РѕРІС‹Р№ СЌРєСЂР°РЅ РЅРѕРІРѕРіРѕ СЏРґСЂР° Рё СЂРµР№С‚РёРЅРіРё РёР· СЃС‚Р°СЂРѕР№ Р‘Р”.
+        // Главная пока показывает стартовый экран нового ядра и рейтинги из старой БД.
         $body = View::render('home', [
             'userLogin' => $this->session->get('login'),
             'csrfToken' => $this->csrf->token(),

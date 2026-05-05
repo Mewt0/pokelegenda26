@@ -1,5 +1,10 @@
 <?php
 use Pokemon8\View\View;
+
+$itemIconIndexPath = APP_ROOT . '/public/img/items/index.json';
+$itemIconIndex = is_file($itemIconIndexPath)
+    ? (json_decode((string) file_get_contents($itemIconIndexPath), true) ?: [])
+    : [];
 ?>
 <!doctype html>
 <html lang="ru">
@@ -8,50 +13,73 @@ use Pokemon8\View\View;
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pokemon 8.0 - Игровой мир</title>
   <link rel="stylesheet" href="/public/css/game-start.css">
+  <link rel="stylesheet" href="/public/css/game-shell.css">
+  <link rel="stylesheet" href="/public/css/game-battle-dock.css">
+  <link rel="stylesheet" href="/public/css/player-menu.css">
 </head>
 <body>
-  <main class="world" data-csrf="<?= View::e($csrf) ?>">
-    <section class="location" id="location">
-      <div class="location-card">
-        <h1 class="location-title" id="locationTitle">Загрузка...</h1>
-        <div class="location-main">
-          <img class="location-image" id="locationImage" alt="">
-          <div class="location-text" id="locationText"></div>
+  <main class="world game-shell" data-csrf="<?= View::e($csrf) ?>">
+    <section class="location location-card glass-card" id="location">
+      <div class="location-image-wrap">
+        <img class="location-image" id="locationImage" alt="">
+      </div>
+      <div class="location-info">
+        <div class="location-title-row">
+          <div class="location-pin" aria-hidden="true"></div>
+          <h1 class="location-title" id="locationTitle">Загрузка...</h1>
         </div>
-        <div class="npc-strip" id="npcs"></div>
+        <div class="decor-line"><span class="decor-dot"></span></div>
+        <div class="location-text location-description" id="locationText"></div>
+        <div class="npc-strip npc-actions" id="npcs"></div>
         <div class="npc-panel" id="npcPanel" aria-live="polite"></div>
-        <div class="moves" id="moves"></div>
       </div>
     </section>
 
-    <section class="chat">
-      <div class="chat-log" id="chatLog"></div>
-      <form class="chat-form" id="chatForm">
-        <input value="<?= View::e($login) ?>" readonly class="chat-my-login">
-        <input id="chatInput" placeholder="Сообщение..." autocomplete="off">
-        <button type="submit">▶</button>
-      </form>
+    <section class="travel-card glass-card" aria-label="Переходы">
+      <div class="travel-line"></div>
+      <div class="moves travel-buttons" id="moves"></div>
+      <div class="travel-line"></div>
     </section>
 
-    <aside class="users">
-      <h2 id="usersTitle">Игроки</h2>
-      <div id="usersList"></div>
-    </aside>
+    <section class="main-grid">
+      <section class="chat chat-panel glass-card">
+        <div class="chat-log chat-messages" id="chatLog"></div>
+        <form class="chat-form chat-input-bar" id="chatForm">
+          <input value="<?= View::e($login) ?>" readonly class="chat-my-login">
+          <input id="chatInput" class="chat-input" placeholder="Сообщение..." autocomplete="off">
+          <button type="submit" class="send-btn" aria-label="Отправить"><img src="/public/img/ui/chat/send.png" alt=""></button>
+        </form>
+      </section>
 
-    <nav class="actionbar">
-      <button type="button" id="pveButton">Нападение: выкл</button>
-      <button type="button" id="debugForceBattleBtn" style="display:none">DEBUG: бой (Дорога 1)</button>
-      <button type="button">Режим: общий</button>
-      <input placeholder="Ник">
-      <a href="/game/pokemon" id="pokemonLink">Покемоны</a>
-      <a href="/game/items" id="inventoryLink">Инвентарь</a>
-      <a href="/game/profile">Профиль</a>
-      <a href="#" data-open-dex="pokemon">Покедекс</a>
-      <a href="#" data-open-dex="attacks">Атакадекс</a>
-      <a href="/game/quests">Квесты</a>
-      <a href="/game/battle/pvp">Бои</a>
-      <a href="/game/messages">Почта</a>
-      <span class="status" id="status">Готово</span>
+      <aside class="users players-panel glass-card">
+        <h2 class="players-title" id="usersTitle">Игроки</h2>
+        <div class="players-list" id="usersList"></div>
+      </aside>
+    </section>
+
+    <nav class="actionbar bottom-toolbar glass-card">
+      <div class="quick-controls">
+        <button type="button" id="pveButton" class="status-pill danger">Нападение: выкл</button>
+        <?php if (!empty($isAdmin)): ?>
+          <button type="button" id="debugForceBattleBtn" class="status-pill debug" style="display:none">DEBUG: бой (Дорога 1)</button>
+        <?php endif; ?>
+        <button type="button" class="status-pill mode">Режим: общий</button>
+      </div>
+      <div class="main-menu">
+        <a href="/game/pokemon" id="pokemonLink"><img src="/public/img/ui/menu-pokemon.png" alt="">Покемоны</a>
+        <a href="/game/items" id="inventoryLink"><img src="/public/img/ui/menu-inventory.png" alt="">Инвентарь</a>
+        <a href="/game/profile"><img src="/public/img/ui/menu-profile.png" alt="">Профиль</a>
+        <a href="#" data-open-dex="pokemon"><img src="/public/img/ui/menu-pokedex.png" alt="">Покедекс</a>
+        <a href="#" data-open-dex="attacks"><img src="/public/img/ui/menu-attackdex.png" alt="">Атакадекс</a>
+        <a href="/game/quests"><img src="/public/img/ui/menu-quests.png" alt="">Квесты</a>
+        <a href="/game/battle/pvp"><img src="/public/img/ui/menu-battle.png" alt="">Бои</a>
+        <a href="/game/messages"><img src="/public/img/ui/menu-mail.png" alt="">Почта</a>
+      </div>
+      <div class="system-status">
+        <button type="button" class="settings-btn" aria-label="Настройки">⚙</button>
+        <span class="status" id="status">Готово</span>
+        <span class="signal" aria-hidden="true">▂▄▆</span>
+      </div>
     </nav>
   </main>
   <section class="inventory-overlay" id="inventoryOverlay" aria-hidden="true">
@@ -84,59 +112,90 @@ use Pokemon8\View\View;
       <iframe id="pokemonFrame" title="Покемоны" src="about:blank"></iframe>
     </div>
   </section>
-  <section class="battle-overlay" id="battleOverlay" aria-hidden="true">
-    <div class="battle-window" role="dialog" aria-label="PvE бой">
-      <header class="battle-head">
+  <section class="battle-overlay battle-dock-overlay" id="battleOverlay" aria-hidden="true">
+    <div class="battle-window battle-dock-window" role="dialog" aria-label="PvE бой">
+      <header class="battle-head battle-dock-head">
         <span id="battleTitle">Дикий бой</span>
-        <span class="battle-head-right">
-          <span id="battleRound">Раунд 1</span>
-          <button type="button" id="battleReviewClose" class="battle-review-close" aria-label="Закрыть просмотр боя">&times;</button>
-        </span>
+        <strong id="battleRound">Раунд 1</strong>
+        <span class="battle-turn-label" id="battleTurnLabel">Ваш ход</span>
+        <button type="button" id="battleReviewClose" class="battle-review-close" aria-label="Закрыть просмотр боя">&times;</button>
       </header>
-      <div class="battle-layout">
-        <aside class="battle-left">
-          <div class="battle-actions-col">
+      <div class="battle-layout battle-dock-layout">
+        <aside class="battle-left battle-dock-side battle-dock-left">
+          <div class="battle-dock-side-icons">
+            <span class="battle-dock-effect is-down">-1</span>
+            <span class="battle-dock-weather">≋ <span id="battleWeatherTurns">0</span></span>
+          </div>
+          <article class="fighter fighter-player battle-dock-card">
+            <div class="battle-dock-card-top">
+              <img class="battle-dock-ball" src="/public/img/ui/chatgpt-pokeball.png" alt="">
+              <span class="battle-dock-level" id="battlePlayerLevel">1</span>
+              <div class="sprite sprite-player" id="battlePlayerSprite" aria-hidden="true"><img id="battlePlayerSpriteImg" alt=""></div>
+              <span class="battle-dock-gender" id="battlePlayerGender">♂</span>
+              <div class="battle-status-badges" id="battlePlayerStatuses"></div>
+            </div>
+            <h3 id="battlePlayerName">Ваш покемон</h3>
+            <div class="hpbar"><div class="hpfill" id="battlePlayerHpBar" style="width:100%"></div></div>
+            <div class="battle-dock-energy"><i id="battlePlayerEnergyBar" style="width:42%"></i></div>
+            <div id="battlePlayerHp" class="muted">HP 0/0</div>
+          </article>
+          <div class="battle-actions-col battle-dock-moves">
             <button type="button" id="battleMove1" class="battle-move-btn">Атака 1</button>
             <button type="button" id="battleMove2" class="battle-move-btn">Атака 2</button>
             <button type="button" id="battleMove3" class="battle-move-btn">Атака 3</button>
             <button type="button" id="battleMove4" class="battle-move-btn">Атака 4</button>
           </div>
-          <div class="battle-subactions">
-            <select id="battleSwitchSelect" class="wide"></select>
-            <button type="button" id="battleSwitchBtn">Сменить</button>
-            <button type="button" id="battleEscapeBtn" class="danger">Сбежать</button>
-          </div>
         </aside>
 
-        <main class="battle-center">
-          <div class="battle-arena">
-            <div class="battle-arena-top">
-              <article class="fighter fighter-enemy">
-                <h3 id="battleEnemyName">Дикий покемон</h3>
-                <div class="hpbar"><div class="hpfill" id="battleEnemyHpBar" style="width:100%"></div></div>
-                <div id="battleEnemyHp" class="muted">HP 0/0</div>
-                <div class="battle-status-badges" id="battleEnemyStatuses"></div>
-              </article>
-            </div>
-            <div class="battle-arena-field">
-              <div class="sprite sprite-enemy" id="battleEnemySprite" aria-hidden="true"><img id="battleEnemySpriteImg" alt=""></div>
-              <div class="sprite sprite-player" id="battlePlayerSprite" aria-hidden="true"><img id="battlePlayerSpriteImg" alt=""></div>
-            </div>
-            <div class="battle-arena-bottom">
-              <article class="fighter fighter-player">
-                <h3 id="battlePlayerName">Ваш покемон</h3>
-                <div class="hpbar"><div class="hpfill" id="battlePlayerHpBar" style="width:100%"></div></div>
-                <div id="battlePlayerHp" class="muted">HP 0/0</div>
-                <div class="battle-status-badges" id="battlePlayerStatuses"></div>
-              </article>
-            </div>
-          </div>
-        </main>
-
-        <aside class="battle-right">
+        <main class="battle-center battle-dock-log-panel">
+          <div class="battle-dock-weather-title" id="battleWeatherLabel">Поле боя</div>
           <div class="battle-log" id="battleLog"></div>
           <div class="battle-finish" id="battleFinishBox" hidden>
             <button type="button" id="battleDoneBtn">Завершить бой</button>
+          </div>
+        </main>
+
+        <aside class="battle-right battle-dock-side battle-dock-right">
+          <div class="battle-dock-side-icons is-right">
+            <span class="battle-dock-effect is-up">+2</span>
+            <span class="battle-dock-effect is-down">-1</span>
+          </div>
+          <article class="fighter fighter-enemy battle-dock-card">
+            <div class="battle-dock-card-top">
+              <img class="battle-dock-ball" src="/public/img/ui/chatgpt-pokeball.png" alt="">
+              <span class="battle-dock-level" id="battleEnemyLevel">1</span>
+              <div class="sprite sprite-enemy" id="battleEnemySprite" aria-hidden="true"><img id="battleEnemySpriteImg" alt=""></div>
+              <span class="battle-dock-gender" id="battleEnemyGender">♂</span>
+              <div class="battle-status-badges" id="battleEnemyStatuses"></div>
+            </div>
+            <h3 id="battleEnemyName">Дикий покемон</h3>
+            <div class="hpbar"><div class="hpfill" id="battleEnemyHpBar" style="width:100%"></div></div>
+            <div class="battle-dock-energy"><i id="battleEnemyEnergyBar" style="width:26%"></i></div>
+            <div id="battleEnemyHp" class="muted">HP 0/0</div>
+          </article>
+          <div class="battle-dock-catch-info">
+            <b id="battleEnemyKind">Дикий покемон</b>
+            <span id="battleEnemyCatchText">Можно поймать</span>
+            <em id="battleEnemyRarity">Частый</em>
+          </div>
+          <div class="battle-dock-actions">
+            <button type="button" class="battle-tab" data-battle-tab="switch" title="Сменить">↻</button>
+            <button type="button" class="battle-tab" data-battle-tab="items" title="Предметы">▣</button>
+            <button type="button" class="battle-tab is-active" data-battle-tab="attacks" title="Атаки">⚔</button>
+            <button type="button" id="battleEscapeBtn" class="battle-dock-danger" title="Сбежать">⚑</button>
+          </div>
+          <div class="battle-dock-panels">
+            <div class="battle-tab-panel" data-battle-panel="switch">
+              <select id="battleSwitchSelect" class="wide"></select>
+              <button type="button" id="battleSwitchBtn">Сменить</button>
+              <div class="battle-list" id="battleSwitchList"></div>
+            </div>
+            <div class="battle-tab-panel" data-battle-panel="items">
+              <div class="battle-pocket-title">Предметы</div>
+              <div class="battle-list" id="battleItemsList"></div>
+              <div class="battle-pocket-title">Покеболы</div>
+              <div class="battle-list" id="battleBallsList"></div>
+            </div>
           </div>
         </aside>
       </div>
@@ -161,22 +220,33 @@ use Pokemon8\View\View;
   </section>
   <div class="inv-tooltip" id="invTooltip"></div>
   <div class="battle-poke-tooltip" id="battlePokeTooltip"></div>
+  <div class="battle-move-tooltip" id="battleMoveTooltip"></div>
 
   <script>
+    const itemIconIndex = <?= json_encode($itemIconIndex, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}' ?>;
     const app = document.querySelector('.world');
     const csrf = app.dataset.csrf;
     const state = { busy: false, locationId: 0, activeNpc: null, pveButton: false };
     window.state = state;
     const inventory = { page: 1, pages: 1, items: [], selected: null };
-    const battleState = { active: false, reviewing: false, moves: [] };
+    const battleState = { active: false, reviewing: false, moves: [], knownMoves: [] };
     const battleWindowDrag = { ready: false, dragging: false, offsetX: 0, offsetY: 0 };
-    const battleHoverState = { ready: false, player: null, enemy: null };
+    const battleHoverState = { ready: false, player: null, enemy: null, movePinned: false };
     const battlePocket = { loaded: false, items: [] };
 
     function setupBattleSideTabs() {
       const left = document.querySelector('.battle-left');
       if (!left || left.dataset.tabsReady === '1') return;
       left.dataset.tabsReady = '1';
+
+      const dockWindow = document.querySelector('.battle-dock-window');
+      if (dockWindow) {
+        document.querySelectorAll('[data-battle-tab]').forEach(button => {
+          button.addEventListener('click', () => setBattleTab(button.dataset.battleTab));
+        });
+        setBattleTab('attacks');
+        return;
+      }
 
       const actions = left.querySelector('.battle-actions-col');
       const subactions = left.querySelector('.battle-subactions');
@@ -301,6 +371,7 @@ use Pokemon8\View\View;
 
     function renderDebugBattleButton(location) {
       const btn = document.getElementById('debugForceBattleBtn');
+      if (!btn) return;
       const title = String(location && location.title ? location.title : '').toLowerCase();
       const isRoad1ByTitle = title.includes('дорога 1');
       const isRoad1ById = Number(state.locationId) === 4;
@@ -318,8 +389,8 @@ use Pokemon8\View\View;
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'npc-btn';
-        button.innerHTML = '<span class="npc-icon"></span><span class="npc-title"></span>';
-        button.querySelector('.npc-icon').textContent = iconLabel(npc.icon);
+        button.innerHTML = '<span class="npc-icon"><img alt="" loading="lazy"></span><span class="npc-title"></span>';
+        button.querySelector('.npc-icon img').src = npcIconSrc(npc);
         button.querySelector('.npc-title').textContent = npc.title;
         button.addEventListener('click', () => openNpc(npc));
         list.appendChild(button);
@@ -339,8 +410,10 @@ use Pokemon8\View\View;
       for (const move of movesData) {
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = 'move-btn';
-        button.textContent = move.title;
+        button.className = 'move-btn route-btn';
+        button.innerHTML = '<span class="route-ico" aria-hidden="true"><img alt="" loading="lazy"></span><span class="route-title"></span>';
+        button.querySelector('.route-ico img').src = routeIconSrc(move.title);
+        button.querySelector('.route-title').textContent = move.title;
         button.dataset.locationId = move.id;
         button.addEventListener('click', () => moveTo(move.id));
         moves.appendChild(button);
@@ -360,18 +433,80 @@ use Pokemon8\View\View;
       }
       for (const user of users) {
         const row = document.createElement('div');
-        row.className = 'user-row';
+        row.className = 'user-row player-row';
+        row.tabIndex = 0;
+        row.dataset.playerLogin = user.login || '';
+        row.dataset.playerId = user.id || user.user_id || '';
+        row.dataset.playerOnline = user.online ? '1' : '0';
         row.innerHTML = '<span class="dot ' + (user.online ? 'on' : '') + '"></span>' +
-          '<span class="user-name"></span><span class="user-tags"></span>';
+          '<span class="avatar" aria-hidden="true"></span><span class="user-name player-name"></span><span class="user-tags"></span>';
+        row.querySelector('.avatar').textContent = String(user.login || '?').trim().charAt(0).toUpperCase() || '?';
         row.querySelector('.user-name').textContent = user.login;
         row.querySelector('.user-tags').textContent = (user.pveButton ? 'pve' : '');
         usersList.appendChild(row);
       }
     }
 
-    function iconLabel(icon) {
-      const labels = { cross: '+', shop: '$', mentor: 'i', quest: '?', person: '@' };
-      return labels[icon] || '@';
+    function assetIcon(base, key) {
+      return '/public/img/ui/world/' + base + '/' + key + '.png';
+    }
+
+    function npcIconSrc(npc) {
+      const icon = String(npc && npc.icon ? npc.icon : '').toLowerCase();
+      const title = String(npc && npc.title ? npc.title : '').toLowerCase();
+      let key = 'default';
+
+      if (icon === 'cross') key = 'pc';
+      else if (icon === 'shop') key = 'shop';
+      else if (icon === 'mentor') key = 'mentor';
+      else if (icon === 'quest') key = 'quest';
+      else if (icon === 'person') key = 'person';
+
+      if (title.includes('профессор') || title.includes('исследователь')) key = 'professor';
+      else if (title.includes('коллекционер')) key = 'collector';
+      else if (title.includes('цветоч')) key = 'flower';
+      else if (title.includes('худож')) key = 'artist';
+      else if (title.includes('тренер') || title.includes('арен')) key = 'trainer';
+      else if (title.includes('старая')) key = 'elder';
+      else if (title.includes('касса') || title.includes('теплоход')) key = 'ticket';
+      else if (title.includes('покецентр')) key = 'pc';
+      else if (title.includes('покемаркет')) key = 'shop';
+
+      return assetIcon('npcs', key);
+    }
+
+    function routeIconSrc(title) {
+      const value = String(title || '').toLowerCase();
+      let key = 'default';
+
+      if (value.includes('лес')) key = 'forest';
+      else if (value.includes('дорога') || value.includes('маршрут') || value.includes('перевал')) key = 'road';
+      else if (value.includes('пещ') || value.includes('тунель') || value.includes('подвал')) key = 'cave';
+      else if (value.includes('озеро') || value.includes('вод')) key = 'water';
+      else if (value.includes('гора') || value.includes('скал') || value.includes('вершин')) key = 'mountain';
+      else if (value.includes('пляж')) key = 'beach';
+      else if (value.includes('порт')) key = 'port';
+      else if (value.includes('лаборатор')) key = 'lab';
+      else if (value.includes('стадион')) key = 'stadium';
+      else if (value.includes('админ') || value.includes('панель') || value.includes('полицей')) key = 'admin';
+      else if (value.includes('тюрь')) key = 'prison';
+      else if (value.includes('дом') || value.includes('центр')) key = 'house';
+      else if (value.includes('электро')) key = 'power';
+      else if (value.includes('теплоход') || value.includes('дирижаб')) key = 'ship';
+      else if (value.includes('вертолет')) key = 'air';
+      else if (value.includes('пустын')) key = 'desert';
+      else if (value.includes('мост')) key = 'bridge';
+      else if (value.includes('парк') || value.includes('зона трениров')) key = 'park';
+      else if (
+        value.includes('алабаст') || value.includes('вертания') || value.includes('пьютер') || value.includes('церулин') ||
+        value.includes('целадон') || value.includes('саффрон') || value.includes('фуксия') || value.includes('лавандер') ||
+        value.includes('вермилион') || value.includes('экрутек') || value.includes('оливин') || value.includes('азалия') ||
+        value.includes('литтлруд') || value.includes('олдэйл') || value.includes('петалбург') || value.includes('рустборн') ||
+        value.includes('маувайл') || value.includes('феларбор') || value.includes('лаваридж') || value.includes('фортри') ||
+        value.includes('лилистовн') || value.includes('сити') || value.includes('пригород')
+      ) key = 'town';
+
+      return assetIcon('locations', key);
     }
 
     function renderPveButton() {
@@ -470,6 +605,7 @@ use Pokemon8\View\View;
 
     function closeBattleOverlay() {
       const overlay = document.getElementById('battleOverlay');
+      hideBattleMoveTooltip();
       overlay.classList.remove('is-open');
       overlay.classList.remove('is-review');
       overlay.setAttribute('aria-hidden', 'true');
@@ -482,15 +618,17 @@ use Pokemon8\View\View;
     function renderBattleLog(logByRound, messages) {
       const log = document.getElementById('battleLog');
       log.innerHTML = '';
+      const seenMessages = new Set();
 
       if (Array.isArray(logByRound) && logByRound.length) {
         for (const chunk of logByRound) {
           const title = document.createElement('div');
           title.className = 'battle-log-round';
-          title.textContent = (Number(chunk.round) || 1) + ' Раунд';
+          title.textContent = 'Раунд ' + (Number(chunk.round) || 1);
           log.appendChild(title);
 
           for (const eventText of (chunk.events || [])) {
+            seenMessages.add(String(eventText || '').trim());
             const line = document.createElement('div');
             line.className = 'battle-log-event';
             line.innerHTML = decorateBattleLogText(String(eventText || ''));
@@ -501,12 +639,14 @@ use Pokemon8\View\View;
 
       if (Array.isArray(messages) && messages.length) {
         for (const message of messages) {
+          if (seenMessages.has(String(message || '').trim())) continue;
           const line = document.createElement('div');
           line.className = 'battle-log-event is-live';
           line.innerHTML = decorateBattleLogText(String(message || ''));
           log.appendChild(line);
         }
       }
+      log.scrollTop = 0;
     }
 
     function escapeHtml(text) {
@@ -517,6 +657,39 @@ use Pokemon8\View\View;
         '"': '&quot;',
         "'": '&#039;'
       }[ch]));
+    }
+
+    function escapeRegExp(text) {
+      return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function collectKnownBattleMoves(player, enemy, moves) {
+      const result = [];
+      const seen = new Set();
+      const pushMove = (move) => {
+        if (!move || !move.name) return;
+        const key = String(move.name).toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        result.push(move);
+      };
+      (Array.isArray(moves) ? moves : []).forEach(pushMove);
+      (Array.isArray(player && player.movesPreview) ? player.movesPreview : []).forEach(pushMove);
+      (Array.isArray(enemy && enemy.movesPreview) ? enemy.movesPreview : []).forEach(pushMove);
+      battleState.knownMoves = result;
+    }
+
+    function decorateBattleLogMoves(html) {
+      const moves = (battleState.knownMoves || [])
+        .map((move, index) => ({ move, index, name: String(move.name || '') }))
+        .filter(item => item.name.length >= 2)
+        .sort((a, b) => b.name.length - a.name.length);
+      for (const item of moves) {
+        const escapedName = escapeHtml(item.name);
+        const rx = new RegExp('(^|[^\\wА-Яа-яЁё])(' + escapeRegExp(escapedName) + ')(?=$|[^\\wА-Яа-яЁё])', 'giu');
+        html = html.replace(rx, '$1<button type="button" class="battle-log-move" data-move-index="' + item.index + '">$2</button>');
+      }
+      return html;
     }
 
     function decorateBattleLogText(text) {
@@ -536,7 +709,75 @@ use Pokemon8\View\View;
       html = html.replace(/^([^\.]+?)\sиспользует\s/i, '<span class="log-actor">$1</span> использует ');
       html = html.replace(/\. ([^\.]+?) теряет /i, '. <span class="log-target">$1</span> теряет ');
 
-      return html;
+      return decorateBattleLogMoves(html);
+    }
+
+    function battleTypeKey(type) {
+      const raw = String(type || 'normal').toLowerCase().replace(/[^a-z0-9а-яё]+/gi, '');
+      const aliases = {
+        normal: 'normal',
+        fighting: 'fighting',
+        fire: 'fire',
+        water: 'water',
+        grass: 'grass',
+        electric: 'electric',
+        ice: 'ice',
+        poison: 'poison',
+        ground: 'ground',
+        flying: 'flying',
+        psychic: 'psychic',
+        bug: 'bug',
+        rock: 'rock',
+        ghost: 'ghost',
+        dragon: 'dragon',
+        dark: 'dark',
+        steel: 'steel',
+        норма: 'normal',
+        нормальный: 'normal',
+        боевой: 'fighting',
+        огонь: 'fire',
+        огненный: 'fire',
+        вода: 'water',
+        водный: 'water',
+        трава: 'grass',
+        травяной: 'grass',
+        электро: 'electric',
+        электрический: 'electric',
+        лед: 'ice',
+        ледяной: 'ice',
+        яд: 'poison',
+        ядовитый: 'poison',
+        земля: 'ground',
+        земляной: 'ground',
+        летающий: 'flying',
+        психический: 'psychic',
+        жук: 'bug',
+        камень: 'rock',
+        каменный: 'rock',
+        призрак: 'ghost',
+        дракон: 'dragon',
+        темный: 'dark',
+        сталь: 'steel',
+        стальной: 'steel'
+      };
+      return aliases[raw] || 'normal';
+    }
+
+    function battleTypeIconSrc(type) {
+      return '/public/img/types/' + battleTypeKey(type) + '.png';
+    }
+
+    function battleGender(pokemon) {
+      const raw = String((pokemon && (pokemon.gender || pokemon.sex || pokemon.pol)) || '').toLowerCase();
+      if (raw.includes('female') || raw.includes('ж') || raw === '2') return '♀';
+      if (raw.includes('male') || raw.includes('м') || raw === '1') return '♂';
+      return '♂';
+    }
+
+    function battleEnergyPercent(pokemon) {
+      const value = Number((pokemon && (pokemon.energy ?? pokemon.exp ?? pokemon.xpPercent)) || 0);
+      if (value > 0) return Math.max(0, Math.min(100, value));
+      return 26;
     }
 
     function renderBattle(payload) {
@@ -569,8 +810,28 @@ use Pokemon8\View\View;
 
       document.getElementById('battleTitle').textContent = 'PvE бой #' + battle.id;
       document.getElementById('battleRound').textContent = 'Раунд ' + (battle.round || 1);
-      document.getElementById('battlePlayerName').textContent = player.name + ' Lv.' + player.level;
-      document.getElementById('battleEnemyName').textContent = enemy.name + ' Lv.' + enemy.level;
+      const turnLabel = document.getElementById('battleTurnLabel');
+      if (turnLabel) {
+        turnLabel.textContent = payload.finished ? 'Бой завершен' : 'Ваш ход';
+      }
+      const weatherLabel = document.getElementById('battleWeatherLabel');
+      if (weatherLabel) {
+        weatherLabel.textContent = battle.weather && battle.weather.name ? battle.weather.name : 'Поле боя';
+      }
+      const weatherTurns = document.getElementById('battleWeatherTurns');
+      if (weatherTurns) {
+        weatherTurns.textContent = battle.weather && battle.weather.turns ? battle.weather.turns : '';
+      }
+      document.getElementById('battlePlayerName').textContent = player.name || 'Ваш покемон';
+      document.getElementById('battleEnemyName').textContent = enemy.name || 'Дикий покемон';
+      const playerLevel = document.getElementById('battlePlayerLevel');
+      const enemyLevel = document.getElementById('battleEnemyLevel');
+      if (playerLevel) playerLevel.textContent = Number(player.level || 1);
+      if (enemyLevel) enemyLevel.textContent = Number(enemy.level || 1);
+      const playerGender = document.getElementById('battlePlayerGender');
+      const enemyGender = document.getElementById('battleEnemyGender');
+      if (playerGender) playerGender.textContent = battleGender(player);
+      if (enemyGender) enemyGender.textContent = battleGender(enemy);
       document.getElementById('battlePlayerHp').textContent = 'HP ' + player.hp + '/' + player.hpMax;
       document.getElementById('battleEnemyHp').textContent = 'HP ' + enemy.hp + '/' + enemy.hpMax;
       renderBattleStatuses('battlePlayerStatuses', player.statuses || [], player.majorStatuses || []);
@@ -584,11 +845,24 @@ use Pokemon8\View\View;
       const enemyHpPercent = Math.max(0, Math.min(100, (enemy.hp / Math.max(1, enemy.hpMax)) * 100));
       document.getElementById('battlePlayerHpBar').style.width = playerHpPercent + '%';
       document.getElementById('battleEnemyHpBar').style.width = enemyHpPercent + '%';
+      const playerEnergy = document.getElementById('battlePlayerEnergyBar');
+      const enemyEnergy = document.getElementById('battleEnemyEnergyBar');
+      if (playerEnergy) playerEnergy.style.width = battleEnergyPercent(player) + '%';
+      if (enemyEnergy) enemyEnergy.style.width = battleEnergyPercent(enemy) + '%';
+      const enemyKind = document.getElementById('battleEnemyKind');
+      const enemyCatchText = document.getElementById('battleEnemyCatchText');
+      const enemyRarity = document.getElementById('battleEnemyRarity');
+      if (enemyKind) enemyKind.textContent = battle.enemy && battle.enemy.trainer ? 'Покемон тренера' : 'Дикий покемон';
+      if (enemyCatchText) enemyCatchText.textContent = battle.enemy && battle.enemy.trainer ? 'Нельзя поймать' : 'Можно поймать';
+      if (enemyRarity) enemyRarity.textContent = enemy.rarity || enemy.rank || 'Частый';
 
       battleState.moves = Array.isArray(battle.moves) ? battle.moves : [];
+      collectKnownBattleMoves(player, enemy, battleState.moves);
       for (let i = 0; i < 4; i++) {
         const button = document.getElementById('battleMove' + (i + 1));
         const move = battleState.moves[i];
+        button.className = 'battle-move-btn';
+        button.dataset.moveIndex = String(i);
         if (move) {
           button.disabled = false;
           const power = Number(move.power || 0);
@@ -596,14 +870,17 @@ use Pokemon8\View\View;
           const pp = Number(move.pp || 0);
           const ppMax = Number(move.ppMax || 0);
           button.disabled = ppMax > 0 && pp <= 0;
-          button.innerHTML = '<span class="t"></span><span class="pp"></span><span class="s"></span>';
+          button.classList.add('type-' + battleTypeKey(move.type || move.tip || move.tipe || move.element));
+          button.innerHTML = '<span class="battle-move-icon"><img alt=""></span><span class="battle-move-main"><span class="t"></span><span class="s"></span></span><span class="pp"></span>';
+          button.querySelector('.battle-move-icon img').src = battleTypeIconSrc(move.type || move.tip || move.tipe || move.element);
           button.querySelector('.t').textContent = move.name;
           button.querySelector('.pp').textContent = ppMax > 0 ? (pp + '/' + ppMax) : '';
-          button.querySelector('.s').textContent = 'Сила: ' + power + ' • Точность: ' + acc + '%';
+          button.querySelector('.s').textContent = 'Сила: ' + (power || 0) + ' • Точность: ' + (acc || 0) + '%';
           button.dataset.moveId = String(move.id);
         } else {
           button.disabled = true;
-          button.textContent = 'Нет атаки';
+          button.classList.add('type-normal');
+          button.innerHTML = '<span class="battle-move-icon"><img src="/public/img/types/normal.png" alt=""></span><span class="battle-move-main"><span class="t">Нет атаки</span><span class="s">Сила: 0 • Точность: 0%</span></span><span class="pp"></span>';
           button.dataset.moveId = '';
         }
       }
@@ -740,6 +1017,79 @@ use Pokemon8\View\View;
       document.getElementById('battlePokeTooltip').style.display = 'none';
     }
 
+    function battleMoveCategoryName(move) {
+      if (move.categoryName) return String(move.categoryName);
+      const category = Number(move.category || move.atac_categori || 0);
+      if (category === 1) return 'Физическая';
+      if (category === 2) return 'Специальная';
+      return 'Статусная';
+    }
+
+    function battleMoveEffectText(effect) {
+      const target = effect.target === 'self' ? 'пользователю' : 'цели';
+      if (Number(effect.statusId || 0) > 0 || effect.kind === 'status') {
+        const chance = Number(effect.chance || 100);
+        return (chance < 100 ? chance + '%: ' : '') + 'накладывает статус ' + (effect.label || ('#' + Number(effect.statusId || 0)));
+      }
+      const chance = Number(effect.chance || 100);
+      const prefix = chance < 100 ? chance + '%: ' : '';
+      return prefix + (effect.label || 'Параметр') + ' ' + target + ' ' + (effect.value || '');
+    }
+
+    function showBattleMoveTooltip(event, move) {
+      if (!move || !Number(move.id || 0)) return;
+      const tooltip = document.getElementById('battleMoveTooltip');
+      const type = move.type || move.tip || move.tipe || move.element || 'Normal';
+      const icon = battleTypeIconSrc(type);
+      const power = Number(move.power || 0);
+      const accuracy = Number(move.accuracy || 0);
+      const pp = Number(move.pp || 0);
+      const ppMax = Number(move.ppMax || move.pp || 0);
+      const effects = Array.isArray(move.effects) ? move.effects : [];
+      const effectHtml = effects.length
+        ? effects.map(effect => '<span>' + escapeHtml(battleMoveEffectText(effect)) + '</span>').join('')
+        : '<span>Дополнительных эффектов нет.</span>';
+      const description = String(move.description || move.details || 'Описание атаки пока не заполнено.');
+
+      tooltip.innerHTML = [
+        '<div class="bmt-head">',
+          '<img src="' + icon + '" alt="">',
+          '<div><b>' + escapeHtml(move.name || 'Атака') + '</b><small>' + escapeHtml(type) + ', ' + pp + '/' + ppMax + ' PP</small></div>',
+        '</div>',
+        '<div class="bmt-chips">',
+          '<span>' + battleMoveCategoryName(move) + '</span>',
+          '<span>Точность ' + (accuracy || 0) + '</span>',
+          '<span>Мощность ' + (power || 0) + '</span>',
+        '</div>',
+        '<p>' + escapeHtml(description) + '</p>',
+        '<div class="bmt-effects">' + effectHtml + '</div>',
+      ].join('');
+      tooltip.style.display = 'block';
+      moveBattleMoveTooltip(event);
+    }
+
+    function moveBattleMoveTooltip(event) {
+      const tooltip = document.getElementById('battleMoveTooltip');
+      if (tooltip.style.display !== 'block') return;
+      const pad = 12;
+      let left = event.clientX + 14;
+      let top = event.clientY + 14;
+      const rect = tooltip.getBoundingClientRect();
+      if (left + rect.width + pad > window.innerWidth) {
+        left = event.clientX - rect.width - 14;
+      }
+      if (top + rect.height + pad > window.innerHeight) {
+        top = event.clientY - rect.height - 14;
+      }
+      tooltip.style.left = Math.max(pad, left) + 'px';
+      tooltip.style.top = Math.max(pad, top) + 'px';
+    }
+
+    function hideBattleMoveTooltip() {
+      battleHoverState.movePinned = false;
+      document.getElementById('battleMoveTooltip').style.display = 'none';
+    }
+
     function renderBattleSwitchList(options) {
       const list = document.getElementById('battleSwitchList');
       if (!list) return;
@@ -809,7 +1159,8 @@ use Pokemon8\View\View;
         row.type = 'button';
         row.className = 'battle-item-row';
         row.innerHTML = '<img alt=""><span><b></b><small></small></span><i aria-hidden="true">☆</i>';
-        row.querySelector('img').src = '/img/items/' + Number(item.item_id || 0) + '.png';
+        const rowImg = row.querySelector('img');
+        setItemIcon(rowImg, item);
         row.querySelector('b').textContent = item.name || item.tittle || ('Item #' + Number(item.item_id || 0));
         row.querySelector('small').innerHTML = '&#1050;&#1086;&#1083;&#1080;&#1095;&#1077;&#1089;&#1090;&#1074;&#1086;: ' + Number(item.count || 0) + ' &#1096;&#1090;.';
         row.addEventListener('click', () => {
@@ -818,6 +1169,21 @@ use Pokemon8\View\View;
         });
         list.appendChild(row);
       }
+    }
+
+    function itemIconSrc(item) {
+      const id = Number(item && item.item_id || 0);
+      const indexed = itemIconIndex[String(id)];
+      return '/public/img/items/' + (indexed || (id + '.png'));
+    }
+
+    function setItemIcon(img, item) {
+      const id = Number(item && item.item_id || 0);
+      img.onerror = () => {
+        img.onerror = () => { img.src = '/img/blank.gif'; };
+        img.src = '/img/items/' + id + '.png';
+      };
+      img.src = itemIconSrc(item);
     }
 
     function isBattleBall(item) {
@@ -847,7 +1213,9 @@ use Pokemon8\View\View;
         }
         imgEl.src = urls[idx++];
       };
+      imgEl.onload = () => { imgEl.style.visibility = 'visible'; };
       imgEl.onerror = tryNext;
+      imgEl.style.visibility = 'hidden';
       tryNext();
     }
 
@@ -862,7 +1230,7 @@ use Pokemon8\View\View;
       const urls = [];
       for (const name of spriteNumberCandidates(base)) {
         for (const ext of extensions) {
-          urls.push('/pok/' + folder + '/' + name + '.' + ext);
+          urls.push('/Pok/' + folder + '/' + name + '.' + ext);
         }
       }
       return urls;
@@ -879,9 +1247,58 @@ use Pokemon8\View\View;
       return spriteCandidates(folder, base, extensions);
     }
 
+    function spritePngCandidates(folder, base) {
+      const num = Number(base || 0);
+      const plain = String(num);
+      const padded = pad3(num);
+      const names = plain === padded ? [plain] : [plain, padded];
+      return names.map(name => '/Pok/' + folder + '/' + name + '.png');
+    }
+
+    function spriteGifCandidates(folder, base, preferPadded = false) {
+      const num = Number(base || 0);
+      const plain = String(num);
+      const padded = pad3(num);
+      const names = plain === padded
+        ? [plain]
+        : (preferPadded ? [padded, plain] : [plain, padded]);
+      return names.map(name => '/Pok/' + folder + '/' + name + '.gif');
+    }
+
+    function pokemonBaseNum(pokemon) {
+      return Number(
+        pokemon && (
+          pokemon.baseNum
+          || pokemon.base_num
+          || pokemon.basenum
+          || pokemon.num
+          || pokemon.number
+          || pokemon.code
+          || pokemon.pokedexId
+        ) || 0
+      );
+    }
+
+    function pokemonSpriteUrls(pokemon, keys = []) {
+      const result = [];
+      if (!pokemon || typeof pokemon !== 'object') return result;
+      for (const key of keys) {
+        if (pokemon[key]) result.push(String(pokemon[key]));
+      }
+      if (pokemon.sprites && typeof pokemon.sprites === 'object') {
+        for (const key of keys) {
+          if (pokemon.sprites[key]) result.push(String(pokemon.sprites[key]));
+        }
+        for (const key of ['back', 'sback', 'front', 'normal', 'shiny', 'sprite']) {
+          if (pokemon.sprites[key]) result.push(String(pokemon.sprites[key]));
+        }
+      }
+      return result;
+    }
+
     function renderBattleSprites(player, enemy) {
-      const playerBase = Number(player.baseNum || 0);
-      const enemyBase = Number(enemy.baseNum || 0);
+      const playerBase = pokemonBaseNum(player);
+      const enemyBase = pokemonBaseNum(enemy);
       const playerImg = document.getElementById('battlePlayerSpriteImg');
       const enemyImg = document.getElementById('battleEnemySpriteImg');
 
@@ -893,7 +1310,7 @@ use Pokemon8\View\View;
 
       // Back sprite for user's pokemon. Try shiny back first when name/tips says Shiny,
       // then normal back, then front/anim fallbacks so the pokemon never disappears.
-      const playerCandidates = [];
+      const playerCandidates = pokemonSpriteUrls(player, ['backSprite', 'spriteBack', 'back', 'sback', 'sprite']);
       if (playerIsShiny) {
         playerCandidates.push(...spriteCandidatesAny('sback', playerBase));
         playerCandidates.push(...spriteCandidatesAny('Sback', playerBase));
@@ -907,15 +1324,16 @@ use Pokemon8\View\View;
       playerCandidates.push(...spriteCandidatesAny('pok', playerBase));
       playerCandidates.push(...spriteCandidatesAny('normal', playerBase));
 
-      // Front sprite for wild pokemon. Legacy project often stores battle sprites in /pok/anim/.
-      const enemyCandidates = [];
+      // Front sprite for wild pokemon: prefer animated battle GIFs, keep PNG as fallback.
+      const enemyCandidates = pokemonSpriteUrls(enemy, ['frontSprite', 'spriteFront', 'sprite', 'front', 'normal']);
       if (enemyIsShiny) {
-        enemyCandidates.push(...spriteCandidatesAny('shiny', enemyBase));
-        enemyCandidates.push(...spriteCandidatesAny('shine', enemyBase));
+        enemyCandidates.push(...spriteGifCandidates('shiny', enemyBase, true));
+        enemyCandidates.push(...spritePngCandidates('shine', enemyBase));
       }
-      enemyCandidates.push(...spriteCandidatesAny('anim', enemyBase));
-      enemyCandidates.push(...spriteCandidatesAny('pok', enemyBase));
-      enemyCandidates.push(...spriteCandidatesAny('normal', enemyBase));
+      enemyCandidates.push(...spriteGifCandidates('spriteanim', enemyBase));
+      enemyCandidates.push(...spriteGifCandidates('pok', enemyBase, true));
+      enemyCandidates.push(...spriteGifCandidates('anim', enemyBase));
+      enemyCandidates.push(...spritePngCandidates('normal', enemyBase));
 
       setSpriteWithFallback(playerImg, playerCandidates);
       setSpriteWithFallback(enemyImg, enemyCandidates);
@@ -931,20 +1349,24 @@ use Pokemon8\View\View;
       const enemyImg = document.getElementById('battleEnemySpriteImg');
 
       setSpriteWithFallback(playerImg, [
-        '/pok/sback/' + pad3(playerId) + '.gif',
-        '/pok/sback/' + playerId + '.gif',
-        '/pok/back/' + pad3(playerId) + '.gif',
-        '/pok/back/' + playerId + '.gif',
-        '/pok/anim/' + pad3(playerId) + '.gif',
-        '/pok/anim/' + playerId + '.gif',
-        '/pok/back/001.gif',
+        '/Pok/sback/' + pad3(playerId) + '.gif',
+        '/Pok/sback/' + playerId + '.gif',
+        '/Pok/back/' + pad3(playerId) + '.gif',
+        '/Pok/back/' + playerId + '.gif',
+        '/Pok/normal/' + playerId + '.png',
+        '/Pok/anim/' + pad3(playerId) + '.gif',
+        '/Pok/anim/' + playerId + '.gif',
+        '/Pok/back/001.gif',
       ]);
       setSpriteWithFallback(enemyImg, [
-        '/pok/anim/' + pad3(enemyId) + '.gif',
-        '/pok/anim/' + enemyId + '.gif',
-        '/pok/pok/' + pad3(enemyId) + '.gif',
-        '/pok/shiny/' + pad3(enemyId) + '.gif',
-        '/pok/anim/001.gif',
+        '/Pok/spriteanim/' + enemyId + '.gif',
+        '/Pok/pok/' + pad3(enemyId) + '.gif',
+        '/Pok/pok/' + enemyId + '.gif',
+        '/Pok/anim/' + pad3(enemyId) + '.gif',
+        '/Pok/anim/' + enemyId + '.gif',
+        '/Pok/normal/' + enemyId + '.png',
+        '/Pok/normal/' + pad3(enemyId) + '.png',
+        '/Pok/anim/001.gif',
       ]);
     }
 
@@ -1015,7 +1437,8 @@ use Pokemon8\View\View;
 
         if (item) {
           slot.innerHTML = '<img alt=""><span class="cnt"></span><span class="item-id"></span>';
-          slot.querySelector('img').src = '/img/items/' + Number(item.item_id || 0) + '.png';
+          const icon = slot.querySelector('img');
+          setItemIcon(icon, item);
           slot.querySelector('.cnt').textContent = Number(item.count || 0).toLocaleString('ru-RU');
           slot.querySelector('.item-id').textContent = '#' + Number(item.item_id || 0);
           if (inventory.selected && Number(inventory.selected.id) === Number(item.id)) {
@@ -1220,22 +1643,25 @@ use Pokemon8\View\View;
     }
 
     document.getElementById('pveButton').addEventListener('click', togglePveButton);
-    document.getElementById('debugForceBattleBtn').addEventListener('click', async () => {
-      try {
-        setStatus('DEBUG: запускаем бой...');
-        const body = new URLSearchParams();
-        body.set('_csrf', csrf);
-        const response = await fetch('/api/battle/pve/force', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-          body
-        });
-        render(await response.json());
-      } catch (e) {
-        setStatus('DEBUG: не удалось запустить бой.', true);
-      }
-    });
+    const debugForceBattleBtn = document.getElementById('debugForceBattleBtn');
+    if (debugForceBattleBtn) {
+      debugForceBattleBtn.addEventListener('click', async () => {
+        try {
+          setStatus('DEBUG: запускаем бой...');
+          const body = new URLSearchParams();
+          body.set('_csrf', csrf);
+          const response = await fetch('/api/battle/pve/force', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body
+          });
+          render(await response.json());
+        } catch (e) {
+          setStatus('DEBUG: не удалось запустить бой.', true);
+        }
+      });
+    }
 
     document.getElementById('inventoryLink').addEventListener('click', event => {
       event.preventDefault();
@@ -1272,13 +1698,60 @@ use Pokemon8\View\View;
     });
 
     for (let i = 1; i <= 4; i++) {
-      document.getElementById('battleMove' + i).addEventListener('click', event => {
+      const moveButton = document.getElementById('battleMove' + i);
+      moveButton.addEventListener('click', event => {
         const moveId = Number(event.currentTarget.dataset.moveId || 0);
         if (moveId > 0) {
           battleAction('attack', { move_id: moveId });
         }
       });
     }
+    const battleMoves = document.querySelector('.battle-dock-moves');
+    if (battleMoves) {
+      battleMoves.addEventListener('mouseover', event => {
+        const icon = event.target.closest('.battle-move-icon');
+        if (!icon || !battleMoves.contains(icon)) return;
+        const button = icon.closest('.battle-move-btn');
+        const idx = Number(button && button.dataset.moveIndex || 0);
+        showBattleMoveTooltip(event, battleState.moves[idx]);
+      });
+      battleMoves.addEventListener('mousemove', event => {
+        if (!event.target.closest('.battle-move-icon')) return;
+        moveBattleMoveTooltip(event);
+      });
+      battleMoves.addEventListener('mouseout', event => {
+        const icon = event.target.closest('.battle-move-icon');
+        if (!icon) return;
+        if (event.relatedTarget && icon.contains(event.relatedTarget)) return;
+        if (battleHoverState.movePinned) return;
+        hideBattleMoveTooltip();
+      });
+    }
+    document.getElementById('battleLog').addEventListener('click', event => {
+      const button = event.target.closest('.battle-log-move');
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const idx = Number(button.dataset.moveIndex || -1);
+      const rect = button.getBoundingClientRect();
+      showBattleMoveTooltip({ clientX: rect.left, clientY: rect.bottom }, battleState.knownMoves[idx]);
+      battleHoverState.movePinned = true;
+    });
+    document.addEventListener('click', event => {
+      if (!battleHoverState.movePinned) return;
+      if (event.target.closest('.battle-log-move')) return;
+      if (event.target.closest('#battleMoveTooltip')) return;
+      hideBattleMoveTooltip();
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') hideBattleMoveTooltip();
+    });
+    document.addEventListener('scroll', hideBattleMoveTooltip, true);
+    document.addEventListener('mousemove', event => {
+      if (!battleHoverState.movePinned) return;
+      if (event.target.closest('#battleMoveTooltip') || event.target.closest('.battle-log-move')) return;
+      hideBattleMoveTooltip();
+    });
     document.getElementById('battleSwitchBtn').addEventListener('click', () => {
       const pokemonId = Number(document.getElementById('battleSwitchSelect').value || 0);
       if (pokemonId > 0) {
@@ -1304,6 +1777,7 @@ use Pokemon8\View\View;
     }, 2000);
   </script>
   <script src="/public/js/chat.js"></script>
+  <script src="/public/js/player-menu.js"></script>
   <script src="/public/js/dex-overlay.js"></script>
 
 </body>

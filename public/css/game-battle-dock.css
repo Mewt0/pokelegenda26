@@ -1,0 +1,888 @@
+/* Battle dock UI */
+.battle-overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: none;
+  z-index: 90;
+}
+
+.battle-overlay.is-open {
+  display: flex;
+}
+
+.battle-dock-overlay {
+  inset: 0;
+  padding: 64px 20px 92px;
+  align-items: flex-start;
+  justify-content: center;
+  background: transparent;
+  pointer-events: none;
+}
+
+.battle-dock-window {
+  width: min(1180px, calc(100vw - 72px));
+  height: min(360px, calc(100vh - 190px));
+  min-height: 340px;
+  max-height: calc(100vh - 190px);
+  left: auto;
+  top: auto;
+  position: relative;
+  transform: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #cfe0f4;
+  border-radius: 8px;
+  background: rgba(255,255,255,.97);
+  box-shadow: 0 18px 40px rgba(54,87,130,.18);
+  pointer-events: auto;
+}
+
+.battle-dock-window.is-dragged {
+  position: absolute;
+}
+
+.battle-dock-head {
+  height: 34px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 0 12px 0 14px;
+  border-bottom: 1px solid #cfe0f4;
+  background: linear-gradient(#fbfdff, #eef6ff);
+  color: #10233f;
+  font-weight: 800;
+  cursor: default;
+}
+
+.battle-dock-head strong {
+  color: #ef3b35;
+  letter-spacing: .04em;
+}
+
+.battle-turn-label {
+  text-align: right;
+}
+
+.battle-review-close {
+  display: none;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #25465f;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.battle-overlay.is-review .battle-review-close {
+  display: grid;
+  place-items: center;
+}
+
+.battle-review-close:hover {
+  background: #dbe7f2;
+  color: #102f45;
+}
+
+.battle-dock-layout {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 240px minmax(430px, 1fr) 220px;
+  overflow: hidden;
+  background: #d7e1ee;
+}
+
+.battle-dock-side,
+.battle-dock-log-panel {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.battle-dock-side {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  background: #d3deeb;
+}
+
+.battle-dock-left {
+  border-right: 1px solid #b8cbe2;
+}
+
+.battle-dock-right {
+  border-left: 1px solid #b8cbe2;
+}
+
+.battle-dock-side-icons {
+  height: 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #6a7890;
+  font-weight: 800;
+}
+
+.battle-dock-side-icons.is-right {
+  justify-content: flex-end;
+}
+
+.battle-dock-effect {
+  color: #e05858;
+  font-size: 13px;
+}
+
+.battle-dock-effect.is-up {
+  color: #15985d;
+}
+
+.battle-dock-weather {
+  color: #7e8796;
+}
+
+.battle-dock-card {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  max-width: none;
+  border: 1px solid #b9c8d8;
+  border-radius: 7px;
+  background: rgba(241,247,255,.8);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+  overflow: hidden;
+  padding: 0;
+}
+
+.battle-dock-card-top {
+  height: 72px;
+  position: relative;
+  padding: 6px 8px;
+}
+
+.battle-dock-ball {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.battle-dock-level {
+  position: absolute;
+  left: 8px;
+  bottom: 10px;
+  font: 22px/1 Georgia, "Times New Roman", serif;
+  color: #263d5f;
+}
+
+.battle-dock-gender {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  color: #0868d8;
+  font-size: 19px;
+}
+
+.battle-dock-window .battle-status-badges {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: grid;
+  gap: 4px;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+  margin: 0;
+  text-align: left;
+}
+
+.battle-dock-window .battle-status-badges span {
+  min-width: 22px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0 5px;
+  border-radius: 5px;
+  border: 1px solid rgba(80,107,142,.25);
+  background: #eff5ff;
+  color: #d94d4d;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.battle-dock-window .battle-status-badges .plus {
+  color: #10845a;
+}
+
+.battle-dock-window .battle-status-badges .major {
+  background: #fff2cc;
+  color: #7a4d00;
+  border-color: #e4b74f;
+}
+
+.battle-dock-window .sprite {
+  position: absolute;
+  left: 48px;
+  right: 32px;
+  top: 4px;
+  bottom: 2px;
+  width: calc(100% - 80px);
+  height: 68px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.battle-dock-window .sprite img {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+  image-rendering: auto;
+  filter: drop-shadow(0 8px 10px rgba(49,70,95,.22));
+}
+
+.battle-dock-card h3 {
+  margin: 0;
+  padding: 0 8px 3px;
+  color: #112442;
+  text-align: left;
+  text-shadow: none;
+  font: 700 15px/1.05 Georgia, "Times New Roman", serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.battle-dock-card .hpbar,
+.battle-dock-energy {
+  width: auto;
+  height: 6px;
+  margin: 0 8px 4px;
+  transform: none;
+  border-radius: 999px;
+  background: #edf3fb;
+  border: 1px solid #aabed5;
+  overflow: hidden;
+}
+
+.battle-dock-card .hpfill,
+.battle-dock-energy i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.battle-dock-card .hpfill {
+  background: linear-gradient(90deg, #1bbd8c, #28d08d);
+}
+
+.battle-dock-energy i {
+  background: linear-gradient(90deg, #d9c442, #ead45d);
+}
+
+.battle-dock-card .muted {
+  display: none;
+}
+
+.battle-dock-moves {
+  display: grid;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.battle-dock-window .battle-move-btn {
+  height: 39px;
+  min-height: 0;
+  max-height: 39px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  grid-template-rows: 1fr;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: 1px solid #b8c8db;
+  border-left: 4px solid #c7ad74;
+  border-radius: 7px;
+  background: rgba(255,255,255,.55);
+  color: #14233e;
+  text-align: left;
+  padding: 4px 7px 4px 5px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform .12s ease, border-color .12s ease, background .12s ease;
+}
+
+.battle-dock-window .battle-move-btn::before {
+  content: none;
+}
+
+.battle-dock-window .battle-move-btn:hover {
+  border-color: #8fb5e4;
+  background: #fff;
+}
+
+.battle-dock-window .battle-move-btn:active,
+.battle-dock-window .battle-tab:active,
+.battle-dock-danger:active {
+  transform: translateY(1px);
+}
+
+.battle-dock-window .battle-move-btn:disabled {
+  cursor: not-allowed;
+  opacity: .6;
+}
+
+.battle-dock-window .battle-move-btn.type-fire { border-left-color: #f27037; }
+.battle-dock-window .battle-move-btn.type-water { border-left-color: #2b95d6; }
+.battle-dock-window .battle-move-btn.type-grass { border-left-color: #4cae50; }
+.battle-dock-window .battle-move-btn.type-electric { border-left-color: #e7b900; }
+.battle-dock-window .battle-move-btn.type-ghost { border-left-color: #7160a8; }
+.battle-dock-window .battle-move-btn.type-fighting { border-left-color: #c04e3d; }
+.battle-dock-window .battle-move-btn.type-psychic { border-left-color: #cf3b86; }
+.battle-dock-window .battle-move-btn.type-dark { border-left-color: #51485a; }
+
+.battle-move-icon {
+  grid-row: 1;
+  align-self: center;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid #aebfd4;
+  background: #f6fbff;
+  box-shadow: 0 4px 10px rgba(32,65,101,.12);
+  cursor: help;
+}
+
+.battle-move-icon img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.battle-move-main {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.battle-dock-window .battle-move-btn .t {
+  display: block;
+  color: #558029;
+  font: 700 14px/1 Georgia, "Times New Roman", serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.battle-dock-window .battle-move-btn.type-fire .t {
+  color: #e4511e;
+}
+
+.battle-dock-window .battle-move-btn .s {
+  display: block;
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #586982;
+  font-size: 10px;
+  line-height: 1.1;
+  text-shadow: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.battle-dock-window .battle-move-btn .pp {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  align-self: end;
+  margin: 0;
+  color: #59677d;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.battle-move-tooltip {
+  position: fixed;
+  z-index: 150;
+  display: none;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+  padding: 9px 10px 10px;
+  border-radius: 5px;
+  background: rgba(25, 25, 25, .97);
+  color: #f7f2e8;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, .32);
+  font: 13px/1.18 Tahoma, Arial, sans-serif;
+  pointer-events: none;
+}
+
+.battle-move-tooltip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 14px;
+  height: 14px;
+  background: rgba(25, 25, 25, .97);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.bmt-head {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.bmt-head img {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #ead19c;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.24);
+}
+
+.bmt-head b {
+  display: block;
+  color: #fff;
+  font: 800 17px/1 Georgia, "Times New Roman", serif;
+  overflow-wrap: anywhere;
+}
+
+.bmt-head small {
+  display: block;
+  margin-top: 3px;
+  color: #bdbdbd;
+}
+
+.bmt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 9px 0;
+}
+
+.bmt-chips span {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 5px;
+  background: #3e3e3e;
+  color: #fff;
+  font-weight: 800;
+}
+
+.bmt-chips span:first-child {
+  background: #b93131;
+}
+
+.battle-move-tooltip p {
+  margin: 0 0 7px;
+  color: #f4efe8;
+}
+
+.bmt-effects {
+  display: grid;
+  gap: 4px;
+}
+
+.bmt-effects span {
+  color: #d9edf9;
+}
+
+.battle-log-move {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0d8c36;
+  font: inherit;
+  font-weight: 900;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.battle-log-move:hover {
+  color: #0a6f2c;
+  text-decoration: underline;
+}
+
+.battle-dock-log-panel {
+  position: relative;
+  padding: 34px 10px 10px;
+  background: #d4dfed;
+  display: flex;
+  flex-direction: column;
+}
+
+.battle-dock-weather-title {
+  position: absolute;
+  top: 8px;
+  left: 14px;
+  right: 14px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #748095;
+  font-weight: 800;
+  letter-spacing: .03em;
+}
+
+.battle-dock-window .battle-log {
+  flex: 1 1 auto;
+  height: auto;
+  max-height: none;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 12px;
+  border: 1px solid #bdcad9;
+  border-radius: 3px;
+  background: #eef6ff;
+  box-shadow: inset -4px 0 0 rgba(161,174,190,.22);
+  color: #192940;
+  font-size: 13px;
+}
+
+.battle-dock-window .battle-log-round {
+  position: relative;
+  margin: 0;
+  padding: 6px 0;
+  border: 0;
+  border-bottom: 1px solid rgba(184,203,226,.8);
+  background: transparent;
+  color: #87909e;
+  text-align: right;
+  font-weight: 800;
+}
+
+.battle-dock-window .battle-log-event {
+  min-height: 22px;
+  margin-top: 0;
+  padding: 2px 64px 2px 4px;
+  color: #192940;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.battle-dock-window .battle-log-event.is-live {
+  padding: 5px 64px 5px 8px;
+  background: #e9f7ee;
+  color: #174f2b;
+}
+
+.battle-dock-window .battle-log .log-actor { color: #2d8cff; font-weight: 700; }
+.battle-dock-window .battle-log .log-target { color: #7a4bdb; font-weight: 700; }
+.battle-dock-window .battle-log .log-damage { color: #d84a4a; font-weight: 700; }
+.battle-dock-window .battle-log .log-hp { color: #1f6f3f; font-weight: 700; }
+.battle-dock-window .battle-log .log-crit { color: #ff8a00; font-weight: 800; }
+.battle-dock-window .battle-log .log-miss { color: #7f8a96; font-weight: 700; }
+.battle-dock-window .battle-log .log-win { color: #1f9d4e; font-weight: 800; }
+.battle-dock-window .battle-log .log-lose { color: #c53d3d; font-weight: 800; }
+.battle-dock-window .battle-log .log-escape { color: #5b6f87; font-weight: 700; }
+.battle-dock-window .battle-log .log-reward { color: #d19800; font-weight: 800; }
+
+.battle-dock-window .battle-finish {
+  flex: 0 0 auto;
+  margin-top: 8px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.battle-dock-catch-info {
+  margin-top: 7px;
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  color: #567b27;
+}
+
+.battle-dock-catch-info b {
+  font: 700 15px/1.05 Georgia, "Times New Roman", serif;
+  text-transform: uppercase;
+}
+
+.battle-dock-catch-info span {
+  font-size: 12px;
+}
+
+.battle-dock-catch-info em {
+  margin-top: 7px;
+  padding: 3px 10px;
+  border-radius: 7px;
+  background: #e9f3ff;
+  color: #2a75b8;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.battle-dock-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 36px);
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.battle-dock-actions .battle-tab,
+.battle-dock-danger {
+  width: 36px;
+  height: 30px;
+  border: 1px solid #b8c8db;
+  border-radius: 5px;
+  background: linear-gradient(#fff, #edf4fc);
+  color: #52657d;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.battle-dock-actions .battle-tab:hover,
+.battle-dock-actions .battle-tab.is-active {
+  border-color: #7faee8;
+  color: #1e6fd0;
+}
+
+.battle-dock-actions .battle-tab.is-active {
+  background: linear-gradient(#fff, #e9f3ff);
+  box-shadow: inset 0 -3px 0 #2f7df0;
+}
+
+.battle-dock-danger {
+  background: linear-gradient(#ffe9e8, #ffcfcf);
+  border-color: #efb3b3;
+  color: #b23b3b;
+}
+
+.battle-dock-panels {
+  max-height: 64px;
+  margin-top: 8px;
+  overflow: auto;
+}
+
+.battle-dock-panels .battle-tab-panel {
+  display: none;
+  height: auto;
+  overflow: visible;
+}
+
+.battle-dock-panels .battle-tab-panel.is-active {
+  display: block;
+}
+
+.battle-dock-panels [data-battle-panel="switch"] select,
+.battle-dock-panels #battleSwitchBtn {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.battle-dock-window .battle-list {
+  display: grid;
+  gap: 8px;
+}
+
+.battle-dock-window .battle-empty {
+  padding: 12px 4px;
+  color: #5f7088;
+  font-size: 13px;
+}
+
+.battle-pocket-title {
+  margin: 8px 0 6px;
+  color: #52657d;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.battle-pocket-title:first-child {
+  margin-top: 0;
+}
+
+.battle-dock-window .battle-switch-card,
+.battle-dock-window .battle-item-row {
+  min-height: 44px;
+  grid-template-columns: 34px 1fr auto;
+  border-color: #b8c8db;
+  background: rgba(255,255,255,.72);
+}
+
+.battle-dock-window .battle-switch-card:hover,
+.battle-dock-window .battle-item-row:hover {
+  border-color: #7fa8b8;
+  background: #fff;
+}
+
+.battle-dock-window .battle-switch-card:disabled {
+  cursor: not-allowed;
+  opacity: .62;
+}
+
+.battle-dock-window .mini-poke,
+.battle-dock-window .battle-item-row img {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  object-fit: contain;
+  background: radial-gradient(circle at 42% 30%, #fff, #dcecf3 62%, #b6c8d0);
+  border: 1px solid #b6c2c7;
+  color: #2a8fb4;
+  font-size: 20px;
+}
+
+.battle-dock-window .battle-row-main b,
+.battle-dock-window .battle-item-row b {
+  display: block;
+  overflow: hidden;
+  color: #152843;
+  font-size: 13px;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.battle-dock-window .battle-item-row small {
+  display: block;
+  color: #53657c;
+  font-size: 12px;
+  line-height: 1.1;
+}
+
+.battle-dock-window .battle-item-row i {
+  color: #44546a;
+  font-style: normal;
+  font-size: 16px;
+}
+
+.battle-dock-window .mini-bars {
+  display: grid;
+  gap: 3px;
+  margin-top: 5px;
+}
+
+.battle-dock-window .mini-bars i {
+  display: block;
+  height: 4px;
+  border-radius: 99px;
+  background: #16a453;
+}
+
+.battle-dock-window .mini-bars .xp {
+  background: #e0b72b;
+}
+
+.battle-dock-left.is-review {
+  grid-template-rows: none;
+}
+
+.battle-poke-tooltip {
+  position: fixed;
+  z-index: 140;
+  display: none;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+  padding: 8px 10px 10px;
+  border: 2px solid #694b25;
+  border-radius: 6px;
+  background: rgba(43,34,31,.95);
+  color: #f7f0df;
+  box-shadow: 0 8px 24px rgba(0,0,0,.38);
+  font: 14px/1.25 Tahoma, Arial, sans-serif;
+  pointer-events: none;
+}
+
+.battle-poke-tooltip h4 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.battle-poke-tooltip .tip-type {
+  display: inline-block;
+  margin: 3px 0 6px;
+  padding: 1px 8px;
+  border-radius: 2px;
+  background: #b8ac73;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-shadow: 0 1px 0 #000;
+}
+
+.battle-poke-tooltip .tip-move {
+  color: #7bd5ff;
+  font-weight: 700;
+}
+
+.battle-poke-tooltip table {
+  width: 100%;
+  margin-top: 7px;
+  border-collapse: collapse;
+  text-align: center;
+}
+
+.battle-poke-tooltip th,
+.battle-poke-tooltip td {
+  border: 1px solid rgba(255,255,255,.25);
+  padding: 3px 4px;
+}
+
+.battle-poke-tooltip th {
+  color: #fff5d7;
+}
+
+@media (max-width: 1180px) {
+  .battle-dock-overlay {
+    padding: 12px;
+    align-items: center;
+  }
+
+  .battle-dock-window {
+    height: calc(100vh - 24px);
+    max-height: calc(100vh - 24px);
+  }
+
+  .battle-dock-layout {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+
+  .battle-dock-right {
+    border-left: 0;
+    border-top: 1px solid #b8cbe2;
+  }
+
+  .battle-dock-left {
+    border-right: 0;
+    border-bottom: 1px solid #b8cbe2;
+  }
+}

@@ -82,6 +82,16 @@
             <button type="button" class="chat-tool-btn is-active" data-chat-tool="scroll" title="Автопрокрутка включена">⇣</button>
         `;
         tabsContainer.appendChild(tools);
+        const clearIcon = tools.querySelector('[data-chat-tool="clear"]');
+        const scrollIcon = tools.querySelector('[data-chat-tool="scroll"]');
+        if (clearIcon) {
+            clearIcon.title = 'Очистить чат';
+            clearIcon.innerHTML = '<img src="/public/img/ui/chat/clear.png" alt="">';
+        }
+        if (scrollIcon) {
+            scrollIcon.title = 'Автопрокрутка включена';
+            scrollIcon.innerHTML = '<img src="/public/img/ui/chat/autoscroll-on.png" alt="">';
+        }
 
         tools.addEventListener('click', (e) => {
             const button = e.target.closest('[data-chat-tool]');
@@ -98,6 +108,10 @@
                 autoScroll = !autoScroll;
                 button.classList.toggle('is-active', autoScroll);
                 button.title = autoScroll ? 'Автопрокрутка включена' : 'Автопрокрутка выключена';
+                const icon = button.querySelector('img');
+                if (icon) {
+                    icon.src = autoScroll ? '/public/img/ui/chat/autoscroll-on.png' : '/public/img/ui/chat/autoscroll-off.png';
+                }
             }
         });
     }
@@ -134,15 +148,42 @@
 
             const id = parseInt(author.dataset.id);
             const name = author.textContent;
+            const isSystem = author.dataset.system === '1';
 
-            if (id > 0) {
-                showUserMenu(id, name, e);
+            if (id > 0 || isSystem) {
+                showUserMenu(id, name, e, isSystem);
             }
         });
 
         document.addEventListener('click', hideUserMenu);
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') hideUserMenu();
+        });
+        document.addEventListener('player-menu-action', (e) => {
+            const detail = e.detail || {};
+            const id = parseInt(detail.id || '0');
+            const name = String(detail.login || '');
+            if (!name) return;
+
+            if (detail.action === 'dialog') {
+                switchToPublicChat();
+                insertPublicReply(name);
+                return;
+            }
+
+            if (detail.action === 'private') {
+                if (id > 0) {
+                    pmToId = id;
+                    pmToName = name;
+                    const privTab = document.querySelector('.chat-tab[data-tipe="private"]');
+                    if (privTab) privTab.click();
+                    updatePmDisplay();
+                } else {
+                    switchToPublicChat();
+                    insertPublicReply(name);
+                }
+                chatInput.focus();
+            }
         });
     }
 
@@ -151,7 +192,7 @@
         userMenu.className = 'chat-user-menu';
         userMenu.hidden = true;
         userMenu.innerHTML = `
-            <div class="chat-user-menu-title">Системное уведомление:</div>
+            <div class="chat-user-menu-title" hidden></div>
             <button type="button" data-action="info">Информация</button>
             <button type="button" data-action="reply">Написать</button>
             <button type="button" data-action="private">Написать ЛС</button>
@@ -172,11 +213,35 @@
         });
     }
 
-    function showUserMenu(id, name, event) {
+    function isSystemAuthor(msg) {
+        const name = String(msg && msg.author_name || '').trim().toLowerCase();
+        return Number(msg && msg.tipe || 0) === TIPE_SYSTEM
+            || Number(msg && msg.author_id || 0) <= 0
+            || ['system', 'система', 'администрация', 'сервис', 'event', 'events'].includes(name);
+    }
+
+    function showUserMenu(id, name, event, isSystem = false) {
         if (!userMenu) return;
 
         userMenu.dataset.userId = String(id);
         userMenu.dataset.userName = name;
+        userMenu.dataset.system = isSystem ? '1' : '0';
+
+        const title = userMenu.querySelector('.chat-user-menu-title');
+        if (title) {
+            title.hidden = !isSystem;
+            title.textContent = isSystem ? 'Системное уведомление:' : '';
+        }
+
+        userMenu.querySelectorAll('[data-action="private"], [data-action="friend"], [data-action="ignore"], [data-action="mail"]').forEach(button => {
+            button.hidden = isSystem;
+        });
+
+        const replyButton = userMenu.querySelector('[data-action="reply"]');
+        if (replyButton) {
+            replyButton.textContent = isSystem ? 'Ответить в чат' : 'Написать';
+        }
+
         userMenu.hidden = false;
 
         const margin = 8;
@@ -253,6 +318,22 @@
 
     let allMessages = [];
 
+    function mergeMessages(messages) {
+        const byId = new Map();
+        for (const msg of allMessages) {
+            byId.set(Number(msg.id || 0), msg);
+        }
+        for (const msg of messages || []) {
+            const id = Number(msg.id || 0);
+            if (id > 0) {
+                byId.set(id, msg);
+            } else {
+                byId.set(Date.now() + Math.random(), msg);
+            }
+        }
+        allMessages = Array.from(byId.values()).sort((a, b) => Number(a.id || 0) - Number(b.id || 0));
+    }
+
     async function fetchMessages(syncOnly = false) {
         try {
             // Check if global state.locationId has changed
@@ -285,7 +366,7 @@
                 if (lastId === 0) {
                     allMessages = data.messages;
                 } else {
-                    allMessages = allMessages.concat(data.messages);
+                    mergeMessages(data.messages);
                 }
                 
                 if (allMessages.length > 200) allMessages = allMessages.slice(-200);
@@ -334,10 +415,12 @@
         timeSpan.textContent = `[${time}] `;
         div.appendChild(timeSpan);
 
-        if (msg.author_id > 0 || msg.author_name === 'System') {
+        const systemAuthor = isSystemAuthor(msg);
+        if (msg.author_id > 0 || systemAuthor) {
             const authorSpan = document.createElement('span');
             authorSpan.className = 'chat-author';
-            authorSpan.dataset.id = msg.author_id;
+            authorSpan.dataset.id = systemAuthor ? '0' : msg.author_id;
+            authorSpan.dataset.system = systemAuthor ? '1' : '0';
             authorSpan.textContent = msg.author_name;
             div.appendChild(authorSpan);
             

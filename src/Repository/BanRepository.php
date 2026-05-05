@@ -12,7 +12,7 @@ final class BanRepository
     }
 
     /**
-     * РџСЂРѕРІРµСЂСЏРµС‚ РЅР°Р»РёС‡РёРµ IP РІ С‚Р°Р±Р»РёС†Рµ banip.
+     * Проверяет наличие IP в таблице banip.
      */
     public function isIpBanned(string $ip): bool
     {

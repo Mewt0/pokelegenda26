@@ -89,13 +89,13 @@ $banGuard = new BanGuard($bans);
 
 $home = new HomeController($rankings, $session, $csrf);
 $auth = new AuthController($users, $passwords, $session, $csrf, ['techwork' => $appConfig['techwork']]);
-$game = new GameController($session, $csrf);
+$game = new GameController($session, $csrf, $users);
 $inventoryPage = new InventoryController($session, $inventory, $csrf);
 $inventoryApi = new InventoryApiController($session, $inventory, $csrf);
 $pokemonPage = new PokemonController($session, $csrf);
 $pokemonApi = new PokemonApiController($session, $csrf, $pokemonRepository);
 $profilePage = new ProfileController($session, $profiles);
-$gameApi = new GameApiController($session, $csrf, $locationState, $mapMoves, $wildEncounters, $battleEngine, $locations);
+$gameApi = new GameApiController($session, $csrf, $locationState, $mapMoves, $wildEncounters, $battleEngine, $locations, $users);
 $gameModules = new GameModuleController($session);
 $npcApi = new NpcApiController($session, $csrf, $npcDialogs);
 $chatApi = new ChatApiController($session, $csrf, $chatService, $locations);

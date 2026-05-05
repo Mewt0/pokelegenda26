@@ -11,6 +11,24 @@ final class ProfileRepository
     {
     }
 
+    public function idByLogin(string $login): int
+    {
+        $login = trim($login);
+        if ($login === '') {
+            return 0;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT id
+               FROM users
+              WHERE LOWER(login) = LOWER(:login) AND activation = 1
+              LIMIT 1'
+        );
+        $stmt->execute(['login' => $login]);
+
+        return (int) ($stmt->fetchColumn() ?: 0);
+    }
+
     public function profile(int $viewerId, int $profileId): ?array
     {
         $stmt = $this->db->prepare(

@@ -163,13 +163,13 @@ final class PokemonRepository
         ]);
         $move = $learn->fetch();
         if (!$move) {
-            return ['ok' => false, 'message' => 'Этот покемон не может изучить выбранную атаку.'];
+            return ['ok' => false, 'message' => 'Р­С‚РѕС‚ РїРѕРєРµРјРѕРЅ РЅРµ РјРѕР¶РµС‚ РёР·СѓС‡РёС‚СЊ РІС‹Р±СЂР°РЅРЅСѓСЋ Р°С‚Р°РєСѓ.'];
         }
 
         if ($row) {
             foreach (['a_id', 'b_id', 'c_id', 'd_id'] as $moveColumn) {
                 if ($moveColumn !== $slotMap[$slot]['id'] && (int) ($row[$moveColumn] ?? 0) === $moveId) {
-                    return ['ok' => false, 'message' => 'Эта атака уже стоит у покемона.'];
+                    return ['ok' => false, 'message' => 'Р­С‚Р° Р°С‚Р°РєР° СѓР¶Рµ СЃС‚РѕРёС‚ Сѓ РїРѕРєРµРјРѕРЅР°.'];
                 }
             }
         }
@@ -201,7 +201,7 @@ final class PokemonRepository
             ]);
         }
 
-        return ['ok' => true, 'message' => 'Атака обновлена.'];
+        return ['ok' => true, 'message' => 'РђС‚Р°РєР° РѕР±РЅРѕРІР»РµРЅР°.'];
     }
 
     /**
@@ -248,7 +248,11 @@ final class PokemonRepository
     {
         $stmt = $this->db->prepare(
             'SELECT amp.a_id, amp.b_id, amp.c_id, amp.d_id,
-                    ap1.atac_name AS a_name, ap2.atac_name AS b_name, ap3.atac_name AS c_name, ap4.atac_name AS d_name
+                    amp.a_pp_min, amp.a_pp_max, amp.b_pp_min, amp.b_pp_max, amp.c_pp_min, amp.c_pp_max, amp.d_pp_min, amp.d_pp_max,
+                    ap1.atac_name AS a_name, ap1.atac_tip AS a_type,
+                    ap2.atac_name AS b_name, ap2.atac_tip AS b_type,
+                    ap3.atac_name AS c_name, ap3.atac_tip AS c_type,
+                    ap4.atac_name AS d_name, ap4.atac_tip AS d_type
                FROM attac_my_poke amp
                LEFT JOIN attac_power ap1 ON ap1.atac_id = amp.a_id
                LEFT JOIN attac_power ap2 ON ap2.atac_id = amp.b_id
@@ -260,27 +264,34 @@ final class PokemonRepository
         $stmt->execute(['pokemon' => $pokemonId]);
         $row = $stmt->fetch() ?: [];
         $seen = [];
-        $slot = function (string $idKey, string $nameKey) use ($row, &$seen): array {
+        $emptyMove = ['id' => 0, 'name' => 'Нет атаки', 'type' => 'Normal', 'pp' => 0, 'ppMax' => 0];
+        $slot = function (string $idKey, string $nameKey, string $typeKey, string $ppMinKey, string $ppMaxKey) use ($row, &$seen, $emptyMove): array {
             $id = (int) ($row[$idKey] ?? 0);
             if ($id <= 0 || isset($seen[$id])) {
-                return ['id' => 0, 'name' => 'Нет атаки'];
+                return $emptyMove;
             }
             $seen[$id] = true;
-            return ['id' => $id, 'name' => (string) ($row[$nameKey] ?? 'Нет атаки')];
+            return [
+                'id' => $id,
+                'name' => (string) ($row[$nameKey] ?? 'Нет атаки'),
+                'type' => (string) ($row[$typeKey] ?? 'Normal'),
+                'pp' => (int) ($row[$ppMinKey] ?? 0),
+                'ppMax' => (int) ($row[$ppMaxKey] ?? 0),
+            ];
         };
 
         return [
-            'a' => $slot('a_id', 'a_name'),
-            'b' => $slot('b_id', 'b_name'),
-            'c' => $slot('c_id', 'c_name'),
-            'd' => $slot('d_id', 'd_name'),
+            'a' => $slot('a_id', 'a_name', 'a_type', 'a_pp_min', 'a_pp_max'),
+            'b' => $slot('b_id', 'b_name', 'b_type', 'b_pp_min', 'b_pp_max'),
+            'c' => $slot('c_id', 'c_name', 'c_type', 'c_pp_min', 'c_pp_max'),
+            'd' => $slot('d_id', 'd_name', 'd_type', 'd_pp_min', 'd_pp_max'),
         ];
     }
 
     private function learnableMoves(int $baseNum, int $level): array
     {
         $stmt = $this->db->prepare(
-            'SELECT ap.atac_id AS id, ap.atc_lvl AS level, apw.atac_name AS name
+            'SELECT ap.atac_id AS id, ap.atc_lvl AS level, apw.atac_name AS name, apw.atac_tip AS type, apw.atac_pp AS pp
                FROM attac_poke ap
                INNER JOIN attac_power apw ON apw.atac_id = ap.atac_id
               WHERE ap.poke_base_id = :base AND ap.atc_lvl <= :lvl
@@ -295,6 +306,8 @@ final class PokemonRepository
                 'id' => (int) $row['id'],
                 'name' => (string) $row['name'],
                 'level' => (int) $row['level'],
+                'type' => (string) ($row['type'] ?? 'Normal'),
+                'pp' => (int) ($row['pp'] ?? 0),
             ];
         }
 

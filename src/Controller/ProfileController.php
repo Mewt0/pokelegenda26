@@ -24,9 +24,14 @@ final class ProfileController
             return Response::redirect('/');
         }
 
-        $profileId = (int) $request->input('id', (string) $viewerId);
-        if ($profileId <= 0) {
-            $profileId = $viewerId;
+        $profileLogin = $request->input('user');
+        if ($profileLogin !== '') {
+            $profileId = $this->profiles->idByLogin($profileLogin);
+        } else {
+            $profileId = (int) $request->input('id', (string) $viewerId);
+            if ($profileId <= 0) {
+                $profileId = $viewerId;
+            }
         }
 
         $profile = $this->profiles->profile($viewerId, $profileId);
