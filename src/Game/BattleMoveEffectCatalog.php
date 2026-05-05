@@ -47,6 +47,37 @@ final class BattleMoveEffectCatalog
         };
     }
 
+    /** @return array{kind:string,label:string}|null */
+    public static function terrain(int $id, string $name): ?array
+    {
+        return match (self::key($name)) {
+            'electric terrain' => ['kind' => 'electric', 'label' => 'Электрическая арена'],
+            'misty terrain' => ['kind' => 'misty', 'label' => 'Туманная арена'],
+            'grassy terrain' => ['kind' => 'grassy', 'label' => 'Травяная арена'],
+            default => null,
+        };
+    }
+
+    /** @return array{kind:string,label:string}|null */
+    public static function room(int $id, string $name): ?array
+    {
+        return match (self::key($name)) {
+            'trick room' => ['kind' => 'trick_room', 'label' => 'Комната смеха'],
+            'wonder room' => ['kind' => 'wonder_room', 'label' => 'Комната чудес'],
+            'magic room' => ['kind' => 'magic_room', 'label' => 'Волшебная комната'],
+            default => null,
+        };
+    }
+
+    public static function screenKind(int $id, string $name): ?string
+    {
+        return match (self::key($name)) {
+            'reflect' => 'reflect',
+            'light screen' => 'light_screen',
+            default => null,
+        };
+    }
+
     /** @return list<array{statusId:int,chance:int,target?:string}> */
     public static function secondaryStatuses(int $id, string $name): array
     {
@@ -200,6 +231,7 @@ final class BattleMoveEffectCatalog
             'perish song' => 'perish_song',
             'destiny bond' => 'destiny_bond',
             'taunt' => 'taunt',
+            'heal block' => 'heal_block',
             'encore' => 'encore',
             'torment' => 'torment',
             'disable' => 'disable',

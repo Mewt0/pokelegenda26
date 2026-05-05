@@ -40,7 +40,14 @@ final class BattleMathService
     {
         $plus = $this->clampStage($plus);
         $minus = $this->clampStage($minus);
-        return (2.0 + $plus) / (2.0 + $minus);
+        $stage = max(-6, min(6, $plus - $minus));
+        if ($stage === 0) {
+            return 1.0;
+        }
+        if ($stage > 0) {
+            return 1.0 + (0.5 * $stage);
+        }
+        return max(0.25, 1.0 + (0.5 * $stage));
     }
 
     public function effectiveStat(int|float $base, int $plus, int $minus): int

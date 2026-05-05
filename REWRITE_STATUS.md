@@ -91,6 +91,10 @@
 - Добавлено хранение и срабатывание ловушек: Spikes, Toxic Spikes, Stealth Rock.
 - Добавлен каталог боевых эффектов атак: яд/тяжелый яд Toxic/ожог/сон/паралич/заморозка, шипы/паутина/камни/стальные шипы, удерживающие ловушки, отдача, crash-урон Jump Kick/High Jump Kick, погода, Nightmare/Perish Song/Destiny Bond/Taunt/Encore/Torment/Disable/Knock Off.
 - Погода влияет на бой: солнце усиливает Fire и режет Water, дождь усиливает Water и режет Fire, Thunder/Hurricane получают точность в дождь/солнце, Blizzard получает точность в град, Weather Ball меняет тип/силу.
+- Статусы разделены по боевой модели: stable-статусы взаимоисключающие, учитывают иммунитеты типов и misty/electric terrain; volatile-эффекты могут жить параллельно и часть из них снимается при смене покемона.
+- Toxic теперь прогрессирует по раундам `1/16 -> 2/16 -> 3/16...`; ожог тикает `1/16`, режет физическую атаку, паралич режет скорость до `25%`.
+- Entry hazards поддерживают слои Spikes `1/8 -> 1/6 -> 1/4`, два слоя Toxic Spikes дают сильное отравление, Stealth Rock считает урон от типа Rock.
+- Добавлены battlefield-эффекты: Reflect, Light Screen, Electric/Misty/Grassy Terrain, Trick Room, Wonder Room, Magic Room; Grassy Terrain лечит, комнаты и экраны влияют на расчет боя.
 - В БД добавлена миграция `2026_05_06_000002_enrich_battle_move_effects.sql`, которая дополняет legacy-атаки статусами и шансами эффектов.
 - Проверено по списку эффектов: в живой `attac_power` есть 71 атака из переданного списка; отсутствующие современные атаки покрыты PHP-каталогом по имени и заработают после добавления самих атак в БД.
 
@@ -162,5 +166,5 @@
 - PHP lint: `src/Game/BattleEngineService.php`, `src/Repository/BattleRepository.php`, `src/Repository/MessageRepository.php`, `src/Controller/GameModuleController.php`, `src/Game/GameRoutes.php`, `views/game-module.php`, `views/game-messages.php`, `public/index.php`.
 - JS syntax: `public/js/player-menu.js`.
 - DB schema check: `battle_dop` primary key и индекс `(battleid, pokeid)`, `pvp_requests` индексы входящих/исходящих/пары/боя.
-- DB smoke: добавление ловушки, защита от дубля, чтение ловушек, Fire Punch -> burn, Leech Seed -> status 8, Toxic -> poison, Spikes/Sticky Web hazards, Fire Spin -> partial trap, Sunny Day -> weather, Double-Edge -> recoil, Taunt blocks Thunder Wave, чтение inbox, PvP заявка/принятие/два хода в транзакции с rollback, карма/ордеры/безопасные и запрещенные локации в транзакции с rollback.
+- DB smoke: добавление ловушки, защита от дубля, чтение ловушек, Fire Punch -> burn, Leech Seed -> status 8, Toxic -> progressive poison, Spikes/Sticky Web hazards, Fire Spin -> partial trap, Sunny Day -> weather, Double-Edge -> recoil, Taunt blocks Thunder Wave, иммунитет Fire к Burn, запрет второго stable-статуса, 3 слоя Spikes, Trick Room order, Reflect damage reduction, чтение inbox, PvP заявка/принятие/два хода в транзакции с rollback, карма/ордеры/безопасные и запрещенные локации в транзакции с rollback.
 - Render smoke: `game-module` и `game-messages` рендерятся через `View::render`.

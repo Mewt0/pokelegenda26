@@ -1006,16 +1006,28 @@ final class BattleRepository
 
         $pokeId = 'hazard:' . $side . ':' . $kind;
         $exists = $this->db->prepare(
-            'SELECT id FROM battle_dop WHERE battleid = :battle AND pokeid = :poke LIMIT 1'
+            'SELECT id, at_dop FROM battle_dop WHERE battleid = :battle AND pokeid = :poke LIMIT 1'
         );
         $exists->execute(['battle' => $battleId, 'poke' => $pokeId]);
-        if ($exists->fetchColumn() !== false) {
-            return false;
+        $row = $exists->fetch();
+        if ($row) {
+            $maxLayers = match ($kind) {
+                'spikes' => 3,
+                'toxic_spikes' => 2,
+                default => 1,
+            };
+            $layers = max(1, (int) ($row['at_dop'] ?? 1));
+            if ($layers >= $maxLayers) {
+                return false;
+            }
+            $this->db->prepare('UPDATE battle_dop SET at_dop = :layers WHERE id = :id')
+                ->execute(['layers' => $layers + 1, 'id' => (int) ($row['id'] ?? 0)]);
+            return true;
         }
 
         $stmt = $this->db->prepare(
             'INSERT INTO battle_dop (id, battleid, pokeid, propusk, vulnerability, at_dop, mess)
-             VALUES (:id, :battle, :poke, 0, 0, 0, :kind)'
+             VALUES (:id, :battle, :poke, 0, 0, 1, :kind)'
         );
         $stmt->execute([
             'id' => $this->nextTableId('battle_dop', 'id'),
@@ -1051,6 +1063,35 @@ final class BattleRepository
             $kind = $this->normalizeHazardKind((string) ($row['mess'] ?? ''));
             if ($kind !== '' && !in_array($kind, $result, true)) {
                 $result[] = $kind;
+            }
+        }
+        return $result;
+    }
+
+    /** @return array<string,int> */
+    public function findBattleHazardLayers(int $battleId, int $side): array
+    {
+        $side = $side === 2 ? 2 : 1;
+        if ($battleId <= 0) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT mess, at_dop
+               FROM battle_dop
+              WHERE battleid = :battle AND pokeid LIKE :prefix
+              ORDER BY id ASC'
+        );
+        $stmt->execute([
+            'battle' => $battleId,
+            'prefix' => 'hazard:' . $side . ':%',
+        ]);
+
+        $result = [];
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $kind = $this->normalizeHazardKind((string) ($row['mess'] ?? ''));
+            if ($kind !== '') {
+                $result[$kind] = max(1, (int) ($row['at_dop'] ?? 1));
             }
         }
         return $result;
@@ -1099,6 +1140,90 @@ final class BattleRepository
 
         $kind = $this->normalizeWeatherKind((string) ($row['mess'] ?? ''));
         return $kind === '' ? null : ['kind' => $kind, 'roundEnd' => (int) ($row['vulnerability'] ?? 0)];
+    }
+
+    public function setBattleTerrain(int $battleId, string $kind, int $roundEnd): void
+    {
+        $kind = $this->normalizeTerrainKind($kind);
+        if ($battleId <= 0 || $kind === '') {
+            return;
+        }
+
+        $this->db->prepare('DELETE FROM battle_dop WHERE battleid = :battle AND pokeid = "field:terrain"')
+            ->execute(['battle' => $battleId]);
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO battle_dop (id, battleid, pokeid, propusk, vulnerability, at_dop, mess)
+             VALUES (:id, :battle, "field:terrain", "field", :round_end, 0, :kind)'
+        );
+        $stmt->execute([
+            'id' => $this->nextTableId('battle_dop', 'id'),
+            'battle' => $battleId,
+            'round_end' => max(1, $roundEnd),
+            'kind' => $kind,
+        ]);
+    }
+
+    /** @return array{kind:string,roundEnd:int}|null */
+    public function findBattleTerrain(int $battleId): ?array
+    {
+        if ($battleId <= 0) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT mess, vulnerability
+               FROM battle_dop
+              WHERE battleid = :battle AND pokeid = "field:terrain"
+              LIMIT 1'
+        );
+        $stmt->execute(['battle' => $battleId]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            return null;
+        }
+
+        $kind = $this->normalizeTerrainKind((string) ($row['mess'] ?? ''));
+        return $kind === '' ? null : ['kind' => $kind, 'roundEnd' => (int) ($row['vulnerability'] ?? 0)];
+    }
+
+    public function addBattleRoom(int $battleId, string $kind, int $roundEnd): bool
+    {
+        $kind = $this->normalizeRoomKind($kind);
+        if ($battleId <= 0 || $kind === '') {
+            return false;
+        }
+
+        $pokeId = 'field:room:' . $kind;
+        $exists = $this->db->prepare('SELECT id FROM battle_dop WHERE battleid = :battle AND pokeid = :poke LIMIT 1');
+        $exists->execute(['battle' => $battleId, 'poke' => $pokeId]);
+        if ($exists->fetchColumn() !== false) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO battle_dop (id, battleid, pokeid, propusk, vulnerability, at_dop, mess)
+             VALUES (:id, :battle, :poke, "field", :round_end, 0, :kind)'
+        );
+        $stmt->execute([
+            'id' => $this->nextTableId('battle_dop', 'id'),
+            'battle' => $battleId,
+            'poke' => $pokeId,
+            'round_end' => max(1, $roundEnd),
+            'kind' => $kind,
+        ]);
+        return true;
+    }
+
+    public function hasBattleRoom(int $battleId, string $kind): bool
+    {
+        $kind = $this->normalizeRoomKind($kind);
+        if ($battleId <= 0 || $kind === '') {
+            return false;
+        }
+        $stmt = $this->db->prepare('SELECT id FROM battle_dop WHERE battleid = :battle AND pokeid = :poke LIMIT 1');
+        $stmt->execute(['battle' => $battleId, 'poke' => 'field:room:' . $kind]);
+        return $stmt->fetchColumn() !== false;
     }
 
     public function addBattleVolatile(int $battleId, string $battlePokemon, string $kind, int $roundEnd): bool
@@ -1152,7 +1277,7 @@ final class BattleRepository
 
         $prefix = 'v:' . substr(sha1($battlePokemon), 0, 16) . ':%';
         $stmt = $this->db->prepare(
-            'SELECT mess, vulnerability
+            'SELECT mess, vulnerability, at_dop
                FROM battle_dop
               WHERE battleid = :battle AND pokeid LIKE :prefix AND propusk = :battle_pokemon
               ORDER BY id ASC'
@@ -1167,10 +1292,44 @@ final class BattleRepository
         foreach ($stmt->fetchAll() ?: [] as $row) {
             $kind = $this->normalizeVolatileKind((string) ($row['mess'] ?? ''));
             if ($kind !== '') {
-                $rows[] = ['kind' => $kind, 'roundEnd' => (int) ($row['vulnerability'] ?? 0)];
+                $rows[] = ['kind' => $kind, 'roundEnd' => (int) ($row['vulnerability'] ?? 0), 'stacks' => (int) ($row['at_dop'] ?? 0)];
             }
         }
         return $rows;
+    }
+
+    public function incrementBattleVolatileStacks(int $battleId, string $battlePokemon, string $kind): int
+    {
+        $kind = $this->normalizeVolatileKind($kind);
+        if ($battleId <= 0 || $battlePokemon === '' || $kind === '') {
+            return 0;
+        }
+        $pokeId = $this->volatileKey($battlePokemon, $kind);
+        $this->db->prepare('UPDATE battle_dop SET at_dop = at_dop + 1 WHERE battleid = :battle AND pokeid = :poke')
+            ->execute(['battle' => $battleId, 'poke' => $pokeId]);
+
+        $stmt = $this->db->prepare('SELECT at_dop FROM battle_dop WHERE battleid = :battle AND pokeid = :poke LIMIT 1');
+        $stmt->execute(['battle' => $battleId, 'poke' => $pokeId]);
+        return max(0, (int) ($stmt->fetchColumn() ?: 0));
+    }
+
+    public function clearSwitchVolatiles(int $battleId, string $battlePokemon): void
+    {
+        if ($battleId <= 0 || $battlePokemon === '') {
+            return;
+        }
+        $prefix = 'v:' . substr(sha1($battlePokemon), 0, 16) . ':%';
+        $this->db->prepare(
+            'DELETE FROM battle_dop
+              WHERE battleid = :battle
+                AND pokeid LIKE :prefix
+                AND propusk = :battle_pokemon
+                AND mess IN ("trap", "partial_trap", "confusion", "leech_seed", "nightmare", "perish_song", "taunt", "heal_block", "encore", "torment", "disable", "knock_off")'
+        )->execute([
+            'battle' => $battleId,
+            'prefix' => $prefix,
+            'battle_pokemon' => $battlePokemon,
+        ]);
     }
 
     public function addBattleSideField(int $battleId, int $side, string $kind, int $roundEnd): bool
@@ -1244,7 +1403,7 @@ final class BattleRepository
               WHERE battleid = :battle
                 AND vulnerability > 0
                 AND vulnerability <= :round
-                AND (pokeid LIKE "v:%" OR pokeid LIKE "sidefield:%" OR pokeid = "field:weather")'
+                AND (pokeid LIKE "v:%" OR pokeid LIKE "sidefield:%" OR pokeid = "field:weather" OR pokeid = "field:terrain" OR pokeid LIKE "field:room:%")'
         )->execute(['battle' => $battleId, 'round' => $round]);
     }
 
@@ -1842,6 +2001,17 @@ final class BattleRepository
         if ($this->hasBattleStatus($battleId, $battlePokemon, $statusId)) {
             return false;
         }
+        if (in_array($statusId, [1, 2, 3, 4, 5], true)) {
+            $stable = $this->db->prepare(
+                'SELECT id_sts FROM bttle_status
+                  WHERE buttleid = :battle AND pokeid = :pokemon AND namber_st IN (1, 2, 3, 4, 5)
+                  LIMIT 1'
+            );
+            $stable->execute(['battle' => $battleId, 'pokemon' => $battlePokemon]);
+            if ($stable->fetchColumn() !== false) {
+                return false;
+            }
+        }
 
         $roundEnd = $statusId === 1 || $statusId === 3 ? 999999 : max($currentRound + 1, $currentRound + $duration);
         try {
@@ -2242,12 +2412,30 @@ final class BattleRepository
         };
     }
 
+    private function normalizeTerrainKind(string $kind): string
+    {
+        $kind = strtolower(trim($kind));
+        return match ($kind) {
+            'electric', 'misty', 'grassy' => $kind,
+            default => '',
+        };
+    }
+
+    private function normalizeRoomKind(string $kind): string
+    {
+        $kind = strtolower(trim($kind));
+        return match ($kind) {
+            'trick_room', 'wonder_room', 'magic_room' => $kind,
+            default => '',
+        };
+    }
+
     private function normalizeVolatileKind(string $kind): string
     {
         $kind = strtolower(trim($kind));
         return match ($kind) {
-            'trap', 'partial_trap', 'badly_poisoned', 'nightmare', 'perish_song', 'destiny_bond', 'taunt', 'encore', 'torment',
-            'disable', 'knock_off' => $kind,
+            'trap', 'partial_trap', 'badly_poisoned', 'confusion', 'curse', 'leech_seed', 'nightmare', 'perish_song',
+            'destiny_bond', 'taunt', 'heal_block', 'encore', 'torment', 'disable', 'knock_off' => $kind,
             default => '',
         };
     }
@@ -2256,7 +2444,7 @@ final class BattleRepository
     {
         $kind = strtolower(trim($kind));
         return match ($kind) {
-            'gmax_cannonade', 'gmax_vine_lash' => $kind,
+            'gmax_cannonade', 'gmax_vine_lash', 'reflect', 'light_screen' => $kind,
             default => '',
         };
     }
