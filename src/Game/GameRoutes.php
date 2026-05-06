@@ -60,8 +60,8 @@ final class GameRoutes
         'events/new-year' => ['title' => 'Новогодние события', 'status' => 'todo', 'legacy' => 'eventsNewYear'],
         'eggs' => ['title' => 'Яйца', 'status' => 'todo', 'legacy' => 'eggs'],
         'profile' => ['title' => 'Профиль', 'status' => 'partial', 'legacy' => 'profile'],
-        'diamond-shop' => ['title' => 'Алмазный магазин', 'status' => 'todo', 'legacy' => 'diamond_shop'],
-        'market/items' => ['title' => 'Рынок предметов', 'status' => 'todo', 'legacy' => 'rinok'],
+        'diamond-shop' => ['title' => 'Алмазный магазин', 'status' => 'partial', 'legacy' => 'diamond_shop'],
+        'market/items' => ['title' => 'Покемаркет', 'status' => 'partial', 'legacy' => 'rinok'],
         'clans' => ['title' => 'Кланы', 'status' => 'todo', 'legacy' => 'clans'],
         'market/pokemon' => ['title' => 'Рынок покемонов', 'status' => 'todo', 'legacy' => 'pokerinok'],
     ];

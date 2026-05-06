@@ -6,6 +6,7 @@ namespace Pokemon8\Controller;
 use Pokemon8\Game\GameRoutes;
 use Pokemon8\Http\Request;
 use Pokemon8\Http\Response;
+use Pokemon8\Repository\ItemMarketRepository;
 use Pokemon8\Repository\MessageRepository;
 use Pokemon8\Repository\TrainingRepository;
 use Pokemon8\Repository\TransportRepository;
@@ -20,8 +21,8 @@ final class GameModuleController
         private Csrf $csrf,
         private ?TransportRepository $transport = null,
         private ?MessageRepository $messages = null,
-    )
-    {
+        private ?ItemMarketRepository $itemMarket = null,
+    ) {
     }
 
     public function show(Request $request, string $slug): Response
@@ -44,12 +45,24 @@ final class GameModuleController
             ]));
         }
 
-        if ($slug === 'diamond-shop' || $slug === 'market/items') {
-            $shop = $slug === 'diamond-shop' ? 'diamond' : 'market';
+        if ($slug === 'market/items' && $this->itemMarket !== null) {
+            $userId = (int) $this->session->get('id');
+            return new Response(View::render('game-market-items', [
+                'module' => $module,
+                'slug' => $slug,
+                'csrf' => $this->csrf->token(),
+                'catalog' => $this->itemMarket->catalog($userId),
+                'lots' => $this->itemMarket->lots($userId),
+                'wallet' => $this->itemMarket->wallet($userId),
+                'modules' => GameRoutes::MODULES,
+            ]));
+        }
+
+        if ($slug === 'diamond-shop') {
             return new Response(View::render('game-training-shop', [
                 'module' => $module,
                 'slug' => $slug,
-                'shop' => $shop,
+                'shop' => 'diamond',
                 'csrf' => $this->csrf->token(),
                 'items' => [
                     [
@@ -65,7 +78,7 @@ final class GameModuleController
                         'image' => '/public/img/items/678.png',
                     ],
                 ],
-                'currency' => $shop === 'diamond' ? ['name' => 'алмазов', 'itemId' => 2, 'price' => 10] : ['name' => 'монет', 'itemId' => 1, 'price' => 500000],
+                'currency' => ['name' => 'алмазов', 'itemId' => 2, 'price' => 10],
                 'modules' => GameRoutes::MODULES,
             ]));
         }

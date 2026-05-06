@@ -1,0 +1,304 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #eef4fb;
+  color: #102544;
+  font: 15px/1.45 Tahoma, Arial, sans-serif;
+}
+
+a {
+  color: #0f63c8;
+  text-decoration: none;
+  font-weight: 800;
+}
+
+.market-page {
+  width: min(1180px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: 22px 0 30px;
+}
+
+.market-crumbs {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.market-hero,
+.market-toolbar,
+.market-section {
+  border: 1px solid #cfe0f3;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .92);
+  box-shadow: 0 14px 34px rgba(26, 58, 98, .08);
+}
+
+.market-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  padding: 22px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: #4f78ba;
+  font-weight: 900;
+}
+
+h1 {
+  margin: 0;
+  font-size: 36px;
+  line-height: 1.05;
+}
+
+.lead {
+  max-width: 720px;
+  margin: 10px 0 0;
+  color: #4c607a;
+}
+
+.wallet {
+  min-width: 230px;
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #d8e4f1;
+  border-radius: 10px;
+  background: #f7fbff;
+  font-weight: 800;
+  text-align: right;
+}
+
+.wallet b {
+  color: #0f63c8;
+}
+
+.market-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 12px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tab,
+.buy-row button {
+  min-height: 38px;
+  border: 1px solid #c9dbef;
+  border-radius: 9px;
+  background: #fff;
+  color: #134978;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.tab {
+  min-width: 150px;
+  padding: 0 16px;
+}
+
+.tab.is-active,
+.buy-row button {
+  border-color: #2f78dc;
+  background: #2f78dc;
+  color: #fff;
+}
+
+.buy-row button:disabled {
+  border-color: #cbd7e5;
+  background: #edf3fa;
+  color: #8393a8;
+  cursor: default;
+}
+
+.search {
+  min-width: min(390px, 100%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #60738d;
+  font-weight: 800;
+}
+
+.search input,
+.buy-row input {
+  height: 38px;
+  border: 1px solid #c4d5e8;
+  border-radius: 9px;
+  background: #fff;
+  color: #102544;
+}
+
+.search input {
+  width: 100%;
+  padding: 0 12px;
+}
+
+.market-status {
+  min-height: 24px;
+  margin: 12px 4px;
+  color: #176b3a;
+  font-weight: 900;
+}
+
+.market-status.is-bad {
+  color: #a32020;
+}
+
+.market-section {
+  display: none;
+  padding: 16px;
+}
+
+.market-section.is-active {
+  display: block;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 12px;
+}
+
+.market-card {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 14px;
+  min-height: 154px;
+  padding: 14px;
+  border: 1px solid #d2e0ef;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.icon {
+  width: 70px;
+  height: 70px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #c6d8ec;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.icon img {
+  max-width: 60px;
+  max-height: 60px;
+  object-fit: contain;
+}
+
+.body {
+  min-width: 0;
+}
+
+.title-row {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: start;
+}
+
+h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.owned {
+  white-space: nowrap;
+  color: #617590;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.body p {
+  height: 42px;
+  overflow: hidden;
+  margin: 8px 0 12px;
+  color: #536982;
+}
+
+.buy-row {
+  display: grid;
+  grid-template-columns: minmax(115px, 1fr) 72px 96px;
+  gap: 8px;
+  align-items: center;
+}
+
+.price {
+  color: #0f3e72;
+  font-weight: 900;
+}
+
+.buy-row input {
+  width: 72px;
+  padding: 0 8px;
+}
+
+.empty {
+  margin: 0;
+  padding: 22px;
+  border: 1px dashed #c6d8ec;
+  border-radius: 10px;
+  color: #60738d;
+  text-align: center;
+  font-weight: 800;
+}
+
+.is-hidden {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .market-hero,
+  .market-toolbar {
+    display: grid;
+  }
+
+  .wallet {
+    min-width: 0;
+    text-align: left;
+  }
+
+  .tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .tab {
+    min-width: 0;
+  }
+
+  .cards {
+    grid-template-columns: 1fr;
+  }
+
+  .market-card {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .icon {
+    width: 60px;
+    height: 60px;
+  }
+
+  .buy-row {
+    grid-template-columns: 1fr 68px;
+  }
+
+  .buy-row .price {
+    grid-column: 1 / -1;
+  }
+}

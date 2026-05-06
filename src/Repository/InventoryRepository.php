@@ -14,23 +14,19 @@ final class InventoryRepository
     public function countItem(int $userId, int $itemId): int
     {
         $stmt = $this->db->prepare(
-            'SELECT count, dattimer FROM items_users WHERE user_id = :user AND item_id = :item LIMIT 1'
+            'SELECT COALESCE(SUM(count), 0)
+               FROM items_users
+              WHERE user_id = :user
+                AND item_id = :item
+                AND (dattimer = "not" OR (dattimer REGEXP "^[0-9]+$" AND CAST(dattimer AS UNSIGNED) > :time))'
         );
         $stmt->execute([
             'user' => $userId,
             'item' => $itemId,
+            'time' => time(),
         ]);
-        $row = $stmt->fetch();
 
-        if (!$row) {
-            return 0;
-        }
-
-        if (($row['dattimer'] ?? 'not') !== 'not' && (int) $row['dattimer'] <= time()) {
-            return 0;
-        }
-
-        return max(0, (int) $row['count']);
+        return max(0, (int) $stmt->fetchColumn());
     }
 
     public function hasItem(int $userId, int $itemId, int $count): bool
@@ -136,25 +132,45 @@ final class InventoryRepository
             return false;
         }
 
-        $existing = $this->findRow($userId, $itemId);
-        if ($existing === null) {
-            return false;
+        $remaining = $count;
+        $stmt = $this->db->prepare(
+            'SELECT id, count
+               FROM items_users
+              WHERE user_id = :user
+                AND item_id = :item
+                AND count > 0
+                AND (dattimer = "not" OR (dattimer REGEXP "^[0-9]+$" AND CAST(dattimer AS UNSIGNED) > :time))
+              ORDER BY count ASC, id ASC
+              FOR UPDATE'
+        );
+        $stmt->execute([
+            'user' => $userId,
+            'item' => $itemId,
+            'time' => time(),
+        ]);
+
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            if ($remaining <= 0) {
+                break;
+            }
+
+            $rowId = (int) $row['id'];
+            $rowCount = (int) $row['count'];
+            $take = min($rowCount, $remaining);
+            $newCount = $rowCount - $take;
+
+            if ($newCount > 0) {
+                $update = $this->db->prepare('UPDATE items_users SET count = :count WHERE id = :id LIMIT 1');
+                $update->execute(['count' => $newCount, 'id' => $rowId]);
+            } else {
+                $delete = $this->db->prepare('DELETE FROM items_users WHERE id = :id LIMIT 1');
+                $delete->execute(['id' => $rowId]);
+            }
+
+            $remaining -= $take;
         }
 
-        $newCount = (int) $existing['count'] - $count;
-        if ($newCount > 0) {
-            $stmt = $this->db->prepare('UPDATE items_users SET count = :count WHERE id = :id LIMIT 1');
-            $stmt->execute([
-                'count' => $newCount,
-                'id' => (int) $existing['id'],
-            ]);
-            return true;
-        }
-
-        $stmt = $this->db->prepare('DELETE FROM items_users WHERE id = :id LIMIT 1');
-        $stmt->execute(['id' => (int) $existing['id']]);
-
-        return true;
+        return $remaining <= 0;
     }
 
     public function equipItemToPokemon(int $userId, int $itemUserId, int $pokemonId): array
@@ -274,7 +290,11 @@ final class InventoryRepository
     private function findRow(int $userId, int $itemId): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, count FROM items_users WHERE user_id = :user AND item_id = :item LIMIT 1'
+            'SELECT id, count
+               FROM items_users
+              WHERE user_id = :user AND item_id = :item
+              ORDER BY count DESC, id ASC
+              LIMIT 1'
         );
         $stmt->execute([
             'user' => $userId,
