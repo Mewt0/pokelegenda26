@@ -1458,42 +1458,105 @@ final class BattleRepository
 
     public function addCoins(int $userId, int $coins): void
     {
-        if ($userId <= 0 || $coins <= 0) {
+        $this->addItemReward($userId, 1, $coins);
+    }
+
+    public function rollAdminDropRewards(int $userId, array $enemy): array
+    {
+        if ($userId <= 0 || (int) ($enemy['basenum'] ?? 0) <= 0) {
+            return [];
+        }
+
+        $locationId = $this->currentLocationId($userId);
+        $baseId = (int) ($enemy['basenum'] ?? 0);
+        $now = date('H:i:s');
+        $stmt = $this->db->prepare(
+            'SELECT r.*, i.name AS item_name
+               FROM admin_drop_rules r
+               INNER JOIN items i ON i.id = r.item_id
+          LEFT JOIN pokebuild pb ON pb.id = r.pokebuild_id
+              WHERE r.enabled = 1
+                AND r.source_type = "wild"
+                AND (r.location_id = 0 OR r.location_id = :location)
+                AND (r.pokemon_base_id = 0 OR r.pokemon_base_id = :base)
+                AND (r.pokebuild_id = 0 OR (pb.building = :location_pb AND pb.baseid = :base_pb))
+                AND (
+                    (r.time_start <= r.time_end AND :now_a BETWEEN r.time_start AND r.time_end)
+                    OR
+                    (r.time_start > r.time_end AND (:now_b >= r.time_start OR :now_c <= r.time_end))
+                )
+              ORDER BY r.id ASC'
+        );
+        $stmt->execute([
+            'location' => $locationId,
+            'base' => $baseId,
+            'location_pb' => $locationId,
+            'base_pb' => $baseId,
+            'now_a' => $now,
+            'now_b' => $now,
+            'now_c' => $now,
+        ]);
+
+        $drops = [];
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $chance = (float) ($row['chance_percent'] ?? 0);
+            if ($chance <= 0) {
+                continue;
+            }
+            if (random_int(1, 1000000) > (int) round(min(100.0, $chance) * 10000)) {
+                continue;
+            }
+
+            $min = max(1, (int) ($row['min_count'] ?? 1));
+            $max = max($min, (int) ($row['max_count'] ?? $min));
+            $count = random_int($min, $max);
+            $itemId = (int) ($row['item_id'] ?? 0);
+            $this->addItemReward($userId, $itemId, $count);
+            $drops[] = [
+                'itemId' => $itemId,
+                'name' => (string) ($row['item_name'] ?? ('Предмет #' . $itemId)),
+                'count' => $count,
+                'ruleId' => (int) ($row['id'] ?? 0),
+            ];
+        }
+
+        return $drops;
+    }
+
+    private function addItemReward(int $userId, int $itemId, int $count): void
+    {
+        if ($userId <= 0 || $itemId <= 0 || $count <= 0) {
             return;
         }
 
-        $coinItemId = 1;
-        $existing = $this->db->prepare(
-            'SELECT id FROM items_users WHERE user_id = :user AND item_id = :item LIMIT 1'
-        );
-        $existing->execute([
-            'user' => $userId,
-            'item' => $coinItemId,
-        ]);
+        $existing = $this->db->prepare('SELECT id FROM items_users WHERE user_id = :user AND item_id = :item LIMIT 1');
+        $existing->execute(['user' => $userId, 'item' => $itemId]);
         $rowId = (int) ($existing->fetchColumn() ?: 0);
-
         if ($rowId > 0) {
-            $stmt = $this->db->prepare(
-                'UPDATE items_users SET count = count + :coins WHERE id = :id LIMIT 1'
-            );
-            $stmt->execute([
-                'coins' => $coins,
-                'id' => $rowId,
-            ]);
+            $stmt = $this->db->prepare('UPDATE items_users SET count = count + :count WHERE id = :id LIMIT 1');
+            $stmt->execute(['count' => $count, 'id' => $rowId]);
             return;
         }
 
         $stmt = $this->db->prepare(
-            'INSERT INTO items_users (item_id, user_id, count, dattimer, timers)
-             VALUES (:item, :user, :coins, :dattimer, :timers)'
+            'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers)
+             VALUES (:id, :item, :user, :count, :dattimer, :timers)'
         );
         $stmt->execute([
-            'item' => $coinItemId,
+            'id' => $this->nextTableId('items_users', 'id'),
+            'item' => $itemId,
             'user' => $userId,
-            'coins' => $coins,
+            'count' => $count,
             'dattimer' => 'not',
             'timers' => 'not',
         ]);
+    }
+
+    private function currentLocationId(int $userId): int
+    {
+        $stmt = $this->db->prepare('SELECT buildmy FROM users WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $userId]);
+        return (int) ($stmt->fetchColumn() ?: 0);
     }
 
     public function addExperienceAndEffort(int $userId, int $pokemonId, int $exp, int $baseEv): array

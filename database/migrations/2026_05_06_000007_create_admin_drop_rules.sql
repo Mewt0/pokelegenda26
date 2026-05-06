@@ -1,0 +1,40 @@
+CREATE TABLE IF NOT EXISTS admin_drop_rules (
+  id INT NOT NULL AUTO_INCREMENT,
+  item_id INT NOT NULL,
+  location_id INT NOT NULL DEFAULT 0,
+  pokebuild_id INT NOT NULL DEFAULT 0,
+  pokemon_base_id INT NOT NULL DEFAULT 0,
+  source_type VARCHAR(24) NOT NULL DEFAULT 'wild',
+  chance_percent DECIMAL(7,4) NOT NULL DEFAULT 0.0000,
+  min_count INT NOT NULL DEFAULT 1,
+  max_count INT NOT NULL DEFAULT 1,
+  time_start TIME NOT NULL DEFAULT '00:00:00',
+  time_end TIME NOT NULL DEFAULT '23:59:59',
+  quest_id INT NOT NULL DEFAULT 0,
+  quest_process INT NOT NULL DEFAULT 0,
+  quest_complete INT NOT NULL DEFAULT 0,
+  enabled TINYINT NOT NULL DEFAULT 1,
+  note VARCHAR(255) NOT NULL DEFAULT '',
+  created_by INT NOT NULL DEFAULT 0,
+  created_at INT NOT NULL DEFAULT 0,
+  updated_at INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY idx_admin_drop_item (item_id),
+  KEY idx_admin_drop_location (location_id, enabled),
+  KEY idx_admin_drop_pokemon (pokemon_base_id, enabled),
+  KEY idx_admin_drop_pokebuild (pokebuild_id, enabled),
+  KEY idx_admin_drop_time (time_start, time_end)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS admin_audit_log (
+  id INT NOT NULL AUTO_INCREMENT,
+  admin_id INT NOT NULL,
+  action VARCHAR(64) NOT NULL,
+  entity VARCHAR(64) NOT NULL,
+  entity_id INT NOT NULL DEFAULT 0,
+  payload LONGTEXT NULL,
+  created_at INT NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_admin_audit_admin (admin_id, created_at),
+  KEY idx_admin_audit_entity (entity, entity_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+use Pokemon8\Controller\AdminApiController;
+use Pokemon8\Controller\AdminController;
 use Pokemon8\Controller\AuthController;
 use Pokemon8\Controller\ChatApiController;
 use Pokemon8\Controller\DexApiController;
@@ -31,6 +33,7 @@ use Pokemon8\Game\WildEncounterService;
 use Pokemon8\Game\BattleEngineService;
 use Pokemon8\Http\Request;
 use Pokemon8\Http\Router;
+use Pokemon8\Repository\AdminRepository;
 use Pokemon8\Repository\ChatRepository;
 use Pokemon8\Repository\RankingRepository;
 use Pokemon8\Repository\BanRepository;
@@ -81,6 +84,7 @@ $quests = new QuestRepository($db);
 $inventory = new InventoryRepository($db);
 $training = new TrainingRepository($db, $inventory);
 $transportRepository = new TransportRepository($db, $inventory);
+$adminRepository = new AdminRepository($db);
 $profiles = new ProfileRepository($db);
 $battleRepository = new BattleRepository($db);
 $dexRepository = new DexRepository($db);
@@ -100,6 +104,8 @@ $csrf = new Csrf($session);
 $banGuard = new BanGuard($bans);
 
 $home = new HomeController($rankings, $session, $csrf);
+$adminPage = new AdminController($session, $csrf, $adminRepository);
+$adminApi = new AdminApiController($session, $csrf, $adminRepository);
 $auth = new AuthController($users, $passwords, $session, $csrf, ['techwork' => $appConfig['techwork']]);
 $game = new GameController($session, $csrf, $users);
 $inventoryPage = new InventoryController($session, $inventory, $csrf);
@@ -123,11 +129,12 @@ $router->get('/', fn (Request $request) => $home->index($request));
 $router->post('/login', fn (Request $request) => $auth->login($request));
 $router->get('/logout', fn (Request $request) => $auth->logout($request));
 $router->get('/game', fn (Request $request) => $game->start($request));
+$router->get('/game/admin', fn (Request $request) => $adminPage->index($request));
 $router->get('/game/items', fn (Request $request) => $inventoryPage->index($request));
 $router->get('/game/pokemon', fn (Request $request) => $pokemonPage->index($request));
 $router->get('/game/profile', fn (Request $request) => $profilePage->show($request));
 foreach (GameRoutes::MODULES as $slug => $_module) {
-    if ($slug === 'items' || $slug === 'pokemon' || $slug === 'profile') {
+    if ($slug === 'items' || $slug === 'pokemon' || $slug === 'profile' || $slug === 'admin') {
         continue;
     }
     $router->get('/game/' . $slug, function (Request $request) use ($gameModules, $slug) {
@@ -156,6 +163,13 @@ $router->post('/api/pokemon/training', fn (Request $request) => $pokemonApi->tra
 $router->post('/api/shop/training/buy', fn (Request $request) => $shopApi->buyTrainingItem($request));
 $router->get('/api/transport/routes', fn (Request $request) => $transportApi->routes($request));
 $router->post('/api/transport/travel', fn (Request $request) => $transportApi->travel($request));
+$router->get('/api/admin/overview', fn (Request $request) => $adminApi->overview($request));
+$router->get('/api/admin/lookups', fn (Request $request) => $adminApi->lookups($request));
+$router->get('/api/admin/items', fn (Request $request) => $adminApi->items($request));
+$router->post('/api/admin/items/save', fn (Request $request) => $adminApi->saveItem($request));
+$router->get('/api/admin/drop-rules', fn (Request $request) => $adminApi->dropRules($request));
+$router->post('/api/admin/drop-rules/save', fn (Request $request) => $adminApi->saveDropRule($request));
+$router->post('/api/admin/drop-rules/delete', fn (Request $request) => $adminApi->deleteDropRule($request));
 $router->get('/api/dex/pokemon', fn (Request $request) => $dexApi->pokemonList($request));
 $router->get('/api/dex/pokemon/show', fn (Request $request) => $dexApi->pokemon($request));
 $router->get('/api/dex/attacks', fn (Request $request) => $dexApi->attackList($request));

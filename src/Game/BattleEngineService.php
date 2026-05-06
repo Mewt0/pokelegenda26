@@ -247,7 +247,7 @@ final class BattleEngineService
 
         $finished = false;
         $result = null;
-        $rewards = ['coins' => 0, 'exp' => 0];
+        $rewards = ['coins' => 0, 'exp' => 0, 'drops' => []];
         $currentRound = (int) ($battle['raund'] ?? 1);
         $finalLogRows = null;
         if ((int) $enemy['hp_my'] <= 0) {
@@ -265,6 +265,17 @@ final class BattleEngineService
                 $rewards['exp'],
                 4
             );
+            $drops = $this->battles->rollAdminDropRewards($userId, $enemy);
+            $rewards['drops'] = $drops;
+            foreach ($drops as $drop) {
+                $dropMessage = sprintf(
+                    'Получен предмет: %s x%d.',
+                    (string) ($drop['name'] ?? 'Предмет'),
+                    (int) ($drop['count'] ?? 1)
+                );
+                $messages[] = $dropMessage;
+                $this->battles->insertBattleLog((int) $battle['id'], $currentRound, $dropMessage);
+            }
             if (($effort['exp'] ?? 0) > 0) {
                 $rewardMessage = sprintf(
                     '%s получает %d опыта и %d EV%s.',
@@ -314,7 +325,7 @@ final class BattleEngineService
         $state['messages'] = array_values(array_filter($messages));
         $state['finished'] = false;
         $state['result'] = null;
-        $state['rewards'] = ['coins' => 0, 'exp' => 0];
+        $state['rewards'] = ['coins' => 0, 'exp' => 0, 'drops' => []];
         $state['battle']['logByRound'] = $this->groupLogByRound($state['log'] ?? []);
 
         return $state;

@@ -52,7 +52,7 @@ final class GameRoutes
         'friends' => ['title' => 'Друзья', 'status' => 'done', 'legacy' => 'friends'],
         'quests' => ['title' => 'Квесты', 'status' => 'partial', 'legacy' => 'quest_list'],
         'moderation' => ['title' => 'Модерация', 'status' => 'todo', 'legacy' => 'moderpanel'],
-        'admin' => ['title' => 'Админка', 'status' => 'todo', 'legacy' => 'admingo'],
+        'admin' => ['title' => 'Админка', 'status' => 'partial', 'legacy' => 'admingo'],
         'pokemon' => ['title' => 'Покемоны', 'status' => 'partial', 'legacy' => 'pokemon'],
         'messages' => ['title' => 'Сообщения', 'status' => 'partial', 'legacy' => 'sends'],
         'items' => ['title' => 'Инвентарь', 'status' => 'partial', 'legacy' => 'items'],
