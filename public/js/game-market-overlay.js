@@ -12,7 +12,6 @@
   const buyButton = root.querySelector('[data-shop-buy]');
   const prevButton = root.querySelector('[data-shop-prev]');
   const nextButton = root.querySelector('[data-shop-next]');
-  const refreshButton = root.querySelector('[data-market-refresh]');
   const pageInfo = root.querySelector('[data-market-page-info]');
   const slotsCount = root.querySelector('[data-market-slots]');
   const cartEmpty = root.querySelector('[data-cart-empty]');
@@ -24,7 +23,7 @@
   const cartCount = root.querySelector('[data-cart-count]');
   const cartTotal = root.querySelector('[data-cart-total]');
 
-  const pageSize = 60;
+  const pageSize = 21;
   const pages = { catalog: 0, lots: 0 };
   let activeTab = 'catalog';
   let selected = null;
@@ -182,21 +181,11 @@
 
     const maxPage = Math.max(0, Math.ceil(cards.length / pageSize) - 1);
     pages[activeTab] = Math.max(0, Math.min(maxPage, pages[activeTab] || 0));
-    let shown = 0;
     cards.forEach((card, index) => {
       const page = Math.floor(index / pageSize);
       const visible = page === pages[activeTab];
       card.style.display = visible ? '' : 'none';
-      if (visible) shown += 1;
     });
-
-    for (let i = shown; i < pageSize; i += 1) {
-      const empty = document.createElement('button');
-      empty.type = 'button';
-      empty.className = 'shop-slot-empty';
-      empty.disabled = true;
-      grid.appendChild(empty);
-    }
 
     if (prevButton) prevButton.disabled = pages[activeTab] <= 0;
     if (nextButton) nextButton.disabled = pages[activeTab] >= maxPage;
@@ -357,7 +346,6 @@
   search?.addEventListener('input', filterCards);
   cartCount?.addEventListener('input', updateTotal);
   buyButton?.addEventListener('click', buySelected);
-  refreshButton?.addEventListener('click', () => loadMarket(true));
   prevButton?.addEventListener('click', () => {
     pages[activeTab] = Math.max(0, (pages[activeTab] || 0) - 1);
     applyPage();

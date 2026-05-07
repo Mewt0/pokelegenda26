@@ -168,14 +168,10 @@ $itemIconIndex = is_file($itemIconIndexPath)
       </div>
 
       <footer class="shop-footer">
-        <button type="button" data-market-refresh>⟳</button>
         <button type="button" data-shop-prev>Назад</button>
-        <span class="market-page-info" data-market-page-info>1/1</span>
         <div class="shop-status" data-market-status></div>
         <button type="button" data-shop-next>Далее</button>
-        <span class="market-slots">СЛОТОВ ЗАНЯТО: <span data-market-slots>0</span></span>
         <button type="button" class="buy-button" data-shop-buy disabled>Купить</button>
-        <button type="button" data-market-close>Закрыть</button>
       </footer>
     </div>
   </section>
