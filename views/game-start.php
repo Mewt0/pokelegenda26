@@ -16,6 +16,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <link rel="stylesheet" href="/public/css/game-shell.css">
   <link rel="stylesheet" href="/public/css/game-battle-dock.css">
   <link rel="stylesheet" href="/public/css/player-menu.css">
+  <link rel="stylesheet" href="/public/css/game-market-overlay.css">
 </head>
 <body>
   <main class="world game-shell" data-csrf="<?= View::e($csrf) ?>">
@@ -68,7 +69,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
       <div class="main-menu">
         <a href="/game/pokemon" id="pokemonLink"><img src="/public/img/ui/menu-pokemon.png" alt="">Покемоны</a>
         <a href="/game/items" id="inventoryLink"><img src="/public/img/ui/menu-inventory.png" alt="">Инвентарь</a>
-        <a href="/game/market/items"><img src="/public/img/ui/menu-market.png" alt="">Покемаркет</a>
+        <a href="/game/market/items" data-open-market><img src="/public/img/ui/menu-market.png" alt="">Покемаркет</a>
         <a href="/game/profile"><img src="/public/img/ui/menu-profile.png" alt="">Профиль</a>
         <a href="#" data-open-dex="pokemon"><img src="/public/img/ui/menu-pokedex.png" alt="">Покедекс</a>
         <a href="#" data-open-dex="attacks"><img src="/public/img/ui/menu-attackdex.png" alt="">Атакадекс</a>
@@ -111,6 +112,67 @@ $itemIconIndex = is_file($itemIconIndexPath)
         <button type="button" id="pokemonCloseBtn">×</button>
       </header>
       <iframe id="pokemonFrame" title="Покемоны" src="about:blank"></iframe>
+    </div>
+  </section>
+  <section class="market-overlay" id="marketOverlay" aria-hidden="true">
+    <div class="market-window shop-window" role="dialog" aria-label="Покемаркет">
+      <header class="shop-titlebar">
+        <button type="button" class="shop-close" data-market-close aria-label="Закрыть">×</button>
+        <h1>Список товаров</h1>
+      </header>
+
+      <div class="shop-tabs">
+        <button class="is-active" type="button" data-market-tab="catalog">Магазин</button>
+        <button type="button" data-market-tab="lots">Лоты игроков</button>
+        <label>
+          <span>Поиск</span>
+          <input type="search" data-market-search placeholder="Название или ID">
+        </label>
+        <div class="shop-wallet">
+          <span><b data-wallet-coins>0</b> монет</span>
+          <span><b data-wallet-diamonds>0</b> алмазов</span>
+        </div>
+      </div>
+
+      <div class="shop-layout">
+        <section class="shop-catalog" data-market-panel="catalog">
+          <div class="shop-grid" data-shop-grid="catalog"></div>
+          <p class="shop-empty" data-market-empty="catalog" hidden>В магазине пока нет активных товаров.</p>
+        </section>
+
+        <section class="shop-catalog" data-market-panel="lots" hidden>
+          <div class="shop-grid" data-shop-grid="lots"></div>
+          <p class="shop-empty" data-market-empty="lots" hidden>В твоём регионе нет активных лотов игроков.</p>
+        </section>
+
+        <aside class="shop-cart" aria-live="polite">
+          <h2>Покупки</h2>
+          <div class="cart-empty" data-cart-empty>Выбери товар на полке.</div>
+          <div class="cart-card" data-cart-card hidden>
+            <div class="cart-art"><img data-cart-icon alt=""></div>
+            <div class="cart-info">
+              <h3 data-cart-name></h3>
+              <p data-cart-description></p>
+              <span data-cart-owned></span>
+            </div>
+            <label class="cart-count">
+              <span>Количество</span>
+              <input type="number" min="1" value="1" data-cart-count>
+            </label>
+            <div class="cart-total">
+              <span>Итого</span>
+              <b data-cart-total>0</b>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <footer class="shop-footer">
+        <button type="button" data-shop-prev>Назад</button>
+        <div class="shop-status" data-market-status></div>
+        <button type="button" data-shop-next>Далее</button>
+        <button type="button" class="buy-button" data-shop-buy disabled>Купить</button>
+      </footer>
     </div>
   </section>
   <section class="battle-overlay battle-dock-overlay" id="battleOverlay" aria-hidden="true">
@@ -1515,6 +1577,10 @@ $itemIconIndex = is_file($itemIconIndexPath)
     async function openNpc(npc, overrideParams = null) {
       const route = npcRoute(npc, overrideParams);
       if (route) {
+        if (route === '/game/market/items' && window.GameMarketOverlay && typeof window.GameMarketOverlay.open === 'function') {
+          window.GameMarketOverlay.open();
+          return;
+        }
         window.location.href = route;
         return;
       }
@@ -1809,6 +1875,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <script src="/public/js/chat.js"></script>
   <script src="/public/js/player-menu.js"></script>
   <script src="/public/js/dex-overlay.js"></script>
+  <script src="/public/js/game-market-overlay.js"></script>
 
 </body>
 </html>
