@@ -1513,6 +1513,12 @@ $itemIconIndex = is_file($itemIconIndexPath)
     }
 
     async function openNpc(npc, overrideParams = null) {
+      const route = npcRoute(npc, overrideParams);
+      if (route) {
+        window.location.href = route;
+        return;
+      }
+
       state.activeNpc = npc;
       const params = new URLSearchParams();
       params.set('location_id', state.locationId);
@@ -1527,6 +1533,18 @@ $itemIconIndex = is_file($itemIconIndexPath)
       } catch (error) {
         setStatus('NPC не отвечает.', true);
       }
+    }
+
+    function npcRoute(npc, overrideParams = null) {
+      const params = overrideParams || (npc && npc.params) || {};
+      const title = String(npc && npc.title ? npc.title : '').toLowerCase();
+      const icon = String(npc && npc.icon ? npc.icon : '').toLowerCase();
+
+      if (String(params.npc || '') === '2' && (title.includes('покемаркет') || icon === 'shop')) {
+        return '/game/market/items';
+      }
+
+      return null;
     }
 
     async function runNpcAction(action) {
