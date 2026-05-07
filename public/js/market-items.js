@@ -91,7 +91,10 @@
     if (button.dataset.source === 'lot') {
       cartOwned.textContent = `Продавец: ${button.dataset.seller || 'игрок'} • доступно: ${formatNumber(button.dataset.max)}`;
     } else {
-      cartOwned.textContent = `У тебя есть: ${formatNumber(button.dataset.owned)}`;
+      const maxOwned = Number(button.dataset.maxOwned || 0);
+      cartOwned.textContent = maxOwned > 0
+        ? `У тебя есть: ${formatNumber(button.dataset.owned)} • лимит: ${formatNumber(maxOwned)}`
+        : `У тебя есть: ${formatNumber(button.dataset.owned)}`;
     }
     cartCount.min = button.dataset.min || '1';
     cartCount.max = button.dataset.max || '99';

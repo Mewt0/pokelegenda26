@@ -49,6 +49,7 @@ $lots = is_array($lots ?? null) ? $lots : [];
                 data-currency="<?= View::e((string) $item['currency_name']) ?>"
                 data-min="<?= View::e((string) $item['min_count']) ?>"
                 data-max="<?= View::e((string) $item['max_count']) ?>"
+                data-max-owned="<?= View::e((string) ($item['max_owned'] ?? 0)) ?>"
                 data-owned="<?= View::e((string) ($item['owned'] ?? 0)) ?>"
                 data-description="<?= View::e((string) $item['description']) ?>"
                 data-search="<?= View::e(mb_strtolower((string) $item['name'] . ' ' . $item['item_id'])) ?>"

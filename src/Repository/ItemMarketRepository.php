@@ -20,7 +20,7 @@ final class ItemMarketRepository
     {
         $limit = max(1, min(200, $limit));
         $sql = 'SELECT ms.id, ms.item_id, ms.currency_item_id, ms.price, ms.min_count, ms.max_count,
-                       ms.stock, ms.enabled, ms.note, i.name, i.tittle, i.category,
+                       ms.stock, ms.enabled, ms.max_owned, ms.note, i.name, i.tittle, i.category,
                        ci.name AS currency_name
                   FROM market_shop_items ms
             INNER JOIN items i ON i.id = ms.item_id
@@ -117,6 +117,13 @@ final class ItemMarketRepository
             if ($stock >= 0 && $stock < $count) {
                 $this->db->rollBack();
                 return ['ok' => false, 'message' => 'На складе нет такого количества.'];
+            }
+
+            $maxOwned = max(0, (int) ($row['max_owned'] ?? 0));
+            $owned = $this->inventory->countItem($userId, (int) $row['item_id']);
+            if ($maxOwned > 0 && $owned + $count > $maxOwned) {
+                $this->db->rollBack();
+                return ['ok' => false, 'message' => sprintf('Этот предмет можно иметь максимум %d шт.', $maxOwned)];
             }
 
             $currencyItemId = (int) ($row['currency_item_id'] ?? self::COIN_ITEM_ID);
@@ -254,6 +261,7 @@ final class ItemMarketRepository
             'currency_name' => (string) ($row['currency_name'] ?? 'Монета'),
             'min_count' => max(1, (int) ($row['min_count'] ?? 1)),
             'max_count' => max(1, (int) ($row['max_count'] ?? 99)),
+            'max_owned' => max(0, (int) ($row['max_owned'] ?? 0)),
             'stock' => (int) ($row['stock'] ?? -1),
             'owned' => $this->inventory->countItem($userId, (int) ($row['item_id'] ?? 0)),
             'icon' => $this->itemIconPath((int) ($row['item_id'] ?? 0)),
