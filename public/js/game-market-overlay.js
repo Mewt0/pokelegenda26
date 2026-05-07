@@ -12,6 +12,9 @@
   const buyButton = root.querySelector('[data-shop-buy]');
   const prevButton = root.querySelector('[data-shop-prev]');
   const nextButton = root.querySelector('[data-shop-next]');
+  const refreshButton = root.querySelector('[data-market-refresh]');
+  const pageInfo = root.querySelector('[data-market-page-info]');
+  const slotsCount = root.querySelector('[data-market-slots]');
   const cartEmpty = root.querySelector('[data-cart-empty]');
   const cartCard = root.querySelector('[data-cart-card]');
   const cartIcon = root.querySelector('[data-cart-icon]');
@@ -21,7 +24,7 @@
   const cartCount = root.querySelector('[data-cart-count]');
   const cartTotal = root.querySelector('[data-cart-total]');
 
-  const pageSize = 21;
+  const pageSize = 60;
   const pages = { catalog: 0, lots: 0 };
   let activeTab = 'catalog';
   let selected = null;
@@ -47,6 +50,7 @@
 
   function close() {
     overlay.classList.remove('is-open');
+    overlay.classList.remove('has-selection');
     overlay.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('has-market-overlay');
     clearCart();
@@ -167,18 +171,42 @@
 
   function applyPage() {
     const cards = activeItems();
+    const panel = root.querySelector(`[data-market-panel="${activeTab}"]`);
+    const grid = root.querySelector(`[data-shop-grid="${activeTab}"]`);
+    if (!grid || !panel) return;
+
+    grid.querySelectorAll('.shop-slot-empty').forEach(slot => slot.remove());
+    panel.querySelectorAll('.shop-item.is-hidden').forEach(card => {
+      card.style.display = 'none';
+    });
+
     const maxPage = Math.max(0, Math.ceil(cards.length / pageSize) - 1);
     pages[activeTab] = Math.max(0, Math.min(maxPage, pages[activeTab] || 0));
+    let shown = 0;
     cards.forEach((card, index) => {
       const page = Math.floor(index / pageSize);
-      card.style.display = page === pages[activeTab] ? '' : 'none';
+      const visible = page === pages[activeTab];
+      card.style.display = visible ? '' : 'none';
+      if (visible) shown += 1;
     });
+
+    for (let i = shown; i < pageSize; i += 1) {
+      const empty = document.createElement('button');
+      empty.type = 'button';
+      empty.className = 'shop-slot-empty';
+      empty.disabled = true;
+      grid.appendChild(empty);
+    }
+
     if (prevButton) prevButton.disabled = pages[activeTab] <= 0;
     if (nextButton) nextButton.disabled = pages[activeTab] >= maxPage;
+    if (pageInfo) pageInfo.textContent = `${pages[activeTab] + 1}/${maxPage + 1}`;
+    if (slotsCount) slotsCount.textContent = String(cards.length);
   }
 
   function clearCart() {
     root.querySelectorAll('.shop-item.is-selected').forEach(item => item.classList.remove('is-selected'));
+    root.classList.remove('has-selection');
     selected = null;
     if (cartEmpty) cartEmpty.hidden = false;
     if (cartCard) cartCard.hidden = true;
@@ -189,6 +217,7 @@
     if (button.disabled) return;
     root.querySelectorAll('.shop-item.is-selected').forEach(item => item.classList.remove('is-selected'));
     button.classList.add('is-selected');
+    root.classList.add('has-selection');
     selected = button;
 
     const icon = button.querySelector('.shop-art img')?.getAttribute('src') || '/public/img/items/3.png';
@@ -290,6 +319,11 @@
 
         const bought = Number(cartCount.value || 1);
         selected.dataset.owned = String(Number(selected.dataset.owned || 0) + bought);
+        if (remainingLimit(selected) <= 0) {
+          selected.disabled = true;
+          clearCart();
+          return;
+        }
         selectItem(selected);
       }
     } catch (error) {
@@ -323,6 +357,7 @@
   search?.addEventListener('input', filterCards);
   cartCount?.addEventListener('input', updateTotal);
   buyButton?.addEventListener('click', buySelected);
+  refreshButton?.addEventListener('click', () => loadMarket(true));
   prevButton?.addEventListener('click', () => {
     pages[activeTab] = Math.max(0, (pages[activeTab] || 0) - 1);
     applyPage();
