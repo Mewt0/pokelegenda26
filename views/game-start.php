@@ -68,6 +68,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
       <div class="main-menu">
         <a href="/game/pokemon" id="pokemonLink"><img src="/public/img/ui/menu-pokemon.png" alt="">Покемоны</a>
         <a href="/game/items" id="inventoryLink"><img src="/public/img/ui/menu-inventory.png" alt="">Инвентарь</a>
+        <a href="/game/market/items"><img src="/public/img/ui/menu-market.png" alt="">Покемаркет</a>
         <a href="/game/profile"><img src="/public/img/ui/menu-profile.png" alt="">Профиль</a>
         <a href="#" data-open-dex="pokemon"><img src="/public/img/ui/menu-pokedex.png" alt="">Покедекс</a>
         <a href="#" data-open-dex="attacks"><img src="/public/img/ui/menu-attackdex.png" alt="">Атакадекс</a>

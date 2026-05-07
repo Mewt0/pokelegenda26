@@ -14,88 +14,119 @@ $lots = is_array($lots ?? null) ? $lots : [];
   <link rel="stylesheet" href="/public/css/market-items.css">
 </head>
 <body>
-  <main class="market-page" data-csrf="<?= View::e($csrf) ?>">
-    <nav class="market-crumbs">
-      <a href="/game">Игровой мир</a>
-      <span>/</span>
-      <strong><?= View::e($module['title']) ?></strong>
-    </nav>
+  <main class="shop-page" data-csrf="<?= View::e($csrf) ?>">
+    <section class="shop-window" aria-label="Покемаркет">
+      <header class="shop-titlebar">
+        <a href="/game" class="shop-close" aria-label="Вернуться в игру">×</a>
+        <h1>Список товаров</h1>
+      </header>
 
-    <section class="market-hero">
-      <div>
-        <p class="eyebrow">Покупки предметов</p>
-        <h1>Покемаркет</h1>
-        <p class="lead">Покупай расходники из системного магазина или забирай лоты, которые выставили игроки в твоём регионе.</p>
+      <div class="shop-tabs">
+        <button class="is-active" type="button" data-market-tab="catalog">Магазин</button>
+        <button type="button" data-market-tab="lots">Лоты игроков</button>
+        <label>
+          <span>Поиск</span>
+          <input type="search" data-market-search placeholder="Название или ID">
+        </label>
+        <div class="shop-wallet">
+          <span><b data-wallet-coins><?= number_format((int) ($wallet['coins'] ?? 0), 0, ',', ' ') ?></b> монет</span>
+          <span><b data-wallet-diamonds><?= number_format((int) ($wallet['diamonds'] ?? 0), 0, ',', ' ') ?></b> алмазов</span>
+        </div>
       </div>
-      <div class="wallet" aria-label="Баланс">
-        <span><b data-wallet-coins><?= number_format((int) ($wallet['coins'] ?? 0), 0, ',', ' ') ?></b> монет</span>
-        <span><b data-wallet-diamonds><?= number_format((int) ($wallet['diamonds'] ?? 0), 0, ',', ' ') ?></b> алмазов</span>
-      </div>
-    </section>
 
-    <section class="market-toolbar">
-      <div class="tabs" role="tablist" aria-label="Разделы рынка">
-        <button class="tab is-active" type="button" data-market-tab="catalog">Магазин</button>
-        <button class="tab" type="button" data-market-tab="lots">Лоты игроков</button>
-      </div>
-      <label class="search">
-        <span>Поиск</span>
-        <input type="search" placeholder="Название или ID предмета" data-market-search>
-      </label>
-    </section>
+      <div class="shop-layout">
+        <section class="shop-catalog" data-market-panel="catalog">
+          <div class="shop-grid" data-shop-grid="catalog">
+            <?php foreach ($catalog as $item): ?>
+              <button
+                type="button"
+                class="shop-item"
+                data-source="catalog"
+                data-id="<?= View::e((string) $item['id']) ?>"
+                data-item-id="<?= View::e((string) $item['item_id']) ?>"
+                data-name="<?= View::e((string) $item['name']) ?>"
+                data-price="<?= View::e((string) $item['price']) ?>"
+                data-currency="<?= View::e((string) $item['currency_name']) ?>"
+                data-min="<?= View::e((string) $item['min_count']) ?>"
+                data-max="<?= View::e((string) $item['max_count']) ?>"
+                data-owned="<?= View::e((string) ($item['owned'] ?? 0)) ?>"
+                data-description="<?= View::e((string) $item['description']) ?>"
+                data-search="<?= View::e(mb_strtolower((string) $item['name'] . ' ' . $item['item_id'])) ?>"
+              >
+                <span class="shop-art"><img src="<?= View::e($item['icon']) ?>" alt=""></span>
+                <span class="shop-price">
+                  <b><?= number_format((int) $item['price'], 0, ',', ' ') ?></b>
+                  <img src="/public/img/items/1.png" alt="">
+                </span>
+              </button>
+            <?php endforeach; ?>
+          </div>
+          <?php if ($catalog === []): ?>
+            <p class="shop-empty">В магазине пока нет активных товаров.</p>
+          <?php endif; ?>
+        </section>
 
-    <div class="market-status" data-market-status></div>
+        <section class="shop-catalog" data-market-panel="lots" hidden>
+          <div class="shop-grid" data-shop-grid="lots">
+            <?php foreach ($lots as $lot): ?>
+              <button
+                type="button"
+                class="shop-item"
+                data-source="lot"
+                data-id="<?= View::e((string) $lot['id_lot']) ?>"
+                data-item-id="<?= View::e((string) $lot['item_id']) ?>"
+                data-name="<?= View::e((string) $lot['name']) ?>"
+                data-price="<?= View::e((string) $lot['unit_price']) ?>"
+                data-currency="Монета"
+                data-min="1"
+                data-max="<?= View::e((string) $lot['count']) ?>"
+                data-owned="<?= View::e((string) $lot['count']) ?>"
+                data-description="<?= View::e((string) $lot['description']) ?>"
+                data-seller="<?= View::e((string) $lot['seller_login']) ?>"
+                data-search="<?= View::e(mb_strtolower((string) $lot['name'] . ' ' . $lot['item_id'])) ?>"
+                <?= !empty($lot['is_own']) ? 'disabled' : '' ?>
+              >
+                <span class="shop-art"><img src="<?= View::e($lot['icon']) ?>" alt=""></span>
+                <span class="shop-price">
+                  <b><?= number_format((int) $lot['unit_price'], 0, ',', ' ') ?></b>
+                  <img src="/public/img/items/1.png" alt="">
+                </span>
+              </button>
+            <?php endforeach; ?>
+          </div>
+          <?php if ($lots === []): ?>
+            <p class="shop-empty">В твоём регионе нет активных лотов игроков.</p>
+          <?php endif; ?>
+        </section>
 
-    <section class="market-section is-active" data-market-panel="catalog">
-      <div class="cards" data-catalog-list>
-        <?php foreach ($catalog as $item): ?>
-          <article class="market-card" data-card-name="<?= View::e(mb_strtolower((string) $item['name'])) ?>" data-card-id="<?= View::e((string) $item['item_id']) ?>">
-            <div class="icon"><img src="<?= View::e($item['icon']) ?>" alt=""></div>
-            <div class="body">
-              <div class="title-row">
-                <h2><?= View::e($item['name']) ?></h2>
-                <span class="owned">есть: <?= number_format((int) ($item['owned'] ?? 0), 0, ',', ' ') ?></span>
-              </div>
-              <p><?= View::e($item['description']) ?></p>
-              <div class="buy-row">
-                <span class="price"><?= number_format((int) $item['price'], 0, ',', ' ') ?> <?= View::e(mb_strtolower((string) $item['currency_name'])) ?></span>
-                <input type="number" min="<?= View::e((string) $item['min_count']) ?>" max="<?= View::e((string) $item['max_count']) ?>" value="1" aria-label="Количество">
-                <button type="button" data-buy-catalog="<?= View::e((string) $item['id']) ?>">Купить</button>
-              </div>
+        <aside class="shop-cart" aria-live="polite">
+          <h2>Покупки</h2>
+          <div class="cart-empty" data-cart-empty>Выбери товар на полке.</div>
+          <div class="cart-card" data-cart-card hidden>
+            <div class="cart-art"><img data-cart-icon alt=""></div>
+            <div class="cart-info">
+              <h3 data-cart-name></h3>
+              <p data-cart-description></p>
+              <span data-cart-owned></span>
             </div>
-          </article>
-        <?php endforeach; ?>
-      </div>
-      <?php if ($catalog === []): ?>
-        <p class="empty">В системном магазине пока нет активных товаров.</p>
-      <?php endif; ?>
-    </section>
-
-    <section class="market-section" data-market-panel="lots">
-      <div class="cards" data-lot-list>
-        <?php foreach ($lots as $lot): ?>
-          <article class="market-card" data-card-name="<?= View::e(mb_strtolower((string) $lot['name'])) ?>" data-card-id="<?= View::e((string) $lot['item_id']) ?>">
-            <div class="icon"><img src="<?= View::e($lot['icon']) ?>" alt=""></div>
-            <div class="body">
-              <div class="title-row">
-                <h2><?= View::e($lot['name']) ?> x<?= number_format((int) $lot['count'], 0, ',', ' ') ?></h2>
-                <span class="owned"><?= View::e($lot['seller_login']) ?></span>
-              </div>
-              <p><?= View::e($lot['description']) ?></p>
-              <div class="buy-row">
-                <span class="price"><?= number_format((int) $lot['unit_price'], 0, ',', ' ') ?> монет / шт</span>
-                <input type="number" min="1" max="<?= View::e((string) $lot['count']) ?>" value="1" aria-label="Количество" <?= !empty($lot['is_own']) ? 'disabled' : '' ?>>
-                <button type="button" data-buy-lot="<?= View::e((string) $lot['id_lot']) ?>" <?= !empty($lot['is_own']) ? 'disabled' : '' ?>>
-                  <?= !empty($lot['is_own']) ? 'Свой лот' : 'Купить' ?>
-                </button>
-              </div>
+            <label class="cart-count">
+              <span>Количество</span>
+              <input type="number" min="1" value="1" data-cart-count>
+            </label>
+            <div class="cart-total">
+              <span>Итого</span>
+              <b data-cart-total>0</b>
             </div>
-          </article>
-        <?php endforeach; ?>
+          </div>
+        </aside>
       </div>
-      <?php if ($lots === []): ?>
-        <p class="empty">В твоём регионе нет активных лотов игроков.</p>
-      <?php endif; ?>
+
+      <footer class="shop-footer">
+        <button type="button" data-shop-prev>Назад</button>
+        <div class="shop-status" data-market-status></div>
+        <button type="button" data-shop-next>Далее</button>
+        <button type="button" class="buy-button" data-shop-buy disabled>Купить</button>
+      </footer>
     </section>
   </main>
   <script src="/public/js/market-items.js"></script>

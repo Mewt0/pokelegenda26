@@ -606,8 +606,8 @@ button {
 }
 
 .actionbar a {
-  width: 66px;
-  min-width: 66px;
+  width: 64px;
+  min-width: 64px;
   min-height: 56px;
   padding: 4px 5px;
   display: grid;
