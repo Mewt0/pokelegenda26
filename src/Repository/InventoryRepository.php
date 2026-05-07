@@ -45,9 +45,12 @@ final class InventoryRepository
     public function listForUser(int $userId, int $limit, int $offset): array
     {
         $stmt = $this->db->prepare(
-            'SELECT iu.id, iu.item_id, iu.count, iu.dattimer, iu.timers, i.name, i.tittle, i.category, i.delet, i.dress, i.uses, i.elementary, i.battleuse
+            'SELECT iu.id, iu.item_id, iu.count, iu.dattimer, iu.timers, i.name, i.tittle, i.category, i.delet, i.dress, i.uses, i.elementary, i.battleuse,
+                    itr.enabled AS target_enabled, itr.target_type, itr.allow_quantity, itr.min_count AS target_min_count,
+                    itr.max_count AS target_max_count, itr.effect_key, itr.ui_title, itr.ui_hint
              FROM items_users iu
              INNER JOIN items i ON i.id = iu.item_id
+             LEFT JOIN item_target_rules itr ON itr.item_id = iu.item_id AND itr.enabled = 1
              WHERE iu.user_id = :user
              ORDER BY iu.item_id ASC
              LIMIT :limit OFFSET :offset'
@@ -58,7 +61,11 @@ final class InventoryRepository
         $stmt->execute();
 
         $items = $stmt->fetchAll();
-        return is_array($items) ? $items : [];
+        if (!is_array($items)) {
+            return [];
+        }
+
+        return array_map(fn (array $row): array => $this->formatInventoryRow($row), $items);
     }
 
     public function listBattleItemsForUser(int $userId): array
@@ -74,6 +81,71 @@ final class InventoryRepository
 
         $items = $stmt->fetchAll();
         return is_array($items) ? $items : [];
+    }
+
+    public function useTargetedItem(int $userId, int $itemUserId, int $pokemonId, int $count): array
+    {
+        if ($itemUserId <= 0 || $pokemonId <= 0) {
+            return ['ok' => false, 'message' => 'Выберите предмет и покемона.'];
+        }
+        $count = max(1, min(999, $count));
+
+        if ($this->userIsBusy($userId)) {
+            return ['ok' => false, 'message' => 'Сначала закончите бой или обмен.'];
+        }
+
+        $item = $this->findInventoryItemForTargetUse($userId, $itemUserId);
+        if ($item === null) {
+            return ['ok' => false, 'message' => 'Этот предмет нельзя применить на покемона.'];
+        }
+
+        $available = (int) ($item['count'] ?? 0);
+        $min = max(1, (int) ($item['target_min_count'] ?? 1));
+        $max = max($min, (int) ($item['target_max_count'] ?? $available));
+        $max = min($max, $available);
+        if ($count < $min || $count > $max) {
+            return ['ok' => false, 'message' => sprintf('Можно применить от %d до %d шт.', $min, $max)];
+        }
+        if ((int) ($item['allow_quantity'] ?? 0) !== 1 && $count !== 1) {
+            return ['ok' => false, 'message' => 'Этот предмет применяется только по одной штуке.'];
+        }
+
+        $pokemon = $this->findActivePokemon($userId, $pokemonId);
+        if ($pokemon === null) {
+            return ['ok' => false, 'message' => 'Покемон не найден в активной команде.'];
+        }
+
+        $effectKey = (string) ($item['effect_key'] ?? 'pending');
+        if ($effectKey !== 'consume_only') {
+            return [
+                'ok' => false,
+                'error' => 'effect_not_implemented',
+                'message' => sprintf(
+                    'Меню применения для "%s" уже включено, но эффект "%s" ещё не подключён. Предмет не списан.',
+                    (string) ($item['name'] ?? 'Предмет'),
+                    $effectKey
+                ),
+            ];
+        }
+
+        $this->db->beginTransaction();
+        try {
+            $this->decrementInventoryRowById($userId, $itemUserId, $count);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            return ['ok' => false, 'message' => 'Не удалось применить предмет.'];
+        }
+
+        return [
+            'ok' => true,
+            'message' => sprintf(
+                '%s применён на %s x%d.',
+                (string) ($item['name'] ?? 'Предмет'),
+                strip_tags((string) ($pokemon['names'] ?? 'покемона')),
+                $count
+            ),
+        ];
     }
 
     public function listActivePokemonForUser(int $userId): array
@@ -316,6 +388,57 @@ final class InventoryRepository
         $stmt->execute(['id' => $itemUserId, 'user' => $userId]);
 
         return $stmt->fetch() ?: null;
+    }
+
+    private function findInventoryItemForTargetUse(int $userId, int $itemUserId): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT iu.id, iu.item_id, iu.count, i.name,
+                    itr.target_type, itr.allow_quantity, itr.min_count AS target_min_count,
+                    itr.max_count AS target_max_count, itr.effect_key, itr.ui_title, itr.ui_hint
+               FROM items_users iu
+               INNER JOIN items i ON i.id = iu.item_id
+               INNER JOIN item_target_rules itr ON itr.item_id = iu.item_id AND itr.enabled = 1
+              WHERE iu.id = :id
+                AND iu.user_id = :user
+                AND iu.count > 0
+                AND itr.target_type = "pokemon"
+              LIMIT 1'
+        );
+        $stmt->execute(['id' => $itemUserId, 'user' => $userId]);
+
+        return $stmt->fetch() ?: null;
+    }
+
+    private function formatInventoryRow(array $row): array
+    {
+        if ((int) ($row['target_enabled'] ?? 0) === 1) {
+            $row['target_use'] = [
+                'enabled' => true,
+                'target_type' => (string) ($row['target_type'] ?? 'pokemon'),
+                'allow_quantity' => (int) ($row['allow_quantity'] ?? 0) === 1,
+                'min_count' => max(1, (int) ($row['target_min_count'] ?? 1)),
+                'max_count' => max(1, (int) ($row['target_max_count'] ?? 1)),
+                'effect_key' => (string) ($row['effect_key'] ?? 'pending'),
+                'title' => (string) ($row['ui_title'] ?? 'Применить предмет'),
+                'hint' => (string) ($row['ui_hint'] ?? ''),
+            ];
+        } else {
+            $row['target_use'] = ['enabled' => false];
+        }
+
+        unset(
+            $row['target_enabled'],
+            $row['target_type'],
+            $row['allow_quantity'],
+            $row['target_min_count'],
+            $row['target_max_count'],
+            $row['effect_key'],
+            $row['ui_title'],
+            $row['ui_hint']
+        );
+
+        return $row;
     }
 
     private function findActivePokemon(int $userId, int $pokemonId): ?array

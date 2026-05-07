@@ -162,6 +162,7 @@ $router->get('/api/inventory/page', fn (Request $request) => $inventoryApi->page
 $router->get('/api/inventory/battle', fn (Request $request) => $inventoryApi->battle($request));
 $router->post('/api/inventory/equip', fn (Request $request) => $inventoryApi->equip($request));
 $router->post('/api/inventory/unequip', fn (Request $request) => $inventoryApi->unequip($request));
+$router->post('/api/inventory/use-target', fn (Request $request) => $inventoryApi->useTarget($request));
 $router->get('/api/pokemon/moves', fn (Request $request) => $pokemonApi->moves($request));
 $router->post('/api/pokemon/training', fn (Request $request) => $pokemonApi->training($request));
 $router->post('/api/shop/training/buy', fn (Request $request) => $shopApi->buyTrainingItem($request));

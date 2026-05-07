@@ -109,7 +109,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
           </div>
         </div>
         <div class="controls">
-          <input id="amountDrop" type="number" min="1" placeholder="Кол-во (выбросить)">
+          <input id="amountDrop" type="number" min="1" placeholder="Кол-во применить">
           <input id="amountClan" type="number" min="1" placeholder="Кол-во (клан)">
           <button id="clanBtn" type="button" disabled>Отдать клану</button>
           <button id="dressBtn" type="button" disabled>Одеть</button>
@@ -199,7 +199,8 @@ $itemIconIndex = is_file($itemIconIndexPath)
       descEl.textContent = hints.length ? hints.join(' ') : 'Описание отсутствует.';
 
       const elementary = String(item.elementary || '0') === '1';
-      useBtn.disabled = !(elementary && String(item.uses || '0') === '1');
+      const targetUse = item.target_use && item.target_use.enabled === true;
+      useBtn.disabled = !targetUse;
       dressBtn.disabled = !(elementary && String(item.dress || '0') === '1');
       openBtn.disabled = !(String(item.elementary || '0') !== '1');
       dropBtn.disabled = String(item.delet || '0') === '1';
@@ -295,6 +296,37 @@ $itemIconIndex = is_file($itemIconIndexPath)
       }
     }
 
+    async function applySelectedItem() {
+      if (!state.selected || !state.selected.target_use || state.selected.target_use.enabled !== true) {
+        setToast('Для этого предмета не настроено применение на покемона.');
+        return;
+      }
+      const pokemonId = selectedPokemonId();
+      if (pokemonId <= 0) {
+        setToast('Выберите покемона.');
+        return;
+      }
+
+      const rule = state.selected.target_use;
+      const amountInput = document.getElementById('amountDrop');
+      const owned = Number(state.selected.count || 1);
+      const min = Math.max(1, Number(rule.min_count || 1));
+      const max = Math.max(min, Math.min(owned, Number(rule.max_count || owned)));
+      let count = Number(amountInput.value || min);
+      if (!rule.allow_quantity) count = 1;
+      count = Math.max(min, Math.min(max, count));
+
+      const payload = await postInventoryAction('/api/inventory/use-target', {
+        item_user_id: state.selected.id,
+        pokemon_id: pokemonId,
+        count
+      });
+      setToast(payload && payload.message ? payload.message : 'Готово.');
+      if (payload && payload.ok) {
+        await loadPage(state.page);
+      }
+    }
+
     function renderGrid() {
       const grid = document.getElementById('invGrid');
       grid.innerHTML = '';
@@ -365,7 +397,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
 
     function bindActionButtons() {
       const note = () => setToast('Действие будет подключено следующим этапом через API.');
-      document.getElementById('useBtn').addEventListener('click', note);
+      document.getElementById('useBtn').addEventListener('click', applySelectedItem);
       document.getElementById('dressBtn').addEventListener('click', equipSelectedItem);
       document.getElementById('undressBtn').addEventListener('click', unequipSelectedPokemon);
       document.getElementById('openBtn').addEventListener('click', note);

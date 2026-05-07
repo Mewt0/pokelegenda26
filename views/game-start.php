@@ -95,11 +95,22 @@ $itemIconIndex = is_file($itemIconIndexPath)
       <div class="inv-grid-wrap">
         <div class="inv-grid" id="invGrid"></div>
       </div>
+      <div class="inv-target-panel" id="invTargetPanel" hidden>
+        <div>
+          <strong id="invTargetTitle">Применить предмет</strong>
+          <p id="invTargetHint">Выберите покемона и количество.</p>
+        </div>
+        <select id="invTargetPokemon"></select>
+        <input id="invTargetCount" type="number" min="1" value="1" aria-label="Количество">
+        <button type="button" id="invTargetApplyBtn">Применить</button>
+        <button type="button" id="invTargetCancelBtn">×</button>
+      </div>
       <footer class="inv-bottom">
         <button type="button" id="invRefreshBtn">⟳</button>
         <button type="button" id="invPrevBtn">≪</button>
         <button type="button" id="invNextBtn">≫</button>
         <span id="invPageInfo">1/1</span>
+        <button type="button" id="invUseTargetBtn" disabled>Применить</button>
         <span class="inv-slots">СЛОТОВ ЗАНЯТО: <span id="invSlotsCount">0</span></span>
         <button type="button" class="inv-close" id="invCloseBtn">Закрыть</button>
       </footer>
@@ -291,7 +302,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
     const csrf = app.dataset.csrf;
     const state = { busy: false, locationId: 0, activeNpc: null, pveButton: false };
     window.state = state;
-    const inventory = { page: 1, pages: 1, items: [], selected: null };
+    const inventory = { page: 1, pages: 1, items: [], selected: null, pokemon: [] };
     const battleState = { active: false, reviewing: false, moves: [], knownMoves: [] };
     const battleWindowDrag = { ready: false, dragging: false, offsetX: 0, offsetY: 0 };
     const battleHoverState = { ready: false, player: null, enemy: null, movePinned: false };
@@ -1515,12 +1526,16 @@ $itemIconIndex = is_file($itemIconIndexPath)
           setItemIcon(icon, item);
           slot.querySelector('.cnt').textContent = Number(item.count || 0).toLocaleString('ru-RU');
           slot.querySelector('.item-id').textContent = '#' + Number(item.item_id || 0);
+          if (item.target_use && item.target_use.enabled) {
+            slot.classList.add('targetable');
+          }
           if (inventory.selected && Number(inventory.selected.id) === Number(item.id)) {
             slot.classList.add('selected');
           }
           slot.addEventListener('click', () => {
             inventory.selected = item;
             renderInventoryGrid();
+            renderInventoryTargetControls(false);
           });
           slot.addEventListener('mouseenter', (event) => showItemTooltip(event, item));
           slot.addEventListener('mousemove', moveItemTooltip);
@@ -1534,6 +1549,94 @@ $itemIconIndex = is_file($itemIconIndexPath)
 
       document.getElementById('invSlotsCount').textContent = String(items.length);
       document.getElementById('invPageInfo').textContent = inventory.page + '/' + inventory.pages;
+      renderInventoryTargetControls();
+    }
+
+    function selectedItemTargetRule() {
+      const item = inventory.selected;
+      if (!item || !item.target_use || item.target_use.enabled !== true) return null;
+      if (String(item.target_use.target_type || 'pokemon') !== 'pokemon') return null;
+      return item.target_use;
+    }
+
+    function renderInventoryTargetControls(keepPanel = true) {
+      const useButton = document.getElementById('invUseTargetBtn');
+      const panel = document.getElementById('invTargetPanel');
+      const rule = selectedItemTargetRule();
+      useButton.disabled = !rule;
+
+      if (!rule) {
+        panel.hidden = true;
+        return;
+      }
+
+      document.getElementById('invTargetTitle').textContent = rule.title || 'Применить предмет';
+      document.getElementById('invTargetHint').textContent = rule.hint || 'Выберите покемона для применения предмета.';
+      const countInput = document.getElementById('invTargetCount');
+      const owned = Number(inventory.selected.count || 1);
+      const min = Math.max(1, Number(rule.min_count || 1));
+      const max = Math.max(min, Math.min(owned, Number(rule.max_count || owned)));
+      countInput.min = String(min);
+      countInput.max = String(max);
+      countInput.value = String(rule.allow_quantity ? Math.min(max, Math.max(min, Number(countInput.value || min))) : 1);
+      countInput.disabled = !rule.allow_quantity;
+
+      const select = document.getElementById('invTargetPokemon');
+      const previous = select.value;
+      select.innerHTML = '';
+      for (const pokemon of inventory.pokemon || []) {
+        const option = document.createElement('option');
+        option.value = String(pokemon.id || 0);
+        option.textContent = String(pokemon.names || 'Покемон').replace(/<[^>]*>/g, '');
+        select.appendChild(option);
+      }
+      if (previous) select.value = previous;
+      if (!select.value && select.options.length > 0) select.selectedIndex = 0;
+
+      if (!keepPanel) {
+        panel.hidden = true;
+      }
+    }
+
+    function openInventoryTargetPanel() {
+      if (!selectedItemTargetRule()) return;
+      renderInventoryTargetControls();
+      document.getElementById('invTargetPanel').hidden = false;
+      hideItemTooltip();
+    }
+
+    async function applyInventoryTargetItem() {
+      const rule = selectedItemTargetRule();
+      if (!rule || !inventory.selected) return;
+      const pokemonId = Number(document.getElementById('invTargetPokemon').value || 0);
+      const count = Number(document.getElementById('invTargetCount').value || 1);
+      if (pokemonId <= 0) {
+        setStatus('Выберите покемона.');
+        return;
+      }
+
+      const body = new URLSearchParams();
+      body.set('_csrf', csrf);
+      body.set('item_user_id', String(inventory.selected.id || 0));
+      body.set('pokemon_id', String(pokemonId));
+      body.set('count', String(count));
+
+      try {
+        const response = await fetch('/api/inventory/use-target', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body,
+        });
+        const payload = await response.json();
+        setStatus(payload && payload.message ? payload.message : 'Готово.');
+        if (payload && payload.ok === true) {
+          document.getElementById('invTargetPanel').hidden = true;
+          loadInventoryPage(inventory.page);
+        }
+      } catch (e) {
+        setStatus('Не удалось применить предмет.');
+      }
     }
 
     async function loadInventoryPage(page = 1) {
@@ -1546,7 +1649,9 @@ $itemIconIndex = is_file($itemIconIndexPath)
         inventory.page = Number(payload.page || 1);
         inventory.pages = Number(payload.pages || 1);
         inventory.items = Array.isArray(payload.items) ? payload.items : [];
+        inventory.pokemon = Array.isArray(payload.pokemon) ? payload.pokemon : [];
         inventory.selected = null;
+        document.getElementById('invTargetPanel').hidden = true;
         renderInventoryGrid();
       } catch (e) {
         // ignore network error for now
@@ -1777,6 +1882,11 @@ $itemIconIndex = is_file($itemIconIndexPath)
     document.getElementById('invRefreshBtn').addEventListener('click', () => loadInventoryPage(inventory.page));
     document.getElementById('invPrevBtn').addEventListener('click', () => loadInventoryPage(Math.max(1, inventory.page - 1)));
     document.getElementById('invNextBtn').addEventListener('click', () => loadInventoryPage(Math.min(inventory.pages, inventory.page + 1)));
+    document.getElementById('invUseTargetBtn').addEventListener('click', openInventoryTargetPanel);
+    document.getElementById('invTargetApplyBtn').addEventListener('click', applyInventoryTargetItem);
+    document.getElementById('invTargetCancelBtn').addEventListener('click', () => {
+      document.getElementById('invTargetPanel').hidden = true;
+    });
     document.getElementById('inventoryOverlay').addEventListener('click', event => {
       if (event.target.id === 'inventoryOverlay') {
         closeInventory();
