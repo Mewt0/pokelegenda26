@@ -29,9 +29,10 @@ final class ItemMarketRepository
         $params = [];
 
         if ($search !== '') {
-            $sql .= ' AND (i.id = :id_search OR i.name LIKE :search OR i.tittle LIKE :search)';
+            $sql .= ' AND (i.id = :id_search OR i.name LIKE :search_name OR i.tittle LIKE :search_title)';
             $params['id_search'] = ctype_digit($search) ? (int) $search : -1;
-            $params['search'] = '%' . $search . '%';
+            $params['search_name'] = '%' . $search . '%';
+            $params['search_title'] = '%' . $search . '%';
         }
 
         $sql .= ' ORDER BY ms.sort_order ASC, i.id ASC LIMIT ' . $limit;
@@ -67,9 +68,10 @@ final class ItemMarketRepository
         ];
 
         if ($search !== '') {
-            $sql .= ' AND (i.id = :id_search OR i.name LIKE :search OR i.tittle LIKE :search)';
+            $sql .= ' AND (i.id = :id_search OR i.name LIKE :search_name OR i.tittle LIKE :search_title)';
             $params['id_search'] = ctype_digit($search) ? (int) $search : -1;
-            $params['search'] = '%' . $search . '%';
+            $params['search_name'] = '%' . $search . '%';
+            $params['search_title'] = '%' . $search . '%';
         }
 
         $sql .= ' ORDER BY a.tip_item ASC, a.cena ASC LIMIT ' . $limit;
@@ -304,12 +306,37 @@ final class ItemMarketRepository
 
     private function itemIconPath(int $itemId): string
     {
-        $path = dirname(__DIR__, 2) . '/public/img/items/' . $itemId . '.png';
-        if ($itemId > 0 && is_file($path)) {
+        $root = defined('APP_ROOT') ? APP_ROOT : dirname(__DIR__, 2);
+        $index = $this->itemIconIndex($root);
+        $file = (string) ($index[(string) $itemId] ?? '');
+        if ($file !== '' && is_file($root . '/public/img/items/' . basename($file))) {
+            return '/public/img/items/' . basename($file);
+        }
+
+        if ($itemId > 0 && is_file($root . '/public/img/items/' . $itemId . '.png')) {
             return '/public/img/items/' . $itemId . '.png';
         }
 
         return '/public/img/items/3.png';
+    }
+
+    private function itemIconIndex(string $root): array
+    {
+        static $index = null;
+        if ($index !== null) {
+            return $index;
+        }
+
+        $index = [];
+        $path = $root . '/public/img/items/index.json';
+        if (is_file($path)) {
+            $decoded = json_decode((string) file_get_contents($path), true);
+            if (is_array($decoded)) {
+                $index = $decoded;
+            }
+        }
+
+        return $index;
     }
 
     private function plain(string $value): string
