@@ -305,6 +305,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
     const csrf = app.dataset.csrf;
     const state = { busy: false, locationId: 0, activeNpc: null, pveButton: false };
     window.state = state;
+    window.PokemonGameState = state;
     const inventory = { page: 1, pages: 1, items: [], selected: null, pokemon: [] };
     const battleState = { active: false, reviewing: false, moves: [], knownMoves: [] };
     const battleWindowDrag = { ready: false, dragging: false, offsetX: 0, offsetY: 0 };
@@ -417,6 +418,8 @@ $itemIconIndex = is_file($itemIconIndexPath)
 
       const location = payload.location;
       state.locationId = Number(location.id || 0);
+      app.dataset.locationId = String(state.locationId);
+      window.dispatchEvent(new CustomEvent('pokemon:location-changed', { detail: { locationId: state.locationId } }));
       document.getElementById('locationTitle').textContent = location.title;
       document.getElementById('locationImage').src = location.image;
       document.getElementById('locationImage').alt = location.title;

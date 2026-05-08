@@ -15,7 +15,7 @@
     let isPrivate = false;
     let pmToId = 0;
     let pmToName = '';
-    let currentLocationId = 0;
+    let currentLocationId = readLocationId();
     let userMenu = null;
     let autoScroll = true;
     let syncedInitialHistory = false;
@@ -35,7 +35,34 @@
         chatForm.addEventListener('submit', handleSend);
 
         fetchMessages(true);
+        window.addEventListener('pokemon:location-changed', event => {
+            resetLocation(Number(event.detail && event.detail.locationId ? event.detail.locationId : readLocationId()));
+        });
+
         setInterval(fetchMessages, 3000);
+    }
+
+    function readLocationId() {
+        if (window.state && typeof window.state.locationId !== 'undefined') {
+            return Number(window.state.locationId || 0);
+        }
+        if (window.PokemonGameState && typeof window.PokemonGameState.locationId !== 'undefined') {
+            return Number(window.PokemonGameState.locationId || 0);
+        }
+        if (app && app.dataset.locationId) {
+            return Number(app.dataset.locationId || 0);
+        }
+        return 0;
+    }
+
+    function resetLocation(locationId) {
+        const nextLocationId = Number(locationId || 0);
+        if (nextLocationId === currentLocationId) return;
+        currentLocationId = nextLocationId;
+        lastId = 0;
+        allMessages = [];
+        chatLog.innerHTML = '';
+        syncedInitialHistory = false;
     }
 
     function createTabs() {
@@ -371,13 +398,7 @@
 
     async function fetchMessages(syncOnly = false) {
         try {
-            if (window.state && window.state.locationId !== currentLocationId) {
-                currentLocationId = window.state.locationId;
-                lastId = 0;
-                allMessages = [];
-                chatLog.innerHTML = '';
-                syncedInitialHistory = false;
-            }
+            resetLocation(readLocationId());
 
             const shouldSyncOnly = syncOnly || !syncedInitialHistory;
             const params = new URLSearchParams();

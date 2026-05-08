@@ -426,7 +426,9 @@ final class AdminRepository
         }
 
         if ($mode === 'unban') {
-            $before = $this->lookupRows('SELECT * FROM banip WHERE ip = ' . $ip);
+            $beforeStmt = $this->db->prepare('SELECT * FROM banip WHERE ip = :ip');
+            $beforeStmt->execute(['ip' => $ip]);
+            $before = $beforeStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
             $this->db->prepare('DELETE FROM banip WHERE ip = :ip')->execute(['ip' => $ip]);
             $this->audit($adminId, 'banip.delete', 'banip', $ip, ['before' => $before, 'user_id' => $userId]);
             return ['ok' => true, 'message' => 'IP разбанен.'];
