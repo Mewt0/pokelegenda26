@@ -263,6 +263,63 @@
         ['opis', 'Описание ссылки', 'text']
       ]
     },
+    tournaments: {
+      title: 'Турниры',
+      subtitle: 'Новый модуль турниров с нуля: расписание, куратор, взнос, арена, участники и награды.',
+      endpoint: '/api/admin/tournaments',
+      dataKey: 'tournaments',
+      save: '/api/admin/tournaments',
+      delete: { url: '/api/admin/tournaments', id: 'id', confirm: true },
+      columns: ['ID', 'Название', 'Статус', 'Старт', 'Локация', 'Куратор', 'Участники'],
+      cells: row => [
+        row.id,
+        row.title,
+        row.status,
+        row.starts_at > 0 ? new Date(Number(row.starts_at) * 1000).toLocaleString('ru-RU') : 'не задан',
+        row.location_name || row.location_id,
+        row.curator_login || row.curator_user_id || '',
+        row.participants_count || 0
+      ],
+      fields: [
+        ['id', 'ID', 'number', true],
+        ['legacy_id', 'Legacy ID', 'number'],
+        ['title', 'Название', 'text'],
+        ['status', 'Статус', 'select:draft,registration,active,finished,cancelled'],
+        ['starts_at', 'Старт UNIX или дата', 'text'],
+        ['ends_at', 'Финиш UNIX или дата', 'text'],
+        ['entry_fee_item_id', 'Предмет взноса', 'number'],
+        ['entry_fee_amount', 'Размер взноса', 'number'],
+        ['location_id', 'Локация/арена', 'number'],
+        ['curator_user_id', 'Куратор user_id', 'number'],
+        ['min_level', 'Мин. уровень', 'number'],
+        ['max_level', 'Макс. уровень', 'number'],
+        ['max_participants', 'Макс. участников', 'number'],
+        ['rules', 'Правила', 'textarea'],
+        ['reward_note', 'Награды', 'textarea']
+      ],
+      extra: 'tournamentTools'
+    },
+    medals: {
+      title: 'Медали',
+      subtitle: 'Каталог медалей и выдача игрокам. Старые medal.php/info_tur.php отсутствуют, поэтому логика новая.',
+      endpoint: '/api/admin/medals',
+      dataKey: 'medals',
+      save: '/api/admin/medals',
+      delete: { url: '/api/admin/medals', id: 'id', confirm: true },
+      columns: ['ID', 'Иконка', 'Медаль', 'Тип', 'Турнир', 'Выдано', 'Вкл'],
+      cells: row => [row.id, `<img src="${esc(row.icon)}" alt="">`, row.title, row.medal_type, row.tournament_title || row.tournament_id || '', row.awarded_count || 0, row.enabled],
+      fields: [
+        ['id', 'ID', 'number', true],
+        ['title', 'Название', 'text'],
+        ['description', 'Описание', 'textarea'],
+        ['icon_file', 'Файл иконки', 'text'],
+        ['medal_type', 'Тип', 'select:tournament,achievement,event,admin'],
+        ['tournament_id', 'Турнир ID', 'number'],
+        ['sort_order', 'Порядок', 'number'],
+        ['enabled', 'Включена', 'checkbox']
+      ],
+      extra: 'medalTools'
+    },
     moderation: {
       title: 'Модерация',
       subtitle: 'Ban IP и последние сообщения чата.',
@@ -622,6 +679,38 @@
       $('#saveLearnBtn').addEventListener('click', saveAttackLearn);
     }
 
+    if (config.extra === 'tournamentTools') {
+      danger.insertAdjacentHTML('beforeend', `
+        <h3>Участник турнира</h3>
+        <input id="turParticipantTournament" type="number" placeholder="Tournament ID" value="${row ? esc(row.id) : ''}">
+        <input id="turParticipantUser" type="number" placeholder="User ID">
+        <input id="turParticipantPokemon" type="number" placeholder="Pokemon ID">
+        <select id="turParticipantStatus">
+          <option value="registered">registered</option>
+          <option value="checked_in">checked_in</option>
+          <option value="eliminated">eliminated</option>
+          <option value="winner">winner</option>
+          <option value="disqualified">disqualified</option>
+        </select>
+        <input id="turParticipantScore" type="number" placeholder="Очки" value="0">
+        <input id="turParticipantPlace" type="number" placeholder="Место" value="0">
+        <button type="button" id="saveTournamentParticipantBtn">Сохранить участника</button>
+      `);
+      $('#saveTournamentParticipantBtn').addEventListener('click', saveTournamentParticipant);
+    }
+
+    if (config.extra === 'medalTools') {
+      danger.insertAdjacentHTML('beforeend', `
+        <h3>Выдать медаль</h3>
+        <input id="awardMedalId" type="number" placeholder="Medal ID" value="${row ? esc(row.id) : ''}">
+        <input id="awardUserId" type="number" placeholder="User ID">
+        <input id="awardTournamentId" type="number" placeholder="Tournament ID" value="${row && row.tournament_id ? esc(row.tournament_id) : ''}">
+        <input id="awardComment" type="text" placeholder="Комментарий">
+        <button type="button" id="awardMedalBtn">Выдать медаль</button>
+      `);
+      $('#awardMedalBtn').addEventListener('click', awardMedal);
+    }
+
     if (config.extra === 'legacyActions' && row) {
       danger.insertAdjacentHTML('beforeend', `
         <h3>Legacy-раздел</h3>
@@ -688,6 +777,30 @@
       kind: $('#learnKind').value
     });
     setStatus(result.message || '', !result.ok);
+  }
+
+  async function saveTournamentParticipant() {
+    const result = await send('/api/admin/tournaments/participant', {
+      tournament_id: $('#turParticipantTournament').value,
+      user_id: $('#turParticipantUser').value,
+      pokemon_id: $('#turParticipantPokemon').value,
+      status: $('#turParticipantStatus').value,
+      score: $('#turParticipantScore').value,
+      place_num: $('#turParticipantPlace').value
+    });
+    setStatus(result.message || '', !result.ok);
+    if (result.ok) reloadCurrent();
+  }
+
+  async function awardMedal() {
+    const result = await send('/api/admin/medals/award', {
+      medal_id: $('#awardMedalId').value,
+      user_id: $('#awardUserId').value,
+      tournament_id: $('#awardTournamentId').value,
+      comment: $('#awardComment').value
+    });
+    setStatus(result.message || '', !result.ok);
+    if (result.ok) reloadCurrent();
   }
 
   document.querySelectorAll('[data-admin-tab]').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.adminTab)));

@@ -4,6 +4,8 @@
 
 Обновлено 2026-05-08: legacy NPC переведены в новый JSON-flow без прямого исполнения старых PHP-файлов. Старые NPC теперь используются как справочник поведения: покецентр, Покемаркет, куратор, транспорт, стадион, секретарь, Билли и квестовые NPC открывают новые диалоги/маршруты. Smoke по 16 legacy-комбинациям NPC прошел без ошибок.
 
+Обновлено 2026-05-08: старые турнирные файлы `admin/info_tur.php`, `admin/info_tur_user.php`, `admin/medal.php` отсутствуют в проекте, поэтому начат новый модуль с нуля. Добавлены таблицы `admin_tournaments`, `admin_tournament_participants`, `admin_medals`, `admin_user_medals`, API `/api/admin/tournaments`, `/api/admin/medals`, CRUD в админке, участники турниров и выдача медалей игрокам.
+
 Обновлено 2026-05-08: `/game/admin` расширен до новой админпанели v1. Добавлены разделы дашборда, пользователей, предметов, Покемаркета, дропа, локаций, покемонов игроков, атак, новостей, модерации, системных настроек и legacy-карты. API работает через `/api/admin/*`, POST/DELETE защищены CSRF, опасные удаления пишут снимок строки в `admin_audit_log`.
 
 Обновлено 2026-05-08: добавлена таблица `site_settings` и чтение `techwork` из БД. Добавлены индексы для поиска пользователей, предметов, магазина и аудита. Миграция `2026_05_08_000002_admin_panel_v1_foundation.sql` проверена повторным запуском.
@@ -66,6 +68,8 @@
 | `users.karma_score`, `karma_events` | `DONE_NEW` | Новая система кармы: явный счет репутации, лог изменений и мост для старых групп 7/10 как плохой репутации. |
 | `transport_routes` | `PARTIAL_NEW` | Новая таблица рейсов между регионами: тип транспорта, откуда/куда, предмет-иконка, цена, включенность. |
 | `admin_drop_rules` | `PARTIAL_NEW` | Новая таблица настраиваемого дропа: предмет, локация, покемон/слот, шанс, количество, время, квестовые условия. |
+| `admin_tournaments`, `admin_tournament_participants` | `PARTIAL_NEW` | Новый модуль турниров с нуля: расписание, статус, взнос, арена, куратор, уровни и участники. |
+| `admin_medals`, `admin_user_medals` | `PARTIAL_NEW` | Новый каталог медалей и выдача медалей игрокам с привязкой к турниру. |
 | `admin_audit_log` | `PARTIAL_NEW` | Логирует действия новой админки: предметы и правила дропа. |
 | `site_settings` | `DONE_NEW` | Хранит системные флаги, сейчас используется для `techwork`. |
 
@@ -209,6 +213,7 @@
 - Добавлен `/api/admin/dashboard`: обзор счетчиков, онлайн-игроков, последних боев, настроек и аудита.
 - Добавлен `/api/admin/users`: поиск и правка группы, активации, админ-доступа, локации, кармы, репутации и PvE/PvP-состояния.
 - Добавлены админские действия выдачи предметов, бан/разбан IP, управление товарами Покемаркета, локациями, покемонами игроков, атаками, привязками level-up/egg attacks и новостями.
+- Добавлены разделы `Турниры` и `Медали`: старого исходника нет, поэтому модуль пишет новые таблицы и дает CRUD турниров, управление участниками и выдачу медалей.
 - Добавлены `/api/admin/moderation`, `/api/admin/audit`, `/api/admin/settings`; `techwork` теперь читается из `site_settings`.
 - Реальные удаления разрешены, но требуют CSRF, подтверждение `DELETE` для опасных сущностей и записывают payload удаляемой строки в `admin_audit_log`.
 - PvE-награды читают включенные `admin_drop_rules` после победы и выдают предметы игроку, если выпал шанс.
@@ -231,6 +236,6 @@
 
 - PHP lint: `src/Game/BattleEngineService.php`, `src/Repository/BattleRepository.php`, `src/Repository/MessageRepository.php`, `src/Repository/TrainingRepository.php`, `src/Repository/InventoryRepository.php`, `src/Repository/PokemonRepository.php`, `src/Repository/DexRepository.php`, `src/Repository/AdminRepository.php`, `src/Controller/AdminApiController.php`, `src/Controller/GameModuleController.php`, `src/Controller/PokemonApiController.php`, `src/Controller/ShopApiController.php`, `src/Game/GameRoutes.php`, `src/Http/Request.php`, `src/Http/Router.php`, `views/game-module.php`, `views/game-messages.php`, `views/game-training-shop.php`, `views/game-pokemon.php`, `views/game-admin.php`, `public/index.php`.
 - JS syntax: `public/js/player-menu.js`, `public/js/admin-panel.js`.
-- DB schema check: `battle_dop` primary key и индекс `(battleid, pokeid)`, `pvp_requests` индексы входящих/исходящих/пары/боя, `site_settings`, `idx_users_login`, `idx_items_name`, `idx_admin_audit_created`.
+- DB schema check: `battle_dop` primary key и индекс `(battleid, pokeid)`, `pvp_requests` индексы входящих/исходящих/пары/боя, `site_settings`, `idx_users_login`, `idx_items_name`, `idx_admin_audit_created`, таблицы турниров и медалей.
 - DB smoke: добавление ловушки, защита от дубля, чтение ловушек, Fire Punch -> burn, Leech Seed -> status 8, Toxic -> progressive poison, Spikes/Sticky Web hazards, Fire Spin -> partial trap, Sunny Day -> weather, Double-Edge -> recoil, Taunt blocks Thunder Wave, иммунитет Fire к Burn, запрет второго stable-статуса, 3 слоя Spikes, Trick Room order, Reflect damage reduction, weather ability synergy (`Морось`, `Водоплавающий`, `Дождефаг`, `Сухая кожа`, `Засуха`, `Солнечная батарея`, `Лиственный щит`, `Песочник`, `Метеочувствительность`), чтение inbox, PvP заявка/принятие/два хода в транзакции с rollback, карма/ордеры/безопасные и запрещенные локации в транзакции с rollback, поиск атак `Teleport/100/double slap/физическая/status`, покупка наборов за монеты/алмазы, тренировка и ослабление в транзакции с rollback.
 - Render smoke: `game-module` и `game-messages` рендерятся через `View::render`.

@@ -47,6 +47,8 @@ final class AdminRepository
             'marketItems' => $this->countTable('market_shop_items'),
             'activeBattles' => $this->countTable('battles', 'pobeda = 0'),
             'auditRows' => $this->countTable('admin_audit_log'),
+            'tournaments' => $this->tableExists('admin_tournaments') ? $this->countTable('admin_tournaments') : 0,
+            'medals' => $this->tableExists('admin_medals') ? $this->countTable('admin_medals') : 0,
         ];
     }
 
@@ -68,6 +70,15 @@ final class AdminRepository
                   ORDER BY id DESC
                   LIMIT 20'
             ),
+            'recentTournaments' => $this->tableExists('admin_tournaments')
+                ? $this->lookupRows(
+                    'SELECT t.id, t.title, t.status, t.starts_at, t.location_id, u.login AS curator_login
+                       FROM admin_tournaments t
+                  LEFT JOIN users u ON u.id = t.curator_user_id
+                      ORDER BY t.id DESC
+                      LIMIT 12'
+                )
+                : [],
             'settings' => $this->settings(),
         ];
     }
@@ -94,7 +105,7 @@ final class AdminRepository
             $this->legacyModule('transport', 'Самолёт, пароход и транспорт', 'game.php?go=transport', 'virtual', 'PARTIAL_NEW', 'locations', '/game/transport', '/api/transport/routes', 'transport_routes', 'Транспорт подключён отдельными API и связан с локациями.'),
             $this->legacyModule('friends', 'Друзья и заявки', 'game.php?go=friends', 'virtual', 'DONE', 'users', '/game/friends', '/api/friends/status', 'friends', 'Базовая система друзей перенесена в новый API.'),
             $this->legacyModule('messages', 'Почта и сообщения', 'game.php?go=sends', 'virtual', 'PARTIAL_NEW', 'moderation', '/game/messages', '', 'chats', 'Страница есть, бизнес-логика почты ещё требует отдельного полного переноса.'),
-            $this->legacyModule('tournaments', 'Турниры и медали', 'admin/info_tur.php', 'file', 'TODO_REWRITE', 'dashboard', '/game/admin', '', '', 'Функционал пока не перенесён, источник сохранён как справочник.'),
+            $this->legacyModule('tournaments', 'Турниры и медали', 'admin/info_tur.php, admin/info_tur_user.php, admin/medal.php', 'missing_file', 'PARTIAL_NEW', 'tournaments', '/game/admin', '/api/admin/tournaments', 'admin_tournaments', 'Старых файлов нет в дереве проекта, поэтому модуль переписывается с нуля. Старые упоминания в меню и NPC-кураторе используются только как источник бизнес-смысла.'),
         ];
 
         $rows = array_merge($rows, $this->legacySupportFiles(array_column($rows, 'source')));
@@ -1058,6 +1069,292 @@ final class AdminRepository
         return ['ok' => true, 'message' => 'Новость удалена.'];
     }
 
+    public function tournaments(string $search = '', int $limit = 80): array
+    {
+        if (!$this->tableExists('admin_tournaments')) {
+            return [];
+        }
+
+        $limit = max(1, min(200, $limit));
+        $sql = 'SELECT t.*, u.login AS curator_login, b.title AS location_name,
+                       COUNT(p.id) AS participants_count
+                  FROM admin_tournaments t
+             LEFT JOIN users u ON u.id = t.curator_user_id
+             LEFT JOIN build b ON b.id = t.location_id
+             LEFT JOIN admin_tournament_participants p ON p.tournament_id = t.id';
+        $params = [];
+        if ($search !== '') {
+            $sql .= ' WHERE t.id = :id_search OR t.title LIKE :search OR t.status LIKE :search OR u.login LIKE :search';
+            $params = [
+                'id_search' => ctype_digit($search) ? (int) $search : -1,
+                'search' => '%' . $search . '%',
+            ];
+        }
+        $sql .= ' GROUP BY t.id ORDER BY t.id DESC LIMIT ' . $limit;
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function saveTournament(int $adminId, array $payload): array
+    {
+        if (!$this->tableExists('admin_tournaments')) {
+            return ['ok' => false, 'message' => 'Миграция турниров еще не применена.'];
+        }
+
+        $id = (int) ($payload['id'] ?? 0);
+        $title = trim((string) ($payload['title'] ?? ''));
+        if ($title === '') {
+            return ['ok' => false, 'message' => 'Укажи название турнира.'];
+        }
+
+        $status = $this->tournamentStatus((string) ($payload['status'] ?? 'draft'));
+        $now = time();
+        $before = $id > 0 ? $this->rowById('admin_tournaments', 'id', $id) : [];
+        $data = [
+            'legacy_id' => max(0, (int) ($payload['legacy_id'] ?? 0)),
+            'title' => $title,
+            'status' => $status,
+            'starts_at' => $this->adminTimestamp((string) ($payload['starts_at'] ?? '')),
+            'ends_at' => $this->adminTimestamp((string) ($payload['ends_at'] ?? '')),
+            'entry_fee_item_id' => max(0, (int) ($payload['entry_fee_item_id'] ?? 1)),
+            'entry_fee_amount' => max(0, (int) ($payload['entry_fee_amount'] ?? 0)),
+            'location_id' => max(0, (int) ($payload['location_id'] ?? 40)),
+            'curator_user_id' => max(0, (int) ($payload['curator_user_id'] ?? 0)),
+            'min_level' => max(1, (int) ($payload['min_level'] ?? 1)),
+            'max_level' => max(1, (int) ($payload['max_level'] ?? 100)),
+            'max_participants' => max(0, (int) ($payload['max_participants'] ?? 0)),
+            'rules' => trim((string) ($payload['rules'] ?? '')),
+            'reward_note' => trim((string) ($payload['reward_note'] ?? '')),
+            'updated_by' => $adminId,
+            'updated_at' => $now,
+        ];
+
+        if ($before) {
+            $data['id'] = $id;
+            $this->db->prepare(
+                'UPDATE admin_tournaments
+                    SET legacy_id = :legacy_id, title = :title, status = :status,
+                        starts_at = :starts_at, ends_at = :ends_at,
+                        entry_fee_item_id = :entry_fee_item_id, entry_fee_amount = :entry_fee_amount,
+                        location_id = :location_id, curator_user_id = :curator_user_id,
+                        min_level = :min_level, max_level = :max_level, max_participants = :max_participants,
+                        rules = :rules, reward_note = :reward_note, updated_by = :updated_by, updated_at = :updated_at
+                  WHERE id = :id'
+            )->execute($data);
+            $action = 'tournament.update';
+        } else {
+            $data['created_by'] = $adminId;
+            $data['created_at'] = $now;
+            $this->db->prepare(
+                'INSERT INTO admin_tournaments
+                    (legacy_id, title, status, starts_at, ends_at, entry_fee_item_id, entry_fee_amount,
+                     location_id, curator_user_id, min_level, max_level, max_participants,
+                     rules, reward_note, created_by, updated_by, created_at, updated_at)
+                 VALUES
+                    (:legacy_id, :title, :status, :starts_at, :ends_at, :entry_fee_item_id, :entry_fee_amount,
+                     :location_id, :curator_user_id, :min_level, :max_level, :max_participants,
+                     :rules, :reward_note, :created_by, :updated_by, :created_at, :updated_at)'
+            )->execute($data);
+            $id = (int) $this->db->lastInsertId();
+            $action = 'tournament.create';
+        }
+
+        $this->audit($adminId, $action, 'admin_tournaments', $id, ['before' => $before, 'after' => $data]);
+        return ['ok' => true, 'message' => 'Турнир сохранен.', 'id' => $id];
+    }
+
+    public function deleteTournament(int $adminId, int $id, string $confirm): array
+    {
+        if ($confirm !== 'DELETE') {
+            return ['ok' => false, 'message' => 'Для удаления введи DELETE.'];
+        }
+        $before = $this->rowById('admin_tournaments', 'id', $id);
+        if (!$before) {
+            return ['ok' => false, 'message' => 'Турнир не найден.'];
+        }
+        $participants = $this->tableExists('admin_tournament_participants')
+            ? $this->lookupRows('SELECT * FROM admin_tournament_participants WHERE tournament_id = ' . (int) $id)
+            : [];
+        $this->audit($adminId, 'tournament.delete.before', 'admin_tournaments', $id, ['before' => $before, 'participants' => $participants]);
+        $this->db->prepare('DELETE FROM admin_tournament_participants WHERE tournament_id = :id')->execute(['id' => $id]);
+        $this->db->prepare('DELETE FROM admin_tournaments WHERE id = :id LIMIT 1')->execute(['id' => $id]);
+        $this->audit($adminId, 'tournament.delete', 'admin_tournaments', $id, ['before' => $before, 'participants' => $participants]);
+        return ['ok' => true, 'message' => 'Турнир удален.'];
+    }
+
+    public function saveTournamentParticipant(int $adminId, array $payload): array
+    {
+        if (!$this->tableExists('admin_tournament_participants')) {
+            return ['ok' => false, 'message' => 'Миграция участников турниров еще не применена.'];
+        }
+        $tournamentId = (int) ($payload['tournament_id'] ?? 0);
+        $userId = (int) ($payload['user_id'] ?? 0);
+        if ($tournamentId <= 0 || $userId <= 0) {
+            return ['ok' => false, 'message' => 'Укажи турнир и игрока.'];
+        }
+        if (!$this->rowById('admin_tournaments', 'id', $tournamentId)) {
+            return ['ok' => false, 'message' => 'Турнир не найден.'];
+        }
+        if (!$this->rowById('users', 'id', $userId)) {
+            return ['ok' => false, 'message' => 'Игрок не найден.'];
+        }
+
+        $data = [
+            'tournament_id' => $tournamentId,
+            'user_id' => $userId,
+            'pokemon_id' => max(0, (int) ($payload['pokemon_id'] ?? 0)),
+            'status' => $this->participantStatus((string) ($payload['status'] ?? 'registered')),
+            'score' => (int) ($payload['score'] ?? 0),
+            'place_num' => max(0, (int) ($payload['place_num'] ?? 0)),
+            'joined_at' => time(),
+            'updated_at' => time(),
+        ];
+        $before = $this->participantRow($tournamentId, $userId);
+        $this->db->prepare(
+            'INSERT INTO admin_tournament_participants
+                (tournament_id, user_id, pokemon_id, status, score, place_num, joined_at, updated_at)
+             VALUES
+                (:tournament_id, :user_id, :pokemon_id, :status, :score, :place_num, :joined_at, :updated_at)
+             ON DUPLICATE KEY UPDATE
+                pokemon_id = VALUES(pokemon_id), status = VALUES(status), score = VALUES(score),
+                place_num = VALUES(place_num), updated_at = VALUES(updated_at)'
+        )->execute($data);
+        $this->audit($adminId, 'tournament.participant.save', 'admin_tournament_participants', $tournamentId, ['before' => $before, 'after' => $data]);
+        return ['ok' => true, 'message' => 'Участник сохранен.'];
+    }
+
+    public function medals(string $search = '', int $limit = 80): array
+    {
+        if (!$this->tableExists('admin_medals')) {
+            return [];
+        }
+        $limit = max(1, min(200, $limit));
+        $sql = 'SELECT m.*, t.title AS tournament_title,
+                       COUNT(um.id) AS awarded_count
+                  FROM admin_medals m
+             LEFT JOIN admin_tournaments t ON t.id = m.tournament_id
+             LEFT JOIN admin_user_medals um ON um.medal_id = m.id';
+        $params = [];
+        if ($search !== '') {
+            $sql .= ' WHERE m.id = :id_search OR m.title LIKE :search OR m.description LIKE :search OR m.medal_type LIKE :search';
+            $params = [
+                'id_search' => ctype_digit($search) ? (int) $search : -1,
+                'search' => '%' . $search . '%',
+            ];
+        }
+        $sql .= ' GROUP BY m.id ORDER BY m.sort_order ASC, m.id DESC LIMIT ' . $limit;
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as &$row) {
+            $row['icon'] = $this->medalIconPath((string) ($row['icon_file'] ?? ''));
+        }
+        return $rows;
+    }
+
+    public function saveMedal(int $adminId, array $payload): array
+    {
+        if (!$this->tableExists('admin_medals')) {
+            return ['ok' => false, 'message' => 'Миграция медалей еще не применена.'];
+        }
+        $id = (int) ($payload['id'] ?? 0);
+        $title = trim((string) ($payload['title'] ?? ''));
+        if ($title === '') {
+            return ['ok' => false, 'message' => 'Укажи название медали.'];
+        }
+        $now = time();
+        $before = $id > 0 ? $this->rowById('admin_medals', 'id', $id) : [];
+        $data = [
+            'title' => $title,
+            'description' => trim((string) ($payload['description'] ?? '')),
+            'icon_file' => basename(trim((string) ($payload['icon_file'] ?? ''))),
+            'medal_type' => $this->medalType((string) ($payload['medal_type'] ?? 'tournament')),
+            'tournament_id' => max(0, (int) ($payload['tournament_id'] ?? 0)),
+            'sort_order' => (int) ($payload['sort_order'] ?? 0),
+            'enabled' => !empty($payload['enabled']) ? 1 : 0,
+            'updated_by' => $adminId,
+            'updated_at' => $now,
+        ];
+
+        if ($before) {
+            $data['id'] = $id;
+            $this->db->prepare(
+                'UPDATE admin_medals
+                    SET title = :title, description = :description, icon_file = :icon_file,
+                        medal_type = :medal_type, tournament_id = :tournament_id, sort_order = :sort_order,
+                        enabled = :enabled, updated_by = :updated_by, updated_at = :updated_at
+                  WHERE id = :id'
+            )->execute($data);
+            $action = 'medal.update';
+        } else {
+            $data['created_by'] = $adminId;
+            $data['created_at'] = $now;
+            $this->db->prepare(
+                'INSERT INTO admin_medals
+                    (title, description, icon_file, medal_type, tournament_id, sort_order, enabled, created_by, updated_by, created_at, updated_at)
+                 VALUES
+                    (:title, :description, :icon_file, :medal_type, :tournament_id, :sort_order, :enabled, :created_by, :updated_by, :created_at, :updated_at)'
+            )->execute($data);
+            $id = (int) $this->db->lastInsertId();
+            $action = 'medal.create';
+        }
+        $this->audit($adminId, $action, 'admin_medals', $id, ['before' => $before, 'after' => $data]);
+        return ['ok' => true, 'message' => 'Медаль сохранена.', 'id' => $id];
+    }
+
+    public function deleteMedal(int $adminId, int $id, string $confirm): array
+    {
+        if ($confirm !== 'DELETE') {
+            return ['ok' => false, 'message' => 'Для удаления введи DELETE.'];
+        }
+        $before = $this->rowById('admin_medals', 'id', $id);
+        if (!$before) {
+            return ['ok' => false, 'message' => 'Медаль не найдена.'];
+        }
+        $awards = $this->tableExists('admin_user_medals')
+            ? $this->lookupRows('SELECT * FROM admin_user_medals WHERE medal_id = ' . (int) $id)
+            : [];
+        $this->audit($adminId, 'medal.delete.before', 'admin_medals', $id, ['before' => $before, 'awards' => $awards]);
+        $this->db->prepare('DELETE FROM admin_user_medals WHERE medal_id = :id')->execute(['id' => $id]);
+        $this->db->prepare('DELETE FROM admin_medals WHERE id = :id LIMIT 1')->execute(['id' => $id]);
+        $this->audit($adminId, 'medal.delete', 'admin_medals', $id, ['before' => $before, 'awards' => $awards]);
+        return ['ok' => true, 'message' => 'Медаль удалена.'];
+    }
+
+    public function awardMedal(int $adminId, array $payload): array
+    {
+        if (!$this->tableExists('admin_user_medals')) {
+            return ['ok' => false, 'message' => 'Миграция выдачи медалей еще не применена.'];
+        }
+        $medalId = (int) ($payload['medal_id'] ?? 0);
+        $userId = (int) ($payload['user_id'] ?? 0);
+        if ($medalId <= 0 || $userId <= 0) {
+            return ['ok' => false, 'message' => 'Укажи медаль и игрока.'];
+        }
+        if (!$this->rowById('admin_medals', 'id', $medalId)) {
+            return ['ok' => false, 'message' => 'Медаль не найдена.'];
+        }
+        if (!$this->rowById('users', 'id', $userId)) {
+            return ['ok' => false, 'message' => 'Игрок не найден.'];
+        }
+        $data = [
+            'medal_id' => $medalId,
+            'user_id' => $userId,
+            'tournament_id' => max(0, (int) ($payload['tournament_id'] ?? 0)),
+            'comment' => trim((string) ($payload['comment'] ?? '')),
+            'awarded_by' => $adminId,
+            'awarded_at' => time(),
+        ];
+        $this->db->prepare(
+            'INSERT INTO admin_user_medals (medal_id, user_id, tournament_id, comment, awarded_by, awarded_at)
+             VALUES (:medal_id, :user_id, :tournament_id, :comment, :awarded_by, :awarded_at)
+             ON DUPLICATE KEY UPDATE comment = VALUES(comment), awarded_by = VALUES(awarded_by), awarded_at = VALUES(awarded_at)'
+        )->execute($data);
+        $this->audit($adminId, 'medal.award', 'admin_user_medals', $medalId, $data);
+        return ['ok' => true, 'message' => 'Медаль выдана.'];
+    }
+
     public function moderation(): array
     {
         $authorIdSelect = $this->columnExists('chats', 'author_id') ? 'author_id' : '0 AS author_id';
@@ -1259,6 +1556,8 @@ final class AdminRepository
             'pokemon' => 'Покемоны',
             'attacks' => 'Атаки',
             'news' => 'Новости',
+            'tournaments' => 'Турниры',
+            'medals' => 'Медали',
             'moderation' => 'Модерация',
             'settings' => 'Система',
             'legacy' => 'Legacy-карта',
@@ -1522,6 +1821,56 @@ final class AdminRepository
             return $value;
         }
         return '00:00:00';
+    }
+
+    private function adminTimestamp(string $value): int
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return 0;
+        }
+        if (ctype_digit($value)) {
+            return (int) $value;
+        }
+        $time = strtotime($value);
+        return $time === false ? 0 : $time;
+    }
+
+    private function tournamentStatus(string $value): string
+    {
+        return in_array($value, ['draft', 'registration', 'active', 'finished', 'cancelled'], true) ? $value : 'draft';
+    }
+
+    private function participantStatus(string $value): string
+    {
+        return in_array($value, ['registered', 'checked_in', 'eliminated', 'winner', 'disqualified'], true) ? $value : 'registered';
+    }
+
+    private function medalType(string $value): string
+    {
+        return in_array($value, ['tournament', 'achievement', 'event', 'admin'], true) ? $value : 'tournament';
+    }
+
+    private function participantRow(int $tournamentId, int $userId): array
+    {
+        if ($tournamentId <= 0 || $userId <= 0 || !$this->tableExists('admin_tournament_participants')) {
+            return [];
+        }
+        $stmt = $this->db->prepare('SELECT * FROM admin_tournament_participants WHERE tournament_id = :tournament AND user_id = :user LIMIT 1');
+        $stmt->execute(['tournament' => $tournamentId, 'user' => $userId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private function medalIconPath(string $file): string
+    {
+        $file = basename($file);
+        if ($file !== '' && defined('APP_ROOT') && is_file(APP_ROOT . '/public/img/items/' . $file)) {
+            return '/public/img/items/' . $file;
+        }
+        if ($file !== '' && defined('APP_ROOT') && is_file(APP_ROOT . '/public/img/ui/' . $file)) {
+            return '/public/img/ui/' . $file;
+        }
+        return '/public/img/ui/menu-profile.png';
     }
 
     private function sourceType(string $value): string

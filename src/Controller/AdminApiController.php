@@ -334,6 +334,68 @@ final class AdminApiController
         ));
     }
 
+    public function tournaments(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+
+        return $this->json([
+            'ok' => true,
+            'tournaments' => $this->admin->tournaments($request->input('q')),
+        ]);
+    }
+
+    public function saveTournament(Request $request): Response
+    {
+        return $this->mutate($request, fn (int $adminId) => $this->admin->saveTournament($adminId, $request->post));
+    }
+
+    public function deleteTournament(Request $request): Response
+    {
+        return $this->mutate($request, fn (int $adminId) => $this->admin->deleteTournament(
+            $adminId,
+            (int) $request->input('id', '0'),
+            $request->input('confirm')
+        ));
+    }
+
+    public function saveTournamentParticipant(Request $request): Response
+    {
+        return $this->mutate($request, fn (int $adminId) => $this->admin->saveTournamentParticipant($adminId, $request->post));
+    }
+
+    public function medals(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+
+        return $this->json([
+            'ok' => true,
+            'medals' => $this->admin->medals($request->input('q')),
+        ]);
+    }
+
+    public function saveMedal(Request $request): Response
+    {
+        return $this->mutate($request, fn (int $adminId) => $this->admin->saveMedal($adminId, $request->post));
+    }
+
+    public function deleteMedal(Request $request): Response
+    {
+        return $this->mutate($request, fn (int $adminId) => $this->admin->deleteMedal(
+            $adminId,
+            (int) $request->input('id', '0'),
+            $request->input('confirm')
+        ));
+    }
+
+    public function awardMedal(Request $request): Response
+    {
+        return $this->mutate($request, fn (int $adminId) => $this->admin->awardMedal($adminId, $request->post));
+    }
+
     public function moderation(Request $request): Response
     {
         if (!$this->authorized()) {

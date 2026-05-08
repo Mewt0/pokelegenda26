@@ -43,6 +43,8 @@ use Pokemon8\View\View;
         <button type="button" data-admin-tab="pokemon">Покемоны</button>
         <button type="button" data-admin-tab="attacks">Атаки</button>
         <button type="button" data-admin-tab="news">Новости</button>
+        <button type="button" data-admin-tab="tournaments">Турниры</button>
+        <button type="button" data-admin-tab="medals">Медали</button>
         <button type="button" data-admin-tab="moderation">Модерация</button>
         <button type="button" data-admin-tab="settings">Система</button>
         <button type="button" data-admin-tab="legacy">Legacy-карта</button>
