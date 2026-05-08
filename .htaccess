@@ -5,6 +5,7 @@ AddDefaultCharset UTF-8
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteRule ^css/([a-zA-Z0-9_]+)\.css$ style.php?file=$1 [L]
+    RewriteRule ^profile$ public/index.php [QSA,L]
     RewriteRule ^(game|api)(/.*)?$ public/index.php [QSA,L]
     RewriteRule ^robots\.txt$ - [F,L]
 </IfModule>

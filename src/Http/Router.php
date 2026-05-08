@@ -20,6 +20,11 @@ final class Router
         $this->routes['POST ' . $this->normalize($path)] = $handler;
     }
 
+    public function delete(string $path, Closure $handler): void
+    {
+        $this->routes['DELETE ' . $this->normalize($path)] = $handler;
+    }
+
     public function dispatch(Request $request): Response
     {
         // Роут ищется по паре "HTTP-метод + путь".

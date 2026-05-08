@@ -65,6 +65,23 @@ final class PvpBattleApiController
         ));
     }
 
+    public function force(Request $request): Response
+    {
+        $userId = $this->userId();
+        if ($userId <= 0) {
+            return $this->json(['ok' => false, 'error' => 'auth'], 401);
+        }
+        if (!$this->csrf->validate($request->input('_csrf'))) {
+            return $this->json(['ok' => false, 'error' => 'csrf', 'message' => 'Сессия устарела. Обнови страницу.'], 419);
+        }
+
+        return $this->json($this->battleEngine->forcePvp(
+            $userId,
+            (int) $request->input('user_id', '0'),
+            (int) $request->input('pokemon_id', '0')
+        ));
+    }
+
     public function accept(Request $request): Response
     {
         $userId = $this->userId();

@@ -19,7 +19,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <link rel="stylesheet" href="/public/css/game-market-overlay.css">
 </head>
 <body>
-  <main class="world game-shell" data-csrf="<?= View::e($csrf) ?>">
+  <main class="world game-shell" data-csrf="<?= View::e($csrf) ?>" data-user-id="<?= (int) ($userId ?? 0) ?>">
     <section class="location location-card glass-card" id="location">
       <div class="location-image-wrap">
         <img class="location-image" id="locationImage" alt="">
@@ -78,6 +78,9 @@ $itemIconIndex = is_file($itemIconIndexPath)
         <a href="/game/messages"><img src="/public/img/ui/menu-mail.png" alt="">Почта</a>
       </div>
       <div class="system-status">
+        <?php if (!empty($isAdmin)): ?>
+          <a href="/game/admin" class="admin-entry" title="Админпанель" aria-label="Админпанель">Админ</a>
+        <?php endif; ?>
         <button type="button" class="settings-btn" aria-label="Настройки">⚙</button>
         <span class="status" id="status">Готово</span>
         <span class="signal" aria-hidden="true">▂▄▆</span>
@@ -509,6 +512,8 @@ $itemIconIndex = is_file($itemIconIndexPath)
         const row = document.createElement('div');
         row.className = 'user-row player-row';
         row.tabIndex = 0;
+        row.setAttribute('role', 'button');
+        row.setAttribute('aria-label', 'Открыть меню игрока ' + String(user.login || ''));
         row.dataset.playerLogin = user.login || '';
         row.dataset.playerId = user.id || user.user_id || '';
         row.dataset.playerOnline = user.online ? '1' : '0';
@@ -1682,15 +1687,11 @@ $itemIconIndex = is_file($itemIconIndexPath)
     async function openNpc(npc, overrideParams = null) {
       const route = npcRoute(npc, overrideParams);
       if (route) {
-        if (route === '/game/market/items' && window.GameMarketOverlay && typeof window.GameMarketOverlay.open === 'function') {
-          window.GameMarketOverlay.open();
-          return;
-        }
-        window.location.href = route;
+        openNpcRoute(route);
         return;
       }
 
-      state.activeNpc = npc;
+      state.activeNpc = { ...npc, params: overrideParams || npc.params || {} };
       const params = new URLSearchParams();
       params.set('location_id', state.locationId);
       for (const [key, value] of Object.entries(overrideParams || npc.params || {})) {
@@ -1716,6 +1717,14 @@ $itemIconIndex = is_file($itemIconIndexPath)
       }
 
       return null;
+    }
+
+    function openNpcRoute(route) {
+      if (route === '/game/market/items' && window.GameMarketOverlay && typeof window.GameMarketOverlay.open === 'function') {
+        window.GameMarketOverlay.open();
+        return;
+      }
+      window.location.href = route;
     }
 
     async function runNpcAction(action) {
@@ -1781,6 +1790,8 @@ $itemIconIndex = is_file($itemIconIndexPath)
           });
         } else if (choice.action) {
           button.addEventListener('click', () => runNpcAction(choice.action));
+        } else if (choice.route) {
+          button.addEventListener('click', () => openNpcRoute(choice.route));
         } else if (choice.params) {
           button.addEventListener('click', () => openNpc(state.activeNpc, choice.params));
         }

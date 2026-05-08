@@ -18,12 +18,17 @@ final class Request
     {
         // Собираем запрос один раз, дальше контроллеры работают с объектом, а не с $_GET/$_POST напрямую.
         $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+        $post = $_POST;
+        if ($post === [] && in_array($method, ['PUT', 'PATCH', 'DELETE'], true)) {
+            parse_str((string) file_get_contents('php://input'), $post);
+        }
 
         return new self(
-            strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET'),
+            $method,
             '/' . trim($path, '/'),
             $_GET,
-            $_POST,
+            $post,
             $_SERVER,
         );
     }

@@ -644,6 +644,25 @@ button {
   white-space: nowrap;
 }
 
+.actionbar a.admin-entry {
+  width: auto;
+  min-width: 58px;
+  min-height: 36px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #0b7a45;
+  font-size: 12px;
+  font-weight: 900;
+  background: #f3fff8;
+}
+
+.actionbar a.admin-entry:hover {
+  color: #05683a;
+  border-color: #9bd9b7;
+}
+
 .settings-btn {
   width: 36px;
   height: 36px;

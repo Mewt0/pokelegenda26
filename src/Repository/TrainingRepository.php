@@ -39,19 +39,18 @@ final class TrainingRepository
         if ($this->userIsBusy($userId)) {
             return ['ok' => false, 'message' => 'Сначала закончите бой или обмен.'];
         }
-        if (!$this->inventory->removeItem($userId, self::TRAINING_ITEM_ID, 1)) {
-            return ['ok' => false, 'message' => 'Нужен Набор тренировки.'];
-        }
 
         $pokemon = $this->findPokemonForUpdate($userId, $pokemonId);
         if ($pokemon === null) {
-            $this->inventory->addItem($userId, self::TRAINING_ITEM_ID, 1);
             return ['ok' => false, 'message' => 'Покемон не найден в активной команде.'];
         }
 
         $stage = max(0, min(6, (int) ($pokemon['training_stage'] ?? 0)));
         if ($stage >= 6) {
             return ['ok' => false, 'message' => 'У этого покемона уже именная тренировка.'];
+        }
+        if (!$this->inventory->removeItem($userId, self::TRAINING_ITEM_ID, 1)) {
+            return ['ok' => false, 'message' => 'Нужен Набор тренировки.'];
         }
 
         $targetStage = $stage + 1;
@@ -101,19 +100,18 @@ final class TrainingRepository
         if ($this->userIsBusy($userId)) {
             return ['ok' => false, 'message' => 'Сначала закончите бой или обмен.'];
         }
-        if (!$this->inventory->removeItem($userId, self::WEAKENING_ITEM_ID, 1)) {
-            return ['ok' => false, 'message' => 'Нужен Набор ослабления.'];
-        }
 
         $pokemon = $this->findPokemonForUpdate($userId, $pokemonId);
         if ($pokemon === null) {
-            $this->inventory->addItem($userId, self::WEAKENING_ITEM_ID, 1);
             return ['ok' => false, 'message' => 'Покемон не найден в активной команде.'];
         }
 
         $stage = max(0, min(6, (int) ($pokemon['training_stage'] ?? 0)));
         if ($stage <= 0) {
             return ['ok' => false, 'message' => 'У покемона нет тренировки для ослабления.'];
+        }
+        if (!$this->inventory->removeItem($userId, self::WEAKENING_ITEM_ID, 1)) {
+            return ['ok' => false, 'message' => 'Нужен Набор ослабления.'];
         }
 
         $this->saveTraining(
@@ -179,6 +177,18 @@ final class TrainingRepository
             'stage' => $stage,
             'stageName' => $meta['name'],
             'bonus' => (int) $meta['bonus'],
+            'successChance' => (float) $meta['success'],
+            'boostedSuccessChance' => (float) $meta['immuneSuccess'],
+            'weakenChance' => (float) $meta['weaken'],
+            'icon' => match ($stage) {
+                1 => 'I',
+                2 => 'II',
+                3 => 'III',
+                4 => 'IV',
+                5 => 'V',
+                6 => 'MAX',
+                default => '',
+            },
             'stat' => $stat,
             'statLabel' => self::statLabel($stat),
             'namedEffect' => (string) ($pokemon['training_named_effect'] ?? ''),

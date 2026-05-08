@@ -36,8 +36,13 @@ final class InventoryRepository
 
     public function countForUser(int $userId): int
     {
-        $stmt = $this->db->prepare('SELECT COUNT(*) FROM items_users WHERE user_id = :user');
-        $stmt->execute(['user' => $userId]);
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*)
+               FROM items_users
+              WHERE user_id = :user
+                AND (dattimer = "not" OR (dattimer REGEXP "^[0-9]+$" AND CAST(dattimer AS UNSIGNED) > :time))'
+        );
+        $stmt->execute(['user' => $userId, 'time' => time()]);
 
         return (int) $stmt->fetchColumn();
     }
@@ -52,10 +57,12 @@ final class InventoryRepository
              INNER JOIN items i ON i.id = iu.item_id
              LEFT JOIN item_target_rules itr ON itr.item_id = iu.item_id AND itr.enabled = 1
              WHERE iu.user_id = :user
+               AND (iu.dattimer = "not" OR (iu.dattimer REGEXP "^[0-9]+$" AND CAST(iu.dattimer AS UNSIGNED) > :time))
              ORDER BY iu.item_id ASC
              LIMIT :limit OFFSET :offset'
         );
         $stmt->bindValue(':user', $userId, PDO::PARAM_INT);
+        $stmt->bindValue(':time', time(), PDO::PARAM_INT);
         $stmt->bindValue(':limit', max(1, $limit), PDO::PARAM_INT);
         $stmt->bindValue(':offset', max(0, $offset), PDO::PARAM_INT);
         $stmt->execute();
@@ -75,12 +82,37 @@ final class InventoryRepository
              FROM items_users iu
              INNER JOIN items i ON i.id = iu.item_id
              WHERE iu.user_id = :user AND i.battleuse = 1
+               AND (iu.dattimer = "not" OR (iu.dattimer REGEXP "^[0-9]+$" AND CAST(iu.dattimer AS UNSIGNED) > :time))
              ORDER BY i.id DESC'
         );
-        $stmt->execute(['user' => $userId]);
+        $stmt->execute(['user' => $userId, 'time' => time()]);
 
         $items = $stmt->fetchAll();
         return is_array($items) ? $items : [];
+    }
+
+    public function itemIdForInventoryRow(int $userId, int $itemUserId): int
+    {
+        if ($userId <= 0 || $itemUserId <= 0) {
+            return 0;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT item_id
+               FROM items_users
+              WHERE id = :id
+                AND user_id = :user
+                AND count > 0
+                AND (dattimer = "not" OR (dattimer REGEXP "^[0-9]+$" AND CAST(dattimer AS UNSIGNED) > :time))
+              LIMIT 1'
+        );
+        $stmt->execute([
+            'id' => $itemUserId,
+            'user' => $userId,
+            'time' => time(),
+        ]);
+
+        return (int) ($stmt->fetchColumn() ?: 0);
     }
 
     public function useTargetedItem(int $userId, int $itemUserId, int $pokemonId, int $count): array

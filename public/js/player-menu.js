@@ -20,11 +20,13 @@
   let activePlayerId = 0;
   let activeFriendStatus = 'loading';
   let activePvpStatus = 'loading';
+  let activePvpPermission = null;
   let knownIncomingRequests = new Set(loadSeenRequests());
   let knownIncomingPvpRequests = new Set(loadSeenPvpRequests());
 
   const app = document.querySelector('.world');
   const csrf = app ? app.dataset.csrf : '';
+  const currentUserId = Number(app && app.dataset.userId || 0);
 
   const text = {
     localPlayer: 'игрок на локации',
@@ -32,6 +34,7 @@
     dialog: 'Открыть диалог',
     private: 'Написать в ЛС',
     battle: 'Вызвать на бой',
+    forceBattle: 'Напасть по ордеру',
     acceptBattle: 'Принять бой',
     battleSent: 'Вызов отправлен',
     battleActive: 'Игрок в бою',
@@ -119,13 +122,24 @@
     menu.hidden = true;
     menu.innerHTML = '';
     menu.dataset.playerId = '';
+    activePvpPermission = null;
   }
 
-  function menuButton(action, icon, label, disabled = false) {
-    return '<button type="button" data-player-action="' + action + '"' + (disabled ? ' disabled' : '') + '><span class="pcm-icon">' + icon + '</span><span>' + label + '</span></button>';
+  function escapeAttr(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function menuButton(action, icon, label, disabled = false, title = '') {
+    const titleAttr = title ? ' title="' + escapeAttr(title) + '"' : '';
+    return '<button type="button" data-player-action="' + action + '"' + titleAttr + (disabled ? ' disabled' : '') + '><span class="pcm-icon">' + icon + '</span><span>' + label + '</span></button>';
   }
 
   function friendButtonForStatus(status) {
+    if (status === 'auth') return menuButton('friend-pending', '&#9888;', 'Нужно войти', true);
     if (status === 'self') return '';
     if (status === 'incoming') return menuButton('friend-accept', '&#10003;', text.acceptFriend);
     if (status === 'friends') return menuButton('friend-remove', '&#8722;', text.removeFriend);
@@ -135,6 +149,7 @@
   }
 
   function battleButtonForStatus(status) {
+    if (status === 'auth') return menuButton('battle-pending', '&#9888;', 'Нужно войти', true);
     if (status === 'self') return '';
     if (status === 'incoming') return menuButton('battle-accept', '&#9876;', text.acceptBattle);
     if (status === 'outgoing') return menuButton('battle-pending', '&#8987;', text.battleSent, true);
@@ -144,25 +159,43 @@
     return menuButton('battle', '&#9876;', text.battle);
   }
 
+  function forceBattleButtonForStatus(status, permission) {
+    if (status === 'auth') return menuButton('battle-force-pending', '&#9888;', 'Нужно войти', true);
+    if (status === 'self') return '';
+    if (status === 'active') return menuButton('battle-force-pending', '&#8987;', text.battleActive, true);
+    if (status === 'loading') return menuButton('battle-force-pending', '&#8987;', 'Проверяем ордер...', true);
+
+    const message = permission && permission.message ? String(permission.message) : '';
+    if (permission && permission.allowed === true) {
+      const label = permission.requiresWarrant ? text.forceBattle : 'Напасть принудительно';
+      return menuButton('battle-force', '&#9876;', label, false, message);
+    }
+
+    const label = message.includes('нужен ордер') ? 'Нужен ордер' : 'Ордер недоступен';
+    return menuButton('battle-force-unavailable', '&#9888;', label, true, message || 'Принудительное нападение сейчас недоступно.');
+  }
+
   function renderMenu() {
-    if (!activeRow || !activeLogin) return;
+    if (!activeRow || !activeLogin || activePlayerId <= 0 || currentUserId <= 0) return;
 
     const initial = activeLogin.trim().charAt(0).toUpperCase() || '?';
+    const isSelf = activePlayerId === currentUserId;
     menu.innerHTML = [
       '<div class="pcm-head">',
         '<div class="pcm-avatar">' + initial + '</div>',
         '<div><b></b><small>' + text.localPlayer + '</small></div>',
       '</div>',
       menuButton('card', '&#9817;', text.card),
-      menuButton('dialog', '&#9743;', text.dialog),
-      menuButton('private', '&#9998;', text.private),
-      '<hr>',
-      battleButtonForStatus(activePvpStatus),
-      menuButton('trade', '&#8644;', text.trade),
-      '<hr>',
-      friendButtonForStatus(activeFriendStatus),
-      menuButton('ignore', '&#8856;', text.ignore),
-      menuButton('mail', '&#9993;', text.mail),
+      isSelf ? '' : menuButton('dialog', '&#9743;', text.dialog),
+      isSelf ? '' : menuButton('private', '&#9998;', text.private),
+      isSelf ? '' : '<hr>',
+      isSelf ? '' : battleButtonForStatus(activePvpStatus),
+      isSelf ? '' : forceBattleButtonForStatus(activePvpStatus, activePvpPermission),
+      isSelf ? '' : menuButton('trade', '&#8644;', text.trade),
+      isSelf ? '' : '<hr>',
+      isSelf ? '' : friendButtonForStatus(activeFriendStatus),
+      isSelf ? '' : menuButton('ignore', '&#8856;', text.ignore),
+      isSelf ? '' : menuButton('mail', '&#9993;', text.mail),
     ].join('');
     menu.querySelector('b').textContent = activeLogin;
   }
@@ -192,6 +225,9 @@
         credentials: 'same-origin',
         headers: { 'Accept': 'application/json' },
       });
+      if (response.status === 401 || response.status === 403) {
+        return 'auth';
+      }
       const data = await response.json();
       return data.ok ? String(data.status || 'none') : 'none';
     } catch (error) {
@@ -200,25 +236,38 @@
     }
   }
 
-  async function loadPvpStatus(playerId) {
-    if (!playerId) return 'none';
+  async function loadPvpInfo(playerId) {
+    if (!playerId) return { status: 'none', permission: null };
 
     try {
       const response = await fetch('/api/battle/pvp/status?user_id=' + encodeURIComponent(String(playerId)), {
         credentials: 'same-origin',
         headers: { 'Accept': 'application/json' },
       });
+      if (response.status === 401 || response.status === 403) {
+        return { status: 'auth', permission: null };
+      }
       const data = await response.json();
-      return data.ok ? String(data.status || 'none') : 'none';
+      return data.ok
+        ? { status: String(data.status || 'none'), permission: data.permission || null }
+        : { status: 'none', permission: null };
     } catch (error) {
       console.error('PvP status failed:', error);
-      return 'none';
+      return { status: 'none', permission: null };
     }
   }
 
   async function openMenu(row) {
     const login = row.dataset.playerLogin || row.querySelector('.user-name')?.textContent || '';
-    if (!login) return;
+    const playerId = Number(row.dataset.playerId || 0);
+    if (currentUserId <= 0) {
+      notify('Нужно войти в игру, чтобы открыть меню игрока.', 'error');
+      return;
+    }
+    if (!login || playerId <= 0) {
+      notify('Не удалось определить игрока. Обнови страницу.', 'error');
+      return;
+    }
 
     if (activeRow === row && !menu.hidden) {
       closeMenu();
@@ -228,22 +277,28 @@
     if (activeRow) activeRow.classList.remove('is-menu-open');
     activeRow = row;
     activeLogin = login;
-    activePlayerId = Number(row.dataset.playerId || 0);
-    activeFriendStatus = 'loading';
-    activePvpStatus = 'loading';
+    activePlayerId = playerId;
+    activeFriendStatus = activePlayerId === currentUserId ? 'self' : 'loading';
+    activePvpStatus = activePlayerId === currentUserId ? 'self' : 'loading';
+    activePvpPermission = null;
     menu.dataset.playerId = String(activePlayerId || '');
     row.classList.add('is-menu-open');
 
     renderMenu();
     positionMenu(row);
 
-    const [status, pvpStatus] = await Promise.all([
+    if (activePlayerId === currentUserId) {
+      return;
+    }
+
+    const [status, pvpInfo] = await Promise.all([
       loadFriendStatus(activePlayerId),
-      loadPvpStatus(activePlayerId),
+      loadPvpInfo(activePlayerId),
     ]);
     if (activeRow !== row || menu.hidden) return;
     activeFriendStatus = status;
-    activePvpStatus = pvpStatus;
+    activePvpStatus = pvpInfo.status;
+    activePvpPermission = pvpInfo.permission;
     renderMenu();
     positionMenu(row);
   }
@@ -334,6 +389,45 @@
     } catch (error) {
       console.error('PvP action failed:', error);
       notify('Ошибка сервера при вызове на бой.', 'error');
+      return null;
+    }
+  }
+
+  async function forceBattle(id) {
+    if (!id) {
+      notify('Игрок не выбран.', 'error');
+      return null;
+    }
+
+    const pokemon = await choosePvpPokemon('Кого отправить в принудительный бой?');
+    if (!pokemon) {
+      return null;
+    }
+
+    try {
+      const body = new URLSearchParams();
+      body.set('_csrf', csrf);
+      body.set('user_id', String(id));
+      body.set('pokemon_id', String(pokemon.id));
+
+      const response = await fetch('/api/battle/pvp/force', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        },
+        body
+      });
+      const data = await response.json();
+      notify(data.message || (data.ok ? 'Принудительный бой начался.' : 'Нападение не удалось.'), data.ok ? 'success' : 'error');
+      if (data.ok && (data.status === 'active' || Number(data.battleId || 0) > 0)) {
+        document.dispatchEvent(new CustomEvent('pvp-battle-started', { detail: data }));
+      }
+      return data;
+    } catch (error) {
+      console.error('Forced PvP action failed:', error);
+      notify('Ошибка сервера при нападении по ордеру.', 'error');
       return null;
     }
   }
@@ -463,6 +557,7 @@
   window.PokemonSocial.acceptFriend = acceptFriend;
   window.PokemonSocial.removeFriend = removeFriend;
   window.PokemonSocial.requestBattle = requestBattle;
+  window.PokemonSocial.forceBattle = forceBattle;
 
   document.addEventListener('click', async event => {
     const actionButton = event.target.closest('[data-player-action]');
@@ -476,6 +571,11 @@
       if (action === 'friend-remove') friendResult = await removeFriend(playerId);
       if (action === 'battle' || action === 'battle-accept') {
         await requestBattle(playerId);
+        closeMenu();
+        return;
+      }
+      if (action === 'battle-force') {
+        await forceBattle(playerId);
         closeMenu();
         return;
       }

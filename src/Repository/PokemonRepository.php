@@ -267,19 +267,24 @@ final class PokemonRepository
     {
         $stage = max(0, min(6, (int) ($row['training_stage'] ?? 0)));
         $stages = [
-            0 => ['name' => 'Без тренировки', 'bonus' => 0],
-            1 => ['name' => 'Начальная', 'bonus' => 10],
-            2 => ['name' => 'Расширенная', 'bonus' => 18],
-            3 => ['name' => 'Мастерская', 'bonus' => 25],
-            4 => ['name' => 'Знаменитая', 'bonus' => 31],
-            5 => ['name' => 'Легендарная', 'bonus' => 36],
-            6 => ['name' => 'Именная', 'bonus' => 40],
+            0 => ['name' => 'Без тренировки', 'bonus' => 0, 'success' => 100.0, 'immuneSuccess' => 100.0, 'weaken' => 0.0, 'icon' => ''],
+            1 => ['name' => 'Начальная', 'bonus' => 10, 'success' => 65.0, 'immuneSuccess' => 100.0, 'weaken' => 1.0, 'icon' => 'I'],
+            2 => ['name' => 'Расширенная', 'bonus' => 18, 'success' => 43.0, 'immuneSuccess' => 45.0, 'weaken' => 3.0, 'icon' => 'II'],
+            3 => ['name' => 'Мастерская', 'bonus' => 25, 'success' => 11.0, 'immuneSuccess' => 12.0, 'weaken' => 6.0, 'icon' => 'III'],
+            4 => ['name' => 'Знаменитая', 'bonus' => 31, 'success' => 6.0, 'immuneSuccess' => 6.5, 'weaken' => 10.0, 'icon' => 'IV'],
+            5 => ['name' => 'Легендарная', 'bonus' => 36, 'success' => 3.0, 'immuneSuccess' => 3.2, 'weaken' => 55.0, 'icon' => 'V'],
+            6 => ['name' => 'Именная', 'bonus' => 40, 'success' => 1.9, 'immuneSuccess' => 2.3, 'weaken' => 90.0, 'icon' => 'MAX'],
         ];
         $stat = (string) ($row['training_stat'] ?? '');
+        $meta = $stages[$stage];
         return [
             'stage' => $stage,
-            'stageName' => $stages[$stage]['name'],
-            'bonus' => $stages[$stage]['bonus'],
+            'stageName' => $meta['name'],
+            'bonus' => $meta['bonus'],
+            'successChance' => $meta['success'],
+            'boostedSuccessChance' => $meta['immuneSuccess'],
+            'weakenChance' => $meta['weaken'],
+            'icon' => $meta['icon'],
             'stat' => $stat,
             'statLabel' => $this->trainingStatLabel($stat),
             'namedEffect' => (string) ($row['training_named_effect'] ?? ''),

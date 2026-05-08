@@ -21,7 +21,7 @@ use Pokemon8\View\View;
     .team-window {
       height: 100vh;
       display: grid;
-      grid-template-rows: 42px minmax(0, 1fr) 28px;
+      grid-template-rows: 38px minmax(0, 1fr) 24px;
       background: #e5eff8;
       border: 1px solid #8ea7bf;
       box-shadow: inset 0 1px 0 rgba(255,255,255,.72);
@@ -33,7 +33,7 @@ use Pokemon8\View\View;
       justify-content: space-between;
       padding: 0 14px;
       color: #061a32;
-      font: 800 24px/1 Georgia, "Times New Roman", serif;
+      font: 800 22px/1 Georgia, "Times New Roman", serif;
       letter-spacing: .02em;
       text-transform: uppercase;
     }
@@ -55,7 +55,7 @@ use Pokemon8\View\View;
       display: grid;
       grid-template-columns: 228px minmax(0, 1fr);
       gap: 14px;
-      padding: 6px 12px 4px;
+      padding: 4px 12px 2px;
     }
     .team-body.is-overview {
       grid-template-columns: 1fr;
@@ -157,7 +157,9 @@ use Pokemon8\View\View;
       display: grid;
       grid-template-columns: minmax(0, 1fr);
       position: relative;
-      overflow: hidden;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 4px;
     }
     .team-body.is-overview .detail {
       display: none;
@@ -223,8 +225,8 @@ use Pokemon8\View\View;
     .move-name { min-width: 0; padding-right: 28px; color: #aa1616; font: 800 14px/1 Georgia, serif; text-transform: uppercase; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .move-pp { position: absolute; right: 0; top: 0; color: #526173; font-weight: 700; }
     .move-hint { color: #526173; font-size: 11px; }
-    .detail-main { min-width: 0; padding-top: 2px; }
-    .detail-title { margin: 0; color: #102544; font: 800 24px/1.08 Georgia, "Times New Roman", serif; text-transform: uppercase; overflow-wrap: anywhere; }
+    .detail-main { min-width: 0; padding: 0 2px 10px 0; }
+    .detail-title { margin: 0; color: #102544; font: 800 22px/1.04 Georgia, "Times New Roman", serif; text-transform: uppercase; overflow-wrap: anywhere; }
     .detail-title[role="button"] { cursor: pointer; }
     .detail-title[role="button"]:hover { color: #0d5ca8; }
     .detail-sub { margin-top: 3px; color: #123965; font-size: 14px; overflow-wrap: anywhere; }
@@ -232,7 +234,7 @@ use Pokemon8\View\View;
       display: inline-flex;
       align-items: center;
       min-height: 22px;
-      margin-top: 6px;
+      margin-top: 4px;
       padding: 0 8px;
       border: 1px solid #9fb0c0;
       border-radius: 4px;
@@ -240,12 +242,36 @@ use Pokemon8\View\View;
       color: #183c62;
       font-weight: 700;
     }
-    .stats { max-width: 100%; margin-top: 16px; display: grid; gap: 4px; }
-    .stat-row { display: grid; grid-template-columns: 104px 38px minmax(92px, 1fr) 22px; align-items: center; gap: 7px; color: #1f3855; }
+    .stats { max-width: 100%; margin-top: 10px; display: grid; gap: 3px; }
+    .stat-row { display: grid; grid-template-columns: 132px 38px minmax(92px, 1fr) 22px; align-items: center; gap: 7px; color: #1f3855; }
+    .stat-label { min-width: 0; display: flex; align-items: center; gap: 6px; }
+    .stat-label span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .stat-value { text-align: right; color: #526173; font-weight: 700; }
     .stat-track { height: 10px; border: 1px solid #aab8c6; border-radius: 99px; background: #edf3f9; overflow: hidden; }
     .stat-track i { display: block; height: 100%; background: #d0c96a; }
     .stat-row.hp .stat-track i { background: #14bf91; }
+    .stat-row.is-trained { color: #102544; font-weight: 800; }
+    .stat-row.is-trained .stat-track { border-color: #8fb4e4; background: #e8f2ff; box-shadow: 0 0 0 2px rgba(77,139,234,.09); }
+    .stat-row.is-trained .stat-track i { background: linear-gradient(90deg, #5b8df7, #8edb6f); }
+    .training-mark {
+      flex: 0 0 auto;
+      min-width: 24px;
+      height: 18px;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid #8ca3ba;
+      border-radius: 4px;
+      background: linear-gradient(#fff, #d9e5ef);
+      color: #28445f;
+      font: 900 10px/1 Tahoma, Arial, sans-serif;
+      box-shadow: 0 1px 0 rgba(255,255,255,.75) inset;
+    }
+    .training-mark.s1 { border-color:#9ba6ad; color:#4d5962; }
+    .training-mark.s2 { border-color:#87af4b; color:#3f6c10; background:linear-gradient(#fbfff5,#dff0ca); }
+    .training-mark.s3 { border-color:#5595d8; color:#145ea6; background:linear-gradient(#f5fbff,#d6e9ff); }
+    .training-mark.s4 { border-color:#a06bc6; color:#6d298b; background:linear-gradient(#fff8ff,#ecd9fa); }
+    .training-mark.s5 { border-color:#c95244; color:#9a1c13; background:linear-gradient(#fff8f5,#fad8d3); }
+    .training-mark.s6 { border-color:#c5a21a; color:#755900; background:linear-gradient(#fffbe4,#f4db65); }
     .stat-plus {
       width: 22px;
       height: 22px;
@@ -257,17 +283,31 @@ use Pokemon8\View\View;
     .ev-left { justify-self: end; color: #00a75f; font-weight: 900; }
     .meta { margin-top: 18px; color: #0d5ca8; font-weight: 700; }
     .training-box {
-      margin-top: 14px;
-      padding: 10px;
+      margin-top: 10px;
+      padding: 8px 10px;
       border: 1px solid #b3c5d8;
       border-radius: 6px;
       background: rgba(255,255,255,.42);
     }
-    .training-box strong { display:block; margin-bottom:4px; color:#102544; }
-    .training-box small { display:block; color:#526173; }
-    .training-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .training-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
+    .training-box strong { display:block; color:#102544; }
+    .training-box small { display:block; color:#526173; line-height: 1.25; }
+    .training-chances { margin-top:5px; display:flex; flex-wrap:wrap; gap:4px; }
+    .training-chances span {
+      min-height: 18px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 6px;
+      border: 1px solid #b8c8d8;
+      border-radius: 999px;
+      background: rgba(247,251,255,.72);
+      color: #435b74;
+      font-size: 10px;
+      font-weight: 800;
+    }
+    .training-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
     .training-actions button {
-      min-height: 28px;
+      min-height: 26px;
       padding: 0 9px;
       border: 1px solid #9fb4cc;
       border-radius: 5px;
@@ -353,7 +393,7 @@ use Pokemon8\View\View;
       color: #fff;
       font-weight: 800;
     }
-    .team-foot { display: flex; align-items: center; justify-content: space-between; padding: 0 14px 8px; color: #8190a0; font-weight: 700; }
+    .team-foot { display: flex; align-items: center; justify-content: space-between; padding: 0 14px 5px; color: #8190a0; font-weight: 700; }
     .status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .is-bad { color: #a4161a; }
     @media (max-width: 760px) {
@@ -606,10 +646,16 @@ use Pokemon8\View\View;
       const t = poke.training || {};
       const stage = Number(t.stage || 0);
       const named = t.namedEffect ? ', эффект: ' + namedEffectLabel(t.namedEffect) : '';
+      const mark = trainingMarkHtml(t);
       box.innerHTML = [
-        '<strong>Тренировка: ' + escapeHtml(t.stageName || 'Без тренировки') + '</strong>',
+        '<div class="training-head"><strong>Тренировка: ' + escapeHtml(t.stageName || 'Без тренировки') + '</strong>' + mark + '</div>',
         '<small>Бонус: +' + Number(t.bonus || 0) + '% к ' + escapeHtml(t.statLabel || 'Не выбран') + named + '</small>',
         '<small>' + (t.tamed ? 'Приручен: нельзя передавать.' : 'Не приручен.') + '</small>',
+        '<div class="training-chances">',
+          '<span>Успех: ' + formatChance(t.successChance) + '</span>',
+          '<span>С умением: ' + formatChance(t.boostedSuccessChance) + '</span>',
+          '<span>Ослабление: ' + formatChance(t.weakenChance) + '</span>',
+        '</div>',
         '<div class="training-actions">',
           '<button type="button" data-training-action="train">Набор тренировки</button>',
           '<button type="button" data-training-action="weaken"' + (stage <= 0 ? ' disabled' : '') + '>Ослабить</button>',
@@ -621,6 +667,29 @@ use Pokemon8\View\View;
           useTrainingItem(Number(poke.id || 0), button.dataset.trainingAction || 'train');
         });
       });
+    }
+
+    function trainingMarkHtml(training) {
+      const stage = Number(training && training.stage || 0);
+      if (stage <= 0) return '';
+      const label = escapeHtml(training.icon || String(stage));
+      const title = escapeHtml((training.stageName || 'Тренировка') + ': +' + Number(training.bonus || 0) + '%');
+      return '<span class="training-mark s' + stage + '" title="' + title + '">' + label + '</span>';
+    }
+
+    function trainingStatKey(label) {
+      return {
+        'Атака': 'atk',
+        'Защита': 'def',
+        'Скорость': 'speed',
+        'Спец.атака': 'satk',
+        'Спец.защита': 'sdef',
+      }[label] || '';
+    }
+
+    function formatChance(value) {
+      const num = Number(value || 0);
+      return (Number.isInteger(num) ? String(num) : String(num).replace('.', ',')) + '%';
     }
 
     function namedEffectLabel(effect) {
@@ -665,6 +734,8 @@ use Pokemon8\View\View;
       const level = Number(poke.level || 0);
       const hp = Number(poke.hp || 0);
       const hpMax = Number(poke.hpMax || 1);
+      const training = poke.training || {};
+      const trainedStat = String(training.stat || '');
       const values = [
         ['Счастье', 100, 100, false],
         ['Здоровье', hp, hpMax, true],
@@ -676,10 +747,14 @@ use Pokemon8\View\View;
       ];
       const box = detail.querySelector('.stats');
       values.forEach(([label, value, max, isHp], index) => {
+        const isTrained = trainedStat !== '' && trainingStatKey(label) === trainedStat && Number(training.stage || 0) > 0;
         const row = document.createElement('div');
-        row.className = 'stat-row' + (isHp ? ' hp' : '');
-        row.innerHTML = '<span></span><b class="stat-value"></b><span class="stat-track"><i></i></span><button type="button" class="stat-plus">+</button>';
-        row.querySelector('span').textContent = label;
+        row.className = 'stat-row' + (isHp ? ' hp' : '') + (isTrained ? ' is-trained' : '');
+        row.innerHTML = '<span class="stat-label"><span></span></span><b class="stat-value"></b><span class="stat-track"><i></i></span><button type="button" class="stat-plus">+</button>';
+        row.querySelector('.stat-label span').textContent = label;
+        if (isTrained) {
+          row.querySelector('.stat-label').insertAdjacentHTML('beforeend', trainingMarkHtml(training));
+        }
         row.querySelector('.stat-value').textContent = label === 'Счастье' ? '' : value;
         row.querySelector('i').style.width = Math.max(0, Math.min(100, value / Math.max(1, max) * 100)) + '%';
         row.querySelector('.stat-plus').addEventListener('click', event => {

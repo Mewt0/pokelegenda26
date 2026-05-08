@@ -33,6 +33,7 @@ use Pokemon8\Game\NpcDialogService;
 use Pokemon8\Game\WildEncounterService;
 use Pokemon8\Game\BattleEngineService;
 use Pokemon8\Http\Request;
+use Pokemon8\Http\Response;
 use Pokemon8\Http\Router;
 use Pokemon8\Repository\AdminRepository;
 use Pokemon8\Repository\ChatRepository;
@@ -56,6 +57,7 @@ use Pokemon8\Security\Csrf;
 use Pokemon8\Security\PasswordHasher;
 use Pokemon8\Security\Session;
 use Pokemon8\Support\Env;
+use Pokemon8\View\View;
 
 define('APP_ROOT', dirname(__DIR__));
 
@@ -88,6 +90,7 @@ $itemMarketRepository = new ItemMarketRepository($db, $inventory);
 $training = new TrainingRepository($db, $inventory);
 $transportRepository = new TransportRepository($db, $inventory);
 $adminRepository = new AdminRepository($db);
+$appConfig['techwork'] = $adminRepository->setting('techwork', (string) ($appConfig['techwork'] ?? '0'));
 $profiles = new ProfileRepository($db);
 $battleRepository = new BattleRepository($db);
 $dexRepository = new DexRepository($db);
@@ -109,10 +112,10 @@ $banGuard = new BanGuard($bans);
 $home = new HomeController($rankings, $session, $csrf);
 $adminPage = new AdminController($session, $csrf, $adminRepository);
 $adminApi = new AdminApiController($session, $csrf, $adminRepository);
-$auth = new AuthController($users, $passwords, $session, $csrf, ['techwork' => $appConfig['techwork']]);
-$game = new GameController($session, $csrf, $users);
+$auth = new AuthController($users, $passwords, $session, $csrf, $adminRepository, ['techwork' => $appConfig['techwork']]);
+$game = new GameController($session, $csrf, $users, $adminRepository);
 $inventoryPage = new InventoryController($session, $inventory, $csrf);
-$inventoryApi = new InventoryApiController($session, $inventory, $csrf);
+$inventoryApi = new InventoryApiController($session, $inventory, $csrf, $training);
 $pokemonPage = new PokemonController($session, $csrf);
 $pokemonApi = new PokemonApiController($session, $csrf, $pokemonRepository, $training);
 $shopApi = new ShopApiController($session, $csrf, $training);
@@ -137,6 +140,7 @@ $router->get('/game/admin', fn (Request $request) => $adminPage->index($request)
 $router->get('/game/items', fn (Request $request) => $inventoryPage->index($request));
 $router->get('/game/pokemon', fn (Request $request) => $pokemonPage->index($request));
 $router->get('/game/profile', fn (Request $request) => $profilePage->show($request));
+$router->get('/profile', fn (Request $request) => Response::redirect('/game/profile?' . http_build_query($request->query)));
 foreach (GameRoutes::MODULES as $slug => $_module) {
     if ($slug === 'items' || $slug === 'pokemon' || $slug === 'profile' || $slug === 'admin') {
         continue;
@@ -156,6 +160,7 @@ $router->get('/api/battle/pvp/status', fn (Request $request) => $pvpBattleApi->s
 $router->get('/api/battle/pvp/requests', fn (Request $request) => $pvpBattleApi->requests($request));
 $router->get('/api/battle/pvp/pokemon-options', fn (Request $request) => $pvpBattleApi->pokemonOptions($request));
 $router->post('/api/battle/pvp/request', fn (Request $request) => $pvpBattleApi->request($request));
+$router->post('/api/battle/pvp/force', fn (Request $request) => $pvpBattleApi->force($request));
 $router->post('/api/battle/pvp/accept', fn (Request $request) => $pvpBattleApi->accept($request));
 $router->post('/api/battle/pvp/decline', fn (Request $request) => $pvpBattleApi->decline($request));
 $router->get('/api/inventory/page', fn (Request $request) => $inventoryApi->page($request));
@@ -171,12 +176,40 @@ $router->post('/api/market/items/buy', fn (Request $request) => $itemMarketApi->
 $router->get('/api/transport/routes', fn (Request $request) => $transportApi->routes($request));
 $router->post('/api/transport/travel', fn (Request $request) => $transportApi->travel($request));
 $router->get('/api/admin/overview', fn (Request $request) => $adminApi->overview($request));
+$router->get('/api/admin/dashboard', fn (Request $request) => $adminApi->dashboard($request));
 $router->get('/api/admin/lookups', fn (Request $request) => $adminApi->lookups($request));
+$router->get('/api/admin/legacy-map', fn (Request $request) => $adminApi->legacyMap($request));
 $router->get('/api/admin/items', fn (Request $request) => $adminApi->items($request));
 $router->post('/api/admin/items/save', fn (Request $request) => $adminApi->saveItem($request));
+$router->post('/api/admin/items/grant', fn (Request $request) => $adminApi->grantItem($request));
+$router->delete('/api/admin/items', fn (Request $request) => $adminApi->deleteItem($request));
 $router->get('/api/admin/drop-rules', fn (Request $request) => $adminApi->dropRules($request));
 $router->post('/api/admin/drop-rules/save', fn (Request $request) => $adminApi->saveDropRule($request));
 $router->post('/api/admin/drop-rules/delete', fn (Request $request) => $adminApi->deleteDropRule($request));
+$router->get('/api/admin/users', fn (Request $request) => $adminApi->users($request));
+$router->post('/api/admin/users/save', fn (Request $request) => $adminApi->saveUser($request));
+$router->post('/api/admin/users/ban', fn (Request $request) => $adminApi->banUser($request));
+$router->get('/api/admin/market-items', fn (Request $request) => $adminApi->marketItems($request));
+$router->post('/api/admin/market-items', fn (Request $request) => $adminApi->saveMarketItem($request));
+$router->delete('/api/admin/market-items', fn (Request $request) => $adminApi->deleteMarketItem($request));
+$router->get('/api/admin/locations', fn (Request $request) => $adminApi->locations($request));
+$router->post('/api/admin/locations', fn (Request $request) => $adminApi->saveLocation($request));
+$router->delete('/api/admin/locations', fn (Request $request) => $adminApi->deleteLocation($request));
+$router->get('/api/admin/pokemon', fn (Request $request) => $adminApi->pokemon($request));
+$router->post('/api/admin/pokemon', fn (Request $request) => $adminApi->savePokemon($request));
+$router->post('/api/admin/pokemon/grant', fn (Request $request) => $adminApi->grantPokemon($request));
+$router->delete('/api/admin/pokemon', fn (Request $request) => $adminApi->deletePokemon($request));
+$router->get('/api/admin/attacks', fn (Request $request) => $adminApi->attacks($request));
+$router->post('/api/admin/attacks', fn (Request $request) => $adminApi->saveAttack($request));
+$router->post('/api/admin/attacks/learn', fn (Request $request) => $adminApi->saveAttackLearn($request));
+$router->delete('/api/admin/attacks', fn (Request $request) => $adminApi->deleteAttack($request));
+$router->get('/api/admin/news', fn (Request $request) => $adminApi->news($request));
+$router->post('/api/admin/news', fn (Request $request) => $adminApi->saveNews($request));
+$router->delete('/api/admin/news', fn (Request $request) => $adminApi->deleteNews($request));
+$router->get('/api/admin/moderation', fn (Request $request) => $adminApi->moderation($request));
+$router->get('/api/admin/audit', fn (Request $request) => $adminApi->audit($request));
+$router->get('/api/admin/settings', fn (Request $request) => $adminApi->settings($request));
+$router->post('/api/admin/settings', fn (Request $request) => $adminApi->saveSettings($request));
 $router->get('/api/dex/pokemon', fn (Request $request) => $dexApi->pokemonList($request));
 $router->get('/api/dex/pokemon/show', fn (Request $request) => $dexApi->pokemon($request));
 $router->get('/api/dex/attacks', fn (Request $request) => $dexApi->attackList($request));
@@ -197,6 +230,27 @@ $request = Request::capture();
 $banResponse = $banGuard->check($request);
 if ($banResponse !== null) {
     $banResponse->send();
+    exit;
+}
+
+$isTechwork = (int) $adminRepository->setting('techwork', (string) ($appConfig['techwork'] ?? '0')) === 1;
+$path = '/' . trim($request->path, '/');
+$path = $path === '//' ? '/' : $path;
+$isGamePath = $path === '/game' || str_starts_with($path, '/game/');
+$isGameApiPath = str_starts_with($path, '/api/');
+$isAdminPath = $path === '/game/admin' || str_starts_with($path, '/api/admin/');
+$currentUserId = (int) $session->get('id', 0);
+$isCurrentAdmin = $currentUserId > 0 && $adminRepository->canAccess($currentUserId);
+
+if ($isTechwork && !$isCurrentAdmin && !$isAdminPath && ($isGamePath || $isGameApiPath)) {
+    $response = str_starts_with($path, '/api/')
+        ? new Response(
+            json_encode(['ok' => false, 'error' => 'techwork', 'message' => 'На сервере идут технические работы.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}',
+            503,
+            ['Content-Type' => 'application/json; charset=UTF-8']
+        )
+        : new Response(View::render('error', ['message' => 'На сервере идут технические работы.']), 503);
+    $response->send();
     exit;
 }
 

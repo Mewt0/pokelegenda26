@@ -124,6 +124,11 @@ final class BattleEngineService
         return $this->battles->requestOrAcceptPvp($userId, $targetUserId, $pokemonId);
     }
 
+    public function forcePvp(int $userId, int $targetUserId, int $pokemonId = 0): array
+    {
+        return $this->battles->forcePvpAttack($userId, $targetUserId, $pokemonId);
+    }
+
     public function acceptPvp(int $userId, int $requestId, int $pokemonId = 0): array
     {
         return $this->battles->acceptPvpRequest($userId, $requestId, $pokemonId);

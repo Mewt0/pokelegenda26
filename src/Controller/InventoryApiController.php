@@ -6,6 +6,7 @@ namespace Pokemon8\Controller;
 use Pokemon8\Http\Request;
 use Pokemon8\Http\Response;
 use Pokemon8\Repository\InventoryRepository;
+use Pokemon8\Repository\TrainingRepository;
 use Pokemon8\Security\Csrf;
 use Pokemon8\Security\Session;
 
@@ -15,6 +16,7 @@ final class InventoryApiController
         private Session $session,
         private InventoryRepository $inventory,
         private Csrf $csrf,
+        private ?TrainingRepository $training = null,
     ) {
     }
 
@@ -102,10 +104,21 @@ final class InventoryApiController
             return $this->json(['ok' => false, 'error' => 'csrf', 'message' => 'Сессия устарела. Обновите страницу.'], 419);
         }
 
+        $itemUserId = (int) $request->input('item_user_id', '0');
+        $pokemonId = (int) $request->input('pokemon_id', '0');
+        $itemId = $this->inventory->itemIdForInventoryRow($userId, $itemUserId);
+
+        if ($this->training !== null && $itemId === TrainingRepository::TRAINING_ITEM_ID) {
+            return $this->json($this->training->train($userId, $pokemonId));
+        }
+        if ($this->training !== null && $itemId === TrainingRepository::WEAKENING_ITEM_ID) {
+            return $this->json($this->training->weaken($userId, $pokemonId));
+        }
+
         return $this->json($this->inventory->useTargetedItem(
             $userId,
-            (int) $request->input('item_user_id', '0'),
-            (int) $request->input('pokemon_id', '0'),
+            $itemUserId,
+            $pokemonId,
             (int) $request->input('count', '1')
         ));
     }

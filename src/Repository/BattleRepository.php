@@ -345,6 +345,75 @@ final class BattleRepository
         return ['ok' => true, 'status' => 'outgoing', 'message' => 'Вызов на бой отправлен.'];
     }
 
+    public function forcePvpAttack(int $attackerId, int $targetId, int $attackerPokemonId = 0): array
+    {
+        if ($attackerId <= 0 || $targetId <= 0 || $attackerId === $targetId) {
+            return ['ok' => false, 'message' => 'Нельзя напасть на этого игрока.'];
+        }
+
+        $permission = $this->pvpAttackPermission($attackerId, $targetId);
+        if (empty($permission['allowed'])) {
+            return [
+                'ok' => false,
+                'message' => (string) ($permission['message'] ?? 'Принудительное нападение сейчас недоступно.'),
+                'permission' => $permission,
+            ];
+        }
+
+        if (!$this->usersCanStartPvp($attackerId, $targetId)) {
+            return [
+                'ok' => false,
+                'message' => 'Бой нельзя начать: один из игроков уже занят или у него нет живого активного покемона.',
+                'permission' => $permission,
+            ];
+        }
+
+        $attackerPokemon = $this->findChosenBattlePokemonForUser($attackerId, $attackerPokemonId);
+        $targetPokemon = $this->findFirstBattlePokemonForUser($targetId);
+        if ($attackerPokemon === null) {
+            return [
+                'ok' => false,
+                'message' => 'Выберите живого покемона из активной команды.',
+                'permission' => $permission,
+            ];
+        }
+        if ($targetPokemon === null) {
+            return [
+                'ok' => false,
+                'message' => 'У цели нет живого активного покемона.',
+                'permission' => $permission,
+            ];
+        }
+
+        $this->db->beginTransaction();
+        try {
+            $battleId = $this->createPvpBattle(
+                $attackerId,
+                $targetId,
+                (int) ($attackerPokemon['id'] ?? 0),
+                (int) ($targetPokemon['id'] ?? 0)
+            );
+            $this->applyPvpStartKarma($attackerId, $targetId, $battleId, $permission);
+            $this->expirePendingPvpRequestsForUsers($attackerId, $targetId);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            return ['ok' => false, 'message' => 'Не удалось начать принудительный бой.'];
+        }
+
+        return [
+            'ok' => true,
+            'status' => 'active',
+            'battleId' => $battleId,
+            'permission' => $permission,
+            'message' => !empty($permission['requiresWarrant'])
+                ? 'Ордер использован. Принудительный PvP бой начался.'
+                : 'Принудительный PvP бой начался.',
+        ];
+    }
+
     public function acceptPvpRequest(int $userId, int $requestId, int $toPokemonId = 0): array
     {
         $stmt = $this->db->prepare(
@@ -2439,7 +2508,9 @@ final class BattleRepository
     private function applyPvpStartKarma(int $attackerId, int $targetId, int $battleId, array $permission): void
     {
         if (!empty($permission['requiresWarrant']) && !empty($permission['warrant']['itemId'])) {
-            $this->consumeWarrant($attackerId, (int) $permission['warrant']['itemId']);
+            if (!$this->consumeWarrant($attackerId, (int) $permission['warrant']['itemId'])) {
+                throw new \RuntimeException('Warrant item was not consumed.');
+            }
         }
 
         $rule = (string) ($permission['rule'] ?? '');
@@ -2450,6 +2521,22 @@ final class BattleRepository
         if ($rule === 'warrant_attack_neutral') {
             $this->changeKarma($attackerId, $targetId, $battleId, -1, $rule);
         }
+    }
+
+    private function expirePendingPvpRequestsForUsers(int $firstUserId, int $secondUserId): void
+    {
+        $this->db->prepare(
+            'UPDATE pvp_requests
+                SET status = "expired", updated_at = :now
+              WHERE status = "pending"
+                AND (from_user_id IN (:from_a, :from_b) OR to_user_id IN (:to_a, :to_b))'
+        )->execute([
+            'now' => time(),
+            'from_a' => $firstUserId,
+            'from_b' => $secondUserId,
+            'to_a' => $firstUserId,
+            'to_b' => $secondUserId,
+        ]);
     }
 
     private function changeKarma(int $userId, int $targetUserId, int $battleId, int $delta, string $reason): void

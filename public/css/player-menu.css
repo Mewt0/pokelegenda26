@@ -64,6 +64,20 @@
   color: #1d5fa8;
 }
 
+.player-context-menu button[data-player-action="battle-force"] {
+  color: #8a2717;
+  font-weight: 800;
+}
+
+.player-context-menu button[data-player-action="battle-force"]:hover {
+  background: #ffe8dc;
+  color: #b42318;
+}
+
+.player-context-menu button[data-player-action="battle-force"] .pcm-icon {
+  color: #b42318;
+}
+
 .player-context-menu button:disabled {
   opacity: .62;
   cursor: default;

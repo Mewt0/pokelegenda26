@@ -5,6 +5,7 @@ namespace Pokemon8\Controller;
 
 use Pokemon8\Http\Request;
 use Pokemon8\Http\Response;
+use Pokemon8\Repository\AdminRepository;
 use Pokemon8\Repository\UserRepository;
 use Pokemon8\Security\Csrf;
 use Pokemon8\Security\PasswordHasher;
@@ -19,6 +20,7 @@ final class AuthController
         private PasswordHasher $passwords,
         private Session $session,
         private Csrf $csrf,
+        private AdminRepository $admin,
         private array $config,
     ) {
     }
@@ -47,7 +49,7 @@ final class AuthController
         }
 
         $state = $this->users->findStateByLogin($login);
-        if ((int) ($this->config['techwork'] ?? 0) === 1 && (int) ($state['groups'] ?? 0) !== 1) {
+        if ((int) ($this->config['techwork'] ?? 0) === 1 && !$this->admin->canAccess((int) ($state['id'] ?? 0))) {
             return $this->loginError('На сервере идут технические работы.');
         }
 
