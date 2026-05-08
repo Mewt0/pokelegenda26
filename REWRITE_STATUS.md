@@ -1,5 +1,13 @@
 # Pokemon 8.0 Rewrite Status
 
+Обновлено 2026-05-08: клик по игрокам в панели локации получил валидацию авторизации, `user_id`, защиты от действий над самим собой и fallback-роут `/profile -> /game/profile`, чтобы старые ссылки на тренеркарты больше не уходили в Apache 404. Проверено smoke-запросами: `/profile?user=NIGA` отдает 302 на новый роут, `/game/profile?user=NIGA` отдает 200 для админ-сессии даже при включенных техработах.
+
+Обновлено 2026-05-08: legacy NPC переведены в новый JSON-flow без прямого исполнения старых PHP-файлов. Старые NPC теперь используются как справочник поведения: покецентр, Покемаркет, куратор, транспорт, стадион, секретарь, Билли и квестовые NPC открывают новые диалоги/маршруты. Smoke по 16 legacy-комбинациям NPC прошел без ошибок.
+
+Обновлено 2026-05-08: `/game/admin` расширен до новой админпанели v1. Добавлены разделы дашборда, пользователей, предметов, Покемаркета, дропа, локаций, покемонов игроков, атак, новостей, модерации, системных настроек и legacy-карты. API работает через `/api/admin/*`, POST/DELETE защищены CSRF, опасные удаления пишут снимок строки в `admin_audit_log`.
+
+Обновлено 2026-05-08: добавлена таблица `site_settings` и чтение `techwork` из БД. Добавлены индексы для поиска пользователей, предметов, магазина и аудита. Миграция `2026_05_08_000002_admin_panel_v1_foundation.sql` проверена повторным запуском.
+
 Обновлено 2026-05-07: `/game/market/items` получил отдельный shop-дизайн в формате полок товаров и правой корзины "Покупки"; вход добавлен в нижнее меню игры как "Покемаркет". Каталог расширен базовыми конфетами и энергетиком через сид-миграцию.
 
 Обновлено 2026-05-07: из legacy `include/rooms/npc/shop.php` перенесен старый список Покемаркета: Покебол 250, Энергетик 500, Фонарик 500000, Каменная Кирка 350000, Пропуск на Электростанцию 125000. Для кирки и пропуска сохранен старый лимит: нельзя купить второй экземпляр, пока один уже есть в инвентаре.
@@ -27,7 +35,7 @@
 | `/game/messages` | `PARTIAL_NEW` | Добавлена новая страница входящих из `sends`; отправку/диалоги еще переносить. |
 | `/api/game/state` | `PARTIAL_NEW` | Возвращает пользователя, локацию, переходы, NPC, игроков, PvE-состояние. |
 | `/api/map/move` | `PARTIAL_NEW` | Базовые переходы работают, сложные legacy-условия еще переносить. |
-| `/api/location/npc`, `/api/location/npc/action` | `PARTIAL_NEW` | Новый JSON-flow NPC есть, не все NPC перенесены. |
+| `/api/location/npc`, `/api/location/npc/action` | `PARTIAL_NEW` | Legacy NPC переписаны на новый JSON-flow без прямого include старых файлов; базовые сценарии и маршруты работают, тонкие квестовые правила еще расширять. |
 | `/api/chat/messages` | `PARTIAL_NEW` | Общий/торг/бой/клан/приват работают через новый API, нужна дальнейшая чистка UX и модерации. |
 | `/api/friends/*` | `DONE_NEW` | Заявки, принятие, удаление, статус отношений и входящие уведомления реализованы. |
 | `/api/battle/pve/*` | `PARTIAL_NEW` | Бой работает; добавлены базовые статусы, ловушки и ловля, но предметы/редкие атаки еще расширять. |
@@ -38,7 +46,7 @@
 | `/api/dex/*` | `PARTIAL_NEW` | Покедекс/атакадекс есть, требуется финальная проверка полного списка атак и данных. |
 | `/api/shop/training/buy` | `PARTIAL_NEW` | Покупка наборов тренировки/ослабления за алмазы или монеты. |
 | `/api/transport/*` | `PARTIAL_NEW` | Добавлены рейсы самолета/парохода между регионами, списание цены и перенос игрока в другую локацию. |
-| `/game/admin`, `/api/admin/*` | `PARTIAL_NEW` | Новый shell админки, создание/редактирование предметов и CRUD правил дропа через JSON API. |
+| `/game/admin`, `/api/admin/*` | `PARTIAL_NEW` | Новая админка v1: дашборд, пользователи, предметы, Покемаркет, дроп, локации, покемоны, атаки, новости, модерация, настройки и аудит. Нужна ручная UX-дошлифовка и расширение тонких legacy-правил. |
 
 ## База данных
 
@@ -59,6 +67,7 @@
 | `transport_routes` | `PARTIAL_NEW` | Новая таблица рейсов между регионами: тип транспорта, откуда/куда, предмет-иконка, цена, включенность. |
 | `admin_drop_rules` | `PARTIAL_NEW` | Новая таблица настраиваемого дропа: предмет, локация, покемон/слот, шанс, количество, время, квестовые условия. |
 | `admin_audit_log` | `PARTIAL_NEW` | Логирует действия новой админки: предметы и правила дропа. |
+| `site_settings` | `DONE_NEW` | Хранит системные флаги, сейчас используется для `techwork`. |
 
 ## Уже сделано
 
@@ -85,10 +94,12 @@
 ### Игроки и друзья
 
 - Меню игрока по клику в панели игроков работает.
+- Меню проверяет авторизацию, наличие `player_id`, не показывает боевые/социальные действия при клике на самого себя и не открывает пустые/битые ссылки.
+- Старые ссылки `/profile?user=...` перенаправляются на `/game/profile?user=...`, поэтому клик по нику больше не должен приводить к Apache 404.
 - Кнопка дружбы меняется по состоянию: добавить, принять заявку, заявка отправлена, удалить из друзей.
 - Входящие заявки опрашиваются клиентом и показываются toast-уведомлением.
 - API защищен авторизацией и CSRF для POST.
-- Проверен сценарий на реальной БД: заявка -> входящий статус -> принятие -> дружба -> удаление.
+- Проверен сценарий на реальной БД: заявка -> входящий статус -> принятие -> дружба -> удаление; профиль NIGA через новый роут отдает 200.
 
 Статус: `DONE_NEW`.
 
@@ -195,15 +206,20 @@
 - Доступ закрыт проверкой `users.groups = 1` и `information_users.admins_panels = 1`.
 - Добавлен `/api/admin/items`: поиск предметов, создание и обновление предметов без ручного SQL.
 - Добавлен `/api/admin/drop-rules`: правила дропа предметов по локации, конкретному wild-слоту, базовому покемону, времени, шансу и количеству.
+- Добавлен `/api/admin/dashboard`: обзор счетчиков, онлайн-игроков, последних боев, настроек и аудита.
+- Добавлен `/api/admin/users`: поиск и правка группы, активации, админ-доступа, локации, кармы, репутации и PvE/PvP-состояния.
+- Добавлены админские действия выдачи предметов, бан/разбан IP, управление товарами Покемаркета, локациями, покемонами игроков, атаками, привязками level-up/egg attacks и новостями.
+- Добавлены `/api/admin/moderation`, `/api/admin/audit`, `/api/admin/settings`; `techwork` теперь читается из `site_settings`.
+- Реальные удаления разрешены, но требуют CSRF, подтверждение `DELETE` для опасных сущностей и записывают payload удаляемой строки в `admin_audit_log`.
 - PvE-награды читают включенные `admin_drop_rules` после победы и выдают предметы игроку, если выпал шанс.
 - Добавлен `admin_audit_log` для фиксации действий администратора.
-- Старые разделы админки отображаются как карта переноса, но их логика еще не переписана полностью.
+- Старые разделы админки отображаются как карта переноса; legacy-карта доступна через `/api/admin/legacy-map` и служит навигацией по тому, что уже перенесено и что еще остается источником правил.
 
 Статус: `PARTIAL_NEW`.
 
 ## Критичные долги
 
-- Переписать админку с нуля, старую использовать только как справочник.
+- Дошлифовать админку v1: UX-валидации, больше lookup-select вместо ручных ID, отдельные страницы для NPC/квестов/транспортных маршрутов и детальные права по ролям.
 - Довести PvP до полноценного релиза: предметы, отказ/таймаут вызова, история завершенных боев.
 - Сделать нормальное долговременное логирование PvP/PvE для восстановления боя и спорных ситуаций.
 - Вычистить оставшиеся mojibake-строки в legacy-комментариях и старых модулях.
@@ -213,8 +229,8 @@
 
 ## Последние проверки
 
-- PHP lint: `src/Game/BattleEngineService.php`, `src/Repository/BattleRepository.php`, `src/Repository/MessageRepository.php`, `src/Repository/TrainingRepository.php`, `src/Repository/InventoryRepository.php`, `src/Repository/PokemonRepository.php`, `src/Repository/DexRepository.php`, `src/Controller/GameModuleController.php`, `src/Controller/PokemonApiController.php`, `src/Controller/ShopApiController.php`, `src/Game/GameRoutes.php`, `views/game-module.php`, `views/game-messages.php`, `views/game-training-shop.php`, `views/game-pokemon.php`, `public/index.php`.
-- JS syntax: `public/js/player-menu.js`.
-- DB schema check: `battle_dop` primary key и индекс `(battleid, pokeid)`, `pvp_requests` индексы входящих/исходящих/пары/боя.
+- PHP lint: `src/Game/BattleEngineService.php`, `src/Repository/BattleRepository.php`, `src/Repository/MessageRepository.php`, `src/Repository/TrainingRepository.php`, `src/Repository/InventoryRepository.php`, `src/Repository/PokemonRepository.php`, `src/Repository/DexRepository.php`, `src/Repository/AdminRepository.php`, `src/Controller/AdminApiController.php`, `src/Controller/GameModuleController.php`, `src/Controller/PokemonApiController.php`, `src/Controller/ShopApiController.php`, `src/Game/GameRoutes.php`, `src/Http/Request.php`, `src/Http/Router.php`, `views/game-module.php`, `views/game-messages.php`, `views/game-training-shop.php`, `views/game-pokemon.php`, `views/game-admin.php`, `public/index.php`.
+- JS syntax: `public/js/player-menu.js`, `public/js/admin-panel.js`.
+- DB schema check: `battle_dop` primary key и индекс `(battleid, pokeid)`, `pvp_requests` индексы входящих/исходящих/пары/боя, `site_settings`, `idx_users_login`, `idx_items_name`, `idx_admin_audit_created`.
 - DB smoke: добавление ловушки, защита от дубля, чтение ловушек, Fire Punch -> burn, Leech Seed -> status 8, Toxic -> progressive poison, Spikes/Sticky Web hazards, Fire Spin -> partial trap, Sunny Day -> weather, Double-Edge -> recoil, Taunt blocks Thunder Wave, иммунитет Fire к Burn, запрет второго stable-статуса, 3 слоя Spikes, Trick Room order, Reflect damage reduction, weather ability synergy (`Морось`, `Водоплавающий`, `Дождефаг`, `Сухая кожа`, `Засуха`, `Солнечная батарея`, `Лиственный щит`, `Песочник`, `Метеочувствительность`), чтение inbox, PvP заявка/принятие/два хода в транзакции с rollback, карма/ордеры/безопасные и запрещенные локации в транзакции с rollback, поиск атак `Teleport/100/double slap/физическая/status`, покупка наборов за монеты/алмазы, тренировка и ослабление в транзакции с rollback.
 - Render smoke: `game-module` и `game-messages` рендерятся через `View::render`.
