@@ -142,6 +142,30 @@
         ['note', 'Заметка', 'text']
       ]
     },
+    wild: {
+      title: 'Дикие слоты',
+      subtitle: 'Кто нападает на каждой локации: покемон, уровень, шанс, время и квестовые условия.',
+      endpoint: '/api/admin/wild-slots',
+      dataKey: 'slots',
+      save: '/api/admin/wild-slots',
+      delete: { url: '/api/admin/wild-slots', id: 'id', confirm: true },
+      columns: ['ID', 'Локация', 'Покемон', 'Lv', 'Шанс', 'Время', 'Квест'],
+      cells: row => [row.id, row.location_title || row.building, row.pokemon_name || row.baseid, row.lvl, row.chance, `${row.timeone}-${row.timetwo}`, row.quest_id || ''],
+      fields: [
+        ['id', 'ID', 'number'],
+        ['building', 'Локация ID', 'number'],
+        ['baseid', 'Base Pokemon ID', 'number'],
+        ['lvl', 'Уровень', 'number'],
+        ['chance', 'Шанс', 'number'],
+        ['poimka', 'Ловля', 'number'],
+        ['quest_id', 'Quest ID', 'number'],
+        ['q_process', 'Quest process', 'number'],
+        ['questupdate', 'Quest update', 'number'],
+        ['timeone', 'С', 'time'],
+        ['timetwo', 'До', 'time'],
+        ['sprz', 'Спец. флаг', 'number']
+      ]
+    },
     locations: {
       title: 'Локации',
       subtitle: 'Базовые поля локаций: название, город, PvE, опасность и защита.',
@@ -263,6 +287,27 @@
         ['opis', 'Описание ссылки', 'text']
       ]
     },
+    events: {
+      title: 'Ивенты и бусты',
+      subtitle: 'Глобальные x2/x4 события: опыт, монеты, дроп и другие множители.',
+      endpoint: '/api/admin/events',
+      dataKey: 'events',
+      save: '/api/admin/events',
+      delete: { url: '/api/admin/events', id: 'id', confirm: true },
+      columns: ['ID', 'Название', 'Ключ', 'Множитель', 'Период', 'Вкл'],
+      cells: row => [row.id, row.title, row.boost_key, 'x' + row.multiplier, `${row.starts_at || 0}-${row.ends_at || 0}`, row.enabled],
+      fields: [
+        ['id', 'ID', 'number'],
+        ['title', 'Название', 'text'],
+        ['boost_key', 'Что бустим', 'select:exp,coins,drop,quest_rewards,catch'],
+        ['multiplier', 'Множитель', 'number'],
+        ['scope', 'Область', 'select:global,pve,pvp,quest,market'],
+        ['starts_at', 'Старт Unix', 'number'],
+        ['ends_at', 'Конец Unix', 'number'],
+        ['enabled', 'Включено', 'checkbox'],
+        ['note', 'Заметка', 'text']
+      ]
+    },
     tournaments: {
       title: 'Турниры',
       subtitle: 'Новый модуль турниров с нуля: расписание, куратор, взнос, арена, участники и награды.',
@@ -322,17 +367,37 @@
     },
     moderation: {
       title: 'Модерация',
-      subtitle: 'Ban IP и последние сообщения чата.',
+      subtitle: 'Наказания игроков, banip и последние сообщения чата.',
       endpoint: '/api/admin/moderation',
       dataKey: 'moderation',
-      create: false,
-      columns: ['Тип', 'ID/IP', 'Автор', 'Текст/Дата'],
+      save: '/api/admin/moderation/action',
+      create: true,
+      columns: ['Тип', 'Игрок/IP', 'Модератор/Автор', 'Причина/Текст'],
       rows: data => [
-        ...(data.bans || []).map(row => ({ type: 'banip', id: row.ip, author: '#' + row.id, text: row.date })),
-        ...(data.chat || []).map(row => ({ type: 'chat', id: row.id, author: row.author, text: row.text }))
+        ...(data.punishments || []).map(row => ({
+          type: row.active > 0 ? row.action : row.action + ' снят',
+          id: row.target_login || row.target_user_id,
+          target: row.target_login || row.target_user_id,
+          author: row.moderator_login || ('#' + row.moderator_user_id),
+          text: `${row.reason || ''} ${row.expires_at > 0 ? 'до ' + new Date(Number(row.expires_at) * 1000).toLocaleString() : 'бессрочно'}`
+        })),
+        ...(data.bans || []).map(row => ({ type: 'banip', id: row.ip, target: '', author: '#' + row.id, text: row.date })),
+        ...(data.chat || []).map(row => ({ type: 'chat', id: row.id, target: row.author, author: row.author, text: row.text }))
       ],
       cells: row => [row.type, row.id, row.author, row.text],
-      fields: []
+      fields: [
+        ['target', 'Игрок: ник или ID', 'text'],
+        ['action', 'Действие', 'select:mute,unmute,ban,unban,warn'],
+        ['duration', 'Срок', 'text'],
+        ['reason', 'Причина', 'textarea']
+      ],
+      formRow: row => ({
+        target: row ? (row.target || row.id || '') : '',
+        action: row && row.type && String(row.type).includes('ban') ? 'unban' : 'mute',
+        duration: '15minut',
+        reason: row && row.text ? String(row.text).slice(0, 180) : ''
+      }),
+      extra: 'moderationTools'
     },
     settings: {
       title: 'Система',
@@ -621,6 +686,25 @@
       $('#unbanUserBtn').addEventListener('click', () => userBan(row.id, 'unban'));
     }
 
+    if (config.extra === 'moderationTools') {
+      danger.insertAdjacentHTML('beforeend', `
+        <h3>Команды чата</h3>
+        <p class="muted">Модераторы могут писать прямо в чат: <code>/mute niga 15minut Нарушение правил 5.1</code>, <code>/unmute niga исправился</code>, <code>/ban niga 1d причина</code>, <code>/unban niga причина</code>, <code>/warn niga причина</code>.</p>
+        <div class="admin-inline-actions">
+          <button type="button" id="modMute15">Мут 15 минут</button>
+          <button type="button" id="modMuteHour">Мут 1 час</button>
+          <button type="button" id="modWarn">Предупреждение</button>
+          <button type="button" id="modUnmute">Снять мут</button>
+          <button type="button" class="danger-btn" id="modBanDay">Бан 1 день</button>
+        </div>
+      `);
+      $('#modMute15')?.addEventListener('click', () => moderationAction('mute', '15minut'));
+      $('#modMuteHour')?.addEventListener('click', () => moderationAction('mute', '1h'));
+      $('#modWarn')?.addEventListener('click', () => moderationAction('warn', ''));
+      $('#modUnmute')?.addEventListener('click', () => moderationAction('unmute', ''));
+      $('#modBanDay')?.addEventListener('click', () => moderationAction('ban', '1d'));
+    }
+
     if (config.extra === 'grantItem') {
       danger.insertAdjacentHTML('beforeend', `
         <h3>Выдать предмет</h3>
@@ -743,6 +827,23 @@
   async function userBan(userId, mode) {
     const result = await send('/api/admin/users/ban', { user_id: userId, mode });
     setStatus(result.message || '', !result.ok);
+  }
+
+  async function moderationAction(action, duration) {
+    const form = $('#adminForm');
+    const data = Object.fromEntries(new FormData(form).entries());
+    data.action = action;
+    data.duration = duration || data.duration || '';
+    if (!data.target) {
+      setStatus('Сначала выберите строку с игроком или введите ник/ID.', true);
+      return;
+    }
+    if (!data.reason) {
+      data.reason = action === 'warn' ? 'Предупреждение модератора.' : 'Нарушение правил.';
+    }
+    const result = await send('/api/admin/moderation/action', data);
+    setStatus(result.message || '', !result.ok);
+    if (result.ok) reloadCurrent();
   }
 
   async function grantItem() {

@@ -48,6 +48,16 @@ final class PvpBattleApiController
         return $this->json($this->battleEngine->pvpPokemonOptions($userId));
     }
 
+    public function history(Request $request): Response
+    {
+        $userId = $this->userId();
+        if ($userId <= 0) {
+            return $this->json(['ok' => false, 'error' => 'auth'], 401);
+        }
+
+        return $this->json($this->battleEngine->battleHistory($userId));
+    }
+
     public function request(Request $request): Response
     {
         $userId = $this->userId();

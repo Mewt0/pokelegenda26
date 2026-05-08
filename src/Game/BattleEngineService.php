@@ -4,13 +4,17 @@ declare(strict_types=1);
 namespace Pokemon8\Game;
 
 use Pokemon8\Repository\BattleRepository;
+use Pokemon8\Repository\RewardRepository;
 
 final class BattleEngineService
 {
     private BattleMathService $math;
     private int $lastDamageDealt = 0;
 
-    public function __construct(private BattleRepository $battles)
+    public function __construct(
+        private BattleRepository $battles,
+        private ?RewardRepository $rewards = null,
+    )
     {
         $this->math = new BattleMathService();
     }
@@ -159,6 +163,14 @@ final class BattleEngineService
         ];
     }
 
+    public function battleHistory(int $userId): array
+    {
+        return [
+            'ok' => true,
+            'history' => $this->battles->battleHistoryForUser($userId),
+        ];
+    }
+
     public function pvpStatus(int $userId, int $targetUserId): array
     {
         return [
@@ -259,9 +271,11 @@ final class BattleEngineService
             $finished = true;
             $result = 'win';
             $enemyLvl = max(1, (int) ($enemy['lvl'] ?? 1));
+            $coinMultiplier = $this->rewards?->activeMultiplier($userId, 'coins', 'pve') ?? 1.0;
+            $expMultiplier = $this->rewards?->activeMultiplier($userId, 'exp', 'pve') ?? 1.0;
             $rewards = [
-                'coins' => max(5, $enemyLvl * 3),
-                'exp' => max(10, $enemyLvl * 12),
+                'coins' => (int) round(max(5, $enemyLvl * 3) * $coinMultiplier),
+                'exp' => (int) round(max(10, $enemyLvl * 12) * $expMultiplier),
             ];
             $this->battles->addCoins($userId, $rewards['coins']);
             $effort = $this->battles->addExperienceAndEffort(
@@ -270,7 +284,8 @@ final class BattleEngineService
                 $rewards['exp'],
                 4
             );
-            $drops = $this->battles->rollAdminDropRewards($userId, $enemy);
+            $dropMultiplier = $this->rewards?->activeMultiplier($userId, 'drop', 'pve') ?? 1.0;
+            $drops = $this->battles->rollAdminDropRewards($userId, $enemy, $dropMultiplier);
             $rewards['drops'] = $drops;
             foreach ($drops as $drop) {
                 $dropMessage = sprintf(
@@ -280,6 +295,25 @@ final class BattleEngineService
                 );
                 $messages[] = $dropMessage;
                 $this->battles->insertBattleLog((int) $battle['id'], $currentRound, $dropMessage);
+            }
+            if ($this->rewards !== null) {
+                $rewardParts = [];
+                if ((int) ($rewards['coins'] ?? 0) > 0) {
+                    $rewardParts[] = number_format((int) $rewards['coins'], 0, ',', ' ') . ' монет';
+                }
+                if ((int) ($rewards['exp'] ?? 0) > 0) {
+                    $rewardParts[] = number_format((int) $rewards['exp'], 0, ',', ' ') . ' опыта';
+                }
+                foreach ($drops as $drop) {
+                    $rewardParts[] = (string) ($drop['name'] ?? 'Предмет') . ' x' . (int) ($drop['count'] ?? 1);
+                }
+                if ($rewardParts !== []) {
+                    $this->rewards->notify($userId, 'Награда за бой', 'Получено: ' . implode(', ', $rewardParts) . '.', 'reward', [
+                        'battle_id' => (int) $battle['id'],
+                        'result' => 'win',
+                        'rewards' => $rewards,
+                    ]);
+                }
             }
             if (($effort['exp'] ?? 0) > 0) {
                 $rewardMessage = sprintf(
@@ -419,6 +453,7 @@ final class BattleEngineService
         return match ($action) {
             'attack' => $this->pvpAttack($userId, (int) ($payload['move_id'] ?? 0)),
             'switch' => $this->pvpSwitchPokemon($userId, (int) ($payload['pokemon_id'] ?? 0)),
+            'item' => $this->pvpUseItem($userId, (int) ($payload['item_user_id'] ?? 0)),
             'escape' => $this->pvpEscape($userId),
             default => [
                 'ok' => false,
@@ -583,6 +618,63 @@ final class BattleEngineService
         }
         $state = $this->pvpState($userId, $battleId);
         $state['messages'] = ['Покемон успешно заменен.'];
+        return $state;
+    }
+
+    private function pvpUseItem(int $userId, int $itemUserId): array
+    {
+        $battleId = $this->battles->findActivePvpBattleIdForUser($userId);
+        $battle = $battleId > 0 ? $this->battles->findPvpBattleForUser($userId, $battleId) : null;
+        if ($battle === null) {
+            return ['ok' => false, 'active' => false, 'message' => 'PvP бой не найден.'];
+        }
+        if ((int) ($battle['pobeda'] ?? 0) !== 0) {
+            return $this->pvpState($userId, $battleId);
+        }
+
+        $side = (int) ($battle['user_2'] ?? 0) === $userId ? 2 : 1;
+        if ((int) ($battle['attac_' . $side] ?? 0) !== 0) {
+            $state = $this->pvpState($userId, $battleId);
+            $state['messages'] = ['Ход уже выбран. Ждем соперника.'];
+            return $state;
+        }
+
+        $item = $this->battles->findBattleInventoryItem($userId, $itemUserId);
+        if ($item === null || (int) ($item['battleuse'] ?? 0) !== 1) {
+            return ['ok' => false, 'active' => true, 'message' => 'Этот предмет нельзя использовать в PvP.', 'battle' => $this->pvpState($userId, $battleId)['battle'] ?? []];
+        }
+        if ((int) ($item['item_id'] ?? 0) === 3 || stripos((string) (($item['name'] ?? '') . ' ' . ($item['tittle'] ?? '')), 'ball') !== false || str_contains((string) (($item['name'] ?? '') . ' ' . ($item['tittle'] ?? '')), 'бол')) {
+            return ['ok' => false, 'active' => true, 'message' => 'Покеболы в PvP недоступны.', 'battle' => $this->pvpState($userId, $battleId)['battle'] ?? []];
+        }
+
+        $player = $this->battles->findPokemon((string) ($battle['poke_' . $side] ?? ''));
+        if ($player === null) {
+            return ['ok' => false, 'active' => true, 'message' => 'Активный покемон не найден.', 'battle' => $this->pvpState($userId, $battleId)['battle'] ?? []];
+        }
+
+        $itemId = (int) ($item['item_id'] ?? 0);
+        $playerName = strip_tags((string) ($player['names'] ?? 'Покемон'));
+        if ($itemId !== 15) {
+            return ['ok' => false, 'active' => true, 'message' => 'В beta PvP пока разрешены только боевые предметы со штатной логикой. Этот предмет не списан.', 'battle' => $this->pvpState($userId, $battleId)['battle'] ?? []];
+        }
+
+        $removed = $this->battles->clearBattleStatus((string) ($player['battle_pokemon'] ?? $battle['poke_' . $side]), 2);
+        if ($removed <= 0) {
+            return ['ok' => false, 'active' => true, 'message' => 'Энергетик сейчас не нужен: покемон не спит.', 'battle' => $this->pvpState($userId, $battleId)['battle'] ?? []];
+        }
+
+        $message = sprintf('%s использует Энергетик на %s.', $this->battles->findUserLoginById($userId), $playerName);
+        $this->battles->decrementInventoryItemRow($userId, $itemUserId);
+        $this->battles->insertBattleLog($battleId, (int) ($battle['raund'] ?? 1), $message);
+        $this->battles->setPvpBattleAction($battleId, $side, -900000 - $itemUserId);
+
+        $battle = $this->battles->findPvpBattleForUser($userId, $battleId);
+        if ($battle !== null && (int) ($battle['attac_1'] ?? 0) !== 0 && (int) ($battle['attac_2'] ?? 0) !== 0) {
+            $this->resolvePvpRound($battle);
+        }
+
+        $state = $this->pvpState($userId, $battleId);
+        $state['messages'] = [$message];
         return $state;
     }
 

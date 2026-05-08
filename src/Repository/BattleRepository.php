@@ -223,6 +223,8 @@ final class BattleRepository
 
     public function pvpRequestStatus(int $currentUserId, int $targetUserId): string
     {
+        $this->expirePvpRequests();
+
         if ($currentUserId <= 0 || $targetUserId <= 0) {
             return 'none';
         }
@@ -238,12 +240,14 @@ final class BattleRepository
             'SELECT from_user_id, to_user_id
                FROM pvp_requests
               WHERE status = "pending"
+                AND (expires_at = 0 OR expires_at > :now)
                 AND ((from_user_id = :current_a AND to_user_id = :target_a)
                   OR (from_user_id = :target_b AND to_user_id = :current_b))
               ORDER BY id DESC
               LIMIT 1'
         );
         $stmt->execute([
+            'now' => time(),
             'current_a' => $currentUserId,
             'target_a' => $targetUserId,
             'target_b' => $targetUserId,
@@ -260,15 +264,19 @@ final class BattleRepository
     /** @return list<array{id:int,fromUserId:int,login:string,createdAt:int}> */
     public function incomingPvpRequests(int $userId): array
     {
+        $this->expirePvpRequests();
+
         $stmt = $this->db->prepare(
-            'SELECT pr.id, pr.from_user_id, pr.created_at, u.login
+            'SELECT pr.id, pr.from_user_id, pr.created_at, pr.expires_at, u.login
                FROM pvp_requests pr
                LEFT JOIN users u ON u.id = pr.from_user_id
-              WHERE pr.to_user_id = :user AND pr.status = "pending"
+              WHERE pr.to_user_id = :user
+                AND pr.status = "pending"
+                AND (pr.expires_at = 0 OR pr.expires_at > :now)
               ORDER BY pr.id DESC
               LIMIT 20'
         );
-        $stmt->execute(['user' => $userId]);
+        $stmt->execute(['user' => $userId, 'now' => time()]);
 
         $result = [];
         foreach ($stmt->fetchAll() ?: [] as $row) {
@@ -277,6 +285,7 @@ final class BattleRepository
                 'fromUserId' => (int) ($row['from_user_id'] ?? 0),
                 'login' => (string) ($row['login'] ?? ('Игрок #' . (int) ($row['from_user_id'] ?? 0))),
                 'createdAt' => (int) ($row['created_at'] ?? 0),
+                'expiresAt' => (int) ($row['expires_at'] ?? 0),
             ];
         }
         return $result;
@@ -284,6 +293,8 @@ final class BattleRepository
 
     public function requestOrAcceptPvp(int $fromUserId, int $toUserId, int $fromPokemonId = 0): array
     {
+        $this->expirePvpRequests();
+
         if ($fromUserId <= 0 || $toUserId <= 0 || $fromUserId === $toUserId) {
             return ['ok' => false, 'message' => 'Нельзя вызвать этого игрока.'];
         }
@@ -296,11 +307,14 @@ final class BattleRepository
         $incoming = $this->db->prepare(
             'SELECT id
                FROM pvp_requests
-              WHERE from_user_id = :target AND to_user_id = :current AND status = "pending"
+              WHERE from_user_id = :target
+                AND to_user_id = :current
+                AND status = "pending"
+                AND (expires_at = 0 OR expires_at > :now)
               ORDER BY id DESC
               LIMIT 1'
         );
-        $incoming->execute(['target' => $toUserId, 'current' => $fromUserId]);
+        $incoming->execute(['target' => $toUserId, 'current' => $fromUserId, 'now' => time()]);
         $incomingId = (int) ($incoming->fetchColumn() ?: 0);
         if ($incomingId > 0) {
             return $this->acceptPvpRequest($fromUserId, $incomingId, $fromPokemonId);
@@ -314,35 +328,39 @@ final class BattleRepository
         $existing = $this->db->prepare(
             'SELECT id
                FROM pvp_requests
-              WHERE from_user_id = :from AND to_user_id = :to AND status = "pending"
+              WHERE from_user_id = :from
+                AND to_user_id = :to
+                AND status = "pending"
+                AND (expires_at = 0 OR expires_at > :now)
               ORDER BY id DESC
               LIMIT 1'
         );
-        $existing->execute(['from' => $fromUserId, 'to' => $toUserId]);
+        $existing->execute(['from' => $fromUserId, 'to' => $toUserId, 'now' => $now]);
         $existingId = (int) ($existing->fetchColumn() ?: 0);
         if ($existingId > 0) {
             $this->db->prepare(
                 'UPDATE pvp_requests
-                    SET from_pokemon_id = :pokemon, updated_at = :now
+                    SET from_pokemon_id = :pokemon, expires_at = :expires_at, updated_at = :now
                   WHERE id = :id
                   LIMIT 1'
-            )->execute(['pokemon' => $fromPokemonId, 'now' => $now, 'id' => $existingId]);
+            )->execute(['pokemon' => $fromPokemonId, 'expires_at' => $now + 120, 'now' => $now, 'id' => $existingId]);
 
-            return ['ok' => true, 'status' => 'outgoing', 'message' => 'Вызов на бой уже отправлен.'];
+            return ['ok' => true, 'status' => 'outgoing', 'expiresAt' => $now + 120, 'message' => 'Вызов на бой уже отправлен.'];
         }
 
         $this->db->prepare(
-            'INSERT INTO pvp_requests (from_user_id, to_user_id, from_pokemon_id, to_pokemon_id, status, battle_id, created_at, updated_at)
-             VALUES (:from, :to, :pokemon, 0, "pending", 0, :created_at, :updated_at)'
+            'INSERT INTO pvp_requests (from_user_id, to_user_id, from_pokemon_id, to_pokemon_id, status, battle_id, expires_at, responded_at, created_at, updated_at)
+             VALUES (:from, :to, :pokemon, 0, "pending", 0, :expires_at, 0, :created_at, :updated_at)'
         )->execute([
             'from' => $fromUserId,
             'to' => $toUserId,
             'pokemon' => $fromPokemonId,
+            'expires_at' => $now + 120,
             'created_at' => $now,
             'updated_at' => $now,
         ]);
 
-        return ['ok' => true, 'status' => 'outgoing', 'message' => 'Вызов на бой отправлен.'];
+        return ['ok' => true, 'status' => 'outgoing', 'expiresAt' => $now + 120, 'message' => 'Вызов на бой отправлен.'];
     }
 
     public function forcePvpAttack(int $attackerId, int $targetId, int $attackerPokemonId = 0): array
@@ -416,16 +434,33 @@ final class BattleRepository
 
     public function acceptPvpRequest(int $userId, int $requestId, int $toPokemonId = 0): array
     {
+        $this->expirePvpRequests();
+
         $stmt = $this->db->prepare(
-            'SELECT id, from_user_id, to_user_id, from_pokemon_id
+            'SELECT id, from_user_id, to_user_id, from_pokemon_id, to_pokemon_id, status, battle_id, expires_at
                FROM pvp_requests
-              WHERE id = :id AND to_user_id = :user AND status = "pending"
+              WHERE id = :id AND to_user_id = :user
               LIMIT 1'
         );
         $stmt->execute(['id' => $requestId, 'user' => $userId]);
         $request = $stmt->fetch();
         if (!$request) {
             return ['ok' => false, 'message' => 'Заявка на бой не найдена.'];
+        }
+        if ((string) ($request['status'] ?? '') === 'accepted' && (int) ($request['battle_id'] ?? 0) > 0) {
+            return [
+                'ok' => true,
+                'status' => 'active',
+                'battleId' => (int) $request['battle_id'],
+                'message' => 'PvP бой уже начался.',
+            ];
+        }
+        if ((string) ($request['status'] ?? '') !== 'pending') {
+            return ['ok' => false, 'status' => (string) ($request['status'] ?? 'unknown'), 'message' => 'Эта заявка уже не активна.'];
+        }
+        if ((int) ($request['expires_at'] ?? 0) > 0 && (int) $request['expires_at'] <= time()) {
+            $this->expirePvpRequests();
+            return ['ok' => false, 'status' => 'expired', 'message' => 'Вызов на бой истек.'];
         }
 
         $fromUserId = (int) ($request['from_user_id'] ?? 0);
@@ -442,26 +477,40 @@ final class BattleRepository
             return ['ok' => false, 'message' => 'Выберите живого покемона из активной команды.'];
         }
 
-        $battleId = $this->createPvpBattle($fromUserId, $toUserId, (int) $firstPokemon['id'], (int) $secondPokemon['id']);
         $now = time();
-        $this->db->prepare(
-            'UPDATE pvp_requests
-                SET status = "accepted", battle_id = :battle, to_pokemon_id = :pokemon, updated_at = :now
-              WHERE id = :id
-              LIMIT 1'
-        )->execute(['battle' => $battleId, 'pokemon' => (int) $secondPokemon['id'], 'now' => $now, 'id' => $requestId]);
-        $this->db->prepare(
-            'UPDATE pvp_requests
-                SET status = "expired", updated_at = :now
-              WHERE status = "pending"
-                AND (from_user_id IN (:from_a, :from_b) OR to_user_id IN (:to_a, :to_b))'
-        )->execute([
-            'now' => $now,
-            'from_a' => $fromUserId,
-            'from_b' => $toUserId,
-            'to_a' => $fromUserId,
-            'to_b' => $toUserId,
-        ]);
+        $this->db->beginTransaction();
+        try {
+            $locked = $this->db->prepare(
+                'SELECT status, battle_id
+                   FROM pvp_requests
+                  WHERE id = :id AND to_user_id = :user
+                  FOR UPDATE'
+            );
+            $locked->execute(['id' => $requestId, 'user' => $userId]);
+            $lockedRow = $locked->fetch();
+            if ($lockedRow && (string) ($lockedRow['status'] ?? '') === 'accepted' && (int) ($lockedRow['battle_id'] ?? 0) > 0) {
+                $battleId = (int) $lockedRow['battle_id'];
+            } else {
+                if (!$lockedRow || (string) ($lockedRow['status'] ?? '') !== 'pending') {
+                    $this->db->rollBack();
+                    return ['ok' => false, 'message' => 'Эта заявка уже не активна.'];
+                }
+                $battleId = $this->createPvpBattle($fromUserId, $toUserId, (int) $firstPokemon['id'], (int) $secondPokemon['id']);
+                $this->db->prepare(
+                    'UPDATE pvp_requests
+                        SET status = "accepted", battle_id = :battle, to_pokemon_id = :pokemon, responded_at = :responded_at, updated_at = :now
+                      WHERE id = :id
+                      LIMIT 1'
+                )->execute(['battle' => $battleId, 'pokemon' => (int) $secondPokemon['id'], 'responded_at' => $now, 'now' => $now, 'id' => $requestId]);
+                $this->expirePendingPvpRequestsForUsers($fromUserId, $toUserId);
+            }
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            return ['ok' => false, 'message' => 'Не удалось принять вызов.'];
+        }
 
         return [
             'ok' => true,
@@ -473,13 +522,17 @@ final class BattleRepository
 
     public function declinePvpRequest(int $userId, int $requestId): bool
     {
+        $this->expirePvpRequests();
+
         $stmt = $this->db->prepare(
             'UPDATE pvp_requests
-                SET status = "declined", updated_at = :now
+                SET status = "declined", responded_at = :now, updated_at = :now
               WHERE id = :id AND to_user_id = :user AND status = "pending"
+                AND (expires_at = 0 OR expires_at > :now_check)
               LIMIT 1'
         );
-        $stmt->execute(['now' => time(), 'id' => $requestId, 'user' => $userId]);
+        $now = time();
+        $stmt->execute(['now' => $now, 'now_check' => $now, 'id' => $requestId, 'user' => $userId]);
         return $stmt->rowCount() > 0;
     }
 
@@ -1095,6 +1148,55 @@ final class BattleRepository
         return array_reverse(is_array($rows) ? $rows : []);
     }
 
+    /** @return list<array<string,mixed>> */
+    public function battleHistoryForUser(int $userId, int $limit = 30): array
+    {
+        if ($userId <= 0) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT b.id, b.user_1, b.user_2, b.batl_tip, b.pobeda, b.raund, b.times,
+                    u1.login AS user_1_login, u2.login AS user_2_login
+               FROM battles b
+               LEFT JOIN users u1 ON u1.id = b.user_1
+               LEFT JOIN users u2 ON u2.id = b.user_2
+              WHERE (b.user_1 = :user_a OR b.user_2 = :user_b)
+                AND b.pobeda <> 0
+              ORDER BY b.id DESC
+              LIMIT :limit'
+        );
+        $stmt->bindValue(':user_a', $userId, PDO::PARAM_INT);
+        $stmt->bindValue(':user_b', $userId, PDO::PARAM_INT);
+        $stmt->bindValue(':limit', max(1, min(100, $limit)), PDO::PARAM_INT);
+        $stmt->execute();
+
+        $rows = [];
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $battleId = (int) ($row['id'] ?? 0);
+            $opponentId = (int) ($row['user_1'] ?? 0) === $userId ? (int) ($row['user_2'] ?? 0) : (int) ($row['user_1'] ?? 0);
+            $opponentLogin = (int) ($row['user_1'] ?? 0) === $userId
+                ? (string) ($row['user_2_login'] ?? '')
+                : (string) ($row['user_1_login'] ?? '');
+            $winner = (int) ($row['pobeda'] ?? 0);
+            $rows[] = [
+                'id' => $battleId,
+                'mode' => (string) ($row['batl_tip'] ?? ''),
+                'round' => (int) ($row['raund'] ?? 0),
+                'finishedAt' => (int) ($row['times'] ?? 0),
+                'winnerId' => $winner,
+                'result' => $winner === $userId ? 'win' : ($winner === -2 ? 'escape' : 'lose'),
+                'opponent' => [
+                    'id' => $opponentId,
+                    'login' => $opponentLogin !== '' ? $opponentLogin : ($opponentId > 0 ? ('Игрок #' . $opponentId) : 'Дикий покемон'),
+                ],
+                'log' => $this->getBattleLog($battleId, 80),
+            ];
+        }
+
+        return $rows;
+    }
+
     public function addBattleHazard(int $battleId, int $side, string $kind): bool
     {
         $kind = $this->normalizeHazardKind($kind);
@@ -1530,7 +1632,7 @@ final class BattleRepository
         $this->addItemReward($userId, 1, $coins);
     }
 
-    public function rollAdminDropRewards(int $userId, array $enemy): array
+    public function rollAdminDropRewards(int $userId, array $enemy, float $chanceMultiplier = 1.0): array
     {
         if ($userId <= 0 || (int) ($enemy['basenum'] ?? 0) <= 0) {
             return [];
@@ -1568,7 +1670,7 @@ final class BattleRepository
 
         $drops = [];
         foreach ($stmt->fetchAll() ?: [] as $row) {
-            $chance = (float) ($row['chance_percent'] ?? 0);
+            $chance = (float) ($row['chance_percent'] ?? 0) * max(1.0, $chanceMultiplier);
             if ($chance <= 0) {
                 continue;
             }
@@ -2527,7 +2629,7 @@ final class BattleRepository
     {
         $this->db->prepare(
             'UPDATE pvp_requests
-                SET status = "expired", updated_at = :now
+                SET status = "expired", responded_at = :now, updated_at = :now
               WHERE status = "pending"
                 AND (from_user_id IN (:from_a, :from_b) OR to_user_id IN (:to_a, :to_b))'
         )->execute([
@@ -2537,6 +2639,22 @@ final class BattleRepository
             'to_a' => $firstUserId,
             'to_b' => $secondUserId,
         ]);
+    }
+
+    private function expirePvpRequests(): void
+    {
+        $now = time();
+        try {
+            $this->db->prepare(
+                'UPDATE pvp_requests
+                    SET status = "expired", responded_at = :now, updated_at = :now
+                  WHERE status = "pending"
+                    AND expires_at > 0
+                    AND expires_at <= :now_check'
+            )->execute(['now' => $now, 'now_check' => $now]);
+        } catch (\Throwable) {
+            // Migrations may not be applied yet in a dev copy; the explicit migration fixes this.
+        }
     }
 
     private function changeKarma(int $userId, int $targetUserId, int $battleId, int $delta, string $reason): void

@@ -115,6 +115,156 @@ final class ChatRepository
         return (int) $stmt->fetchColumn();
     }
 
+    public function activeMuteForUser(int $userId): array
+    {
+        if ($userId <= 0 || !$this->tableExists('moderation_punishments')) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT *
+               FROM moderation_punishments
+              WHERE target_user_id = :user
+                AND action = "mute"
+                AND active = 1
+                AND (expires_at = 0 OR expires_at > :now)
+              ORDER BY id DESC
+              LIMIT 1'
+        );
+        $stmt->execute(['user' => $userId, 'now' => time()]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function canModerate(int $userId): bool
+    {
+        if ($userId <= 0) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT u.groups, u.moderation, u.police, COALESCE(i.admins_panels, 0) AS admins_panels
+               FROM users u
+          LEFT JOIN information_users i ON i.users_id = u.id
+              WHERE u.id = :id
+              LIMIT 1'
+        );
+        $stmt->execute(['id' => $userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        return (int) ($row['groups'] ?? 0) === 1
+            || (int) ($row['moderation'] ?? 0) === 1
+            || (int) ($row['police'] ?? 0) === 1
+            || (int) ($row['admins_panels'] ?? 0) === 1;
+    }
+
+    public function findUserForModeration(string $loginOrId): array
+    {
+        $loginOrId = trim($loginOrId);
+        if ($loginOrId === '') {
+            return [];
+        }
+
+        if (ctype_digit($loginOrId)) {
+            $stmt = $this->db->prepare('SELECT id, login, ip FROM users WHERE id = :id LIMIT 1');
+            $stmt->execute(['id' => (int) $loginOrId]);
+        } else {
+            $stmt = $this->db->prepare('SELECT id, login, ip FROM users WHERE LOWER(login) = LOWER(:login) LIMIT 1');
+            $stmt->execute(['login' => $loginOrId]);
+        }
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function createPunishment(
+        int $moderatorId,
+        array $target,
+        string $action,
+        int $expiresAt,
+        string $reason,
+        string $scope = 'chat',
+        int $active = 1
+    ): int
+    {
+        if (!$this->tableExists('moderation_punishments')) {
+            return 0;
+        }
+
+        $now = time();
+        $stmt = $this->db->prepare(
+            'INSERT INTO moderation_punishments
+                (target_user_id, target_login, moderator_user_id, action, scope, reason, starts_at, expires_at, active, created_at)
+             VALUES
+                (:target_user_id, :target_login, :moderator_user_id, :action, :scope, :reason, :starts_at, :expires_at, :active, :created_at)'
+        );
+        $stmt->execute([
+            'target_user_id' => (int) $target['id'],
+            'target_login' => (string) $target['login'],
+            'moderator_user_id' => $moderatorId,
+            'action' => $action,
+            'scope' => $scope,
+            'reason' => $reason,
+            'starts_at' => $now,
+            'expires_at' => $expiresAt,
+            'active' => $active,
+            'created_at' => $now,
+        ]);
+
+        return (int) $this->db->lastInsertId();
+    }
+
+    public function revokePunishments(int $moderatorId, int $targetUserId, string $action, string $reason): int
+    {
+        if ($targetUserId <= 0 || !$this->tableExists('moderation_punishments')) {
+            return 0;
+        }
+
+        $stmt = $this->db->prepare(
+            'UPDATE moderation_punishments
+                SET active = 0, revoked_at = :revoked_at, revoked_by = :revoked_by, revoke_reason = :reason
+              WHERE target_user_id = :target
+                AND action = :action
+                AND active = 1'
+        );
+        $stmt->execute([
+            'revoked_at' => time(),
+            'revoked_by' => $moderatorId,
+            'reason' => $reason,
+            'target' => $targetUserId,
+            'action' => $action,
+        ]);
+
+        return $stmt->rowCount();
+    }
+
+    public function banIpForUser(array $target): void
+    {
+        $ip = (int) ($target['ip'] ?? 0);
+        if ($ip <= 0 || !$this->tableExists('banip')) {
+            return;
+        }
+
+        $exists = $this->db->prepare('SELECT 1 FROM banip WHERE ip = :ip LIMIT 1');
+        $exists->execute(['ip' => $ip]);
+        if ($exists->fetchColumn()) {
+            return;
+        }
+
+        $this->db->prepare('INSERT INTO banip (id, ip, date) VALUES (:id, :ip, NOW())')
+            ->execute(['id' => $this->nextTableId('banip', 'id'), 'ip' => $ip]);
+    }
+
+    public function unbanIpForUser(array $target): int
+    {
+        $ip = (int) ($target['ip'] ?? 0);
+        if ($ip <= 0 || !$this->tableExists('banip')) {
+            return 0;
+        }
+
+        $stmt = $this->db->prepare('DELETE FROM banip WHERE ip = :ip');
+        $stmt->execute(['ip' => $ip]);
+        return $stmt->rowCount();
+    }
+
     private function hasAuthorId(): bool
     {
         if ($this->hasAuthorId !== null) {
@@ -144,5 +294,30 @@ final class ChatRepository
     {
         $stmt = $this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM chats');
         return (int) $stmt->fetchColumn();
+    }
+
+    private function tableExists(string $table): bool
+    {
+        static $cache = [];
+        if (isset($cache[$table])) {
+            return $cache[$table];
+        }
+        $stmt = $this->db->prepare(
+            'SELECT 1
+               FROM INFORMATION_SCHEMA.TABLES
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table
+              LIMIT 1'
+        );
+        $stmt->execute(['table' => $table]);
+        $cache[$table] = (bool) $stmt->fetchColumn();
+        return $cache[$table];
+    }
+
+    private function nextTableId(string $table, string $column): int
+    {
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table) || !preg_match('/^[a-zA-Z0-9_]+$/', $column)) {
+            return 1;
+        }
+        return (int) ($this->db->query(sprintf('SELECT COALESCE(MAX(`%s`), 0) + 1 FROM `%s`', $column, $table))->fetchColumn() ?: 1);
     }
 }

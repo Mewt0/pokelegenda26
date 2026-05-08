@@ -324,6 +324,15 @@ button:hover { border-color: #2f78dc; color: #0b63cf; }
   font-size: 12px;
   font-weight: 900;
 }
+.admin-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.admin-inline-actions button {
+  margin-bottom: 0;
+}
 .danger-btn {
   border-color: #e8b2b2;
   background: #fff5f5;

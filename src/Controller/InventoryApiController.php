@@ -27,8 +27,10 @@ final class InventoryApiController
             return $this->json(['ok' => false, 'error' => 'auth', 'message' => 'Нужно войти в игру.'], 401);
         }
 
+        $category = (string) $request->input('category', '');
+        $query = (string) $request->input('q', (string) $request->input('query', ''));
         $perPage = 60;
-        $total = $this->inventory->countForUser($userId);
+        $total = $this->inventory->countForUser($userId, $category, $query);
         $pages = max(1, (int) ceil($total / $perPage));
         $page = max(1, (int) $request->input('page', '1'));
         $page = min($page, $pages);
@@ -40,7 +42,20 @@ final class InventoryApiController
             'pages' => $pages,
             'perPage' => $perPage,
             'total' => $total,
-            'items' => $this->inventory->listForUser($userId, $perPage, $offset),
+            'category' => $category,
+            'query' => $query,
+            'categories' => [
+                ['key' => '', 'label' => 'Все'],
+                ['key' => 'balls', 'label' => 'Покеболы'],
+                ['key' => 'tm', 'label' => 'ТМ'],
+                ['key' => 'eggs', 'label' => 'Яйца'],
+                ['key' => 'evolution', 'label' => 'Эволюция'],
+                ['key' => 'consumables', 'label' => 'Расходники'],
+                ['key' => 'quest', 'label' => 'Квестовые'],
+                ['key' => 'drop', 'label' => 'Дроп'],
+                ['key' => 'other', 'label' => 'Прочее'],
+            ],
+            'items' => $this->inventory->listForUser($userId, $perPage, $offset, $category, $query),
             'pokemon' => $this->inventory->listActivePokemonForUser($userId),
         ]);
     }

@@ -95,6 +95,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
           <input id="invSearchInput" placeholder="Начните вводить название">
         </div>
       </header>
+      <div class="inv-categories" id="invCategories" aria-label="Категории инвентаря"></div>
       <div class="inv-grid-wrap">
         <div class="inv-grid" id="invGrid"></div>
       </div>
@@ -306,7 +307,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
     const state = { busy: false, locationId: 0, activeNpc: null, pveButton: false };
     window.state = state;
     window.PokemonGameState = state;
-    const inventory = { page: 1, pages: 1, items: [], selected: null, pokemon: [] };
+    const inventory = { page: 1, pages: 1, items: [], selected: null, pokemon: [], category: '', query: '', categories: [] };
     const battleState = { active: false, reviewing: false, moves: [], knownMoves: [] };
     const battleWindowDrag = { ready: false, dragging: false, offsetX: 0, offsetY: 0 };
     const battleHoverState = { ready: false, player: null, enemy: null, movePinned: false };
@@ -403,6 +404,28 @@ $itemIconIndex = is_file($itemIconIndexPath)
       const el = document.getElementById('status');
       el.textContent = message;
       el.className = isError ? 'status error' : 'status';
+    }
+
+    function showGameNotice(message, variant = 'info') {
+      if (!message) return;
+      if (window.PokemonSocial && typeof window.PokemonSocial.notify === 'function') {
+        window.PokemonSocial.notify(message, variant);
+        return;
+      }
+      setStatus(message, variant === 'error');
+    }
+
+    async function fetchGameNotifications() {
+      try {
+        const response = await fetch('/api/notifications', { credentials: 'same-origin' });
+        const payload = await response.json();
+        if (!payload || payload.ok !== true) return;
+        for (const notice of (payload.notifications || [])) {
+          showGameNotice(notice.message || notice.title || '', notice.variant || 'info');
+        }
+      } catch (error) {
+        // Уведомления не должны ломать игровой экран.
+      }
     }
 
     function render(payload) {
@@ -1521,6 +1544,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
       const grid = document.getElementById('invGrid');
       const items = (sourceItems || inventory.items).slice(0, 60);
       grid.innerHTML = '';
+      renderInventoryCategories();
 
       for (let i = 0; i < 60; i++) {
         const item = items[i] || null;
@@ -1558,6 +1582,30 @@ $itemIconIndex = is_file($itemIconIndexPath)
       document.getElementById('invSlotsCount').textContent = String(items.length);
       document.getElementById('invPageInfo').textContent = inventory.page + '/' + inventory.pages;
       renderInventoryTargetControls();
+    }
+
+    function renderInventoryCategories() {
+      const box = document.getElementById('invCategories');
+      if (!box) return;
+      const categories = inventory.categories && inventory.categories.length ? inventory.categories : [
+        { key: '', label: 'Все' },
+        { key: 'balls', label: 'Покеболы' },
+        { key: 'tm', label: 'ТМ' },
+        { key: 'eggs', label: 'Яйца' },
+        { key: 'evolution', label: 'Эволюция' },
+        { key: 'consumables', label: 'Расходники' },
+        { key: 'quest', label: 'Квестовые' },
+        { key: 'drop', label: 'Дроп' },
+      ];
+      box.innerHTML = '';
+      for (const category of categories) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'inv-category' + (String(category.key || '') === String(inventory.category || '') ? ' is-active' : '');
+        button.dataset.category = String(category.key || '');
+        button.textContent = String(category.label || 'Категория');
+        box.appendChild(button);
+      }
     }
 
     function selectedItemTargetRule() {
@@ -1649,13 +1697,20 @@ $itemIconIndex = is_file($itemIconIndexPath)
 
     async function loadInventoryPage(page = 1) {
       try {
-        const response = await fetch('/api/inventory/page?page=' + encodeURIComponent(page), { credentials: 'same-origin' });
+        const params = new URLSearchParams();
+        params.set('page', String(page));
+        if (inventory.category) params.set('category', inventory.category);
+        if (inventory.query) params.set('q', inventory.query);
+        const response = await fetch('/api/inventory/page?' + params.toString(), { credentials: 'same-origin' });
         const payload = await response.json();
         if (!payload || payload.ok !== true) {
           return;
         }
         inventory.page = Number(payload.page || 1);
         inventory.pages = Number(payload.pages || 1);
+        inventory.category = String(payload.category || inventory.category || '');
+        inventory.query = String(payload.query || inventory.query || '');
+        inventory.categories = Array.isArray(payload.categories) ? payload.categories : inventory.categories;
         inventory.items = Array.isArray(payload.items) ? payload.items : [];
         inventory.pokemon = Array.isArray(payload.pokemon) ? payload.pokemon : [];
         inventory.selected = null;
@@ -1907,14 +1962,17 @@ $itemIconIndex = is_file($itemIconIndexPath)
       }
     });
     document.getElementById('inventoryOverlay').addEventListener('mouseleave', hideItemTooltip);
+    document.getElementById('invCategories').addEventListener('click', event => {
+      const button = event.target.closest('[data-category]');
+      if (!button) return;
+      inventory.category = String(button.dataset.category || '');
+      loadInventoryPage(1);
+    });
+    let inventorySearchTimer = 0;
     document.getElementById('invSearchInput').addEventListener('input', event => {
-      const query = String(event.target.value || '').trim().toLowerCase();
-      if (!query) {
-        renderInventoryGrid();
-        return;
-      }
-      const filtered = inventory.items.filter(item => String(item.name || '').toLowerCase().includes(query));
-      renderInventoryGrid(filtered);
+      inventory.query = String(event.target.value || '').trim();
+      window.clearTimeout(inventorySearchTimer);
+      inventorySearchTimer = window.setTimeout(() => loadInventoryPage(1), 220);
     });
 
     for (let i = 1; i <= 4; i++) {
@@ -1989,7 +2047,9 @@ $itemIconIndex = is_file($itemIconIndexPath)
     });
 
     loadState();
+    fetchGameNotifications();
     setInterval(loadState, 5000);
+    setInterval(fetchGameNotifications, 4000);
     setInterval(() => {
       if (battleState.active && !battleState.reviewing) {
         loadBattleState();

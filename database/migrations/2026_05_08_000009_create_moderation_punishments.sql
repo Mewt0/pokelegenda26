@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS moderation_punishments (
+    id INT NOT NULL AUTO_INCREMENT,
+    target_user_id INT NOT NULL,
+    target_login VARCHAR(64) NOT NULL DEFAULT '',
+    moderator_user_id INT NOT NULL,
+    action VARCHAR(16) NOT NULL,
+    scope VARCHAR(16) NOT NULL DEFAULT 'chat',
+    reason TEXT NULL,
+    starts_at INT NOT NULL DEFAULT 0,
+    expires_at INT NOT NULL DEFAULT 0,
+    active TINYINT NOT NULL DEFAULT 1,
+    created_at INT NOT NULL DEFAULT 0,
+    revoked_at INT NOT NULL DEFAULT 0,
+    revoked_by INT NOT NULL DEFAULT 0,
+    revoke_reason TEXT NULL,
+    meta_json TEXT NULL,
+    PRIMARY KEY (id),
+    KEY idx_moderation_target_active (target_user_id, active, action, expires_at),
+    KEY idx_moderation_created (created_at),
+    KEY idx_moderation_moderator (moderator_user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

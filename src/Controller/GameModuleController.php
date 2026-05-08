@@ -37,10 +37,16 @@ final class GameModuleController
         }
 
         if ($slug === 'messages' && $this->messages !== null) {
+            $userId = (int) $this->session->get('id');
             return new Response(View::render('game-messages', [
                 'module' => $module,
                 'slug' => $slug,
-                'messages' => $this->messages->inboxForUser((int) $this->session->get('id')),
+                'csrf' => $this->csrf->token(),
+                'messages' => $this->messages->inboxForUser($userId),
+                'sent' => $this->messages->sentForUser($userId),
+                'archive' => $this->messages->archiveForUser($userId),
+                'unread' => $this->messages->unreadCount($userId),
+                'prefillRecipient' => $request->input('mail_to', $request->input('to', '')),
                 'modules' => GameRoutes::MODULES,
             ]));
         }

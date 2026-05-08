@@ -54,7 +54,7 @@ final class GameRoutes
         'moderation' => ['title' => 'Модерация', 'status' => 'todo', 'legacy' => 'moderpanel'],
         'admin' => ['title' => 'Админка', 'status' => 'partial', 'legacy' => 'admingo'],
         'pokemon' => ['title' => 'Покемоны', 'status' => 'partial', 'legacy' => 'pokemon'],
-        'messages' => ['title' => 'Сообщения', 'status' => 'partial', 'legacy' => 'sends'],
+        'messages' => ['title' => 'Сообщения', 'status' => 'done', 'legacy' => 'sends'],
         'items' => ['title' => 'Инвентарь', 'status' => 'partial', 'legacy' => 'items'],
         'transport' => ['title' => 'Транспорт', 'status' => 'partial', 'legacy' => 'transport'],
         'events/new-year' => ['title' => 'Новогодние события', 'status' => 'todo', 'legacy' => 'eventsNewYear'],

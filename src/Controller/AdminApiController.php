@@ -46,6 +46,17 @@ final class AdminApiController
             return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
         }
 
+        $type = $request->input('type', '');
+        $query = $request->input('q', '');
+        if ($type !== '') {
+            return $this->json([
+                'ok' => true,
+                'type' => $type,
+                'query' => $query,
+                'rows' => $this->admin->lookupByType($type, $query),
+            ]);
+        }
+
         return $this->json(['ok' => true, 'lookups' => $this->admin->lookups()]);
     }
 
@@ -129,6 +140,29 @@ final class AdminApiController
         }
 
         return $this->json($this->admin->deleteDropRule($adminId, (int) $request->input('id', '0')));
+    }
+
+    public function wildSlots(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+
+        return $this->json(['ok' => true, 'slots' => $this->admin->wildSlots($request->input('q'))]);
+    }
+
+    public function saveWildSlot(Request $request): Response
+    {
+        return $this->mutate($request, fn (int $adminId) => $this->admin->saveWildSlot($adminId, $request->post));
+    }
+
+    public function deleteWildSlot(Request $request): Response
+    {
+        return $this->mutate($request, fn (int $adminId) => $this->admin->deleteWildSlot(
+            $adminId,
+            (int) $request->input('id', '0'),
+            $request->input('confirm')
+        ));
     }
 
     public function users(Request $request): Response
@@ -334,6 +368,29 @@ final class AdminApiController
         ));
     }
 
+    public function events(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+
+        return $this->json(['ok' => true, 'events' => $this->admin->events($request->input('q'))]);
+    }
+
+    public function saveEvent(Request $request): Response
+    {
+        return $this->mutate($request, fn (int $adminId) => $this->admin->saveEvent($adminId, $request->post));
+    }
+
+    public function deleteEvent(Request $request): Response
+    {
+        return $this->mutate($request, fn (int $adminId) => $this->admin->deleteEvent(
+            $adminId,
+            (int) $request->input('id', '0'),
+            $request->input('confirm')
+        ));
+    }
+
     public function tournaments(Request $request): Response
     {
         if (!$this->authorized()) {
@@ -403,6 +460,11 @@ final class AdminApiController
         }
 
         return $this->json(['ok' => true, 'moderation' => $this->admin->moderation()]);
+    }
+
+    public function moderationAction(Request $request): Response
+    {
+        return $this->mutate($request, fn (int $adminId) => $this->admin->moderationAction($adminId, $request->post));
     }
 
     public function audit(Request $request): Response

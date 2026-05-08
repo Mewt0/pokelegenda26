@@ -39,10 +39,12 @@ use Pokemon8\View\View;
         <button type="button" data-admin-tab="items">Предметы</button>
         <button type="button" data-admin-tab="market">Покемаркет</button>
         <button type="button" data-admin-tab="drops">Дроп</button>
+        <button type="button" data-admin-tab="wild">Дикие слоты</button>
         <button type="button" data-admin-tab="locations">Локации</button>
         <button type="button" data-admin-tab="pokemon">Покемоны</button>
         <button type="button" data-admin-tab="attacks">Атаки</button>
         <button type="button" data-admin-tab="news">Новости</button>
+        <button type="button" data-admin-tab="events">Ивенты/бусты</button>
         <button type="button" data-admin-tab="tournaments">Турниры</button>
         <button type="button" data-admin-tab="medals">Медали</button>
         <button type="button" data-admin-tab="moderation">Модерация</button>

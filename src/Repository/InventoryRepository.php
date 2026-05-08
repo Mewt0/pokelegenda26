@@ -34,35 +34,44 @@ final class InventoryRepository
         return $this->countItem($userId, $itemId) >= $count;
     }
 
-    public function countForUser(int $userId): int
+    public function countForUser(int $userId, string $category = '', string $query = ''): int
     {
+        [$where, $params] = $this->inventoryFilterSql($userId, $category, $query);
+        $now = time();
         $stmt = $this->db->prepare(
             'SELECT COUNT(*)
-               FROM items_users
-              WHERE user_id = :user
-                AND (dattimer = "not" OR (dattimer REGEXP "^[0-9]+$" AND CAST(dattimer AS UNSIGNED) > :time))'
+               FROM items_users iu
+               INNER JOIN items i ON i.id = iu.item_id
+              WHERE iu.user_id = ' . $userId . '
+                AND (iu.dattimer = "not" OR (iu.dattimer REGEXP "^[0-9]+$" AND CAST(iu.dattimer AS UNSIGNED) > ' . $now . '))' . $where
         );
-        $stmt->execute(['user' => $userId, 'time' => time()]);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue(':' . $key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+        }
+        $stmt->execute();
 
         return (int) $stmt->fetchColumn();
     }
 
-    public function listForUser(int $userId, int $limit, int $offset): array
+    public function listForUser(int $userId, int $limit, int $offset, string $category = '', string $query = ''): array
     {
+        [$where, $params] = $this->inventoryFilterSql($userId, $category, $query);
+        $now = time();
         $stmt = $this->db->prepare(
-            'SELECT iu.id, iu.item_id, iu.count, iu.dattimer, iu.timers, i.name, i.tittle, i.category, i.delet, i.dress, i.uses, i.elementary, i.battleuse,
+            'SELECT iu.id, iu.item_id, iu.count, iu.dattimer, iu.timers, i.name, i.tittle, i.category, i.delet, i.dress, i.uses, i.elementary, i.battleuse, i.dopolnen,
                     itr.enabled AS target_enabled, itr.target_type, itr.allow_quantity, itr.min_count AS target_min_count,
                     itr.max_count AS target_max_count, itr.effect_key, itr.ui_title, itr.ui_hint
              FROM items_users iu
              INNER JOIN items i ON i.id = iu.item_id
              LEFT JOIN item_target_rules itr ON itr.item_id = iu.item_id AND itr.enabled = 1
-             WHERE iu.user_id = :user
-               AND (iu.dattimer = "not" OR (iu.dattimer REGEXP "^[0-9]+$" AND CAST(iu.dattimer AS UNSIGNED) > :time))
+             WHERE iu.user_id = ' . $userId . '
+               AND (iu.dattimer = "not" OR (iu.dattimer REGEXP "^[0-9]+$" AND CAST(iu.dattimer AS UNSIGNED) > ' . $now . '))' . $where . '
              ORDER BY iu.item_id ASC
              LIMIT :limit OFFSET :offset'
         );
-        $stmt->bindValue(':user', $userId, PDO::PARAM_INT);
-        $stmt->bindValue(':time', time(), PDO::PARAM_INT);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue(':' . $key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+        }
         $stmt->bindValue(':limit', max(1, $limit), PDO::PARAM_INT);
         $stmt->bindValue(':offset', max(0, $offset), PDO::PARAM_INT);
         $stmt->execute();
@@ -148,7 +157,8 @@ final class InventoryRepository
         }
 
         $effectKey = (string) ($item['effect_key'] ?? 'pending');
-        if ($effectKey !== 'consume_only') {
+        $resultMessage = '';
+        if (!in_array($effectKey, ['consume_only', 'exp_candy', 'pp_vitamin', 'boost_exp', 'boost_drop', 'boost_money'], true)) {
             return [
                 'ok' => false,
                 'error' => 'effect_not_implemented',
@@ -162,6 +172,27 @@ final class InventoryRepository
 
         $this->db->beginTransaction();
         try {
+            if ($effectKey === 'exp_candy') {
+                $levels = max(1, min(10, $count));
+                $this->db->prepare('UPDATE pok_user SET lvl = lvl + :levels WHERE id = :pokemon AND users = :user LIMIT 1')
+                    ->execute(['levels' => $levels, 'pokemon' => $pokemonId, 'user' => $userId]);
+                $resultMessage = sprintf('%s получает +%d уров.', strip_tags((string) ($pokemon['names'] ?? 'Покемон')), $levels);
+            } elseif ($effectKey === 'pp_vitamin') {
+                $this->db->prepare(
+                    'UPDATE attac_my_poke
+                        SET a_pp_min = a_pp_max,
+                            b_pp_min = b_pp_max,
+                            c_pp_min = c_pp_max,
+                            d_pp_min = d_pp_max
+                      WHERE pok_id = :pokemon
+                      LIMIT 1'
+                )->execute(['pokemon' => $pokemonId]);
+                $resultMessage = 'PP атак восстановлены.';
+            } elseif (str_starts_with($effectKey, 'boost_')) {
+                $boostKey = substr($effectKey, 6);
+                $this->grantPlayerBoost($userId, $boostKey, 'all', 2.0, 3600 * max(1, $count));
+                $resultMessage = 'Буст активирован.';
+            }
             $this->decrementInventoryRowById($userId, $itemUserId, $count);
             $this->db->commit();
         } catch (\Throwable $e) {
@@ -176,7 +207,7 @@ final class InventoryRepository
                 (string) ($item['name'] ?? 'Предмет'),
                 strip_tags((string) ($pokemon['names'] ?? 'покемона')),
                 $count
-            ),
+            ) . ($resultMessage !== '' ? ' ' . $resultMessage : ''),
         ];
     }
 
@@ -412,12 +443,13 @@ final class InventoryRepository
     {
         $stmt = $this->db->prepare(
             'SELECT iu.id, iu.item_id, iu.count, i.name, i.dress, i.timesnapoke
-               FROM items_users iu
+              FROM items_users iu
                INNER JOIN items i ON i.id = iu.item_id
               WHERE iu.id = :id AND iu.user_id = :user AND iu.count > 0
+                AND (iu.dattimer = "not" OR (iu.dattimer REGEXP "^[0-9]+$" AND CAST(iu.dattimer AS UNSIGNED) > :time))
               LIMIT 1'
         );
-        $stmt->execute(['id' => $itemUserId, 'user' => $userId]);
+        $stmt->execute(['id' => $itemUserId, 'user' => $userId, 'time' => time()]);
 
         return $stmt->fetch() ?: null;
     }
@@ -434,16 +466,21 @@ final class InventoryRepository
               WHERE iu.id = :id
                 AND iu.user_id = :user
                 AND iu.count > 0
+                AND (iu.dattimer = "not" OR (iu.dattimer REGEXP "^[0-9]+$" AND CAST(iu.dattimer AS UNSIGNED) > :time))
                 AND itr.target_type = "pokemon"
               LIMIT 1'
         );
-        $stmt->execute(['id' => $itemUserId, 'user' => $userId]);
+        $stmt->execute(['id' => $itemUserId, 'user' => $userId, 'time' => time()]);
 
         return $stmt->fetch() ?: null;
     }
 
     private function formatInventoryRow(array $row): array
     {
+        $row['category_key'] = $this->itemCategoryKey($row);
+        $row['category_label'] = $this->itemCategoryLabel((string) $row['category_key']);
+        $row['expires_at'] = ctype_digit((string) ($row['dattimer'] ?? '')) ? (int) $row['dattimer'] : 0;
+
         if ((int) ($row['target_enabled'] ?? 0) === 1) {
             $row['target_use'] = [
                 'enabled' => true,
@@ -471,6 +508,119 @@ final class InventoryRepository
         );
 
         return $row;
+    }
+
+    /** @return array{0:string,1:array<string,int|string>} */
+    private function inventoryFilterSql(int $userId, string $category, string $query): array
+    {
+        $where = '';
+        $params = [];
+
+        $category = $this->normalizeInventoryCategory($category);
+        if ($category !== '') {
+            $where .= ' AND ' . $this->categorySqlCondition($category);
+        }
+
+        $query = trim($query);
+        if ($query !== '') {
+            if (ctype_digit($query)) {
+                $where .= ' AND (iu.item_id = :query_id_item OR iu.id = :query_id_row)';
+                $params['query_id_item'] = (int) $query;
+                $params['query_id_row'] = (int) $query;
+            } else {
+                $where .= ' AND (i.name LIKE :query_text_name OR i.tittle LIKE :query_text_title)';
+                $params['query_text_name'] = '%' . $query . '%';
+                $params['query_text_title'] = '%' . $query . '%';
+            }
+        }
+
+        return [$where, $params];
+    }
+
+    private function normalizeInventoryCategory(string $category): string
+    {
+        $category = strtolower(trim($category));
+        return in_array($category, ['balls', 'tm', 'eggs', 'evolution', 'consumables', 'quest', 'drop', 'other'], true) ? $category : '';
+    }
+
+    private function categorySqlCondition(string $category): string
+    {
+        return match ($category) {
+            'balls' => '(iu.item_id IN (3, 25, 90004) OR i.name LIKE "%бол%" OR i.name LIKE "%ball%")',
+            'tm' => '(iu.item_id = 78 OR i.name LIKE "%TM%" OR i.name LIKE "%ТМ%" OR i.name LIKE "%атака%")',
+            'eggs' => '(i.name LIKE "%яйц%" OR i.category = 7)',
+            'evolution' => '(iu.item_id IN (64,66,67,68,74,75,76,77) OR i.name LIKE "%камень%" OR i.name LIKE "%эвол%")',
+            'consumables' => '(i.uses > 0 OR i.battleuse > 0 OR iu.item_id IN (15,217,330,678,651,652,653,654,655,861,1401))',
+            'quest' => '(i.category IN (50, 99) OR i.dopolnen LIKE "%quest%" OR i.name LIKE "%квест%")',
+            'drop' => '(i.dopolnen LIKE "%drop%" OR iu.item_id IN (13,14,20,21,22,23))',
+            default => 'NOT (
+                iu.item_id IN (3,25,64,66,67,68,74,75,76,77,78,217,330,678,651,652,653,654,655,861,90004,1401)
+                OR i.name LIKE "%бол%" OR i.name LIKE "%камень%" OR i.name LIKE "%яйц%" OR i.name LIKE "%TM%" OR i.name LIKE "%ТМ%"
+            )',
+        };
+    }
+
+    private function itemCategoryKey(array $row): string
+    {
+        $id = (int) ($row['item_id'] ?? 0);
+        $name = mb_strtolower((string) (($row['name'] ?? '') . ' ' . ($row['tittle'] ?? '')), 'UTF-8');
+        if (in_array($id, [3, 25, 90004], true) || str_contains($name, 'бол') || str_contains($name, 'ball')) {
+            return 'balls';
+        }
+        if ($id === 78 || str_contains($name, 'tm') || str_contains($name, 'тм')) {
+            return 'tm';
+        }
+        if (str_contains($name, 'яйц')) {
+            return 'eggs';
+        }
+        if (in_array($id, [64, 66, 67, 68, 74, 75, 76, 77], true) || str_contains($name, 'камень') || str_contains($name, 'эвол')) {
+            return 'evolution';
+        }
+        if ((int) ($row['uses'] ?? 0) > 0 || (int) ($row['battleuse'] ?? 0) > 0 || in_array($id, [15, 217, 330, 678, 651, 652, 653, 654, 655, 861, 1401], true)) {
+            return 'consumables';
+        }
+        if ((int) ($row['category'] ?? 0) === 99 || str_contains((string) ($row['dopolnen'] ?? ''), 'quest') || str_contains($name, 'квест')) {
+            return 'quest';
+        }
+        if (str_contains((string) ($row['dopolnen'] ?? ''), 'drop') || in_array($id, [13, 14, 20, 21, 22, 23], true)) {
+            return 'drop';
+        }
+        return 'other';
+    }
+
+    private function itemCategoryLabel(string $key): string
+    {
+        return match ($key) {
+            'balls' => 'Покеболы',
+            'tm' => 'ТМ',
+            'eggs' => 'Яйца',
+            'evolution' => 'Эволюция',
+            'consumables' => 'Расходники',
+            'quest' => 'Квестовые',
+            'drop' => 'Дроп',
+            default => 'Прочее',
+        };
+    }
+
+    private function grantPlayerBoost(int $userId, string $boostKey, string $scope, float $multiplier, int $durationSeconds): void
+    {
+        $allowed = ['exp', 'drop', 'money'];
+        if (!in_array($boostKey, $allowed, true)) {
+            return;
+        }
+        $now = time();
+        $stmt = $this->db->prepare(
+            'INSERT INTO player_boosts (user_id, item_id, boost_key, multiplier, starts_at, expires_at, active, source, created_at)
+             VALUES (:user, 0, :boost_key, :multiplier, :starts_at, :expires_at, 1, "inventory", :created_at)'
+        );
+        $stmt->execute([
+            'user' => $userId,
+            'boost_key' => $boostKey,
+            'multiplier' => $multiplier,
+            'starts_at' => $now,
+            'expires_at' => $now + max(60, $durationSeconds),
+            'created_at' => $now,
+        ]);
     }
 
     private function findActivePokemon(int $userId, int $pokemonId): ?array

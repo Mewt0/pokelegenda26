@@ -325,8 +325,105 @@ final class AdminRepository
         return ['ok' => true, 'message' => 'Правило дропа удалено.'];
     }
 
-    public function lookups(): array
+    public function wildSlots(string $search = '', int $limit = 120): array
     {
+        $limit = max(1, min(300, $limit));
+        $sql = 'SELECT pb.*, b.title AS location_title, CONCAT(p.Code, " ", p.Name) AS pokemon_name
+                  FROM pokebuild pb
+             LEFT JOIN build b ON b.id = pb.building
+             LEFT JOIN pokemon p ON p.id = pb.baseid';
+        $params = [];
+        if ($search !== '') {
+            $sql .= ' WHERE pb.id = :id_search OR pb.building = :loc_search OR pb.baseid = :base_search OR b.title LIKE :search OR p.Name LIKE :search';
+            $num = ctype_digit($search) ? (int) $search : -1;
+            $params = [
+                'id_search' => $num,
+                'loc_search' => $num,
+                'base_search' => $num,
+                'search' => '%' . $search . '%',
+            ];
+        }
+        $sql .= ' ORDER BY pb.building ASC, pb.id ASC LIMIT ' . $limit;
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function saveWildSlot(int $adminId, array $payload): array
+    {
+        $id = (int) ($payload['id'] ?? 0);
+        $locationId = (int) ($payload['building'] ?? 0);
+        $baseId = (int) ($payload['baseid'] ?? 0);
+        if (!$this->rowById('build', 'id', $locationId)) {
+            return ['ok' => false, 'message' => 'Локация не найдена.'];
+        }
+        if (!$this->rowById('pokemon', 'id', $baseId)) {
+            return ['ok' => false, 'message' => 'Базовый покемон не найден.'];
+        }
+
+        $before = $id > 0 ? $this->rowById('pokebuild', 'id', $id) : [];
+        $data = [
+            'building' => $locationId,
+            'baseid' => $baseId,
+            'lvl' => max(1, min(100, (int) ($payload['lvl'] ?? 1))),
+            'chance' => max(0, min(1000000, (int) ($payload['chance'] ?? 99))),
+            'poimka' => max(0, (int) ($payload['poimka'] ?? 0)),
+            'quest_id' => max(0, (int) ($payload['quest_id'] ?? 0)),
+            'q_process' => max(0, (int) ($payload['q_process'] ?? 0)),
+            'questupdate' => max(0, (int) ($payload['questupdate'] ?? 0)),
+            'timeone' => $this->normalizeTime((string) ($payload['timeone'] ?? '00:00')),
+            'timetwo' => $this->normalizeTime((string) ($payload['timetwo'] ?? '23:59')),
+            'sprz' => max(0, (int) ($payload['sprz'] ?? 0)),
+        ];
+
+        if ($before) {
+            $data['id'] = $id;
+            $this->db->prepare(
+                'UPDATE pokebuild
+                    SET building = :building, baseid = :baseid, lvl = :lvl, chance = :chance,
+                        poimka = :poimka, quest_id = :quest_id, q_process = :q_process,
+                        questupdate = :questupdate, timeone = :timeone, timetwo = :timetwo, sprz = :sprz
+                  WHERE id = :id'
+            )->execute($data);
+            $action = 'wild_slot.update';
+        } else {
+            $id = $this->nextTableId('pokebuild', 'id');
+            $data['id'] = $id;
+            $this->db->prepare(
+                'INSERT INTO pokebuild
+                    (id, building, baseid, lvl, chance, poimka, quest_id, q_process, questupdate, timeone, timetwo, sprz)
+                 VALUES
+                    (:id, :building, :baseid, :lvl, :chance, :poimka, :quest_id, :q_process, :questupdate, :timeone, :timetwo, :sprz)'
+            )->execute($data);
+            $action = 'wild_slot.create';
+        }
+
+        $this->audit($adminId, $action, 'pokebuild', $id, ['before' => $before, 'after' => $data]);
+        return ['ok' => true, 'message' => 'Дикий слот сохранен.', 'id' => $id];
+    }
+
+    public function deleteWildSlot(int $adminId, int $id, string $confirm): array
+    {
+        if ($confirm !== 'DELETE') {
+            return ['ok' => false, 'message' => 'Для удаления введи DELETE.'];
+        }
+        $before = $this->rowById('pokebuild', 'id', $id);
+        if (!$before) {
+            return ['ok' => false, 'message' => 'Дикий слот не найден.'];
+        }
+        $this->audit($adminId, 'wild_slot.delete.before', 'pokebuild', $id, ['before' => $before]);
+        $this->db->prepare('DELETE FROM pokebuild WHERE id = :id LIMIT 1')->execute(['id' => $id]);
+        $this->audit($adminId, 'wild_slot.delete', 'pokebuild', $id, ['before' => $before]);
+        return ['ok' => true, 'message' => 'Дикий слот удален.'];
+    }
+
+    public function lookups(string $type = '', string $query = ''): array
+    {
+        $type = trim($type);
+        if ($type !== '') {
+            return $this->lookupByType($type, $query);
+        }
+
         return [
             'locations' => $this->lookupRows('SELECT id, title AS name FROM build ORDER BY title ASC LIMIT 300'),
             'pokemon' => $this->lookupRows('SELECT id, CONCAT(Code, " ", Name) AS name FROM pokemon ORDER BY id ASC LIMIT 1200'),
@@ -1071,6 +1168,101 @@ final class AdminRepository
         return ['ok' => true, 'message' => 'Новость удалена.'];
     }
 
+    public function events(string $search = '', int $limit = 80): array
+    {
+        if (!$this->tableExists('game_event_boosts')) {
+            return [];
+        }
+
+        $limit = max(1, min(200, $limit));
+        $sql = 'SELECT * FROM game_event_boosts';
+        $params = [];
+        if ($search !== '') {
+            $sql .= ' WHERE id = :id_search OR title LIKE :search OR boost_key LIKE :search OR scope LIKE :search';
+            $params = [
+                'id_search' => ctype_digit($search) ? (int) $search : -1,
+                'search' => '%' . $search . '%',
+            ];
+        }
+        $sql .= ' ORDER BY enabled DESC, id DESC LIMIT ' . $limit;
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function saveEvent(int $adminId, array $payload): array
+    {
+        if (!$this->tableExists('game_event_boosts')) {
+            return ['ok' => false, 'message' => 'Миграция game_event_boosts еще не применена.'];
+        }
+
+        $id = (int) ($payload['id'] ?? 0);
+        $title = trim((string) ($payload['title'] ?? ''));
+        $boostKey = $this->boostKey((string) ($payload['boost_key'] ?? 'exp'));
+        $multiplier = (float) str_replace(',', '.', (string) ($payload['multiplier'] ?? '1'));
+        if ($title === '') {
+            return ['ok' => false, 'message' => 'Укажи название ивента.'];
+        }
+        if ($multiplier < 1 || $multiplier > 10) {
+            return ['ok' => false, 'message' => 'Множитель должен быть от x1 до x10.'];
+        }
+
+        $now = time();
+        $before = $id > 0 ? $this->rowById('game_event_boosts', 'id', $id) : [];
+        $data = [
+            'title' => $title,
+            'boost_key' => $boostKey,
+            'multiplier' => number_format($multiplier, 2, '.', ''),
+            'scope' => $this->boostScope((string) ($payload['scope'] ?? 'global')),
+            'starts_at' => max(0, (int) ($payload['starts_at'] ?? 0)),
+            'ends_at' => max(0, (int) ($payload['ends_at'] ?? 0)),
+            'enabled' => !empty($payload['enabled']) ? 1 : 0,
+            'note' => mb_substr(trim((string) ($payload['note'] ?? '')), 0, 255),
+            'updated_at' => $now,
+        ];
+
+        if ($before) {
+            $data['id'] = $id;
+            $this->db->prepare(
+                'UPDATE game_event_boosts
+                    SET title = :title, boost_key = :boost_key, multiplier = :multiplier,
+                        scope = :scope, starts_at = :starts_at, ends_at = :ends_at,
+                        enabled = :enabled, note = :note, updated_at = :updated_at
+                  WHERE id = :id'
+            )->execute($data);
+            $action = 'event.update';
+        } else {
+            $data['created_by'] = $adminId;
+            $data['created_at'] = $now;
+            $this->db->prepare(
+                'INSERT INTO game_event_boosts
+                    (title, boost_key, multiplier, scope, starts_at, ends_at, enabled, note, created_by, created_at, updated_at)
+                 VALUES
+                    (:title, :boost_key, :multiplier, :scope, :starts_at, :ends_at, :enabled, :note, :created_by, :created_at, :updated_at)'
+            )->execute($data);
+            $id = (int) $this->db->lastInsertId();
+            $action = 'event.create';
+        }
+
+        $this->audit($adminId, $action, 'game_event_boosts', $id, ['before' => $before, 'after' => $data]);
+        return ['ok' => true, 'message' => 'Ивент сохранен.', 'id' => $id];
+    }
+
+    public function deleteEvent(int $adminId, int $id, string $confirm): array
+    {
+        if ($confirm !== 'DELETE') {
+            return ['ok' => false, 'message' => 'Для удаления введи DELETE.'];
+        }
+        $before = $this->rowById('game_event_boosts', 'id', $id);
+        if (!$before) {
+            return ['ok' => false, 'message' => 'Ивент не найден.'];
+        }
+        $this->audit($adminId, 'event.delete.before', 'game_event_boosts', $id, ['before' => $before]);
+        $this->db->prepare('DELETE FROM game_event_boosts WHERE id = :id LIMIT 1')->execute(['id' => $id]);
+        $this->audit($adminId, 'event.delete', 'game_event_boosts', $id, ['before' => $before]);
+        return ['ok' => true, 'message' => 'Ивент удален.'];
+    }
+
     public function tournaments(string $search = '', int $limit = 80): array
     {
         if (!$this->tableExists('admin_tournaments')) {
@@ -1360,10 +1552,145 @@ final class AdminRepository
     public function moderation(): array
     {
         $authorIdSelect = $this->columnExists('chats', 'author_id') ? 'author_id' : '0 AS author_id';
+        $punishments = [];
+        if ($this->tableExists('moderation_punishments')) {
+            $punishments = $this->lookupRows(
+                'SELECT p.*, u.login AS moderator_login
+                   FROM moderation_punishments p
+              LEFT JOIN users u ON u.id = p.moderator_user_id
+               ORDER BY p.id DESC
+                  LIMIT 100'
+            );
+        }
         return [
+            'punishments' => $punishments,
             'bans' => $this->lookupRows('SELECT id, ip, date FROM banip ORDER BY id DESC LIMIT 80'),
             'chat' => $this->lookupRows('SELECT id, author, ' . $authorIdSelect . ', userto, private, room, tipe, time, text FROM chats ORDER BY id DESC LIMIT 80'),
         ];
+    }
+
+    public function lookupByType(string $type, string $query = '', int $limit = 30): array
+    {
+        $limit = max(1, min(80, $limit));
+        $query = trim($query);
+        $id = ctype_digit($query) ? (int) $query : -1;
+        $like = '%' . $query . '%';
+        $hasQuery = $query !== '';
+
+        return match ($type) {
+            'users', 'player', 'players' => $this->lookupRowsPrepared(
+                'SELECT id, login AS name, login AS label FROM users
+                  ' . ($hasQuery ? 'WHERE id = :id OR login LIKE :like_login OR email LIKE :like_email' : '') . '
+                  ORDER BY id DESC LIMIT ' . $limit,
+                $hasQuery ? ['id' => $id, 'like_login' => $like, 'like_email' => $like] : []
+            ),
+            'items', 'item' => $this->lookupRowsPrepared(
+                'SELECT id, name, CONCAT("#", id, " ", name) AS label FROM items
+                  ' . ($hasQuery ? 'WHERE id = :id OR name LIKE :like_name OR tittle LIKE :like_title' : '') . '
+                  ORDER BY id ASC LIMIT ' . $limit,
+                $hasQuery ? ['id' => $id, 'like_name' => $like, 'like_title' => $like] : []
+            ),
+            'attacks', 'attack' => $this->lookupRowsPrepared(
+                'SELECT atac_id AS id, atac_name AS name, CONCAT("#", atac_id, " ", atac_name) AS label FROM attac_power
+                  ' . ($hasQuery ? 'WHERE atac_id = :id OR atac_name LIKE :like_name OR atac_tip LIKE :like_type' : '') . '
+                  ORDER BY atac_id ASC LIMIT ' . $limit,
+                $hasQuery ? ['id' => $id, 'like_name' => $like, 'like_type' => $like] : []
+            ),
+            'pokemon', 'pokemonSpecies' => $this->lookupRowsPrepared(
+                'SELECT id, CONCAT(Code, " ", Name) AS name, CONCAT("#", id, " ", Code, " ", Name) AS label FROM pokemon
+                  ' . ($hasQuery ? 'WHERE id = :id OR Code LIKE :like_code OR Name LIKE :like_name' : '') . '
+                  ORDER BY id ASC LIMIT ' . $limit,
+                $hasQuery ? ['id' => $id, 'like_code' => $like, 'like_name' => $like] : []
+            ),
+            'pokeBase', 'basePokemon' => $this->lookupRowsPrepared(
+                'SELECT id, title AS name, CONCAT("#", id, " ", title) AS label FROM poke_base
+                  ' . ($hasQuery ? 'WHERE id = :id OR title LIKE :like_title' : '') . '
+                  ORDER BY id ASC LIMIT ' . $limit,
+                $hasQuery ? ['id' => $id, 'like_title' => $like] : []
+            ),
+            'locations', 'location' => $this->lookupRowsPrepared(
+                'SELECT id, title AS name, CONCAT("#", id, " ", title) AS label FROM build
+                  ' . ($hasQuery ? 'WHERE id = :id OR title LIKE :like_title' : '') . '
+                  ORDER BY title ASC LIMIT ' . $limit,
+                $hasQuery ? ['id' => $id, 'like_title' => $like] : []
+            ),
+            'wildSlots', 'wild_slot' => $this->lookupRowsPrepared(
+                'SELECT pb.id, CONCAT("#", pb.id, " ", COALESCE(b.title, "Локация"), " - ", COALESCE(p.Code, ""), " ", COALESCE(p.Name, ""), " Lv.", pb.lvl) AS name,
+                        CONCAT("#", pb.id, " ", COALESCE(b.title, "Локация"), " - ", COALESCE(p.Name, "pokemon")) AS label
+                   FROM pokebuild pb
+              LEFT JOIN build b ON b.id = pb.building
+              LEFT JOIN pokemon p ON p.id = pb.baseid
+                  ' . ($hasQuery ? 'WHERE pb.id = :id OR b.title LIKE :like_build OR p.Code LIKE :like_code OR p.Name LIKE :like_name' : '') . '
+                  ORDER BY pb.id DESC LIMIT ' . $limit,
+                $hasQuery ? ['id' => $id, 'like_build' => $like, 'like_code' => $like, 'like_name' => $like] : []
+            ),
+            default => [],
+        };
+    }
+
+    public function moderationAction(int $adminId, array $payload): array
+    {
+        if (!$this->tableExists('moderation_punishments')) {
+            return ['ok' => false, 'message' => 'Миграция moderation_punishments еще не применена.'];
+        }
+
+        $action = strtolower(trim((string) ($payload['action'] ?? '')));
+        if (!in_array($action, ['mute', 'unmute', 'ban', 'unban', 'warn'], true)) {
+            return ['ok' => false, 'message' => 'Выберите действие: mute, unmute, ban, unban или warn.'];
+        }
+
+        $target = $this->resolveModerationTarget($payload);
+        if (!$target) {
+            return ['ok' => false, 'message' => 'Игрок не найден.'];
+        }
+
+        $reason = trim((string) ($payload['reason'] ?? ''));
+        if ($reason === '') {
+            $reason = 'Действие модерации.';
+        }
+
+        if (in_array($action, ['unmute', 'unban'], true)) {
+            $punishmentAction = $action === 'unmute' ? 'mute' : 'ban';
+            $count = $this->revokeModerationPunishments($adminId, (int) $target['id'], $punishmentAction, $reason);
+            if ($action === 'unban') {
+                $count += $this->deleteBanIpForUser($target);
+            }
+            $this->audit($adminId, 'moderation.' . $action, 'users', (int) $target['id'], [
+                'target' => $target,
+                'reason' => $reason,
+                'affected' => $count,
+            ]);
+            return ['ok' => true, 'message' => $count > 0 ? 'Наказание снято.' : 'Активное наказание не найдено.'];
+        }
+
+        if ($action === 'warn') {
+            $punishmentId = $this->createModerationPunishment($adminId, $target, 'warn', time(), $reason, 'chat', 0);
+            $this->audit($adminId, 'moderation.warn', 'moderation_punishments', $punishmentId, [
+                'target' => $target,
+                'reason' => $reason,
+            ]);
+            return ['ok' => true, 'message' => 'Предупреждение записано.'];
+        }
+
+        $expiresAt = $this->parseModerationDuration((string) ($payload['duration'] ?? ''));
+        if ($expiresAt === null) {
+            return ['ok' => false, 'message' => 'Укажите срок: 15minut, 1h, 2d или perm.'];
+        }
+
+        $scope = $action === 'mute' ? 'chat' : 'game';
+        $punishmentId = $this->createModerationPunishment($adminId, $target, $action, $expiresAt, $reason, $scope, 1);
+        if ($action === 'ban') {
+            $this->createBanIpForUser($target);
+        }
+
+        $this->audit($adminId, 'moderation.' . $action, 'moderation_punishments', $punishmentId, [
+            'target' => $target,
+            'duration' => (string) ($payload['duration'] ?? ''),
+            'expires_at' => $expiresAt,
+            'reason' => $reason,
+        ]);
+
+        return ['ok' => true, 'message' => $action === 'mute' ? 'Мут выдан.' : 'Бан выдан.'];
     }
 
     public function auditRows(int $limit = 80): array
@@ -1808,6 +2135,17 @@ final class AdminRepository
         return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    /** @param array<string,int|string> $params */
+    private function lookupRowsPrepared(string $sql, array $params): array
+    {
+        $stmt = $this->db->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue(':' . $key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+        }
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
     private function countTable(string $table, string $where = ''): int
     {
         $sql = 'SELECT COUNT(*) FROM ' . $table . ($where !== '' ? ' WHERE ' . $where : '');
@@ -1878,6 +2216,144 @@ final class AdminRepository
     private function sourceType(string $value): string
     {
         return in_array($value, ['wild', 'trainer', 'npc', 'event'], true) ? $value : 'wild';
+    }
+
+    private function boostKey(string $value): string
+    {
+        return in_array($value, ['exp', 'coins', 'drop', 'quest_rewards', 'catch'], true) ? $value : 'exp';
+    }
+
+    private function boostScope(string $value): string
+    {
+        return in_array($value, ['global', 'pve', 'pvp', 'quest', 'market'], true) ? $value : 'global';
+    }
+
+    private function resolveModerationTarget(array $payload): array
+    {
+        $target = trim((string) ($payload['target'] ?? ''));
+        $userId = (int) ($payload['user_id'] ?? 0);
+        if ($target === '' && $userId > 0) {
+            $target = (string) $userId;
+        }
+        if ($target === '') {
+            return [];
+        }
+
+        if (ctype_digit($target)) {
+            $stmt = $this->db->prepare('SELECT id, login, ip FROM users WHERE id = :id LIMIT 1');
+            $stmt->execute(['id' => (int) $target]);
+        } else {
+            $stmt = $this->db->prepare('SELECT id, login, ip FROM users WHERE LOWER(login) = LOWER(:login) LIMIT 1');
+            $stmt->execute(['login' => $target]);
+        }
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private function createModerationPunishment(
+        int $adminId,
+        array $target,
+        string $action,
+        int $expiresAt,
+        string $reason,
+        string $scope,
+        int $active
+    ): int {
+        $now = time();
+        $stmt = $this->db->prepare(
+            'INSERT INTO moderation_punishments
+                (target_user_id, target_login, moderator_user_id, action, scope, reason, starts_at, expires_at, active, created_at)
+             VALUES
+                (:target_user_id, :target_login, :moderator_user_id, :action, :scope, :reason, :starts_at, :expires_at, :active, :created_at)'
+        );
+        $stmt->execute([
+            'target_user_id' => (int) $target['id'],
+            'target_login' => (string) $target['login'],
+            'moderator_user_id' => $adminId,
+            'action' => $action,
+            'scope' => $scope,
+            'reason' => $reason,
+            'starts_at' => $now,
+            'expires_at' => $expiresAt,
+            'active' => $active,
+            'created_at' => $now,
+        ]);
+        return (int) $this->db->lastInsertId();
+    }
+
+    private function revokeModerationPunishments(int $adminId, int $targetUserId, string $action, string $reason): int
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE moderation_punishments
+                SET active = 0, revoked_at = :revoked_at, revoked_by = :revoked_by, revoke_reason = :reason
+              WHERE target_user_id = :target
+                AND action = :action
+                AND active = 1'
+        );
+        $stmt->execute([
+            'revoked_at' => time(),
+            'revoked_by' => $adminId,
+            'reason' => $reason,
+            'target' => $targetUserId,
+            'action' => $action,
+        ]);
+
+        return $stmt->rowCount();
+    }
+
+    private function createBanIpForUser(array $target): void
+    {
+        $ip = (int) ($target['ip'] ?? 0);
+        if ($ip <= 0) {
+            return;
+        }
+
+        $exists = $this->db->prepare('SELECT 1 FROM banip WHERE ip = :ip LIMIT 1');
+        $exists->execute(['ip' => $ip]);
+        if ($exists->fetchColumn()) {
+            return;
+        }
+
+        $this->db->prepare('INSERT INTO banip (id, ip, date) VALUES (:id, :ip, NOW())')
+            ->execute(['id' => $this->nextTableId('banip', 'id'), 'ip' => $ip]);
+    }
+
+    private function deleteBanIpForUser(array $target): int
+    {
+        $ip = (int) ($target['ip'] ?? 0);
+        if ($ip <= 0) {
+            return 0;
+        }
+
+        $stmt = $this->db->prepare('DELETE FROM banip WHERE ip = :ip');
+        $stmt->execute(['ip' => $ip]);
+        return $stmt->rowCount();
+    }
+
+    private function parseModerationDuration(string $duration): ?int
+    {
+        $duration = mb_strtolower(trim($duration));
+        if ($duration === '') {
+            return null;
+        }
+        if (in_array($duration, ['0', 'perm', 'perma', 'permanent', 'forever', 'навсегда', 'бессрочно'], true)) {
+            return 0;
+        }
+        if (!preg_match('/^(\d+)\s*([a-zа-я]+)$/iu', $duration, $matches)) {
+            return null;
+        }
+
+        $amount = max(1, (int) $matches[1]);
+        $unit = mb_strtolower($matches[2]);
+        $seconds = match (true) {
+            in_array($unit, ['m', 'min', 'mins', 'minute', 'minutes', 'minut', 'мин', 'минута', 'минут', 'минуты'], true) => $amount * 60,
+            in_array($unit, ['h', 'hr', 'hour', 'hours', 'час', 'часа', 'часов'], true) => $amount * 3600,
+            in_array($unit, ['d', 'day', 'days', 'д', 'день', 'дня', 'дней'], true) => $amount * 86400,
+            in_array($unit, ['w', 'week', 'weeks', 'н', 'неделя', 'недели', 'недель'], true) => $amount * 604800,
+            default => 0,
+        };
+
+        return $seconds > 0 ? time() + $seconds : null;
     }
 
     private function audit(int $adminId, string $action, string $entity, int $entityId, array $payload): void
