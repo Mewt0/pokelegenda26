@@ -158,7 +158,19 @@ final class InventoryRepository
 
         $effectKey = (string) ($item['effect_key'] ?? 'pending');
         $resultMessage = '';
-        if (!in_array($effectKey, ['consume_only', 'exp_candy', 'pp_vitamin', 'boost_exp', 'boost_drop', 'boost_money'], true)) {
+        $supportedEffects = [
+            'consume_only',
+            'exp_candy',
+            'pp_vitamin',
+            'boost_exp',
+            'boost_drop',
+            'boost_money',
+            'evolution_item',
+            'tm_learn',
+            'equip_held',
+            'nature_neutral',
+        ];
+        if (!in_array($effectKey, $supportedEffects, true)) {
             return [
                 'ok' => false,
                 'error' => 'effect_not_implemented',
@@ -172,10 +184,15 @@ final class InventoryRepository
 
         $this->db->beginTransaction();
         try {
-            if ($effectKey === 'exp_candy') {
-                $levels = max(1, min(10, $count));
-                $this->db->prepare('UPDATE pok_user SET lvl = lvl + :levels WHERE id = :pokemon AND users = :user LIMIT 1')
-                    ->execute(['levels' => $levels, 'pokemon' => $pokemonId, 'user' => $userId]);
+            if ($effectKey === 'consume_only') {
+                $resultMessage = 'Предмет использован.';
+            } elseif ($effectKey === 'exp_candy') {
+                $levels = $this->candyLevelGain((int) ($item['item_id'] ?? 0), $pokemon, $count);
+                if ($levels <= 0) {
+                    $this->db->rollBack();
+                    return ['ok' => false, 'message' => 'Покемон уже достиг максимального уровня. Предмет не списан.'];
+                }
+                $this->levelPokemon($pokemonId, $userId, $levels);
                 $resultMessage = sprintf('%s получает +%d уров.', strip_tags((string) ($pokemon['names'] ?? 'Покемон')), $levels);
             } elseif ($effectKey === 'pp_vitamin') {
                 $this->db->prepare(
@@ -188,6 +205,29 @@ final class InventoryRepository
                       LIMIT 1'
                 )->execute(['pokemon' => $pokemonId]);
                 $resultMessage = 'PP атак восстановлены.';
+            } elseif ($effectKey === 'evolution_item') {
+                $targetBase = $this->evolutionTargetFor((int) ($pokemon['basenum'] ?? 0), (int) ($item['item_id'] ?? 0));
+                if ($targetBase <= 0) {
+                    $this->db->rollBack();
+                    return ['ok' => false, 'message' => 'Этот камень не подходит выбранному покемону. Предмет не списан.'];
+                }
+                $this->evolvePokemon($pokemonId, $userId, $targetBase);
+                $resultMessage = sprintf('%s эволюционирует в %s.', strip_tags((string) ($pokemon['names'] ?? 'Покемон')), $this->basePokemonName($targetBase));
+            } elseif ($effectKey === 'tm_learn') {
+                $learned = $this->learnRandomTmMove($pokemonId, $userId);
+                if ($learned === null) {
+                    $this->db->rollBack();
+                    return ['ok' => false, 'message' => 'Для этого покемона не найдена доступная новая атака. Предмет не списан.'];
+                }
+                $resultMessage = sprintf('%s изучает %s.', strip_tags((string) ($pokemon['names'] ?? 'Покемон')), (string) ($learned['name'] ?? 'атаку'));
+            } elseif ($effectKey === 'equip_held') {
+                $this->equipHeldItemFromTargetUse($userId, $pokemonId, (int) ($item['item_id'] ?? 0));
+                $resultMessage = 'Предмет закреплен за покемоном.';
+            } elseif ($effectKey === 'nature_neutral') {
+                $this->db->prepare('UPDATE pok_user SET har = 1 WHERE id = :pokemon AND users = :user LIMIT 1')
+                    ->execute(['pokemon' => $pokemonId, 'user' => $userId]);
+                $this->recalculatePokemonStats($pokemonId, $userId);
+                $resultMessage = 'Характер приведен к обычному.';
             } elseif (str_starts_with($effectKey, 'boost_')) {
                 $boostKey = substr($effectKey, 6);
                 $this->grantPlayerBoost($userId, $boostKey, 'all', 2.0, 3600 * max(1, $count));
@@ -209,6 +249,256 @@ final class InventoryRepository
                 $count
             ) . ($resultMessage !== '' ? ' ' . $resultMessage : ''),
         ];
+    }
+
+    private function candyLevelGain(int $itemId, array $pokemon, int $count): int
+    {
+        $level = (int) ($pokemon['lvl'] ?? 1);
+        $maxGain = max(0, 100 - $level);
+        if ($maxGain <= 0) {
+            return 0;
+        }
+
+        $perItem = match ($itemId) {
+            1401 => 5,
+            655 => 3,
+            653, 654, 861 => 2,
+            default => 1,
+        };
+
+        return min($maxGain, max(1, $count) * $perItem);
+    }
+
+    private function levelPokemon(int $pokemonId, int $userId, int $levels): void
+    {
+        $this->db->prepare(
+            'UPDATE pok_user
+                SET lvl = LEAST(100, lvl + :levels)
+              WHERE id = :pokemon AND users = :user
+              LIMIT 1'
+        )->execute(['levels' => max(1, $levels), 'pokemon' => $pokemonId, 'user' => $userId]);
+
+        $this->recalculatePokemonStats($pokemonId, $userId);
+    }
+
+    private function evolvePokemon(int $pokemonId, int $userId, int $targetBase): void
+    {
+        $name = $this->basePokemonName($targetBase);
+        $this->db->prepare(
+            'UPDATE pok_user
+                SET basenum = :base, names = :name
+              WHERE id = :pokemon AND users = :user
+              LIMIT 1'
+        )->execute([
+            'base' => $targetBase,
+            'name' => $name,
+            'pokemon' => $pokemonId,
+            'user' => $userId,
+        ]);
+
+        $this->recalculatePokemonStats($pokemonId, $userId);
+    }
+
+    private function recalculatePokemonStats(int $pokemonId, int $userId): void
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, basenum, lvl, har, hp_my, hp_max,
+                    hp_ev, atk_ev, def_ev, satk_ev, sdef_ev, speed_ev,
+                    hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv
+               FROM pok_user
+              WHERE id = :pokemon AND users = :user
+              LIMIT 1'
+        );
+        $stmt->execute(['pokemon' => $pokemonId, 'user' => $userId]);
+        $pokemon = $stmt->fetch();
+        if (!$pokemon) {
+            return;
+        }
+
+        $baseStmt = $this->db->prepare('SELECT hp, atk, def, satk, sdef, speed FROM poke_base WHERE id = :base LIMIT 1');
+        $baseStmt->execute(['base' => (int) ($pokemon['basenum'] ?? 0)]);
+        $base = $baseStmt->fetch();
+        if (!$base) {
+            return;
+        }
+
+        $harStmt = $this->db->prepare('SELECT atk, def, satk, sdef, speed FROM har WHERE id_har = :har LIMIT 1');
+        $harStmt->execute(['har' => (int) ($pokemon['har'] ?? 1)]);
+        $har = $harStmt->fetch() ?: ['atk' => 1, 'def' => 1, 'satk' => 1, 'sdef' => 1, 'speed' => 1];
+
+        $level = max(1, min(100, (int) ($pokemon['lvl'] ?? 1)));
+        $hpMaxBefore = max(1, (int) ($pokemon['hp_max'] ?? 1));
+        $hpRatio = max(0.0, min(1.0, (int) ($pokemon['hp_my'] ?? $hpMaxBefore) / $hpMaxBefore));
+        $calcStat = static function (int $baseValue, int $iv, int $ev, float $nature, int $level): int {
+            return max(1, (int) round((((($iv + $baseValue * 2 + (int) floor($ev / 4)) * $level) / 100) + 5) * max(0.1, $nature)));
+        };
+        $hpMax = max(1, (int) round(((int) ($pokemon['hp_iv'] ?? 0) + (int) ($base['hp'] ?? 1) * 2 + (int) floor((int) ($pokemon['hp_ev'] ?? 0) / 4) + 100) * $level / 100 + 10));
+        $hpMy = max(1, min($hpMax, (int) round($hpMax * $hpRatio)));
+
+        $this->db->prepare(
+            'UPDATE pok_user
+                SET hp_my = :hp_my, hp_max = :hp_max,
+                    atk = :atk, def = :def, satk = :satk, sdef = :sdef, speed = :speed
+              WHERE id = :pokemon AND users = :user
+              LIMIT 1'
+        )->execute([
+            'hp_my' => $hpMy,
+            'hp_max' => $hpMax,
+            'atk' => $calcStat((int) ($base['atk'] ?? 1), (int) ($pokemon['atk_iv'] ?? 0), (int) ($pokemon['atk_ev'] ?? 0), (float) ($har['atk'] ?? 1), $level),
+            'def' => $calcStat((int) ($base['def'] ?? 1), (int) ($pokemon['def_iv'] ?? 0), (int) ($pokemon['def_ev'] ?? 0), (float) ($har['def'] ?? 1), $level),
+            'satk' => $calcStat((int) ($base['satk'] ?? 1), (int) ($pokemon['satk_iv'] ?? 0), (int) ($pokemon['satk_ev'] ?? 0), (float) ($har['satk'] ?? 1), $level),
+            'sdef' => $calcStat((int) ($base['sdef'] ?? 1), (int) ($pokemon['sdef_iv'] ?? 0), (int) ($pokemon['sdef_ev'] ?? 0), (float) ($har['sdef'] ?? 1), $level),
+            'speed' => $calcStat((int) ($base['speed'] ?? 1), (int) ($pokemon['speed_iv'] ?? 0), (int) ($pokemon['speed_ev'] ?? 0), (float) ($har['speed'] ?? 1), $level),
+            'pokemon' => $pokemonId,
+            'user' => $userId,
+        ]);
+    }
+
+    private function learnRandomTmMove(int $pokemonId, int $userId): ?array
+    {
+        $pokemon = $this->findActivePokemon($userId, $pokemonId);
+        if ($pokemon === null) {
+            return null;
+        }
+
+        $knownStmt = $this->db->prepare('SELECT a_id, b_id, c_id, d_id FROM attac_my_poke WHERE pok_id = :pokemon LIMIT 1');
+        $knownStmt->execute(['pokemon' => $pokemonId]);
+        $knownRow = $knownStmt->fetch() ?: [];
+        $known = array_filter(array_map('intval', [
+            $knownRow['a_id'] ?? 0,
+            $knownRow['b_id'] ?? 0,
+            $knownRow['c_id'] ?? 0,
+            $knownRow['d_id'] ?? 0,
+        ]));
+        $notIn = count($known) > 0 ? (' AND ap.atac_id NOT IN (' . implode(',', array_map('intval', $known)) . ')') : '';
+
+        $stmt = $this->db->prepare(
+            'SELECT ap.atac_id AS id, ap.atac_name AS name, ap.atac_pp AS pp, ap.atac_tip AS tip
+               FROM attac_poke pk
+               INNER JOIN attac_power ap ON ap.atac_id = pk.atac_id
+              WHERE pk.poke_base_id = :base
+                AND (pk.atc_lvl IS NULL OR pk.atc_lvl <= :level)' . $notIn . '
+              ORDER BY RAND()
+              LIMIT 1'
+        );
+        $stmt->execute([
+            'base' => (int) ($pokemon['basenum'] ?? 0),
+            'level' => max(1, (int) ($pokemon['lvl'] ?? 1)),
+        ]);
+        $move = $stmt->fetch();
+        if (!$move) {
+            return null;
+        }
+
+        $slot = 'd';
+        foreach (['a', 'b', 'c', 'd'] as $candidate) {
+            if ((int) ($knownRow[$candidate . '_id'] ?? 0) <= 0) {
+                $slot = $candidate;
+                break;
+            }
+        }
+
+        if ($knownRow) {
+            $this->db->prepare(
+                'UPDATE attac_my_poke
+                    SET ' . $slot . '_id = :move,
+                        ' . $slot . '_pp_min = :pp,
+                        ' . $slot . '_pp_max = :pp
+                  WHERE pok_id = :pokemon
+                  LIMIT 1'
+            )->execute([
+                'move' => (int) ($move['id'] ?? 0),
+                'pp' => (int) ($move['pp'] ?? 0),
+                'pokemon' => $pokemonId,
+            ]);
+        } else {
+            $this->db->prepare(
+                'INSERT INTO attac_my_poke (id, pok_id, a_id, a_pp_min, a_pp_max)
+                 VALUES (:id, :pokemon, :move, :pp, :pp)'
+            )->execute([
+                'id' => $this->nextAttacMyPokeId(),
+                'pokemon' => $pokemonId,
+                'move' => (int) ($move['id'] ?? 0),
+                'pp' => (int) ($move['pp'] ?? 0),
+            ]);
+        }
+
+        return $move;
+    }
+
+    private function nextAttacMyPokeId(): int
+    {
+        return (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM attac_my_poke')->fetchColumn() ?: 1);
+    }
+
+    private function equipHeldItemFromTargetUse(int $userId, int $pokemonId, int $itemId): void
+    {
+        $existing = $this->findEquippedPokemonItem($pokemonId);
+        if ($existing !== null) {
+            $this->db->prepare('UPDATE items_poke SET id_items = :item, datetime = :time WHERE id_poke = :pokemon LIMIT 1')
+                ->execute(['item' => $itemId, 'time' => time(), 'pokemon' => $pokemonId]);
+            return;
+        }
+
+        $this->db->prepare('INSERT INTO items_poke (id_poke, id_items, datetime) VALUES (:pokemon, :item, :time)')
+            ->execute(['pokemon' => $pokemonId, 'item' => $itemId, 'time' => time()]);
+    }
+
+    private function basePokemonName(int $baseId): string
+    {
+        $stmt = $this->db->prepare('SELECT name_new FROM pokemon WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $baseId]);
+        $name = trim((string) ($stmt->fetchColumn() ?: ''));
+        return $name !== '' ? $name : ('Pokemon #' . $baseId);
+    }
+
+    private function evolutionTargetFor(int $baseId, int $itemId): int
+    {
+        $canonicalItem = match ($itemId) {
+            64 => 71,
+            66 => 44,
+            67 => 41,
+            68 => 43,
+            74 => 6,
+            75 => 40,
+            76, 77 => 42,
+            default => $itemId,
+        };
+        $map = [
+            25 => [40 => 26],
+            30 => [44 => 31],
+            33 => [44 => 34],
+            35 => [44 => 36],
+            37 => [41 => 38],
+            39 => [44 => 40],
+            44 => [43 => 45, 6 => 182],
+            58 => [41 => 59],
+            61 => [42 => 62],
+            70 => [43 => 71],
+            90 => [42 => 91],
+            102 => [43 => 103],
+            120 => [42 => 121],
+            133 => [42 => 134, 40 => 135, 41 => 136, 6 => 196, 44 => 197],
+            191 => [6 => 192],
+            198 => [44 => 430],
+            200 => [44 => 429],
+            271 => [42 => 272],
+            274 => [43 => 275],
+            281 => [71 => 475],
+            300 => [44 => 301],
+            315 => [6 => 407],
+            361 => [71 => 478],
+            406 => [6 => 315],
+            511 => [43 => 512],
+            513 => [41 => 514],
+            515 => [42 => 516],
+            517 => [44 => 518],
+            548 => [6 => 549],
+            603 => [40 => 604],
+            608 => [44 => 609],
+        ];
+
+        return (int) ($map[$baseId][$canonicalItem] ?? 0);
     }
 
     public function listActivePokemonForUser(int $userId): array
@@ -626,7 +916,12 @@ final class InventoryRepository
     private function findActivePokemon(int $userId, int $pokemonId): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, names FROM pok_user WHERE id = :pokemon AND users = :user AND active = 1 LIMIT 1'
+            'SELECT id, names, basenum, lvl, har, hp_my, hp_max,
+                    hp_ev, atk_ev, def_ev, satk_ev, sdef_ev, speed_ev,
+                    hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv
+               FROM pok_user
+              WHERE id = :pokemon AND users = :user AND active = 1
+              LIMIT 1'
         );
         $stmt->execute(['pokemon' => $pokemonId, 'user' => $userId]);
 

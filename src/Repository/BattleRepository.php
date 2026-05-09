@@ -1026,6 +1026,23 @@ final class BattleRepository
         $stmt->execute(['hp' => max(0, $newHp), 'id' => $parsed['id']]);
     }
 
+    public function restorePokemonMovePp(int $pokemonId): void
+    {
+        if ($pokemonId <= 0) {
+            return;
+        }
+
+        $this->db->prepare(
+            'UPDATE attac_my_poke
+                SET a_pp_min = a_pp_max,
+                    b_pp_min = b_pp_max,
+                    c_pp_min = c_pp_max,
+                    d_pp_min = d_pp_max
+              WHERE pok_id = :pokemon
+              LIMIT 1'
+        )->execute(['pokemon' => $pokemonId]);
+    }
+
     public function switchPlayerPokemon(int $battleId, int $userId, int $pokemonId): bool
     {
         $check = $this->db->prepare(
@@ -1799,12 +1816,17 @@ final class BattleRepository
             'SELECT iu.id, iu.item_id, iu.count, i.name, i.tittle, i.category, i.battleuse
                FROM items_users iu
                INNER JOIN items i ON i.id = iu.item_id
-              WHERE iu.id = :id AND iu.user_id = :user AND iu.count > 0 AND i.battleuse = 1
+              WHERE iu.id = :id
+                AND iu.user_id = :user
+                AND iu.count > 0
+                AND i.battleuse = 1
+                AND (iu.dattimer = "not" OR (iu.dattimer REGEXP "^[0-9]+$" AND CAST(iu.dattimer AS UNSIGNED) > :time))
               LIMIT 1'
         );
         $stmt->execute([
             'id' => $itemUserId,
             'user' => $userId,
+            'time' => time(),
         ]);
 
         $row = $stmt->fetch();
@@ -2086,6 +2108,7 @@ final class BattleRepository
         $this->db->prepare('DELETE FROM statpokemonbatle WHERE battleid = :id')->execute(['id' => $battleId]);
         $this->db->prepare('DELETE FROM battle_dop WHERE battleid = :id')->execute(['id' => $battleId]);
         $this->db->prepare('DELETE FROM battle_log WHERE battle_id = :id')->execute(['id' => $battleId]);
+        $this->db->prepare('DELETE FROM bttle_status WHERE buttleid = :id')->execute(['id' => $battleId]);
         $this->db->prepare('DELETE FROM battles WHERE id = :id LIMIT 1')->execute(['id' => $battleId]);
 
         $parsed = $this->parseBattlePokemon($enemyBattlePokemon);
@@ -2696,9 +2719,18 @@ final class BattleRepository
             throw new \InvalidArgumentException('Unsupported sequence target.');
         }
 
-        return (int) ($this->db
-            ->query(sprintf('SELECT COALESCE(MAX(%s), 0) + 1 FROM %s', $column, $table))
-            ->fetchColumn() ?: 1);
+        $lockName = sprintf('pokemon8_seq_%s_%s', $table, $column);
+        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $lock->execute(['name' => $lockName]);
+
+        try {
+            return (int) ($this->db
+                ->query(sprintf('SELECT COALESCE(MAX(%s), 0) + 1 FROM %s', $column, $table))
+                ->fetchColumn() ?: 1);
+        } finally {
+            $release = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
+            $release->execute(['name' => $lockName]);
+        }
     }
 
     private function normalizeHazardKind(string $kind): string

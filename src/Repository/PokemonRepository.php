@@ -93,7 +93,10 @@ final class PokemonRepository
 
     public function moveEditorData(int $userId): array
     {
-        $pokemon = $this->listActivePokemon($userId, 20);
+        $pokemon = array_merge(
+            $this->listActivePokemon($userId, 20),
+            $this->listNurseryPokemon($userId, 80)
+        );
         foreach ($pokemon as &$row) {
             $row['moves'] = $this->selectedMoves((int) $row['id']);
             $row['learnableMoves'] = $this->learnableMoves((int) $row['baseNum'], (int) $row['level']);
@@ -255,6 +258,7 @@ final class PokemonRepository
                 'level' => (int) $row['lvl'],
                 'hp' => (int) $row['hp_my'],
                 'hpMax' => (int) $row['hp_max'],
+                'active' => $active === 1,
                 'starter' => (int) $row['startepoke'] === 1,
                 'training' => $this->trainingInfo($row),
             ];

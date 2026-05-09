@@ -36,6 +36,11 @@ final class TrainingRepository
 
     public function train(int $userId, int $pokemonId, bool $boosted = false): array
     {
+        return $this->withTransaction(fn (): array => $this->trainLocked($userId, $pokemonId, $boosted));
+    }
+
+    private function trainLocked(int $userId, int $pokemonId, bool $boosted = false): array
+    {
         if ($this->userIsBusy($userId)) {
             return ['ok' => false, 'message' => 'Сначала закончите бой или обмен.'];
         }
@@ -96,6 +101,11 @@ final class TrainingRepository
     }
 
     public function weaken(int $userId, int $pokemonId): array
+    {
+        return $this->withTransaction(fn (): array => $this->weakenLocked($userId, $pokemonId));
+    }
+
+    private function weakenLocked(int $userId, int $pokemonId): array
     {
         if ($this->userIsBusy($userId)) {
             return ['ok' => false, 'message' => 'Сначала закончите бой или обмен.'];
@@ -202,10 +212,35 @@ final class TrainingRepository
             'SELECT id, users, names, training_stage, training_stat, training_named_effect, training_tamed
                FROM pok_user
               WHERE id = :pokemon AND users = :user AND active = 1
-              LIMIT 1'
+              LIMIT 1
+              FOR UPDATE'
         );
         $stmt->execute(['pokemon' => $pokemonId, 'user' => $userId]);
         return $stmt->fetch() ?: null;
+    }
+
+    /**
+     * @param callable():array $callback
+     */
+    private function withTransaction(callable $callback): array
+    {
+        $started = !$this->db->inTransaction();
+        if ($started) {
+            $this->db->beginTransaction();
+        }
+
+        try {
+            $result = $callback();
+            if ($started) {
+                $this->db->commit();
+            }
+            return $result;
+        } catch (Throwable $e) {
+            if ($started && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
     }
 
     private function saveTraining(int $pokemonId, int $stage, string $stat, string $effect, bool $tamed): void

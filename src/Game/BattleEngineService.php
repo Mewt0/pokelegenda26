@@ -654,6 +654,44 @@ final class BattleEngineService
 
         $itemId = (int) ($item['item_id'] ?? 0);
         $playerName = strip_tags((string) ($player['names'] ?? 'Покемон'));
+        if ($itemId === 217) {
+            $this->battles->restorePokemonMovePp((int) ($player['id'] ?? 0));
+            $message = sprintf('%s использует витамин PP на %s.', $this->battles->findUserLoginById($userId), $playerName);
+            $this->battles->decrementInventoryItemRow($userId, $itemUserId);
+            $this->battles->insertBattleLog($battleId, (int) ($battle['raund'] ?? 1), $message);
+            $this->battles->setPvpBattleAction($battleId, $side, -900000 - $itemUserId);
+
+            $battle = $this->battles->findPvpBattleForUser($userId, $battleId);
+            if ($battle !== null && (int) ($battle['attac_1'] ?? 0) !== 0 && (int) ($battle['attac_2'] ?? 0) !== 0) {
+                $this->resolvePvpRound($battle);
+            }
+
+            $state = $this->pvpState($userId, $battleId);
+            $state['messages'] = [$message];
+            return $state;
+        }
+        if ($itemId === 861) {
+            $maxHp = max(1, (int) ($player['hp_max'] ?? 1));
+            $beforeHp = max(0, (int) ($player['hp_my'] ?? 0));
+            if ($beforeHp >= $maxHp) {
+                return ['ok' => false, 'active' => true, 'message' => 'Покемон уже полностью здоров. Предмет не списан.', 'battle' => $this->pvpState($userId, $battleId)['battle'] ?? []];
+            }
+            $newHp = min($maxHp, $beforeHp + max(1, (int) floor($maxHp / 2)));
+            $this->battles->updatePokemonHp((string) ($player['battle_pokemon'] ?? $battle['poke_' . $side]), $newHp);
+            $message = sprintf('%s использует кекс с ягодами на %s: +%d HP.', $this->battles->findUserLoginById($userId), $playerName, $newHp - $beforeHp);
+            $this->battles->decrementInventoryItemRow($userId, $itemUserId);
+            $this->battles->insertBattleLog($battleId, (int) ($battle['raund'] ?? 1), $message);
+            $this->battles->setPvpBattleAction($battleId, $side, -900000 - $itemUserId);
+
+            $battle = $this->battles->findPvpBattleForUser($userId, $battleId);
+            if ($battle !== null && (int) ($battle['attac_1'] ?? 0) !== 0 && (int) ($battle['attac_2'] ?? 0) !== 0) {
+                $this->resolvePvpRound($battle);
+            }
+
+            $state = $this->pvpState($userId, $battleId);
+            $state['messages'] = [$message];
+            return $state;
+        }
         if ($itemId !== 15) {
             return ['ok' => false, 'active' => true, 'message' => 'В beta PvP пока разрешены только боевые предметы со штатной логикой. Этот предмет не списан.', 'battle' => $this->pvpState($userId, $battleId)['battle'] ?? []];
         }
@@ -729,10 +767,12 @@ final class BattleEngineService
             }
         }
 
-        $state = $this->state($userId);
-        $state['ok'] = true;
-        $state['messages'] = array_merge(['Покемон успешно заменен.'], $hazardMessages);
-        return $state;
+        return $this->resolvePveEnemyResponseAfterPlayerAction(
+            $userId,
+            $battleId,
+            array_merge(['Покемон успешно заменен.'], $hazardMessages),
+            false
+        );
     }
 
     private function useItem(int $userId, int $itemUserId): array
@@ -768,6 +808,28 @@ final class BattleEngineService
         $itemId = (int) ($item['item_id'] ?? 0);
         $playerName = strip_tags((string) ($player['names'] ?? 'Покемон'));
 
+        if ($itemId === 217) {
+            $this->battles->restorePokemonMovePp((int) ($player['id'] ?? 0));
+            $message = sprintf('Игрок #%d использует витамин PP на %s.', $userId, $playerName);
+            $this->battles->decrementInventoryItemRow($userId, $itemUserId);
+            $this->battles->insertBattleLog((int) $battle['id'], (int) ($battle['raund'] ?? 1), $message);
+            return $this->resolvePveEnemyResponseAfterPlayerAction($userId, $battleId, [$message], true);
+        }
+
+        if ($itemId === 861) {
+            $maxHp = max(1, (int) ($player['hp_max'] ?? 1));
+            $beforeHp = max(0, (int) ($player['hp_my'] ?? 0));
+            if ($beforeHp >= $maxHp) {
+                return ['ok' => false, 'active' => true, 'message' => 'Покемон уже полностью здоров. Предмет не списан.'];
+            }
+            $newHp = min($maxHp, $beforeHp + max(1, (int) floor($maxHp / 2)));
+            $this->battles->updatePokemonHp((string) ($player['battle_pokemon'] ?? $battle['poke_1']), $newHp);
+            $message = sprintf('Игрок #%d использует кекс с ягодами на %s: +%d HP.', $userId, $playerName, $newHp - $beforeHp);
+            $this->battles->decrementInventoryItemRow($userId, $itemUserId);
+            $this->battles->insertBattleLog((int) $battle['id'], (int) ($battle['raund'] ?? 1), $message);
+            return $this->resolvePveEnemyResponseAfterPlayerAction($userId, $battleId, [$message], true);
+        }
+
         if ($itemId === 15) {
             $removed = $this->battles->clearBattleStatus((string) ($player['battle_pokemon'] ?? $battle['poke_1']), 2);
             if ($removed <= 0) {
@@ -781,24 +843,102 @@ final class BattleEngineService
             $message = sprintf('Игрок #%d использует: Энергетик, на: #%s.', $userId, $playerName);
             $this->battles->decrementInventoryItemRow($userId, $itemUserId);
             $this->battles->insertBattleLog((int) $battle['id'], (int) ($battle['raund'] ?? 1), $message);
-            $this->battles->incrementRoundAndResetActions((int) $battle['id']);
-
-            $state = $this->state($userId);
-            $state['ok'] = true;
-            $state['messages'] = [$message];
-            $state['finished'] = false;
-            $state['result'] = null;
-            $state['rewards'] = ['coins' => 0, 'exp' => 0];
-            return $state;
+            return $this->resolvePveEnemyResponseAfterPlayerAction($userId, $battleId, [$message], true);
         }
 
         return ['ok' => false, 'active' => true, 'message' => 'Этот предмет пока нельзя использовать в бою.'];
     }
 
+    /**
+     * Items and switches spend the player's PvE turn, so the wild pokemon must
+     * still answer. Otherwise healing/switching becomes a free round skip.
+     *
+     * @param list<string> $playerMessages
+     */
+    private function resolvePveEnemyResponseAfterPlayerAction(
+        int $userId,
+        int $battleId,
+        array $playerMessages,
+        bool $playerMessagesLogged
+    ): array {
+        $battle = $this->battles->findPveBattleForUser($userId, $battleId);
+        if ($battle === null) {
+            return ['ok' => false, 'active' => false, 'message' => 'Бой завершен.'];
+        }
+
+        $round = (int) ($battle['raund'] ?? 1);
+        if (!$playerMessagesLogged) {
+            foreach ($playerMessages as $message) {
+                $message = trim((string) $message);
+                if ($message !== '') {
+                    $this->battles->insertBattleLog((int) $battle['id'], $round, $message);
+                }
+            }
+        }
+
+        $player = $this->battles->findPokemon((string) ($battle['poke_1'] ?? ''));
+        $enemy = $this->battles->findPokemon((string) ($battle['poke_2'] ?? ''));
+        [$player, $enemy] = $this->fallbackCombatants($userId, $battle, $player, $enemy);
+        $this->attachBattleStatuses((int) ($battle['id'] ?? 0), $player, $enemy);
+        if ($player === null || $enemy === null) {
+            return ['ok' => false, 'active' => false, 'message' => 'Не удалось получить покемонов.'];
+        }
+
+        $this->applyEntryWeatherAbilities((int) ($battle['id'] ?? 0), $round, $player, $enemy);
+        $enemyMessages = [];
+        if ((int) ($player['hp_my'] ?? 0) > 0 && (int) ($enemy['hp_my'] ?? 0) > 0) {
+            $enemyMove = $this->randomMove($this->battles->findAvailableMoves((int) ($enemy['basenum'] ?? 0), (int) ($enemy['lvl'] ?? 1)));
+            $enemyMessages[] = $this->applyMove((int) $battle['id'], $round, $enemy, $player, $enemyMove);
+        }
+
+        $this->battles->updatePokemonHp((string) $battle['poke_1'], (int) ($player['hp_my'] ?? 0));
+        $this->battles->updatePokemonHp((string) $battle['poke_2'], (int) ($enemy['hp_my'] ?? 0));
+
+        foreach ($enemyMessages as $message) {
+            $message = trim((string) $message);
+            if ($message !== '') {
+                $this->battles->insertBattleLog((int) $battle['id'], $round, $message);
+            }
+        }
+
+        $messages = array_values(array_filter(array_merge($playerMessages, $enemyMessages)));
+        if ((int) ($player['hp_my'] ?? 0) <= 0) {
+            $finalLogRows = $this->formatLogRows($this->battles->getBattleLog((int) $battle['id']));
+            $this->battles->finishBattle((int) $battle['id'], $userId, -1);
+            return [
+                'ok' => true,
+                'active' => false,
+                'finished' => true,
+                'result' => 'lose',
+                'rewards' => ['coins' => 0, 'exp' => 0, 'drops' => []],
+                'messages' => $messages,
+                'battle' => [
+                    'id' => (int) $battle['id'],
+                    'round' => $round,
+                    'player' => $this->formatPokemon($player),
+                    'enemy' => $this->formatPokemon($enemy),
+                    'moves' => [],
+                    'switchOptions' => [],
+                    'log' => $finalLogRows,
+                    'logByRound' => $this->groupLogByRound($finalLogRows),
+                ],
+            ];
+        }
+
+        $this->battles->incrementRoundAndResetActions((int) $battle['id']);
+        $state = $this->state($userId);
+        $state['ok'] = true;
+        $state['messages'] = $messages;
+        $state['finished'] = false;
+        $state['result'] = null;
+        $state['rewards'] = ['coins' => 0, 'exp' => 0, 'drops' => []];
+        return $state;
+    }
+
     private function useBall(int $userId, int $itemUserId): array
     {
         $item = $this->battles->findBattleInventoryItem($userId, $itemUserId);
-        if ($item === null || (int) ($item['item_id'] ?? 0) !== 3) {
+        if ($item === null || !$this->isCaptureBallItem($item)) {
             return ['ok' => false, 'active' => true, 'message' => 'Покебол недоступен.'];
         }
 
@@ -826,30 +966,27 @@ final class BattleEngineService
 
         $enemyName = strip_tags((string) ($enemy['names'] ?? 'Покемон'));
         $round = (int) ($battle['raund'] ?? 1);
-        $caught = $this->tryCatchWildPokemon((int) ($enemy['hp_my'] ?? 1), (int) ($enemy['hp_max'] ?? 1), 1);
+        $this->battles->decrementInventoryItemRow($userId, $itemUserId);
+        $caught = $this->tryCatchWildPokemon(
+            (int) ($enemy['hp_my'] ?? 1),
+            (int) ($enemy['hp_max'] ?? 1),
+            $this->captureBallBonus($item)
+        );
 
         if (!$caught) {
             $message = sprintf('Игрок #%d использует: Покебол, но #%s не хочет залазить в него.', $userId, $enemyName);
-            $this->battles->decrementInventoryItemRow($userId, $itemUserId);
             $this->battles->insertBattleLog((int) $battle['id'], $round, $message);
-            $this->battles->incrementRoundAndResetActions((int) $battle['id']);
-
-            $state = $this->state($userId);
-            $state['ok'] = true;
-            $state['messages'] = [$message];
-            $state['finished'] = false;
-            $state['result'] = null;
-            $state['rewards'] = ['coins' => 0, 'exp' => 0];
-            return $state;
+            return $this->resolvePveEnemyResponseAfterPlayerAction($userId, $battleId, [$message], true);
         }
 
         $active = $this->battles->countActivePokemon($userId) >= 6 ? 0 : 1;
         $newPokemonId = $this->battles->catchWildPokemon($userId, (string) ($enemy['battle_pokemon'] ?? $battle['poke_2']), $active);
         if ($newPokemonId === null) {
-            return ['ok' => false, 'active' => true, 'message' => 'Покемона не удалось добавить.'];
+            $message = sprintf('Покемон #%s вырвался из шара: не удалось добавить его в команду.', $enemyName);
+            $this->battles->insertBattleLog((int) $battle['id'], $round, $message);
+            return ['ok' => false, 'active' => true, 'message' => $message];
         }
 
-        $this->battles->decrementInventoryItemRow($userId, $itemUserId);
         $message = $active > 0
             ? sprintf('Покемон #%s успешно пойман и добавлен в команду.', $enemyName)
             : sprintf('Покемон #%s успешно пойман и отправлен в питомник.', $enemyName);
@@ -877,6 +1014,26 @@ final class BattleEngineService
                 'logByRound' => $this->groupLogByRound($logRows),
             ],
         ];
+    }
+
+    private function isCaptureBallItem(array $item): bool
+    {
+        $itemId = (int) ($item['item_id'] ?? 0);
+        if (in_array($itemId, [3, 25, 90004], true)) {
+            return true;
+        }
+
+        $text = mb_strtolower((string) (($item['name'] ?? '') . ' ' . ($item['tittle'] ?? '') . ' ' . ($item['category'] ?? '')));
+        return str_contains($text, 'ball') || str_contains($text, 'бол') || str_contains($text, 'шар');
+    }
+
+    private function captureBallBonus(array $item): int
+    {
+        return match ((int) ($item['item_id'] ?? 0)) {
+            90004 => 255,
+            25 => 2,
+            default => 1,
+        };
     }
 
     private function escape(int $userId): array
