@@ -12,9 +12,9 @@ final class DexRepository
     {
     }
 
-    public function searchPokemon(string $query = '', int $limit = 80): array
+    public function searchPokemon(string $query = '', int $limit = 1000): array
     {
-        $limit = max(1, min(180, $limit));
+        $limit = max(1, min(1500, $limit));
         $query = trim($query);
 
         $sql = 'SELECT p.id, p.Name, p.Element, p.SubElement, p.Code,
@@ -24,7 +24,7 @@ final class DexRepository
              LEFT JOIN poke_base pb ON pb.id = p.id';
 
         if ($query !== '') {
-            $sql .= ' WHERE p.Name LIKE :q OR pb.title LIKE :q OR p.Code LIKE :q OR p.id = :id';
+            $sql .= ' WHERE p.Name LIKE :q_name OR pb.title LIKE :q_title OR p.Code LIKE :q_code OR p.id = :id';
         }
 
         $sql .= ' ORDER BY p.id ASC LIMIT :limit';
@@ -32,7 +32,9 @@ final class DexRepository
         $stmt = $this->db->prepare($sql);
         if ($query !== '') {
             $like = '%' . $query . '%';
-            $stmt->bindValue(':q', $like);
+            $stmt->bindValue(':q_name', $like);
+            $stmt->bindValue(':q_title', $like);
+            $stmt->bindValue(':q_code', $like);
             $stmt->bindValue(':id', ctype_digit($query) ? (int)$query : 0, PDO::PARAM_INT);
         }
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
@@ -79,9 +81,9 @@ final class DexRepository
         return $data;
     }
 
-    public function searchAttacks(string $query = '', int $limit = 700): array
+    public function searchAttacks(string $query = '', int $limit = 1200): array
     {
-        $limit = max(1, min(1000, $limit));
+        $limit = max(1, min(1500, $limit));
         $query = trim($query);
 
         $select = 'SELECT atac_id, atac_name, atac_tip, atac_categori, atac_pp, atac_power, atac_accuracy,
@@ -307,8 +309,8 @@ final class DexRepository
         foreach ($tables as $table) {
             foreach ($columns as $column) {
                 try {
-                    $stmt = $this->db->prepare("SELECT `$column` FROM `$table` WHERE `poke_id` = :id OR `id` = :id LIMIT 1");
-                    $stmt->execute(['id' => $id]);
+                    $stmt = $this->db->prepare("SELECT `$column` FROM `$table` WHERE `poke_id` = :poke_id OR `id` = :row_id LIMIT 1");
+                    $stmt->execute(['poke_id' => $id, 'row_id' => $id]);
                     $value = trim((string)($stmt->fetchColumn() ?: ''));
                     if ($value !== '') {
                         return $value;

@@ -19,7 +19,8 @@ final class DexApiController
         if (!$this->session->get('id')) {
             return $this->json(['ok' => false, 'error' => 'auth'], 401);
         }
-        return $this->json(['ok' => true, 'items' => $this->dex->searchPokemon((string) $request->input('q', ''))]);
+        $limit = (int) $request->input('limit', '1000');
+        return $this->json(['ok' => true, 'items' => $this->dex->searchPokemon((string) $request->input('q', ''), $limit)]);
     }
 
     public function pokemon(Request $request): Response
@@ -37,7 +38,8 @@ final class DexApiController
         if (!$this->session->get('id')) {
             return $this->json(['ok' => false, 'error' => 'auth'], 401);
         }
-        return $this->json(['ok' => true, 'items' => $this->dex->searchAttacks((string) $request->input('q', ''))]);
+        $limit = (int) $request->input('limit', '1200');
+        return $this->json(['ok' => true, 'items' => $this->dex->searchAttacks((string) $request->input('q', ''), $limit)]);
     }
 
     public function attack(Request $request): Response
