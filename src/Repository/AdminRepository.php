@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Pokemon8\Repository;
 
 use PDO;
+use Throwable;
 
 final class AdminRepository
 {
@@ -727,9 +728,11 @@ final class AdminRepository
     {
         $limit = max(1, min(200, $limit));
         $offset = max(0, $offset);
-        $sql = 'SELECT pu.id, pu.users, u.login, pu.basenum, pb.title AS base_name, pu.names, pu.lvl, pu.active, pu.tips,
+        $sql = 'SELECT pu.id, pu.users, u.login, pu.basenum, pb.title AS base_name, pu.names, pu.lvl, pu.sex, pu.har, pu.active, pu.tips,
                        pu.item, ip.id_items AS equipped_item_id, held.name AS equipped_item_name,
                        pu.hp_my, pu.hp_max, pu.atk, pu.def, pu.satk, pu.sdef, pu.speed,
+                       pu.hp_iv, pu.atk_iv, pu.def_iv, pu.satk_iv, pu.sdef_iv, pu.speed_iv,
+                       pu.hp_ev, pu.atk_ev, pu.def_ev, pu.satk_ev, pu.sdef_ev, pu.speed_ev,
                        pu.training_stage, pu.training_stat, pu.training_named_effect, pu.training_tamed
                   FROM pok_user pu
              LEFT JOIN users u ON u.id = pu.users
@@ -864,65 +867,230 @@ final class AdminRepository
 
     public function grantPokemon(int $adminId, array $payload): array
     {
-        $userId = (int) ($payload['user_id'] ?? 0);
-        $baseId = (int) ($payload['base_id'] ?? 0);
+        $user = $this->resolveUserForGrant($payload);
+        if (!$user) {
+            return ['ok' => false, 'message' => 'Игрок не найден. Укажи user_id или ник.'];
+        }
+
+        $base = $this->resolvePokemonBaseForGrant($payload);
+        if (!$base) {
+            return ['ok' => false, 'message' => 'Базовый покемон не найден. Укажи base_id, номер или имя.'];
+        }
+
+        $userId = (int) $user['id'];
+        $baseId = (int) $base['id'];
         $level = max(1, min(100, (int) ($payload['lvl'] ?? 5)));
         $shiny = !empty($payload['shiny']);
         $sex = max(1, min(2, (int) ($payload['sex'] ?? 1)));
         $har = max(1, (int) ($payload['har'] ?? 1));
-        if (!$this->rowById('users', 'id', $userId)) {
-            return ['ok' => false, 'message' => 'Игрок не найден.'];
-        }
-        $base = $this->rowById('poke_base', 'id', $baseId);
-        if (!$base) {
-            return ['ok' => false, 'message' => 'Базовый покемон не найден.'];
-        }
         $nature = $this->rowById('har', 'id_har', $har) ?: ['atk' => 1, 'def' => 1, 'satk' => 1, 'sdef' => 1, 'speed' => 1];
-        $iv = 1;
-        $ev = 0;
-        $stats = [
-            'hp' => (int) round((($iv + ((int) $base['hp'] * 2) + ($ev / 4) + 100) * ($level / 100)) + 10),
-            'atk' => (int) round(((($iv + ((int) $base['atk'] * 2) + ($ev / 4)) * ($level / 100)) + 5) * (float) $nature['atk']),
-            'def' => (int) round(((($iv + ((int) $base['def'] * 2) + ($ev / 4)) * ($level / 100)) + 5) * (float) $nature['def']),
-            'satk' => (int) round(((($iv + ((int) $base['satk'] * 2) + ($ev / 4)) * ($level / 100)) + 5) * (float) $nature['satk']),
-            'sdef' => (int) round(((($iv + ((int) $base['sdef'] * 2) + ($ev / 4)) * ($level / 100)) + 5) * (float) $nature['sdef']),
-            'speed' => (int) round(((($iv + ((int) $base['speed'] * 2) + ($ev / 4)) * ($level / 100)) + 5) * (float) $nature['speed']),
+        $iv = [
+            'hp' => $this->grantInt($payload, 'hp_iv', 1, 0, 31),
+            'atk' => $this->grantInt($payload, 'atk_iv', 1, 0, 31),
+            'def' => $this->grantInt($payload, 'def_iv', 1, 0, 31),
+            'satk' => $this->grantInt($payload, 'satk_iv', 1, 0, 31),
+            'sdef' => $this->grantInt($payload, 'sdef_iv', 1, 0, 31),
+            'speed' => $this->grantInt($payload, 'speed_iv', 1, 0, 31),
         ];
+        $ev = [
+            'hp' => $this->grantInt($payload, 'hp_ev', 0, 0, 252),
+            'atk' => $this->grantInt($payload, 'atk_ev', 0, 0, 252),
+            'def' => $this->grantInt($payload, 'def_ev', 0, 0, 252),
+            'satk' => $this->grantInt($payload, 'satk_ev', 0, 0, 252),
+            'sdef' => $this->grantInt($payload, 'sdef_ev', 0, 0, 252),
+            'speed' => $this->grantInt($payload, 'speed_ev', 0, 0, 252),
+        ];
+        $calcStat = static function (int $baseValue, int $ivValue, int $evValue, float $natureValue, int $level): int {
+            return max(1, (int) round(((($ivValue + $baseValue * 2 + (int) floor($evValue / 4)) * $level / 100) + 5) * max(0.1, $natureValue)));
+        };
+        $calculated = [
+            'hp' => max(1, (int) round((($iv['hp'] + ((int) $base['hp'] * 2) + (int) floor($ev['hp'] / 4) + 100) * $level / 100) + 10)),
+            'atk' => $calcStat((int) $base['atk'], $iv['atk'], $ev['atk'], (float) $nature['atk'], $level),
+            'def' => $calcStat((int) $base['def'], $iv['def'], $ev['def'], (float) $nature['def'], $level),
+            'satk' => $calcStat((int) $base['satk'], $iv['satk'], $ev['satk'], (float) $nature['satk'], $level),
+            'sdef' => $calcStat((int) $base['sdef'], $iv['sdef'], $ev['sdef'], (float) $nature['sdef'], $level),
+            'speed' => $calcStat((int) $base['speed'], $iv['speed'], $ev['speed'], (float) $nature['speed'], $level),
+        ];
+        $stats = [
+            'hp' => $this->grantInt($payload, 'stat_hp', $calculated['hp'], 1, 9999),
+            'atk' => $this->grantInt($payload, 'stat_atk', $calculated['atk'], 1, 9999),
+            'def' => $this->grantInt($payload, 'stat_def', $calculated['def'], 1, 9999),
+            'satk' => $this->grantInt($payload, 'stat_satk', $calculated['satk'], 1, 9999),
+            'sdef' => $this->grantInt($payload, 'stat_sdef', $calculated['sdef'], 1, 9999),
+            'speed' => $this->grantInt($payload, 'stat_speed', $calculated['speed'], 1, 9999),
+        ];
+        $hpCurrent = $this->grantInt($payload, 'hp_my', $stats['hp'], 0, $stats['hp']);
+        $tips = $shiny ? 'shine' : mb_substr(trim((string) ($payload['tips'] ?? 'normal')), 0, 10);
+        if ($tips === '') {
+            $tips = 'normal';
+        }
         $pokemonId = $this->nextTableId('pok_user', 'id');
-        $name = (string) $base['title'] . ($shiny ? ' - Shiny' : '');
+        $name = $this->cleanPokemonGrantName($base, $baseId) . ($shiny ? ' - Shiny' : '');
+
+        $startedTransaction = !$this->db->inTransaction();
+        if ($startedTransaction) {
+            $this->db->beginTransaction();
+        }
+
+        try {
+            $stmt = $this->db->prepare(
+                'INSERT INTO pok_user
+                    (id, users, basenum, names, active, evcount, lvl, sex, har, hp_my, hp_max, exp, exp_b,
+                     atk, def, satk, sdef, speed, hp_ev, atk_ev, def_ev, satk_ev, sdef_ev, speed_ev,
+                     hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv, tips, startone, startepoke,
+                     reproduction, happy, datemay, usersone, sprz, item, ability_key)
+                 VALUES
+                    (:id, :users, :base, :name, 1, :evcount, :lvl, :sex, :har, :hp_my, :hp, 0, 100,
+                     :atk, :def, :satk, :sdef, :speed, :hp_ev, :atk_ev, :def_ev, :satk_ev, :sdef_ev, :speed_ev,
+                     :hp_iv, :atk_iv, :def_iv, :satk_iv, :sdef_iv, :speed_iv, :tips, 0, 0,
+                     0, 0, NOW(), :usersone, 0, 0, :ability)'
+            );
+            $stmt->execute([
+                'id' => $pokemonId,
+                'users' => $userId,
+                'base' => $baseId,
+                'name' => $name,
+                'lvl' => $level,
+                'sex' => $sex,
+                'har' => $har,
+                'evcount' => array_sum($ev),
+                'hp_my' => $hpCurrent,
+                'hp' => $stats['hp'],
+                'atk' => $stats['atk'],
+                'def' => $stats['def'],
+                'satk' => $stats['satk'],
+                'sdef' => $stats['sdef'],
+                'speed' => $stats['speed'],
+                'hp_ev' => $ev['hp'],
+                'atk_ev' => $ev['atk'],
+                'def_ev' => $ev['def'],
+                'satk_ev' => $ev['satk'],
+                'sdef_ev' => $ev['sdef'],
+                'speed_ev' => $ev['speed'],
+                'hp_iv' => $iv['hp'],
+                'atk_iv' => $iv['atk'],
+                'def_iv' => $iv['def'],
+                'satk_iv' => $iv['satk'],
+                'sdef_iv' => $iv['sdef'],
+                'speed_iv' => $iv['speed'],
+                'tips' => $tips,
+                'usersone' => $userId,
+                'ability' => $base['ability_key'] ?? null,
+            ]);
+            $this->seedPokemonMoves($pokemonId, $baseId, $level);
+            $this->audit($adminId, 'pokemon.grant', 'pok_user', $pokemonId, [
+                'user_id' => $userId,
+                'user_login' => $user['login'] ?? '',
+                'base_id' => $baseId,
+                'pokemon_name' => $name,
+                'level' => $level,
+                'shiny' => $shiny,
+                'sex' => $sex,
+                'har' => $har,
+                'tips' => $tips,
+                'iv' => $iv,
+                'ev' => $ev,
+                'stats' => $stats,
+            ]);
+            if ($startedTransaction) {
+                $this->db->commit();
+            }
+        } catch (Throwable $e) {
+            if ($startedTransaction && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            return ['ok' => false, 'message' => 'Не удалось выдать покемона: ' . $e->getMessage()];
+        }
+
+        return [
+            'ok' => true,
+            'message' => sprintf('Покемон %s выдан игроку %s.', $name, (string) ($user['login'] ?? ('#' . $userId))),
+            'pokemon_id' => $pokemonId,
+        ];
+    }
+
+    private function resolveUserForGrant(array $payload): ?array
+    {
+        $userId = (int) ($payload['user_id'] ?? 0);
+        if ($userId > 0) {
+            return $this->rowById('users', 'id', $userId);
+        }
+
+        $query = trim((string) ($payload['user'] ?? $payload['login'] ?? $payload['user_login'] ?? ''));
+        if ($query === '') {
+            return null;
+        }
+
+        if (ctype_digit($query)) {
+            return $this->rowById('users', 'id', (int) $query);
+        }
+
+        $stmt = $this->db->prepare('SELECT * FROM users WHERE login = :login LIMIT 1');
+        $stmt->execute(['login' => $query]);
+        $exact = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($exact) {
+            return $exact;
+        }
+
+        $stmt = $this->db->prepare('SELECT * FROM users WHERE login LIKE :query ORDER BY id ASC LIMIT 1');
+        $stmt->execute(['query' => '%' . $query . '%']);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    private function resolvePokemonBaseForGrant(array $payload): ?array
+    {
+        $baseId = (int) ($payload['base_id'] ?? $payload['poke_base_id'] ?? 0);
+        if ($baseId > 0) {
+            return $this->rowById('poke_base', 'id', $baseId);
+        }
+
+        $query = trim((string) ($payload['base'] ?? $payload['pokemon'] ?? $payload['pokemon_name'] ?? ''));
+        if ($query === '') {
+            return null;
+        }
+
+        if (ctype_digit($query)) {
+            return $this->rowById('poke_base', 'id', (int) $query);
+        }
+
+        $like = '%' . $query . '%';
         $stmt = $this->db->prepare(
-            'INSERT INTO pok_user
-                (id, users, basenum, names, active, evcount, lvl, sex, har, hp_my, hp_max, exp, exp_b,
-                 atk, def, satk, sdef, speed, hp_ev, atk_ev, def_ev, satk_ev, sdef_ev, speed_ev,
-                 hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv, tips, startone, startepoke,
-                 reproduction, happy, datemay, usersone, sprz, item, ability_key)
-             VALUES
-                (:id, :users, :base, :name, 1, 0, :lvl, :sex, :har, :hp, :hp, 0, 100,
-                 :atk, :def, :satk, :sdef, :speed, 0, 0, 0, 0, 0, 0,
-                 1, 1, 1, 1, 1, 1, :tips, 0, 0,
-                 0, 0, NOW(), :usersone, 0, 0, :ability)'
+            'SELECT pb.*
+               FROM poke_base pb
+          LEFT JOIN pokemon p ON p.id = pb.id
+              WHERE pb.title LIKE :title
+                 OR p.Name LIKE :name
+                 OR p.Code LIKE :code
+              ORDER BY pb.id ASC
+              LIMIT 1'
         );
         $stmt->execute([
-            'id' => $pokemonId,
-            'users' => $userId,
-            'base' => $baseId,
-            'name' => $name,
-            'lvl' => $level,
-            'sex' => $sex,
-            'har' => $har,
-            'hp' => $stats['hp'],
-            'atk' => $stats['atk'],
-            'def' => $stats['def'],
-            'satk' => $stats['satk'],
-            'sdef' => $stats['sdef'],
-            'speed' => $stats['speed'],
-            'tips' => $shiny ? 'shine' : 'normal',
-            'usersone' => $userId,
-            'ability' => $base['ability_key'] ?? null,
+            'title' => $like,
+            'name' => $like,
+            'code' => $like,
         ]);
-        $this->seedPokemonMoves($pokemonId, $baseId, $level);
-        $this->audit($adminId, 'pokemon.grant', 'pok_user', $pokemonId, ['user_id' => $userId, 'base_id' => $baseId, 'level' => $level, 'shiny' => $shiny]);
-        return ['ok' => true, 'message' => 'Покемон выдан.', 'pokemon_id' => $pokemonId];
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    private function cleanPokemonGrantName(array $base, int $baseId): string
+    {
+        $title = trim((string) ($base['title'] ?? ''));
+        if ($title !== '') {
+            $title = preg_replace('/^#?0*' . $baseId . '\s*/', '', $title) ?: $title;
+            $title = preg_replace('/^#?0*\d+\s*/', '', $title) ?: $title;
+            $title = trim($title);
+        }
+        return $title !== '' ? $title : ('Pokemon #' . $baseId);
+    }
+
+    private function grantInt(array $payload, string $key, int $default, int $min, int $max): int
+    {
+        $raw = trim((string) ($payload[$key] ?? ''));
+        if ($raw === '' || !is_numeric($raw)) {
+            return max($min, min($max, $default));
+        }
+
+        return max($min, min($max, (int) $raw));
     }
 
     public function deletePlayerPokemon(int $adminId, int $id, string $confirm): array
@@ -1608,6 +1776,15 @@ final class AdminRepository
                   ORDER BY id ASC LIMIT ' . $limit,
                 $hasQuery ? ['id' => $id, 'like_title' => $like] : []
             ),
+            'natures', 'nature', 'har' => $this->lookupRowsPrepared(
+                'SELECT id_har AS id,
+                        CONCAT("#", id_har, " atk×", atk, " def×", def, " satk×", satk, " sdef×", sdef, " speed×", speed) AS name,
+                        CONCAT("#", id_har, " atk×", atk, " def×", def, " satk×", satk, " sdef×", sdef, " speed×", speed) AS label
+                   FROM har
+                  ' . ($hasQuery ? 'WHERE id_har = :id' : '') . '
+                  ORDER BY id_har ASC LIMIT ' . $limit,
+                $hasQuery ? ['id' => $id] : []
+            ),
             'locations', 'location' => $this->lookupRowsPrepared(
                 'SELECT id, title AS name, CONCAT("#", id, " ", title) AS label FROM build
                   ' . ($hasQuery ? 'WHERE id = :id OR title LIKE :like_title' : '') . '
@@ -1948,25 +2125,28 @@ final class AdminRepository
     private function addItemToUser(int $userId, int $itemId, int $count, ?int $expiresAt = null): int
     {
         $dattimer = $expiresAt === null ? 'not' : (string) $expiresAt;
-        $existing = $this->db->prepare('SELECT id FROM items_users WHERE user_id = :user AND item_id = :item AND dattimer = :dattimer LIMIT 1');
-        $existing->execute(['user' => $userId, 'item' => $itemId, 'dattimer' => $dattimer]);
-        $rowId = (int) ($existing->fetchColumn() ?: 0);
-        if ($rowId > 0) {
-            $this->db->prepare('UPDATE items_users SET count = count + :count WHERE id = :id LIMIT 1')
-                ->execute(['count' => $count, 'id' => $rowId]);
-            return $rowId;
-        }
-        $rowId = $this->nextTableId('items_users', 'id');
-        $this->db->prepare(
-            'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers)
-             VALUES (:id, :item, :user, :count, :dattimer, "not")'
-        )->execute([
-            'id' => $rowId,
-            'item' => $itemId,
-            'user' => $userId,
-            'count' => $count,
-            'dattimer' => $dattimer,
-        ]);
+        $rowId = 0;
+        $this->withItemsUsersLock(function () use ($userId, $itemId, $count, $dattimer, &$rowId): void {
+            $existing = $this->db->prepare('SELECT id FROM items_users WHERE user_id = :user AND item_id = :item AND dattimer = :dattimer LIMIT 1');
+            $existing->execute(['user' => $userId, 'item' => $itemId, 'dattimer' => $dattimer]);
+            $rowId = (int) ($existing->fetchColumn() ?: 0);
+            if ($rowId > 0) {
+                $this->db->prepare('UPDATE items_users SET count = count + :count WHERE id = :id LIMIT 1')
+                    ->execute(['count' => $count, 'id' => $rowId]);
+                return;
+            }
+            $rowId = $this->nextTableId('items_users', 'id');
+            $this->db->prepare(
+                'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers)
+                 VALUES (:id, :item, :user, :count, :dattimer, "not")'
+            )->execute([
+                'id' => $rowId,
+                'item' => $itemId,
+                'user' => $userId,
+                'count' => $count,
+                'dattimer' => $dattimer,
+            ]);
+        });
         return $rowId;
     }
 
@@ -2027,6 +2207,22 @@ final class AdminRepository
             return 1;
         }
         return (int) ($this->db->query(sprintf('SELECT COALESCE(MAX(`%s`), 0) + 1 FROM `%s`', $column, $table))->fetchColumn() ?: 1);
+    }
+
+    private function withItemsUsersLock(callable $callback): void
+    {
+        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $lock->execute(['name' => 'pokemon8_seq_items_users_id']);
+        if ((int) ($lock->fetchColumn() ?: 0) !== 1) {
+            throw new \RuntimeException('Unable to acquire items_users lock.');
+        }
+
+        try {
+            $callback();
+        } finally {
+            $release = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
+            $release->execute(['name' => 'pokemon8_seq_items_users_id']);
+        }
     }
 
     private function tableExists(string $table): bool

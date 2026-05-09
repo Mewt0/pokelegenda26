@@ -153,24 +153,26 @@ final class RewardRepository
 
     private function addItem(int $userId, int $itemId, int $count): void
     {
-        $existing = $this->db->prepare('SELECT id FROM items_users WHERE user_id = :user AND item_id = :item AND dattimer = "not" LIMIT 1');
-        $existing->execute(['user' => $userId, 'item' => $itemId]);
-        $rowId = (int) ($existing->fetchColumn() ?: 0);
-        if ($rowId > 0) {
-            $this->db->prepare('UPDATE items_users SET count = count + :count WHERE id = :id LIMIT 1')
-                ->execute(['count' => $count, 'id' => $rowId]);
-            return;
-        }
+        $this->withItemsUsersLock(function () use ($userId, $itemId, $count): void {
+            $existing = $this->db->prepare('SELECT id FROM items_users WHERE user_id = :user AND item_id = :item AND dattimer = "not" LIMIT 1');
+            $existing->execute(['user' => $userId, 'item' => $itemId]);
+            $rowId = (int) ($existing->fetchColumn() ?: 0);
+            if ($rowId > 0) {
+                $this->db->prepare('UPDATE items_users SET count = count + :count WHERE id = :id LIMIT 1')
+                    ->execute(['count' => $count, 'id' => $rowId]);
+                return;
+            }
 
-        $this->db->prepare(
-            'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers)
-             VALUES (:id, :item, :user, :count, "not", "not")'
-        )->execute([
-            'id' => $this->nextTableId('items_users', 'id'),
-            'item' => $itemId,
-            'user' => $userId,
-            'count' => $count,
-        ]);
+            $this->db->prepare(
+                'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers)
+                 VALUES (:id, :item, :user, :count, "not", "not")'
+            )->execute([
+                'id' => $this->nextTableId('items_users', 'id'),
+                'item' => $itemId,
+                'user' => $userId,
+                'count' => $count,
+            ]);
+        });
     }
 
     private function itemRewardText(int $itemId, int $count): string
@@ -208,5 +210,21 @@ final class RewardRepository
             return 1;
         }
         return (int) ($this->db->query(sprintf('SELECT COALESCE(MAX(`%s`), 0) + 1 FROM `%s`', $column, $table))->fetchColumn() ?: 1);
+    }
+
+    private function withItemsUsersLock(callable $callback): void
+    {
+        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $lock->execute(['name' => 'pokemon8_seq_items_users_id']);
+        if ((int) ($lock->fetchColumn() ?: 0) !== 1) {
+            throw new \RuntimeException('Unable to acquire items_users lock.');
+        }
+
+        try {
+            $callback();
+        } finally {
+            $release = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
+            $release->execute(['name' => 'pokemon8_seq_items_users_id']);
+        }
     }
 }

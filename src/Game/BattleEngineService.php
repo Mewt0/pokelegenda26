@@ -323,6 +323,13 @@ final class BattleEngineService
                     (int) $effort['ev'],
                     (int) ($effort['levelUps'] ?? 0) > 0 ? ' — уровень ' . (int) $effort['level'] : ''
                 );
+                if (is_array($effort['evolution'] ?? null)) {
+                    $rewardMessage .= sprintf(
+                        ' Эволюция: %s → %s.',
+                        (string) $effort['evolution']['fromName'],
+                        (string) $effort['evolution']['toName']
+                    );
+                }
                 $messages[] = $rewardMessage;
                 $this->battles->insertBattleLog((int) $battle['id'], $currentRound, $rewardMessage);
             }

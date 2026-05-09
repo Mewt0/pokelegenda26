@@ -7,8 +7,11 @@ use PDO;
 
 final class BattleRepository
 {
-    public function __construct(private PDO $db)
+    private PokemonEvolutionRepository $evolutions;
+
+    public function __construct(private PDO $db, ?PokemonEvolutionRepository $evolutions = null)
     {
+        $this->evolutions = $evolutions ?? new PokemonEvolutionRepository($db);
     }
 
     public function findActivePveBattleIdForUser(int $userId): int
@@ -1717,27 +1720,50 @@ final class BattleRepository
             return;
         }
 
-        $existing = $this->db->prepare('SELECT id FROM items_users WHERE user_id = :user AND item_id = :item LIMIT 1');
-        $existing->execute(['user' => $userId, 'item' => $itemId]);
-        $rowId = (int) ($existing->fetchColumn() ?: 0);
-        if ($rowId > 0) {
-            $stmt = $this->db->prepare('UPDATE items_users SET count = count + :count WHERE id = :id LIMIT 1');
-            $stmt->execute(['count' => $count, 'id' => $rowId]);
-            return;
+        $this->withItemsUsersLock(function () use ($userId, $itemId, $count): void {
+            $existing = $this->db->prepare('SELECT id FROM items_users WHERE user_id = :user AND item_id = :item LIMIT 1');
+            $existing->execute(['user' => $userId, 'item' => $itemId]);
+            $rowId = (int) ($existing->fetchColumn() ?: 0);
+            if ($rowId > 0) {
+                $stmt = $this->db->prepare('UPDATE items_users SET count = count + :count WHERE id = :id LIMIT 1');
+                $stmt->execute(['count' => $count, 'id' => $rowId]);
+                return;
+            }
+
+            $stmt = $this->db->prepare(
+                'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers)
+                 VALUES (:id, :item, :user, :count, :dattimer, :timers)'
+            );
+            $stmt->execute([
+                'id' => $this->nextItemsUsersId(),
+                'item' => $itemId,
+                'user' => $userId,
+                'count' => $count,
+                'dattimer' => 'not',
+                'timers' => 'not',
+            ]);
+        });
+    }
+
+    private function nextItemsUsersId(): int
+    {
+        return (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM items_users')->fetchColumn() ?: 1);
+    }
+
+    private function withItemsUsersLock(callable $callback): void
+    {
+        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $lock->execute(['name' => 'pokemon8_seq_items_users_id']);
+        if ((int) ($lock->fetchColumn() ?: 0) !== 1) {
+            throw new \RuntimeException('Unable to acquire items_users lock.');
         }
 
-        $stmt = $this->db->prepare(
-            'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers)
-             VALUES (:id, :item, :user, :count, :dattimer, :timers)'
-        );
-        $stmt->execute([
-            'id' => $this->nextTableId('items_users', 'id'),
-            'item' => $itemId,
-            'user' => $userId,
-            'count' => $count,
-            'dattimer' => 'not',
-            'timers' => 'not',
-        ]);
+        try {
+            $callback();
+        } finally {
+            $release = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
+            $release->execute(['name' => 'pokemon8_seq_items_users_id']);
+        }
     }
 
     private function currentLocationId(int $userId): int
@@ -1761,7 +1787,7 @@ final class BattleRepository
         ]);
         $pokemon = $stmt->fetch();
         if (!$pokemon) {
-            return ['exp' => 0, 'ev' => 0, 'levelUps' => 0, 'level' => 0];
+            return ['exp' => 0, 'ev' => 0, 'levelUps' => 0, 'level' => 0, 'evolution' => null];
         }
 
         $evGain = max(0, $baseEv);
@@ -1803,7 +1829,9 @@ final class BattleRepository
             'user' => $userId,
         ]);
 
-        return ['exp' => max(0, $exp), 'ev' => $evGain, 'levelUps' => $levelUps, 'level' => $level];
+        $evolution = $levelUps > 0 ? $this->evolutions->applyLevelEvolution($userId, $pokemonId) : null;
+
+        return ['exp' => max(0, $exp), 'ev' => $evGain, 'levelUps' => $levelUps, 'level' => $level, 'evolution' => $evolution];
     }
 
     public function findBattleInventoryItem(int $userId, int $itemUserId): ?array

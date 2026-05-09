@@ -7,8 +7,11 @@ use PDO;
 
 final class InventoryRepository
 {
-    public function __construct(private PDO $db)
+    private PokemonEvolutionRepository $evolutions;
+
+    public function __construct(private PDO $db, ?PokemonEvolutionRepository $evolutions = null)
     {
+        $this->evolutions = $evolutions ?? new PokemonEvolutionRepository($db);
     }
 
     public function countItem(int $userId, int $itemId): int
@@ -192,8 +195,11 @@ final class InventoryRepository
                     $this->db->rollBack();
                     return ['ok' => false, 'message' => 'Покемон уже достиг максимального уровня. Предмет не списан.'];
                 }
-                $this->levelPokemon($pokemonId, $userId, $levels);
+                $evolution = $this->levelPokemon($pokemonId, $userId, $levels);
                 $resultMessage = sprintf('%s получает +%d уров.', strip_tags((string) ($pokemon['names'] ?? 'Покемон')), $levels);
+                if ($evolution !== null) {
+                    $resultMessage .= sprintf(' %s эволюционирует в %s.', (string) $evolution['fromName'], (string) $evolution['toName']);
+                }
             } elseif ($effectKey === 'pp_vitamin') {
                 $this->db->prepare(
                     'UPDATE attac_my_poke
@@ -206,13 +212,21 @@ final class InventoryRepository
                 )->execute(['pokemon' => $pokemonId]);
                 $resultMessage = 'PP атак восстановлены.';
             } elseif ($effectKey === 'evolution_item') {
-                $targetBase = $this->evolutionTargetFor((int) ($pokemon['basenum'] ?? 0), (int) ($item['item_id'] ?? 0));
-                if ($targetBase <= 0) {
+                $rule = $this->evolutions->itemEvolutionTarget(
+                    (int) ($pokemon['basenum'] ?? 0),
+                    (int) ($item['item_id'] ?? 0),
+                    (int) ($pokemon['lvl'] ?? 0)
+                );
+                if ($rule === null) {
                     $this->db->rollBack();
                     return ['ok' => false, 'message' => 'Этот камень не подходит выбранному покемону. Предмет не списан.'];
                 }
-                $this->evolvePokemon($pokemonId, $userId, $targetBase);
-                $resultMessage = sprintf('%s эволюционирует в %s.', strip_tags((string) ($pokemon['names'] ?? 'Покемон')), $this->basePokemonName($targetBase));
+                $evolution = $this->evolutions->evolveOwnedPokemon($userId, $pokemonId, (int) $rule['toBaseId'], 'item', $rule);
+                if ($evolution === null) {
+                    $this->db->rollBack();
+                    return ['ok' => false, 'message' => 'Не удалось выполнить эволюцию. Предмет не списан.'];
+                }
+                $resultMessage = sprintf('%s эволюционирует в %s.', (string) $evolution['fromName'], (string) $evolution['toName']);
             } elseif ($effectKey === 'tm_learn') {
                 $learned = $this->learnRandomTmMove($pokemonId, $userId);
                 if ($learned === null) {
@@ -269,7 +283,7 @@ final class InventoryRepository
         return min($maxGain, max(1, $count) * $perItem);
     }
 
-    private function levelPokemon(int $pokemonId, int $userId, int $levels): void
+    private function levelPokemon(int $pokemonId, int $userId, int $levels): ?array
     {
         $this->db->prepare(
             'UPDATE pok_user
@@ -279,6 +293,8 @@ final class InventoryRepository
         )->execute(['levels' => max(1, $levels), 'pokemon' => $pokemonId, 'user' => $userId]);
 
         $this->recalculatePokemonStats($pokemonId, $userId);
+
+        return $this->evolutions->applyLevelEvolution($userId, $pokemonId);
     }
 
     private function evolvePokemon(int $pokemonId, int $userId, int $targetBase): void
@@ -523,32 +539,50 @@ final class InventoryRepository
             return;
         }
 
-        $existing = $this->findRow($userId, $itemId);
-        if ($existing !== null) {
-            $stmt = $this->db->prepare('UPDATE items_users SET count = count + :count WHERE id = :id LIMIT 1');
-            $stmt->execute([
-                'count' => $count,
-                'id' => (int) $existing['id'],
-            ]);
-            return;
-        }
+        $this->withItemsUsersLock(function () use ($userId, $itemId, $count): void {
+            $existing = $this->findRow($userId, $itemId);
+            if ($existing !== null) {
+                $stmt = $this->db->prepare('UPDATE items_users SET count = count + :count WHERE id = :id LIMIT 1');
+                $stmt->execute([
+                    'count' => $count,
+                    'id' => (int) $existing['id'],
+                ]);
+                return;
+            }
 
-        $stmt = $this->db->prepare(
-            'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers) VALUES (:id, :item, :user, :count, :dattimer, :timers)'
-        );
-        $stmt->execute([
-            'id' => $this->nextItemsUsersId(),
-            'item' => $itemId,
-            'user' => $userId,
-            'count' => $count,
-            'dattimer' => 'not',
-            'timers' => 'not',
-        ]);
+            $stmt = $this->db->prepare(
+                'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers) VALUES (:id, :item, :user, :count, :dattimer, :timers)'
+            );
+            $stmt->execute([
+                'id' => $this->nextItemsUsersId(),
+                'item' => $itemId,
+                'user' => $userId,
+                'count' => $count,
+                'dattimer' => 'not',
+                'timers' => 'not',
+            ]);
+        });
     }
 
     private function nextItemsUsersId(): int
     {
         return (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM items_users')->fetchColumn() ?: 1);
+    }
+
+    private function withItemsUsersLock(callable $callback): void
+    {
+        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $lock->execute(['name' => 'pokemon8_seq_items_users_id']);
+        if ((int) ($lock->fetchColumn() ?: 0) !== 1) {
+            throw new \RuntimeException('Unable to acquire items_users lock.');
+        }
+
+        try {
+            $callback();
+        } finally {
+            $release = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
+            $release->execute(['name' => 'pokemon8_seq_items_users_id']);
+        }
     }
 
     public function removeItem(int $userId, int $itemId, int $count): bool
@@ -839,12 +873,12 @@ final class InventoryRepository
             'balls' => '(iu.item_id IN (3, 25, 90004) OR i.name LIKE "%бол%" OR i.name LIKE "%ball%")',
             'tm' => '(iu.item_id = 78 OR i.name LIKE "%TM%" OR i.name LIKE "%ТМ%" OR i.name LIKE "%атака%")',
             'eggs' => '(i.name LIKE "%яйц%" OR i.category = 7)',
-            'evolution' => '(iu.item_id IN (64,66,67,68,74,75,76,77) OR i.name LIKE "%камень%" OR i.name LIKE "%эвол%")',
+            'evolution' => '(iu.item_id IN (64,66,67,68,69,74,75,76,77,80,81,82,83,86,87,89,332) OR i.name LIKE "%камень%" OR i.name LIKE "%эвол%")',
             'consumables' => '(i.uses > 0 OR i.battleuse > 0 OR iu.item_id IN (15,217,330,678,651,652,653,654,655,861,1401))',
             'quest' => '(i.category IN (50, 99) OR i.dopolnen LIKE "%quest%" OR i.name LIKE "%квест%")',
             'drop' => '(i.dopolnen LIKE "%drop%" OR iu.item_id IN (13,14,20,21,22,23))',
             default => 'NOT (
-                iu.item_id IN (3,25,64,66,67,68,74,75,76,77,78,217,330,678,651,652,653,654,655,861,90004,1401)
+                iu.item_id IN (3,25,64,66,67,68,69,74,75,76,77,78,80,81,82,83,86,87,89,217,330,332,678,651,652,653,654,655,861,90004,1401)
                 OR i.name LIKE "%бол%" OR i.name LIKE "%камень%" OR i.name LIKE "%яйц%" OR i.name LIKE "%TM%" OR i.name LIKE "%ТМ%"
             )',
         };
@@ -863,7 +897,7 @@ final class InventoryRepository
         if (str_contains($name, 'яйц')) {
             return 'eggs';
         }
-        if (in_array($id, [64, 66, 67, 68, 74, 75, 76, 77], true) || str_contains($name, 'камень') || str_contains($name, 'эвол')) {
+        if (in_array($id, [64, 66, 67, 68, 69, 74, 75, 76, 77, 80, 81, 82, 83, 86, 87, 89, 332], true) || str_contains($name, 'камень') || str_contains($name, 'эвол')) {
             return 'evolution';
         }
         if ((int) ($row['uses'] ?? 0) > 0 || (int) ($row['battleuse'] ?? 0) > 0 || in_array($id, [15, 217, 330, 678, 651, 652, 653, 654, 655, 861, 1401], true)) {
