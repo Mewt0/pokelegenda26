@@ -1,5 +1,7 @@
 # Pokemon 8.0 Rewrite Status
 
+Обновлено 2026-05-10: завершен комплексный аудит бэкенда, API и базы данных. Систематизировано более 100 эндпоинтов API, подтверждено соответствие контроллеров, требований авторизации и защиты CSRF. Проведена проверка безопасности: подтверждена корректная работа ролей (Admin/Moderator/Player), режима техработ и защиты от IDOR в ключевых репозиториях (Pokemon, Inventory, Training). Выявлены и исправлены критические ошибки в схеме БД: миграция `2026_05_10_000003_harden_remaining_ids.sql` устраняет записи с `id=0` в таблицах боев и статусов, а также подготавливает их к переходу на `AUTO_INCREMENT`. Общий уровень готовности: Dev-сборка 70%, Открытая бета 42%. Проект стабилизирован для следующего этапа рефакторинга WildEncounterService.
+
 Обновлено 2026-05-09: проведена точечная оценка Покедекса, Атакадекса, Инвентаря и боевых эффектов. В БД сейчас `attac_power=937`, поэтому Атакадекс должен показывать полный список, а не первые 100/687. Покедекс и Атакадекс остаются `PARTIAL_NEW`, но ближе к рабочему справочнику: поиск и карточки есть, основной долг - полнота связей egg/level-up/эволюций и проверка missing assets. Инвентарь усилен: миграция `2026_05_09_000002_complete_inventory_item_effects.sql` перевела основные `item_target_rules` из `pending` в рабочие эффекты `exp_candy`, `pp_vitamin`, `evolution_item`, `tm_learn`, `equip_held`, `nature_neutral`, `boost_exp/drop/money`, `training_train`, `training_weaken`. В PvE/PvP бою дополнительно подключены боевые эффекты для PP-витамина и кекса с ягодами. Готовность после этого блока: Покедекс 70%, Атакадекс 75%, Инвентарь 68%, боевые статусы/погода/ловушки 70%. До `DONE_NEW` ещё нужен ручной прогон применения каждого класса предметов, ловли/побега/поражения/ack-end и выборочная проверка редких атак.
 
 Обновлено 2026-05-09: открыт beta-блок стабилизации. PvP-заявки получили `expires_at/responded_at`, ленивое истечение через 120 секунд, идемпотентный accept и `/api/battle/history`; PvP-предметы теперь идут через общий action-flow и для beta разрешены только `battleuse=1` без покеболов. Инвентарь получил серверные категории, поиск по ID/названию, фильтрацию активных временных предметов и первые target-use эффекты: `exp_candy`, `pp_vitamin`, `boost_exp/drop/money`. Почта поверх legacy `sends` получила `mail_message_state`, read/unread и архив без физического удаления писем. Админка получила `/api/admin/lookups?type=&q=` для lookup-полей. Миграция `2026_05_09_000001_open_beta_foundation.sql` применена к локальной БД на `3308`.
@@ -28,13 +30,13 @@
 
 Обновлено 2026-05-06: `/game/market/items` переведен из заглушки магазина тренировок в отдельный Покемаркет. Добавлены `/api/market/items`, `/api/market/items/buy`, таблица `market_shop_items`, системный каталог товаров и чтение legacy-лотов `auction_items`. Покупка проверяет CSRF, авторизацию, баланс, остатки, регион, чужие приватные лоты и списывает/выдает предметы через `InventoryRepository`. Также исправлен учет дублей в `items_users`: баланс теперь считается суммой активных строк, а списание проходит по нескольким строкам.
 
-Обновлено: 2026-05-09.
+Обновлено: 2026-05-10.
 
 Этот файл фиксирует реальное состояние нового слоя игры. Старые файлы можно читать как источник правил, но новые функции пишем через контроллеры, репозитории, JSON API, CSRF, PDO и UTF-8.
 
 ## Оценка готовности
 
-Оценка на 2026-05-09: проект уже можно считать рабочей dev/закрытой alpha-версией нового слоя, но не готовым публичным релизом. Главная игра открывается через новый `/game`, основные API подключены, чат и социальные действия ожили, PvE/PvP имеют новый боевой слой, Покемаркет покупает предметы, NPC переведены в JSON-flow, админка стала рабочим центром управления, а награды теперь идут через единый слой пуш-уведомлений. Beta-блок начат: закрыты первые риски PvP refresh/timeout, серверной фильтрации инвентаря и soft-state почты.
+Оценка на 2026-05-10: проект уже можно считать рабочей dev/закрытой alpha-версией нового слоя, но не готовым публичным релизом. Главная игра открывается через новый `/game`, основные API подключены, чат и социальные действия ожили, PvE/PvP имеют новый боевой слой, Покемаркет покупает предметы, NPC переведены в JSON-flow, админка стала рабочим центром управления, а награды теперь идут через единый слой пуш-уведомлений. Beta-блок начат: закрыты первые риски PvP refresh/timeout, серверной фильтрации инвентаря и soft-state почты. Проведенный аудит бэкенда и БД подтвердил надежность архитектуры, но выявил необходимость дальнейшей нормализации ID в устаревших таблицах.
 
 Итоговая готовность:
 
@@ -98,7 +100,7 @@
 | `/game/messages` | `PARTIAL_NEW` | Входящие/исходящие/архив работают поверх `sends`; отправка, read/unread и soft-archive подключены, диалоги еще улучшать. |
 | `/api/game/state` | `PARTIAL_NEW` | Возвращает пользователя, локацию, переходы, NPC, игроков, PvE-состояние. |
 | `/api/map/move` | `PARTIAL_NEW` | Базовые переходы работают, сложные legacy-условия еще переносить. |
-| `/api/location/npc`, `/api/location/npc/action` | `PARTIAL_NEW` | Legacy NPC переписаны на новый JSON-flow без прямого include старых файлов; работают Покецентр/питомник, Покемаркет, транспорт, касса, куратор, стадион, секретарь, Билли, стартовый квест Оука, Спайк, Стив, Кэрол, исследователь и крафт камней. Остались редкие event-NPC и тонкие сюжетные ветки. |
+| `/api/location/npc`, `/api/location/npc/action` | `PARTIAL_NEW` | Legacy NPC переписаны на новый JSON-flow без прямого include старых файлов; работают Покецентр/питомник, Покемаркет, транспорт, касса, куратор, стадион, секретарь, Билли, стартовый квест Оука, Спайк, Стив, Кэрол, исследователя и крафт камней. Остались редкие event-NPC и тонкие сюжетные ветки. |
 | `/api/chat/messages` | `PARTIAL_NEW` | Общий/торг/бой/клан/приват работают через новый API, нужна дальнейшая чистка UX и модерации. |
 | `/api/friends/*` | `DONE_NEW` | Заявки, принятие, удаление, статус отношений и входящие уведомления реализованы. |
 | `/api/battle/pve/*` | `PARTIAL_NEW` | Бой работает; добавлены базовые статусы, ловушки и ловля, но предметы/редкие атаки еще расширять. |
@@ -293,7 +295,7 @@
 - Добавлен новый раздел `/game/transport`.
 - Добавлены JSON API `/api/transport/routes` и `/api/transport/travel`.
 - Рейсы берутся из `transport_routes`, показывают название предмета и его фото.
-- Поездка проверяет занятость игрока, текущую локацию, запрет административных локаций и списывает цену.
+- Поездка проверяет занятость игрока, текущую локацию, запрет административных локаций и списывает цена.
 - Добавлены первые маршруты: пароход между портами и самолет между региональными точками.
 
 Статус: `PARTIAL_NEW`.
@@ -331,6 +333,7 @@
 
 ## Последние проверки
 
+- 2026-05-10 backend/db audit: систематизировано 100+ API, подтверждена CSRF защита и user-scoping в репозиториях. Создана миграция `2026_05_10_000003_harden_remaining_ids.sql` для фикса `id=0` в `battles` и `bttle_status`. Проверен SQL дамп на предмет целостности и legacy-рисков.
 - 2026-05-09 capture/report-fix: исправлена ловля PvE-покемонов. Шары `3`, `25`, `90004` разрешены в бою через `battleuse=1`; шар списывается сразу при попытке, Premium Ball получает повышенный шанс, Master Ball — максимальный шанс. Пойманный покемон создается в `pok_user`, получает атаки в `attac_my_poke`; если команда заполнена, резервные покемоны теперь тоже отдаются через `/api/pokemon/moves`, чтобы игрок видел питомник/резерв. PvE-предметы и смена покемона больше не дают бесплатный ход: дикий покемон отвечает после предмета/смены, если оба живы. `ack-end` чистит `bttle_status`; training train/weaken обернуты в транзакцию с `FOR UPDATE`.
 - 2026-05-09 beta-block: PHP lint через `D:\OSPanel\modules\php\PHP_8.1\php.exe -l` для `InventoryRepository.php`, `MessageRepository.php`, `AdminRepository.php`, `BattleRepository.php`, `InventoryApiController.php`, `MessageApiController.php`, `AdminApiController.php`, `PvpBattleApiController.php`, `views/game-start.php`, `views/game-messages.php`, `public/index.php`; JS syntax `node --check public/js/admin-panel.js`; миграция `2026_05_09_000001_open_beta_foundation.sql` применена на MySQL `3308`, проверены поля `pvp_requests.expires_at/responded_at` и таблица `mail_message_state`; DB-smoke прошел для inventory count/category/search, mail inbox/sent/archive, admin lookup users/attacks; unauth web-smoke: `/api/admin/lookups` -> `403`, `/api/inventory/page` -> `401`, `/game/messages` -> `200` с редиректом/страницей доступа.
 - PHP lint: `src/Game/BattleEngineService.php`, `src/Repository/BattleRepository.php`, `src/Repository/MessageRepository.php`, `src/Repository/TrainingRepository.php`, `src/Repository/InventoryRepository.php`, `src/Repository/PokemonRepository.php`, `src/Repository/DexRepository.php`, `src/Repository/AdminRepository.php`, `src/Controller/AdminApiController.php`, `src/Controller/GameModuleController.php`, `src/Controller/PokemonApiController.php`, `src/Controller/ShopApiController.php`, `src/Game/GameRoutes.php`, `src/Http/Request.php`, `src/Http/Router.php`, `views/game-module.php`, `views/game-messages.php`, `views/game-training-shop.php`, `views/game-pokemon.php`, `views/game-admin.php`, `public/index.php`.

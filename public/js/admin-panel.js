@@ -740,14 +740,56 @@
           reloadCurrent();
         });
       }
+      const grantValue = (key, fallback = '') => row && row[key] !== undefined && row[key] !== null ? esc(row[key]) : fallback;
       danger.insertAdjacentHTML('beforeend', `
         <h3>Выдать покемона</h3>
-        <input id="pokeGrantUser" type="number" placeholder="User ID">
-        <input id="pokeGrantBase" type="number" placeholder="Base ID">
+        <input id="pokeGrantUser" type="text" placeholder="User ID или ник" value="${row ? esc(row.users || row.login || '') : ''}">
+        <input id="pokeGrantBase" type="text" placeholder="Base ID или имя покемона" value="${row ? esc(row.basenum || row.base_name || '') : ''}">
         <input id="pokeGrantLvl" type="number" min="1" max="100" value="5">
-        <label class="admin-check"><input id="pokeGrantShiny" type="checkbox"> Shiny</label>
+        <select id="pokeGrantSex">
+          <option value="1" ${row && String(row.sex) === '1' ? 'selected' : ''}>Самец</option>
+          <option value="2" ${row && String(row.sex) === '2' ? 'selected' : ''}>Самка</option>
+        </select>
+        <select id="pokeGrantHar"><option value="1">Характер #1</option></select>
+        <select id="pokeGrantTips">
+          <option value="normal" ${row && String(row.tips || '').toLowerCase().includes('shine') ? '' : 'selected'}>Обычный</option>
+          <option value="shine" ${row && String(row.tips || '').toLowerCase().includes('shine') ? 'selected' : ''}>Shiny</option>
+        </select>
+        <label class="admin-check"><input id="pokeGrantShiny" type="checkbox" ${row && String(row.tips || '').toLowerCase().includes('shine') ? 'checked' : ''}> Shiny</label>
+        <h4>Гены IV</h4>
+        <div class="admin-grid-mini">
+          <input id="pokeGrantHpIv" type="number" min="0" max="31" value="${grantValue('hp_iv', '1')}" placeholder="HP IV">
+          <input id="pokeGrantAtkIv" type="number" min="0" max="31" value="${grantValue('atk_iv', '1')}" placeholder="Atk IV">
+          <input id="pokeGrantDefIv" type="number" min="0" max="31" value="${grantValue('def_iv', '1')}" placeholder="Def IV">
+          <input id="pokeGrantSatkIv" type="number" min="0" max="31" value="${grantValue('satk_iv', '1')}" placeholder="SpAtk IV">
+          <input id="pokeGrantSdefIv" type="number" min="0" max="31" value="${grantValue('sdef_iv', '1')}" placeholder="SpDef IV">
+          <input id="pokeGrantSpeedIv" type="number" min="0" max="31" value="${grantValue('speed_iv', '1')}" placeholder="Speed IV">
+        </div>
+        <h4>EV</h4>
+        <div class="admin-grid-mini">
+          <input id="pokeGrantHpEv" type="number" min="0" max="252" value="${grantValue('hp_ev', '0')}" placeholder="HP EV">
+          <input id="pokeGrantAtkEv" type="number" min="0" max="252" value="${grantValue('atk_ev', '0')}" placeholder="Atk EV">
+          <input id="pokeGrantDefEv" type="number" min="0" max="252" value="${grantValue('def_ev', '0')}" placeholder="Def EV">
+          <input id="pokeGrantSatkEv" type="number" min="0" max="252" value="${grantValue('satk_ev', '0')}" placeholder="SpAtk EV">
+          <input id="pokeGrantSdefEv" type="number" min="0" max="252" value="${grantValue('sdef_ev', '0')}" placeholder="SpDef EV">
+          <input id="pokeGrantSpeedEv" type="number" min="0" max="252" value="${grantValue('speed_ev', '0')}" placeholder="Speed EV">
+        </div>
+        <h4>Итоговые статы вручную</h4>
+        <div class="admin-grid-mini">
+          <input id="pokeGrantStatHp" type="number" min="1" value="${grantValue('hp_max')}" placeholder="HP авто">
+          <input id="pokeGrantStatAtk" type="number" min="1" value="${grantValue('atk')}" placeholder="Атака авто">
+          <input id="pokeGrantStatDef" type="number" min="1" value="${grantValue('def')}" placeholder="Защита авто">
+          <input id="pokeGrantStatSatk" type="number" min="1" value="${grantValue('satk')}" placeholder="Сп.атака авто">
+          <input id="pokeGrantStatSdef" type="number" min="1" value="${grantValue('sdef')}" placeholder="Сп.защита авто">
+          <input id="pokeGrantStatSpeed" type="number" min="1" value="${grantValue('speed')}" placeholder="Скорость авто">
+        </div>
+        <input id="pokeGrantHpMy" type="number" min="0" value="${grantValue('hp_my')}" placeholder="Текущее HP, если нужно">
         <button type="button" id="grantPokemonBtn">Выдать</button>
       `);
+      loadNatureOptions(row ? row.har : '1');
+      $('#pokeGrantTips').addEventListener('change', event => {
+        $('#pokeGrantShiny').checked = event.target.value === 'shine';
+      });
       $('#grantPokemonBtn').addEventListener('click', grantPokemon);
     }
 
@@ -861,13 +903,49 @@
 
   async function grantPokemon() {
     const result = await send('/api/admin/pokemon/grant', {
-      user_id: $('#pokeGrantUser').value,
-      base_id: $('#pokeGrantBase').value,
+      user_id: /^\d+$/.test($('#pokeGrantUser').value.trim()) ? $('#pokeGrantUser').value.trim() : '',
+      user: $('#pokeGrantUser').value,
+      base_id: /^\d+$/.test($('#pokeGrantBase').value.trim()) ? $('#pokeGrantBase').value.trim() : '',
+      pokemon: $('#pokeGrantBase').value,
       lvl: $('#pokeGrantLvl').value,
-      shiny: $('#pokeGrantShiny').checked ? '1' : '0'
+      sex: $('#pokeGrantSex').value,
+      har: $('#pokeGrantHar').value,
+      tips: $('#pokeGrantTips').value,
+      shiny: $('#pokeGrantShiny').checked || $('#pokeGrantTips').value === 'shine' ? '1' : '0',
+      hp_iv: $('#pokeGrantHpIv').value,
+      atk_iv: $('#pokeGrantAtkIv').value,
+      def_iv: $('#pokeGrantDefIv').value,
+      satk_iv: $('#pokeGrantSatkIv').value,
+      sdef_iv: $('#pokeGrantSdefIv').value,
+      speed_iv: $('#pokeGrantSpeedIv').value,
+      hp_ev: $('#pokeGrantHpEv').value,
+      atk_ev: $('#pokeGrantAtkEv').value,
+      def_ev: $('#pokeGrantDefEv').value,
+      satk_ev: $('#pokeGrantSatkEv').value,
+      sdef_ev: $('#pokeGrantSdefEv').value,
+      speed_ev: $('#pokeGrantSpeedEv').value,
+      stat_hp: $('#pokeGrantStatHp').value,
+      stat_atk: $('#pokeGrantStatAtk').value,
+      stat_def: $('#pokeGrantStatDef').value,
+      stat_satk: $('#pokeGrantStatSatk').value,
+      stat_sdef: $('#pokeGrantStatSdef').value,
+      stat_speed: $('#pokeGrantStatSpeed').value,
+      hp_my: $('#pokeGrantHpMy').value
     });
     setStatus(result.message || '', !result.ok);
     if (result.ok) reloadCurrent();
+  }
+
+  async function loadNatureOptions(selected = '1') {
+    const select = $('#pokeGrantHar');
+    if (!select) return;
+    const result = await request('/api/admin/lookups?type=natures');
+    if (!result.ok || !Array.isArray(result.rows)) return;
+    select.innerHTML = result.rows.map(row => `<option value="${esc(row.id)}">${esc(row.label || row.name || ('#' + row.id))}</option>`).join('');
+    select.value = String(selected || '1');
+    if (select.value !== String(selected || '1')) {
+      select.value = '1';
+    }
   }
 
   async function saveAttackLearn() {

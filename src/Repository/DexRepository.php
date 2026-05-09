@@ -463,6 +463,31 @@ final class DexRepository
     private function levelEvolutionOptions(int $id): array
     {
         $rows = [];
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT from_base_id, to_base_id, level_required, condition_text
+                   FROM pokemon_evolution_rules
+                  WHERE enabled = 1
+                    AND trigger_type = "level"
+                    AND (from_base_id = :source_id OR to_base_id = :target_id)
+                  ORDER BY from_base_id ASC, level_required ASC, priority ASC, id ASC'
+            );
+            $stmt->execute(['source_id' => $id, 'target_id' => $id]);
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                $level = (int) ($row['level_required'] ?? 0);
+                $rows[] = $this->buildEvolutionOption((int) $row['from_base_id'], (int) $row['to_base_id'], [
+                    'kind' => 'level',
+                    'level' => $level,
+                    'condition' => trim((string) ($row['condition_text'] ?? '')) ?: ($level > 0 ? 'Уровень ' . $level : 'Уровневая эволюция'),
+                ]);
+            }
+            if ($rows !== []) {
+                return $rows;
+            }
+        } catch (Throwable) {
+            // Migration may be absent on an old copy; fall back to legacy columns.
+        }
+
         $stmt = $this->db->prepare(
             'SELECT id, evolution_type, evolution_lvl
                FROM poke_base
@@ -553,6 +578,43 @@ final class DexRepository
 
     private function itemEvolutionMap(): array
     {
+        try {
+            $stmt = $this->db->query(
+                'SELECT r.from_base_id, r.to_base_id, r.item_id, r.condition_text, i.name AS item_name
+                   FROM pokemon_evolution_rules r
+              LEFT JOIN items i ON i.id = r.item_id
+                  WHERE r.enabled = 1
+                    AND r.trigger_type = "item"
+                  ORDER BY r.from_base_id ASC,
+                           r.priority ASC,
+                           CASE
+                               WHEN r.item_id IN (64,66,67,68,69,74,75,76,77,80,81,82,83,86,87,89,332) THEN 0
+                               ELSE 1
+                           END ASC,
+                           r.item_id ASC'
+            );
+            $map = [];
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                $fromId = (int) ($row['from_base_id'] ?? 0);
+                $toId = (int) ($row['to_base_id'] ?? 0);
+                $itemId = (int) ($row['item_id'] ?? 0);
+                if ($fromId <= 0 || $toId <= 0 || $itemId <= 0) {
+                    continue;
+                }
+                $map[$fromId][] = [
+                    'to' => $toId,
+                    'itemId' => $itemId,
+                    'itemName' => trim((string) ($row['item_name'] ?? '')) ?: trim((string) ($row['condition_text'] ?? 'Предмет')),
+                    'condition' => (string) ($row['condition_text'] ?? ''),
+                ];
+            }
+            if ($map !== []) {
+                return $map;
+            }
+        } catch (Throwable) {
+            // Migration may be absent on an old copy; fall back to the built-in map.
+        }
+
         return [
             25 => [['to' => 26, 'itemId' => 40, 'itemName' => 'Громовой камень']],
             30 => [['to' => 31, 'itemId' => 44, 'itemName' => 'Лунный камень']],
