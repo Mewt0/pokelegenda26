@@ -911,13 +911,14 @@ final class AdminRepository
             'sdef' => $calcStat((int) $base['sdef'], $iv['sdef'], $ev['sdef'], (float) $nature['sdef'], $level),
             'speed' => $calcStat((int) $base['speed'], $iv['speed'], $ev['speed'], (float) $nature['speed'], $level),
         ];
+        $allStats = $this->grantInt($payload, 'stat_all', 0, 0, 9999);
         $stats = [
-            'hp' => $this->grantInt($payload, 'stat_hp', $calculated['hp'], 1, 9999),
-            'atk' => $this->grantInt($payload, 'stat_atk', $calculated['atk'], 1, 9999),
-            'def' => $this->grantInt($payload, 'stat_def', $calculated['def'], 1, 9999),
-            'satk' => $this->grantInt($payload, 'stat_satk', $calculated['satk'], 1, 9999),
-            'sdef' => $this->grantInt($payload, 'stat_sdef', $calculated['sdef'], 1, 9999),
-            'speed' => $this->grantInt($payload, 'stat_speed', $calculated['speed'], 1, 9999),
+            'hp' => $this->grantInt($payload, 'stat_hp', $allStats > 0 ? $allStats : $calculated['hp'], 1, 9999),
+            'atk' => $this->grantInt($payload, 'stat_atk', $allStats > 0 ? $allStats : $calculated['atk'], 1, 9999),
+            'def' => $this->grantInt($payload, 'stat_def', $allStats > 0 ? $allStats : $calculated['def'], 1, 9999),
+            'satk' => $this->grantInt($payload, 'stat_satk', $allStats > 0 ? $allStats : $calculated['satk'], 1, 9999),
+            'sdef' => $this->grantInt($payload, 'stat_sdef', $allStats > 0 ? $allStats : $calculated['sdef'], 1, 9999),
+            'speed' => $this->grantInt($payload, 'stat_speed', $allStats > 0 ? $allStats : $calculated['speed'], 1, 9999),
         ];
         $hpCurrent = $this->grantInt($payload, 'hp_my', $stats['hp'], 0, $stats['hp']);
         $tips = $shiny ? 'shine' : mb_substr(trim((string) ($payload['tips'] ?? 'normal')), 0, 10);
@@ -990,6 +991,7 @@ final class AdminRepository
                 'tips' => $tips,
                 'iv' => $iv,
                 'ev' => $ev,
+                'all_stats' => $allStats,
                 'stats' => $stats,
             ]);
             if ($startedTransaction) {
@@ -1776,15 +1778,7 @@ final class AdminRepository
                   ORDER BY id ASC LIMIT ' . $limit,
                 $hasQuery ? ['id' => $id, 'like_title' => $like] : []
             ),
-            'natures', 'nature', 'har' => $this->lookupRowsPrepared(
-                'SELECT id_har AS id,
-                        CONCAT("#", id_har, " atk×", atk, " def×", def, " satk×", satk, " sdef×", sdef, " speed×", speed) AS name,
-                        CONCAT("#", id_har, " atk×", atk, " def×", def, " satk×", satk, " sdef×", sdef, " speed×", speed) AS label
-                   FROM har
-                  ' . ($hasQuery ? 'WHERE id_har = :id' : '') . '
-                  ORDER BY id_har ASC LIMIT ' . $limit,
-                $hasQuery ? ['id' => $id] : []
-            ),
+            'natures', 'nature', 'har' => $this->lookupNatures($hasQuery ? $id : null, $limit),
             'locations', 'location' => $this->lookupRowsPrepared(
                 'SELECT id, title AS name, CONCAT("#", id, " ", title) AS label FROM build
                   ' . ($hasQuery ? 'WHERE id = :id OR title LIKE :like_title' : '') . '
@@ -2340,6 +2334,73 @@ final class AdminRepository
         }
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    private function lookupNatures(?int $id, int $limit): array
+    {
+        $names = [
+            1 => 'Веселый',
+            2 => 'Выносливый',
+            3 => 'Послушный',
+            4 => 'Серьезный',
+            5 => 'Спокойный',
+            6 => 'Мягкий',
+            7 => 'Смелый',
+            8 => 'Наивный',
+            9 => 'Нахальный',
+            10 => 'Кроткий',
+            11 => 'Озорной',
+            12 => 'Непреклонный',
+            13 => 'Застенчивый',
+            14 => 'Одинокий',
+            15 => 'Проказливый',
+            16 => 'Осторожный',
+            17 => 'Торопливый',
+            18 => 'Чудаковатый',
+            19 => 'Распущенный',
+            20 => 'Робкий',
+            21 => 'Мирный',
+            22 => 'Скромный',
+            23 => 'Храбрый',
+            24 => 'Расслабленный',
+            25 => 'Дерзкий',
+            26 => 'Тихий',
+        ];
+        $statNames = [
+            'atk' => 'атака',
+            'def' => 'защита',
+            'satk' => 'спец. атака',
+            'sdef' => 'спец. защита',
+            'speed' => 'скорость',
+        ];
+        $sql = 'SELECT id_har, atk, def, satk, sdef, speed FROM har'
+            . ($id !== null && $id > 0 ? ' WHERE id_har = :id' : '')
+            . ' ORDER BY id_har ASC LIMIT ' . max(1, min(80, $limit));
+        $stmt = $this->db->prepare($sql);
+        if ($id !== null && $id > 0) {
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+        }
+        $stmt->execute();
+        $rows = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $parts = [];
+            foreach ($statNames as $key => $label) {
+                $value = (float) ($row[$key] ?? 1);
+                if ($value > 1.0) {
+                    $parts[] = '+' . $label;
+                } elseif ($value < 1.0) {
+                    $parts[] = '-' . $label;
+                }
+            }
+            $natureId = (int) $row['id_har'];
+            $name = $names[$natureId] ?? ('Характер #' . $natureId);
+            $rows[] = [
+                'id' => $natureId,
+                'name' => $name,
+                'label' => '#' . $natureId . ' ' . $name . ($parts !== [] ? ' (' . implode(', ', $parts) . ')' : ' (без изменений)'),
+            ];
+        }
+        return $rows;
     }
 
     private function countTable(string $table, string $where = ''): int

@@ -334,6 +334,13 @@ button:hover { border-color: #2f78dc; color: #0b63cf; }
   min-width: 0;
   margin-bottom: 0;
 }
+.admin-grid-mini label {
+  display: grid;
+  gap: 5px;
+  color: #526987;
+  font-size: 12px;
+  font-weight: 900;
+}
 .admin-inline-actions {
   display: flex;
   flex-wrap: wrap;

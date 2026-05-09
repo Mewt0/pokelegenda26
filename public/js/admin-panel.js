@@ -758,30 +758,31 @@
         <label class="admin-check"><input id="pokeGrantShiny" type="checkbox" ${row && String(row.tips || '').toLowerCase().includes('shine') ? 'checked' : ''}> Shiny</label>
         <h4>Гены IV</h4>
         <div class="admin-grid-mini">
-          <input id="pokeGrantHpIv" type="number" min="0" max="31" value="${grantValue('hp_iv', '1')}" placeholder="HP IV">
-          <input id="pokeGrantAtkIv" type="number" min="0" max="31" value="${grantValue('atk_iv', '1')}" placeholder="Atk IV">
-          <input id="pokeGrantDefIv" type="number" min="0" max="31" value="${grantValue('def_iv', '1')}" placeholder="Def IV">
-          <input id="pokeGrantSatkIv" type="number" min="0" max="31" value="${grantValue('satk_iv', '1')}" placeholder="SpAtk IV">
-          <input id="pokeGrantSdefIv" type="number" min="0" max="31" value="${grantValue('sdef_iv', '1')}" placeholder="SpDef IV">
-          <input id="pokeGrantSpeedIv" type="number" min="0" max="31" value="${grantValue('speed_iv', '1')}" placeholder="Speed IV">
+          <label>HP IV<input id="pokeGrantHpIv" type="number" min="0" max="31" value="${grantValue('hp_iv', '1')}" placeholder="0-31"></label>
+          <label>Атака IV<input id="pokeGrantAtkIv" type="number" min="0" max="31" value="${grantValue('atk_iv', '1')}" placeholder="0-31"></label>
+          <label>Защита IV<input id="pokeGrantDefIv" type="number" min="0" max="31" value="${grantValue('def_iv', '1')}" placeholder="0-31"></label>
+          <label>Спец. атака IV<input id="pokeGrantSatkIv" type="number" min="0" max="31" value="${grantValue('satk_iv', '1')}" placeholder="0-31"></label>
+          <label>Спец. защита IV<input id="pokeGrantSdefIv" type="number" min="0" max="31" value="${grantValue('sdef_iv', '1')}" placeholder="0-31"></label>
+          <label>Скорость IV<input id="pokeGrantSpeedIv" type="number" min="0" max="31" value="${grantValue('speed_iv', '1')}" placeholder="0-31"></label>
         </div>
         <h4>EV</h4>
         <div class="admin-grid-mini">
-          <input id="pokeGrantHpEv" type="number" min="0" max="252" value="${grantValue('hp_ev', '0')}" placeholder="HP EV">
-          <input id="pokeGrantAtkEv" type="number" min="0" max="252" value="${grantValue('atk_ev', '0')}" placeholder="Atk EV">
-          <input id="pokeGrantDefEv" type="number" min="0" max="252" value="${grantValue('def_ev', '0')}" placeholder="Def EV">
-          <input id="pokeGrantSatkEv" type="number" min="0" max="252" value="${grantValue('satk_ev', '0')}" placeholder="SpAtk EV">
-          <input id="pokeGrantSdefEv" type="number" min="0" max="252" value="${grantValue('sdef_ev', '0')}" placeholder="SpDef EV">
-          <input id="pokeGrantSpeedEv" type="number" min="0" max="252" value="${grantValue('speed_ev', '0')}" placeholder="Speed EV">
+          <label>HP EV<input id="pokeGrantHpEv" type="number" min="0" max="252" value="${grantValue('hp_ev', '0')}" placeholder="0-252"></label>
+          <label>Атака EV<input id="pokeGrantAtkEv" type="number" min="0" max="252" value="${grantValue('atk_ev', '0')}" placeholder="0-252"></label>
+          <label>Защита EV<input id="pokeGrantDefEv" type="number" min="0" max="252" value="${grantValue('def_ev', '0')}" placeholder="0-252"></label>
+          <label>Спец. атака EV<input id="pokeGrantSatkEv" type="number" min="0" max="252" value="${grantValue('satk_ev', '0')}" placeholder="0-252"></label>
+          <label>Спец. защита EV<input id="pokeGrantSdefEv" type="number" min="0" max="252" value="${grantValue('sdef_ev', '0')}" placeholder="0-252"></label>
+          <label>Скорость EV<input id="pokeGrantSpeedEv" type="number" min="0" max="252" value="${grantValue('speed_ev', '0')}" placeholder="0-252"></label>
         </div>
         <h4>Итоговые статы вручную</h4>
+        <input id="pokeGrantStatAll" type="number" min="1" placeholder="Все статы одним числом, например 60">
         <div class="admin-grid-mini">
-          <input id="pokeGrantStatHp" type="number" min="1" value="${grantValue('hp_max')}" placeholder="HP авто">
-          <input id="pokeGrantStatAtk" type="number" min="1" value="${grantValue('atk')}" placeholder="Атака авто">
-          <input id="pokeGrantStatDef" type="number" min="1" value="${grantValue('def')}" placeholder="Защита авто">
-          <input id="pokeGrantStatSatk" type="number" min="1" value="${grantValue('satk')}" placeholder="Сп.атака авто">
-          <input id="pokeGrantStatSdef" type="number" min="1" value="${grantValue('sdef')}" placeholder="Сп.защита авто">
-          <input id="pokeGrantStatSpeed" type="number" min="1" value="${grantValue('speed')}" placeholder="Скорость авто">
+          <label>HP<input id="pokeGrantStatHp" type="number" min="1" value="${grantValue('hp_max')}" placeholder="авто"></label>
+          <label>Атака<input id="pokeGrantStatAtk" type="number" min="1" value="${grantValue('atk')}" placeholder="авто"></label>
+          <label>Защита<input id="pokeGrantStatDef" type="number" min="1" value="${grantValue('def')}" placeholder="авто"></label>
+          <label>Спец. атака<input id="pokeGrantStatSatk" type="number" min="1" value="${grantValue('satk')}" placeholder="авто"></label>
+          <label>Спец. защита<input id="pokeGrantStatSdef" type="number" min="1" value="${grantValue('sdef')}" placeholder="авто"></label>
+          <label>Скорость<input id="pokeGrantStatSpeed" type="number" min="1" value="${grantValue('speed')}" placeholder="авто"></label>
         </div>
         <input id="pokeGrantHpMy" type="number" min="0" value="${grantValue('hp_my')}" placeholder="Текущее HP, если нужно">
         <button type="button" id="grantPokemonBtn">Выдать</button>
@@ -924,6 +925,7 @@
       satk_ev: $('#pokeGrantSatkEv').value,
       sdef_ev: $('#pokeGrantSdefEv').value,
       speed_ev: $('#pokeGrantSpeedEv').value,
+      stat_all: $('#pokeGrantStatAll').value,
       stat_hp: $('#pokeGrantStatHp').value,
       stat_atk: $('#pokeGrantStatAtk').value,
       stat_def: $('#pokeGrantStatDef').value,
