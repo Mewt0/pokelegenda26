@@ -746,7 +746,14 @@ final class AdminRepository
         $sql .= ' ORDER BY pu.id DESC LIMIT ' . $limit . ' OFFSET ' . $offset;
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as &$row) {
+            $row['base_name'] = $this->plainAdminText((string) ($row['base_name'] ?? ''));
+            $row['names'] = $this->plainAdminText((string) ($row['names'] ?? ''));
+            $row['equipped_item_name'] = $this->plainAdminText((string) ($row['equipped_item_name'] ?? ''));
+        }
+        unset($row);
+        return $rows;
     }
 
     public function playerPokemonTotal(string $search = '', array $filters = []): int
@@ -941,42 +948,42 @@ final class AdminRepository
                      hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv, tips, startone, startepoke,
                      reproduction, happy, datemay, usersone, sprz, item, ability_key)
                  VALUES
-                    (:id, :users, :base, :name, 1, :evcount, :lvl, :sex, :har, :hp_my, :hp, 0, 100,
-                     :atk, :def, :satk, :sdef, :speed, :hp_ev, :atk_ev, :def_ev, :satk_ev, :sdef_ev, :speed_ev,
-                     :hp_iv, :atk_iv, :def_iv, :satk_iv, :sdef_iv, :speed_iv, :tips, 0, 0,
-                     0, 0, NOW(), :usersone, 0, 0, :ability)'
+                    (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 0, 100,
+                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                     ?, ?, ?, ?, ?, ?, ?, 0, 0,
+                     0, 0, NOW(), ?, 0, 0, ?)'
             );
             $stmt->execute([
-                'id' => $pokemonId,
-                'users' => $userId,
-                'base' => $baseId,
-                'name' => $name,
-                'lvl' => $level,
-                'sex' => $sex,
-                'har' => $har,
-                'evcount' => array_sum($ev),
-                'hp_my' => $hpCurrent,
-                'hp' => $stats['hp'],
-                'atk' => $stats['atk'],
-                'def' => $stats['def'],
-                'satk' => $stats['satk'],
-                'sdef' => $stats['sdef'],
-                'speed' => $stats['speed'],
-                'hp_ev' => $ev['hp'],
-                'atk_ev' => $ev['atk'],
-                'def_ev' => $ev['def'],
-                'satk_ev' => $ev['satk'],
-                'sdef_ev' => $ev['sdef'],
-                'speed_ev' => $ev['speed'],
-                'hp_iv' => $iv['hp'],
-                'atk_iv' => $iv['atk'],
-                'def_iv' => $iv['def'],
-                'satk_iv' => $iv['satk'],
-                'sdef_iv' => $iv['sdef'],
-                'speed_iv' => $iv['speed'],
-                'tips' => $tips,
-                'usersone' => $userId,
-                'ability' => $base['ability_key'] ?? null,
+                $pokemonId,
+                $userId,
+                $baseId,
+                $name,
+                array_sum($ev),
+                $level,
+                $sex,
+                $har,
+                $hpCurrent,
+                $stats['hp'],
+                $stats['atk'],
+                $stats['def'],
+                $stats['satk'],
+                $stats['sdef'],
+                $stats['speed'],
+                $ev['hp'],
+                $ev['atk'],
+                $ev['def'],
+                $ev['satk'],
+                $ev['sdef'],
+                $ev['speed'],
+                $iv['hp'],
+                $iv['atk'],
+                $iv['def'],
+                $iv['satk'],
+                $iv['sdef'],
+                $iv['speed'],
+                $tips,
+                $userId,
+                $base['ability_key'] ?? null,
             ]);
             $this->seedPokemonMoves($pokemonId, $baseId, $level);
             $this->audit($adminId, 'pokemon.grant', 'pok_user', $pokemonId, [
@@ -1076,13 +1083,18 @@ final class AdminRepository
 
     private function cleanPokemonGrantName(array $base, int $baseId): string
     {
-        $title = trim((string) ($base['title'] ?? ''));
+        $title = $this->plainAdminText((string) ($base['title'] ?? ''));
         if ($title !== '') {
             $title = preg_replace('/^#?0*' . $baseId . '\s*/', '', $title) ?: $title;
             $title = preg_replace('/^#?0*\d+\s*/', '', $title) ?: $title;
             $title = trim($title);
         }
         return $title !== '' ? $title : ('Pokemon #' . $baseId);
+    }
+
+    private function plainAdminText(string $value): string
+    {
+        return trim(html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     }
 
     private function grantInt(array $payload, string $key, int $default, int $min, int $max): int
@@ -2180,18 +2192,22 @@ final class AdminRepository
             'INSERT INTO attac_my_poke
                 (id, pok_id, a_id, a_pp_min, a_pp_max, b_id, b_pp_min, b_pp_max, c_id, c_pp_min, c_pp_max, d_id, d_pp_min, d_pp_max)
              VALUES
-                (:id, :pokemon, :a_id, :a_pp, :a_pp, :b_id, :b_pp, :b_pp, :c_id, :c_pp, :c_pp, :d_id, :d_pp, :d_pp)'
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
-            'id' => $this->nextTableId('attac_my_poke', 'id'),
-            'pokemon' => $pokemonId,
-            'a_id' => $slots[0]['id'],
-            'a_pp' => $slots[0]['pp'],
-            'b_id' => $slots[1]['id'],
-            'b_pp' => $slots[1]['pp'],
-            'c_id' => $slots[2]['id'],
-            'c_pp' => $slots[2]['pp'],
-            'd_id' => $slots[3]['id'],
-            'd_pp' => $slots[3]['pp'],
+            $this->nextTableId('attac_my_poke', 'id'),
+            $pokemonId,
+            $slots[0]['id'],
+            $slots[0]['pp'],
+            $slots[0]['pp'],
+            $slots[1]['id'],
+            $slots[1]['pp'],
+            $slots[1]['pp'],
+            $slots[2]['id'],
+            $slots[2]['pp'],
+            $slots[2]['pp'],
+            $slots[3]['id'],
+            $slots[3]['pp'],
+            $slots[3]['pp'],
         ]);
     }
 

@@ -1,5 +1,8 @@
 <?php
 use Pokemon8\View\View;
+
+$adminCssVersion = @filemtime(__DIR__ . '/../public/css/admin-panel.css') ?: time();
+$adminJsVersion = @filemtime(__DIR__ . '/../public/js/admin-panel.js') ?: time();
 ?>
 <!doctype html>
 <html lang="ru">
@@ -7,7 +10,7 @@ use Pokemon8\View\View;
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Админка - Pokemon 8.0</title>
-  <link rel="stylesheet" href="/public/css/admin-panel.css">
+  <link rel="stylesheet" href="/public/css/admin-panel.css?v=<?= (int) $adminCssVersion ?>">
 </head>
 <body>
   <main class="admin-shell" data-csrf="<?= View::e($csrf) ?>">
@@ -95,6 +98,6 @@ use Pokemon8\View\View;
       </aside>
     </section>
   </main>
-  <script src="/public/js/admin-panel.js"></script>
+  <script src="/public/js/admin-panel.js?v=<?= (int) $adminJsVersion ?>"></script>
 </body>
 </html>

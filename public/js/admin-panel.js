@@ -898,8 +898,12 @@
       expires_at: $('#grantItemExpiresAt')?.value || '',
       expires_seconds: $('#grantItemExpiresSeconds')?.value || ''
     });
-    setStatus(result.message || '', !result.ok);
-    if (result.ok) reloadCurrent();
+    if (result.ok) {
+      await reloadCurrent();
+      setStatus(result.message || 'Предмет выдан.');
+      return;
+    }
+    setStatus(result.message || '', true);
   }
 
   async function grantPokemon() {
@@ -934,8 +938,12 @@
       stat_speed: $('#pokeGrantStatSpeed').value,
       hp_my: $('#pokeGrantHpMy').value
     });
-    setStatus(result.message || '', !result.ok);
-    if (result.ok) reloadCurrent();
+    if (result.ok) {
+      await reloadCurrent();
+      setStatus(result.message || 'Покемон выдан.');
+      return;
+    }
+    setStatus(result.message || '', true);
   }
 
   async function loadNatureOptions(selected = '1') {
