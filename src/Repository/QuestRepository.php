@@ -254,16 +254,23 @@ final class QuestRepository
             $questId = (int) ($definition['id'] ?? 0);
             $state = $this->findForUser($userId, $questId);
             $steps = $this->steps($questId);
+            $repeatable = (int) ($definition['repeatable'] ?? 0) === 1;
             $completed = $state !== null && (int) ($state['gotov'] ?? 0) === 1;
             $process = $state !== null ? (int) ($state['process'] ?? 0) : 0;
             $cooldownUntil = $state !== null ? max(0, (int) ($state['time'] ?? 0)) : 0;
-            $onCooldown = (int) ($definition['repeatable'] ?? 0) === 1 && $cooldownUntil > time();
+            $now = time();
+            $onCooldown = $repeatable && $cooldownUntil > $now;
+            $repeatableReady = $repeatable
+                && $state !== null
+                && !$completed
+                && $cooldownUntil > 0
+                && $cooldownUntil <= $now;
             $canStart = $this->canStart($userId, $questId);
             $status = 'available';
             if (!$canStart) {
                 $status = 'locked';
             }
-            if ($state !== null && !$completed) {
+            if ($state !== null && !$completed && !$repeatableReady) {
                 $status = $onCooldown ? 'cooldown' : 'active';
             }
             if ($completed) {
@@ -276,8 +283,11 @@ final class QuestRepository
                 'title' => (string) ($definition['title'] ?? ('Квест #' . $questId)),
                 'description' => (string) ($definition['description'] ?? ''),
                 'status' => $status,
-                'can_start' => $canStart && ($state === null || ((int) ($definition['repeatable'] ?? 0) === 1 && !$onCooldown)),
-                'repeatable' => (int) ($definition['repeatable'] ?? 0) === 1,
+                'can_start' => $canStart && (
+                    $state === null
+                    || ($repeatable && ($completed || $repeatableReady) && !$onCooldown)
+                ),
+                'repeatable' => $repeatable,
                 'depends_on_quest_id' => (int) ($definition['depends_on_quest_id'] ?? 0),
                 'process' => $process,
                 'completed' => $completed,
@@ -315,11 +325,13 @@ final class QuestRepository
             $completed = (int) ($state['gotov'] ?? 0) === 1;
             $repeatable = (int) ($definition['repeatable'] ?? 0) === 1;
             $cooldownUntil = (int) ($state['time'] ?? 0);
-            if (!$repeatable || !$completed && $cooldownUntil <= time()) {
-                return ['ok' => false, 'message' => 'Квест уже есть в журнале.'];
-            }
-            if ($cooldownUntil > time()) {
+            $now = time();
+            $repeatableReady = $repeatable && !$completed && $cooldownUntil > 0 && $cooldownUntil <= $now;
+            if ($repeatable && $cooldownUntil > $now) {
                 return ['ok' => false, 'message' => 'Квест будет доступен позже.'];
+            }
+            if (!$repeatable || (!$completed && !$repeatableReady)) {
+                return ['ok' => false, 'message' => 'Квест уже есть в журнале.'];
             }
         }
 

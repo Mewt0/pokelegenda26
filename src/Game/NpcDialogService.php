@@ -169,7 +169,13 @@ final class NpcDialogService
         }
 
         if ($action === 'quest_metapod_start') {
-            $this->quests->createOrUpdate($userId, 6, 10, 0);
+            $started = $this->quests->startFromDefinition($userId, 6);
+            if (($started['ok'] ?? false) !== true) {
+                return $this->dialog('Исследователь', (string) ($started['message'] ?? 'Ежедневная задача сейчас недоступна.'), [
+                    ['label' => 'Уйти', 'close' => true],
+                ]);
+            }
+
             return $this->dialog('Исследователь', 'Ежедневная задача принята: принеси пять Metapod 9 уровня.', [
                 ['label' => 'Пойду искать', 'close' => true],
             ]);
@@ -803,6 +809,12 @@ final class NpcDialogService
         $daily = $this->quests->findForUser($userId, 6);
         if ($daily !== null && (int) ($daily['time'] ?? 0) > time()) {
             return $this->dialog('Исследователь', 'Сегодня награда уже получена.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+        if ($daily === null || (int) ($daily['process'] ?? 0) < 10 || (int) ($daily['gotov'] ?? 0) === 1) {
+            return $this->dialog('Исследователь', 'Сначала возьми ежедневное задание.', [
+                ['label' => 'Взять задание', 'action' => 'quest_metapod_start'],
                 ['label' => 'Уйти', 'close' => true],
             ]);
         }
