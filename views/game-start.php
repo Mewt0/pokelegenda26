@@ -15,7 +15,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <link rel="stylesheet" href="/public/css/game-start.css?v=20260526-pokemon-drag3">
   <link rel="stylesheet" href="/public/css/game-shell.css?v=20260527-bug-reporter-2">
   <link rel="stylesheet" href="/public/css/game-battle-dock.css?v=20260527-battle-replay">
-  <link rel="stylesheet" href="/public/css/player-menu.css">
+  <link rel="stylesheet" href="/public/css/player-menu.css?v=20260527-breeding-popup2">
   <link rel="stylesheet" href="/public/css/trainer-profile-window.css?v=20260527-social-polish4">
   <link rel="stylesheet" href="/public/css/game-market-overlay.css">
   <link rel="stylesheet" href="/public/css/commission-market.css?v=20260527-my-lots">
@@ -2967,7 +2967,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
   </script>
   <script src="/public/js/trainer-profile-window.js?v=20260527-social-polish4"></script>
   <script src="/public/js/chat.js?v=20260525-trainer-card-hover"></script>
-  <script src="/public/js/player-menu.js?v=20260526-breeding-entry"></script>
+  <script src="/public/js/player-menu.js?v=20260527-breeding-popup2"></script>
   <script src="/public/js/dex-overlay.js?v=20260525-dex-filters"></script>
   <script src="/public/js/game-market-overlay.js"></script>
   <script src="/public/js/commission-market.js?v=20260527-my-lots"></script>

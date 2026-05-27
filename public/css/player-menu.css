@@ -283,3 +283,242 @@
 .pvp-pokemon-empty.is-error {
   color: #9b1c1c;
 }
+
+.player-breeding-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 145000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(18, 33, 53, .28);
+}
+
+.player-breeding-modal[hidden] {
+  display: none;
+}
+
+.player-breeding-dialog {
+  width: min(368px, calc(100vw - 28px));
+  overflow: hidden;
+  border: 1px solid #aebdcb;
+  border-radius: 8px;
+  background: #e7eef6;
+  color: #324155;
+  box-shadow: 0 18px 42px rgba(22, 43, 70, .28);
+  font: 14px/1.25 Tahoma, Arial, sans-serif;
+}
+
+.player-breeding-dialog header {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px 8px 12px;
+  border-bottom: 1px solid #bfccd8;
+  background: linear-gradient(#f7fbff, #dce8f4);
+}
+
+.player-breeding-dialog header b {
+  color: #24354a;
+  font: 900 17px/1 Georgia, "Times New Roman", serif;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
+.player-breeding-dialog header button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #8390a0;
+  cursor: pointer;
+  font-size: 25px;
+  line-height: 1;
+}
+
+.player-breeding-dialog header button:hover {
+  background: #eef5fc;
+  color: #426788;
+}
+
+.player-breeding-body {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.breed-request-line {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.breed-info {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #3f83c8;
+  color: #fff;
+  font: 900 13px/1 Georgia, "Times New Roman", serif;
+}
+
+.breed-request-line b {
+  color: #1f4d80;
+}
+
+.breed-request-line small {
+  display: block;
+  margin-top: 1px;
+  color: #5a6980;
+  font-weight: 700;
+}
+
+.breed-parent-line,
+.breed-pending-note,
+.breed-loading,
+.breed-error,
+.breed-status {
+  padding: 7px 8px;
+  border: 1px solid #c2cfdb;
+  border-radius: 6px;
+  background: rgba(255,255,255,.52);
+  color: #526579;
+  font-weight: 800;
+}
+
+.breed-pending-note {
+  border-color: #e8ca83;
+  background: #fff7df;
+  color: #7a5418;
+}
+
+.breed-error {
+  border-color: #f0b3b3;
+  background: #fff1f1;
+  color: #9b1c1c;
+}
+
+.breed-select-label {
+  margin-bottom: -6px;
+  color: #68778a;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.player-breeding-dialog select {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #b3c3d2;
+  border-radius: 6px;
+  background: #f8fbff;
+  color: #26384e;
+  font-weight: 800;
+  outline: none;
+}
+
+.player-breeding-dialog select:focus {
+  border-color: #4388d5;
+  box-shadow: 0 0 0 2px rgba(67, 136, 213, .16);
+}
+
+.player-breeding-dialog footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.player-breeding-dialog footer button {
+  min-height: 34px;
+  border: 1px solid #aebed0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.player-breeding-dialog footer button:disabled {
+  opacity: .6;
+  cursor: default;
+}
+
+.breed-primary {
+  background: linear-gradient(#e8f7ff, #b8d9f7);
+  color: #1f5f99;
+}
+
+.breed-primary:hover:not(:disabled) {
+  border-color: #4a8dd0;
+  background: linear-gradient(#f5fbff, #c8e5fb);
+}
+
+.breed-secondary {
+  background: #eef3f8;
+  color: #5a6878;
+}
+
+.breed-secondary:hover {
+  background: #f8fbff;
+}
+
+.breed-success-card {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 12px 10px;
+  border: 1px solid #b9d9b9;
+  border-radius: 8px;
+  background: #f2fbf0;
+  color: #24532b;
+  text-align: center;
+}
+
+.breed-success-card b {
+  font-size: 16px;
+}
+
+.breed-success-card small {
+  color: #526b57;
+  font-weight: 700;
+}
+
+.breeding-egg-mark {
+  width: 34px;
+  height: 42px;
+  display: block;
+  border: 2px solid #bfd5ea;
+  border-radius: 50% 50% 46% 46%;
+  background:
+    radial-gradient(circle at 38% 34%, #83c587 0 5px, transparent 6px),
+    radial-gradient(circle at 62% 56%, #e2c857 0 4px, transparent 5px),
+    linear-gradient(#fff, #eef5ff);
+  box-shadow: inset 0 -5px 8px rgba(126, 154, 188, .18);
+}
+
+@media (max-width: 520px) {
+  .player-context-menu {
+    width: min(288px, calc(100vw - 20px)) !important;
+  }
+
+  .player-context-menu button {
+    min-height: 42px;
+  }
+
+  .player-breeding-modal {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .player-breeding-dialog {
+    width: 100%;
+    max-height: calc(100vh - 20px);
+  }
+}
