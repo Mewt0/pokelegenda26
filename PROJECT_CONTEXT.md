@@ -38,7 +38,7 @@
   - `tools/beta_data_audit.php --fix-safe` - только безопасные исправления: merge одинаковых item stacks, expire due commission/PvP.
   - `tools/background_jobs.php --status|--dry-run|--job=<name>` - ручной запуск фоновых задач;
   - `tools/db_integrity_smoke.php [--fix-safe]` - integrity/anti-dupe проверки.
-- Последний статус миграций: `72/72`, `pending=0`, `dirty=0`, `failed=0`.
+- Последний статус миграций: `73/73`, `pending=0`, `dirty=0`, `failed=0`.
 - Последний beta audit: `P0=0`, `P1=0`; `WARN` остаётся по историческим незавершённым rows в `battles`.
 - Комиссионная лавка резервирует покемонов/яйца через `commission.reserve_user_id`, сейчас это аккаунт `Система`, а не живой игрок `id=3`; дополнительно ведётся ledger `market_reserved_objects`.
 - Safe Storage: `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`, `SafeStorageRepository`, `tools/safe_storage_smoke.php`.
@@ -62,9 +62,9 @@
 
 - Auth: регистрация без обязательной почты, password reset, techwork, роли через users/admin repository.
 - Game state/location: `/api/game/state`, `/api/map/move`, `LocationStateService`, `MapMoveService`.
-- NPC/quests: `/api/location/npc`, `/api/quests`, `NpcDialogService`, `QuestRepository`, `quest_definitions`, `quest_steps`.
+- NPC/quests: `/api/location/npc`, `/api/quests`, `/api/quests/track`, `NpcDialogService`, `QuestRepository`, `quest_definitions`, `quest_steps`, `user_quest_tracking`.
 - First Player Experience: квесты `1 -> 101 -> 102 -> 103` ведут игрока через Оука, стартера, Дорогу 1, первый PvE бой, Вертанию и первый транспорт; smoke `tools/fpe_quest_smoke.php`.
-- Quests minimum: стартовые/battle/reward/cooldown/repeatable сценарии покрыты `tools/quests_minimum_smoke.php`; ежедневный Metapod-квест нельзя перезапустить во время cooldown, после истечения он снова становится `available`.
+- Quests minimum: стартовые/battle/reward/cooldown/repeatable сценарии покрыты `tools/quests_minimum_smoke.php`; ежедневный Metapod-квест нельзя перезапустить во время cooldown, после истечения он снова становится `available`; журнал квестов отдаёт progress/reward_view/tracked state.
 - NPC + Locations: routes/map transitions/wild encounters/blocked routes/transport NPC/ship/flight smoke покрыты `tools/location_npc_transport_smoke.php`.
 - PvE/PvP battle: `/api/battle/pve/*`, `/api/battle/pvp/*`, `BattleEngineService`, `BattleRepository`; активный бой выбирается строго по флагу `pve/pvp` и `batl_tip`, чтобы PvE catch не попадал в PvP-row при legacy-дублях id.
 - Battle replay viewer: игроки открывают свой replay через `/api/battle/replay`; админы смотрят список и детали через вкладку `Повторы боёв` в GM Center.
@@ -99,7 +99,7 @@
 - Rewards/notifications: `reward_transactions`, `reward_transaction_entries`, `game_notifications`, `mail_delivery_logs`.
 - Battles: `battles`, battle state/log/archive tables, PvP request tables.
 - Battle Replay: `battle_replays`, `battle_replay_events`.
-- Quests: `quest`, `quest_definitions`, `quest_steps`.
+- Quests: `quest`, `quest_definitions`, `quest_steps`, `user_quest_tracking`.
 - Eggs/breeding: `eggs`, `pokemon_breeding_rules`, `pokemon_breeding_requests`.
 - Markets: `market_lots`, `market_logs`, `market_return_storage`, `market_reserved_objects`, `market_deal_reviews`, `economy_guard_alerts`; legacy `auction_items`/`rinok_poke` только compat/import.
 - Safe storage: `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`.
@@ -118,7 +118,8 @@
 - `/game/commission` и overlay на `/game` - новая комиссионная лавка.
 - `/game/items` - новый инвентарь.
 - `/game/pokemon` - команда, питомник, breeding UI.
-- `/game/eggs`, `/game/quests`, `/game/events`, `/game/market/pokemon` - новые страницы модулей.
+- `/game/quests` - overlay-журнал на `/game` плюс standalone fallback; список, поиск/фильтры, цели с progress bar, награды, tracked quest и mini-tracker.
+- `/game/eggs`, `/game/events`, `/game/market/pokemon` - новые страницы модулей.
 - `/game/tournaments` - игроковая страница турниров с регистрацией, взносом, ареной и наградами.
 - Trainer Card - модальное окно на `/game`, не отдельная legacy-страница; клики по профилю/друзьям открывают overlay, API отдаёт `social` и `badgeSummary`.
 
@@ -168,6 +169,7 @@
 - `tools/tournament_qa_smoke.php`
 - `tools/prepare_qa_teams.php`
 
+Последняя Quest Journal UI проверка: миграции `73/73`, `tools/quests_minimum_smoke.php` `29/29`, `tools/fpe_quest_smoke.php` `25/25`; PHP lint `QuestRepository.php`, `QuestApiController.php`, `views/game-start.php`, `views/game-quests.php`, `views/components/quest-journal-panel.php`, `public/index.php`; JS syntax `public/js/quest-journal.js`. Browser QA: `/game` открывает квесты как overlay без перехода со страницы, `/game/quests` работает как standalone fallback, карточки/цели/награды/tracked quest/mini-tracker рендерятся, horizontal overflow на ширине `399px` отсутствует; актуальных console errors по quest UI нет.
 Последняя Tournament QA проверка: миграции `72/72`, `tools/tournament_qa_smoke.php --password=...` `33/33`; покрыты `/game/tournaments`, `/api/tournaments`, CSRF-negative, расписание/timezone payload, куратор, взнос, списание/возврат, дедлайн, лимит участников, запрет дубля, нехватка средств, вход/выход с арены через `buildmy`, одноразовая награда, медаль и `admin_tournament_logs`; browser QA подтвердил рендер карточки турнира, кнопку регистрации, дедлайн, куратора, арену и отсутствие пустых состояний.
 Последняя Phase 6 Bug Reporter проверка: миграции `71/71`, `tools/bug_reporter_smoke.php` `9/9`, `tools/admin_gm_center_smoke.php` `26/26`; browser QA `/game` подтвердил кнопку `Report bug`, открытие overlay, прикрепление state/battle id/client logs/server logs и отправку тестового report. Дополнительно исправлен mobile actionbar overlap: quick controls больше не перекрываются ссылкой `Лавка`.
 Последняя Phase 6 QA Seed Tools проверка: `tools/admin_gm_center_smoke.php` `23/23`; `/api/admin/qa-seed-tools` отдаёт состояние `Tacos/NIGA/Система`, команд, item stacks, QA market lots и последних `qa_seed.*` audit logs; `/run` умеет `setup_accounts`, `give_teams`, `give_items`, `reset_market`, `run_smokes`; NIGA получает `403`, POST без CSRF даёт `419`; прямой запуск `give_items/reset_market/run_smokes` OK, `reset_market` снял 8 QA-лотов и вернул 8 объектов без pending returns; browser QA `/game/admin` подтвердил рендер блока, кнопку `setup test accounts`, обновление `#qaSeedResult` и отсутствие horizontal overflow.

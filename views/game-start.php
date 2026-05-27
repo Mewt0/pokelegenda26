@@ -19,6 +19,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <link rel="stylesheet" href="/public/css/trainer-profile-window.css?v=20260527-social-polish4">
   <link rel="stylesheet" href="/public/css/game-market-overlay.css">
   <link rel="stylesheet" href="/public/css/commission-market.css?v=20260527-my-lots">
+  <link rel="stylesheet" href="/public/css/quest-journal.css?v=20260527-quest-overlay2">
 </head>
 <body>
   <main class="world game-shell" data-csrf="<?= View::e($csrf) ?>" data-user-id="<?= (int) ($userId ?? 0) ?>">
@@ -82,7 +83,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
         <a href="/game/profile"><img src="/public/img/ui/menu-profile.png" alt="">Профиль</a>
         <a href="#" data-open-dex="pokemon"><img src="/public/img/ui/menu-pokedex.png" alt="">Покедекс</a>
         <a href="#" data-open-dex="attacks"><img src="/public/img/ui/menu-attackdex.png" alt="">Атакадекс</a>
-        <a href="/game/quests"><img src="/public/img/ui/menu-quests.png" alt="">Квесты</a>
+        <a href="/game/quests" data-open-quests><img src="/public/img/ui/menu-quests.png" alt="">Квесты</a>
         <a href="/game/battle/pvp"><img src="/public/img/ui/menu-battle.png" alt="">Бои</a>
         <a href="/game/tournaments"><img src="/public/img/ui/menu-battle.png" alt="">Турниры</a>
         <a href="/game/messages"><img src="/public/img/ui/menu-mail.png" alt="">Почта</a>
@@ -205,6 +206,11 @@ $itemIconIndex = is_file($itemIconIndexPath)
     $commissionMode = 'overlay';
     $commissionRootId = 'commissionOverlay';
     require APP_ROOT . '/views/components/commission-market-panel.php';
+  ?>
+  <?php
+    $questMode = 'overlay';
+    $questRootId = 'questOverlay';
+    require APP_ROOT . '/views/components/quest-journal-panel.php';
   ?>
   <section class="battle-overlay battle-dock-overlay" id="battleOverlay" aria-hidden="true">
     <div class="battle-window battle-dock-window" role="dialog" aria-label="PvE бой">
@@ -2965,6 +2971,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <script src="/public/js/dex-overlay.js?v=20260525-dex-filters"></script>
   <script src="/public/js/game-market-overlay.js"></script>
   <script src="/public/js/commission-market.js?v=20260527-my-lots"></script>
+  <script src="/public/js/quest-journal.js?v=20260527-quest-overlay2"></script>
 
 </body>
 </html>

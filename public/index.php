@@ -287,6 +287,7 @@ $router->get('/api/events', fn (Request $request) => $eventApi->index($request))
 $router->get('/api/events/active', fn (Request $request) => $eventApi->active($request));
 $router->get('/api/quests', fn (Request $request) => $questApi->index($request));
 $router->post('/api/quests/start', fn (Request $request) => $questApi->start($request));
+$router->post('/api/quests/track', fn (Request $request) => $questApi->track($request));
 $router->get('/api/profile/card', fn (Request $request) => $profilePage->card($request));
 $router->get('/api/admin/overview', fn (Request $request) => $adminApi->overview($request));
 $router->get('/api/admin/dashboard', fn (Request $request) => $adminApi->dashboard($request));

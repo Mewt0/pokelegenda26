@@ -88,6 +88,18 @@ try {
     $cooldownJournal = questFromJournal($quests->journalForUser($userId), 6);
     assertTrue($results, 'quest.cooldown.journal.status', ($cooldownJournal['status'] ?? '') === 'cooldown', (string) ($cooldownJournal['status'] ?? 'missing'));
     assertTrue($results, 'quest.cooldown.journal.can_start_false', ($cooldownJournal['can_start'] ?? true) === false);
+    assertTrue($results, 'quest.journal.progress_present', isset($cooldownJournal['progress']['percent']), json_encode($cooldownJournal, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    assertTrue($results, 'quest.journal.reward_view_present', array_key_exists('reward_view', $cooldownJournal), json_encode($cooldownJournal, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    assertTrue($results, 'quest.journal.step_progress_present', isset(($cooldownJournal['steps'][0] ?? [])['progress']['percent']), json_encode($cooldownJournal['steps'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+    $track = $quests->trackQuest($userId, 6);
+    $trackedJournal = $quests->journalForUser($userId);
+    $trackedQuest = questFromJournal($trackedJournal, 6);
+    assertTrue($results, 'quest.track.set', ($track['ok'] ?? false) === true && (int) ($trackedJournal['tracked_quest_id'] ?? 0) === 6, (string) ($track['message'] ?? ''));
+    assertTrue($results, 'quest.track.flag', ($trackedQuest['tracked'] ?? false) === true);
+
+    $untrack = $quests->trackQuest($userId, 0);
+    assertTrue($results, 'quest.track.clear', ($untrack['ok'] ?? false) === true && $quests->trackedQuestId($userId) === 0, (string) ($untrack['message'] ?? ''));
 
     $cooldownStart = $npcs->action($userId, 3, ['quest_npc' => '2', 'do' => '1'], 'quest_metapod_start');
     $stateAfterCooldownStart = $quests->findForUser($userId, 6);
