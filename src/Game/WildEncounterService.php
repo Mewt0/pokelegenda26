@@ -382,25 +382,28 @@ final class WildEncounterService
         $playerBattlePokemon = 'pvp_' . $playerPokemonId;
         $enemyBattlePokemon = 'pve_' . $enemyPokemonId;
 
-        // Главный путь: нормальная схема с AUTO_INCREMENT на battles.id.
-        try {
-            $stmt = $this->db->prepare(
-                'INSERT INTO battles (user_1, user_2, poke_1, poke_2, batl_tip, times)
-                 VALUES (:user_1, :user_2, :poke_1, :poke_2, :batl_tip, :times)'
-            );
-            $stmt->execute([
-                'user_1' => $userId,
-                // В legacy PvE сюда кладут id записи pok_pve.
-                'user_2' => $enemyPokemonId,
-                'poke_1' => $playerBattlePokemon,
-                'poke_2' => $enemyBattlePokemon,
-                'batl_tip' => 'pve',
-                'times' => time() + 3600,
-            ]);
-            $battleId = (int) $this->db->lastInsertId();
-        } catch (\Throwable $e) {
-            // Старые дампы часто имеют battles.id без AUTO_INCREMENT. Тогда используем совместимый ручной id.
-            $battleId = 0;
+        // Главный путь допустим только на новой схеме с AUTO_INCREMENT.
+        // В legacy-схеме INSERT без id создает строки id=0, которые ломают выбор активного боя.
+        if ($this->battleIdIsAutoIncrement()) {
+            try {
+                $stmt = $this->db->prepare(
+                    'INSERT INTO battles (user_1, user_2, poke_1, poke_2, batl_tip, times)
+                     VALUES (:user_1, :user_2, :poke_1, :poke_2, :batl_tip, :times)'
+                );
+                $stmt->execute([
+                    'user_1' => $userId,
+                    // В legacy PvE сюда кладут id записи pok_pve.
+                    'user_2' => $enemyPokemonId,
+                    'poke_1' => $playerBattlePokemon,
+                    'poke_2' => $enemyBattlePokemon,
+                    'batl_tip' => 'pve',
+                    'times' => time() + 3600,
+                ]);
+                $battleId = (int) $this->db->lastInsertId();
+            } catch (\Throwable $e) {
+                // Старые дампы часто имеют battles.id без AUTO_INCREMENT. Тогда используем совместимый ручной id.
+                $battleId = 0;
+            }
         }
 
         if ($battleId <= 0) {
@@ -452,25 +455,52 @@ final class WildEncounterService
     {
         // Желательно выполнить SQL из README и сделать battles.id AUTO_INCREMENT.
         // Этот fallback нужен только для старой схемы без AUTO_INCREMENT.
+        $lockAcquired = false;
         try {
-            $this->db->exec(
-                'CREATE TABLE IF NOT EXISTS battle_id_sequence (
-                    id TINYINT NOT NULL PRIMARY KEY,
-                    next_id INT(11) NOT NULL
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
-            );
+            if (!$this->tableExists('battle_id_sequence')) {
+                if ($this->db->inTransaction()) {
+                    throw new \RuntimeException('battle_id_sequence is not available inside transaction.');
+                }
+                $this->db->exec(
+                    'CREATE TABLE IF NOT EXISTS battle_id_sequence (
+                        id TINYINT NOT NULL PRIMARY KEY,
+                        next_id INT(11) NOT NULL
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+                );
+            }
 
-            $seed = max(time(), (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM battles')->fetchColumn() ?: 1));
-            $insert = $this->db->prepare('INSERT IGNORE INTO battle_id_sequence (id, next_id) VALUES (1, :seed)');
+            $lockAcquired = ((int) ($this->db->query('SELECT GET_LOCK("pokemon8_seq_battles_id", 15)')->fetchColumn() ?: 0)) === 1;
+            $maxId = (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM battles')->fetchColumn() ?: 1);
+            $seed = max(time(), $maxId, 1);
+            $insert = $this->db->prepare(
+                'INSERT INTO battle_id_sequence (id, next_id)
+                 VALUES (1, :seed)
+                 ON DUPLICATE KEY UPDATE next_id = GREATEST(next_id, VALUES(next_id))'
+            );
             $insert->execute(['seed' => $seed]);
 
-            $this->db->exec('UPDATE battle_id_sequence SET next_id = LAST_INSERT_ID(next_id + 1) WHERE id = 1');
-            $nextId = (int) $this->db->lastInsertId();
-            if ($nextId > 0) {
-                return $nextId;
+            $current = (int) ($this->db->query('SELECT next_id FROM battle_id_sequence WHERE id = 1')->fetchColumn() ?: 0);
+            $candidate = max($current, $seed, $maxId);
+            for ($attempt = 0; $attempt < 20; $attempt++) {
+                $exists = $this->db->prepare('SELECT 1 FROM battles WHERE id = :id LIMIT 1');
+                $exists->execute(['id' => $candidate]);
+                if ($exists->fetchColumn() === false) {
+                    $update = $this->db->prepare('UPDATE battle_id_sequence SET next_id = :next WHERE id = 1');
+                    $update->execute(['next' => $candidate + 1]);
+                    return $candidate;
+                }
+                $candidate++;
             }
         } catch (\Throwable) {
             // fallback ниже
+        } finally {
+            if ($lockAcquired) {
+                try {
+                    $this->db->query('SELECT RELEASE_LOCK("pokemon8_seq_battles_id")');
+                } catch (\Throwable) {
+                    // no-op
+                }
+            }
         }
 
         try {
@@ -557,6 +587,28 @@ final class WildEncounterService
             return $cols;
         } catch (\Throwable) {
             return [];
+        }
+    }
+
+    private function battleIdIsAutoIncrement(): bool
+    {
+        try {
+            $stmt = $this->db->query('SHOW COLUMNS FROM battles WHERE Field = "id"');
+            $row = $stmt ? $stmt->fetch() : null;
+            return is_array($row) && str_contains(strtolower((string) ($row['Extra'] ?? '')), 'auto_increment');
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private function tableExists(string $table): bool
+    {
+        try {
+            $stmt = $this->db->prepare('SHOW TABLES LIKE :table');
+            $stmt->execute(['table' => $table]);
+            return $stmt->fetchColumn() !== false;
+        } catch (\Throwable) {
+            return false;
         }
     }
 

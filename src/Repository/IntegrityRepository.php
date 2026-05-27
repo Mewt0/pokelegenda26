@@ -62,6 +62,45 @@ final class IntegrityRepository
                 return $this->executeAffected('UPDATE pvp_requests SET status = "expired", responded_at = UNIX_TIMESTAMP(), updated_at = UNIX_TIMESTAMP() WHERE status = "pending" AND expires_at > 0 AND expires_at <= UNIX_TIMESTAMP()');
             });
         }
+        $this->check($checks, $runKey, 'battle.zero_id_rows', 'warn', 'legacy battle rows with id <= 0 cannot be safely addressed by APIs', 'SELECT COUNT(*) FROM battles WHERE id <= 0', $fixSafe, function (): int {
+            $this->executeAffected('DELETE FROM statpokemonbatle WHERE battleid <= 0');
+            $this->executeAffected('DELETE FROM battle_dop WHERE battleid <= 0');
+            $this->executeAffected('DELETE FROM battle_log WHERE battle_id <= 0');
+            $this->executeAffected('DELETE FROM bttle_status WHERE buttleid <= 0');
+            if ($this->tableExists('battle_transformations')) {
+                $this->executeAffected('DELETE FROM battle_transformations WHERE battle_id <= 0');
+            }
+            return $this->executeAffected('DELETE FROM battles WHERE id <= 0');
+        });
+        $this->check(
+            $checks,
+            $runKey,
+            'battle.duplicate_positive_ids',
+            'p1',
+            'positive battle ids used by more than one row; this can route PvE actions into PvP rows',
+            'SELECT COUNT(*) FROM battles b WHERE b.id > 0 AND EXISTS (SELECT 1 FROM battles b2 WHERE b2.id = b.id AND (b2.user_1 <> b.user_1 OR b2.user_2 <> b.user_2 OR b2.batl_tip <> b.batl_tip OR b2.poke_1 <> b.poke_1 OR b2.poke_2 <> b.poke_2) LIMIT 1)',
+            false
+        );
+        $this->check(
+            $checks,
+            $runKey,
+            'users.stale_active_battle',
+            'warn',
+            'users marked as in battle but without a matching active battle row',
+            'SELECT COUNT(*) FROM users u LEFT JOIN battles b ON b.id = u.battleid AND ((u.pve = 1 AND b.batl_tip = "pve" AND b.pobeda = 0 AND b.user_1 = u.id) OR (u.pvp = 1 AND b.batl_tip = "pvp" AND b.pobeda = 0 AND (b.user_1 = u.id OR b.user_2 = u.id))) WHERE (u.pve = 1 OR u.pvp = 1) AND b.id IS NULL',
+            $fixSafe,
+            function (): int {
+                return $this->executeAffected(
+                    'UPDATE users u
+                       LEFT JOIN battles b ON b.id = u.battleid
+                        AND ((u.pve = 1 AND b.batl_tip = "pve" AND b.pobeda = 0 AND b.user_1 = u.id)
+                          OR (u.pvp = 1 AND b.batl_tip = "pvp" AND b.pobeda = 0 AND (b.user_1 = u.id OR b.user_2 = u.id)))
+                        SET u.pve = 0, u.pvp = 0, u.battleid = 0
+                      WHERE (u.pve = 1 OR u.pvp = 1)
+                        AND b.id IS NULL'
+                );
+            }
+        );
         $this->check($checks, $runKey, 'battle.active_unfinished', 'warn', 'unfinished battle rows; cleanup rules are reviewed in PvE/PvP phase', 'SELECT COUNT(*) FROM battles WHERE pobeda = 0', false);
 
         if ($this->tableExists('safe_storage_entries')) {

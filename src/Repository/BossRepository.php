@@ -989,6 +989,10 @@ final class BossRepository
         if (!preg_match('/^[a-zA-Z0-9_]+$/', $table) || !preg_match('/^[a-zA-Z0-9_]+$/', $column)) {
             throw new \InvalidArgumentException('Unsupported sequence target.');
         }
+        if ($table === 'battles' && $column === 'id') {
+            return $this->nextBattleIdLocked();
+        }
+
         $name = 'pokemon8_seq_' . $table . '_' . $column;
         $lock = $this->db->prepare('SELECT GET_LOCK(:name, 15)');
         $lock->execute(['name' => $name]);
@@ -1001,6 +1005,59 @@ final class BossRepository
             $release = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
             $release->execute(['name' => $name]);
         }
+    }
+
+    private function nextBattleIdLocked(): int
+    {
+        $lockAcquired = false;
+        try {
+            if (!$this->tableExists('battle_id_sequence')) {
+                if ($this->db->inTransaction()) {
+                    throw new \RuntimeException('battle_id_sequence is not available inside transaction.');
+                }
+                $this->db->exec(
+                    'CREATE TABLE IF NOT EXISTS battle_id_sequence (
+                        id TINYINT NOT NULL PRIMARY KEY,
+                        next_id INT(11) NOT NULL
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+                );
+            }
+
+            $lockAcquired = ((int) ($this->db->query('SELECT GET_LOCK("pokemon8_seq_battles_id", 15)')->fetchColumn() ?: 0)) === 1;
+            $maxId = (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM battles')->fetchColumn() ?: 1);
+            $seed = max(time(), $maxId, 1);
+            $insert = $this->db->prepare(
+                'INSERT INTO battle_id_sequence (id, next_id)
+                 VALUES (1, :seed)
+                 ON DUPLICATE KEY UPDATE next_id = GREATEST(next_id, VALUES(next_id))'
+            );
+            $insert->execute(['seed' => $seed]);
+
+            $current = (int) ($this->db->query('SELECT next_id FROM battle_id_sequence WHERE id = 1')->fetchColumn() ?: 0);
+            $candidate = max($current, $seed, $maxId);
+            for ($attempt = 0; $attempt < 20; $attempt++) {
+                $exists = $this->db->prepare('SELECT 1 FROM battles WHERE id = :id LIMIT 1');
+                $exists->execute(['id' => $candidate]);
+                if ($exists->fetchColumn() === false) {
+                    $update = $this->db->prepare('UPDATE battle_id_sequence SET next_id = :next WHERE id = 1');
+                    $update->execute(['next' => $candidate + 1]);
+                    return $candidate;
+                }
+                $candidate++;
+            }
+        } catch (Throwable) {
+            // fallback to runtime error below
+        } finally {
+            if ($lockAcquired) {
+                try {
+                    $this->db->query('SELECT RELEASE_LOCK("pokemon8_seq_battles_id")');
+                } catch (Throwable) {
+                    // no-op
+                }
+            }
+        }
+
+        throw new \RuntimeException('Не удалось выделить id боя.');
     }
 
     private function audit(int $adminId, string $action, string $entity, int $entityId, array $payload): void

@@ -20,10 +20,13 @@ final class BattleRepository
     {
         // Active fight: user.pve = 1. Finished-but-not-acked fight: pve = 0,
         // battleid still points to battles.pobeda != 0 so the client can show final log.
-        $stmt = $this->db->prepare('SELECT battleid, pve FROM users WHERE id = :id LIMIT 1');
+        $stmt = $this->db->prepare('SELECT battleid, pve, pvp FROM users WHERE id = :id LIMIT 1');
         $stmt->execute(['id' => $userId]);
         $user = $stmt->fetch();
         if (!$user) {
+            return 0;
+        }
+        if ((int) ($user['pvp'] ?? 0) === 1) {
             return 0;
         }
 
@@ -32,7 +35,11 @@ final class BattleRepository
             return 0;
         }
         if ((int) ($user['pve'] ?? 0) === 1) {
-            return $battleId;
+            $battle = $this->db->prepare(
+                'SELECT id FROM battles WHERE id = :id AND user_1 = :user AND batl_tip = "pve" AND pobeda = 0 LIMIT 1'
+            );
+            $battle->execute(['id' => $battleId, 'user' => $userId]);
+            return $battle->fetchColumn() !== false ? $battleId : 0;
         }
 
         $battle = $this->db->prepare(
@@ -56,10 +63,13 @@ final class BattleRepository
 
     public function findActivePvpBattleIdForUser(int $userId): int
     {
-        $stmt = $this->db->prepare('SELECT battleid, pvp FROM users WHERE id = :id LIMIT 1');
+        $stmt = $this->db->prepare('SELECT battleid, pve, pvp FROM users WHERE id = :id LIMIT 1');
         $stmt->execute(['id' => $userId]);
         $user = $stmt->fetch();
         if (!$user) {
+            return 0;
+        }
+        if ((int) ($user['pve'] ?? 0) === 1) {
             return 0;
         }
 
@@ -69,7 +79,11 @@ final class BattleRepository
         }
 
         if ((int) ($user['pvp'] ?? 0) === 1) {
-            return $battleId;
+            $battle = $this->db->prepare(
+                'SELECT id FROM battles WHERE id = :id AND (user_1 = :user_1 OR user_2 = :user_2) AND batl_tip = "pvp" AND pobeda = 0 LIMIT 1'
+            );
+            $battle->execute(['id' => $battleId, 'user_1' => $userId, 'user_2' => $userId]);
+            return $battle->fetchColumn() !== false ? $battleId : 0;
         }
 
         $battle = $this->db->prepare(
@@ -2475,8 +2489,11 @@ final class BattleRepository
         // Не удаляем бой/лог сразу: frontend должен успеть показать финальный экран.
         // Удаление делается только после /api/battle/pve/ack-end.
         $this->db->prepare(
-            'UPDATE battles SET pobeda = :winner WHERE id = :id LIMIT 1'
-        )->execute(['winner' => $winner, 'id' => $battleId]);
+            'UPDATE battles
+                SET pobeda = :winner
+              WHERE id = :id AND user_1 = :user AND batl_tip = "pve"
+              LIMIT 1'
+        )->execute(['winner' => $winner, 'id' => $battleId, 'user' => $userId]);
         $this->markBattleTransformationsReverted($battleId);
 
         $this->db->prepare(
@@ -3262,6 +3279,10 @@ final class BattleRepository
 
     private function nextTableId(string $table, string $column): int
     {
+        if ($table === 'battles' && $column === 'id') {
+            return $this->nextBattleId();
+        }
+
         $allowed = [
             'pok_user' => ['id'],
             'attac_my_poke' => ['id'],
@@ -3284,6 +3305,59 @@ final class BattleRepository
             $release = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
             $release->execute(['name' => $lockName]);
         }
+    }
+
+    private function nextBattleId(): int
+    {
+        $lockAcquired = false;
+        try {
+            if (!$this->tableExists('battle_id_sequence')) {
+                if ($this->db->inTransaction()) {
+                    throw new \RuntimeException('battle_id_sequence is not available inside transaction.');
+                }
+                $this->db->exec(
+                    'CREATE TABLE IF NOT EXISTS battle_id_sequence (
+                        id TINYINT NOT NULL PRIMARY KEY,
+                        next_id INT(11) NOT NULL
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+                );
+            }
+
+            $lockAcquired = ((int) ($this->db->query('SELECT GET_LOCK("pokemon8_seq_battles_id", 15)')->fetchColumn() ?: 0)) === 1;
+            $maxId = (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM battles')->fetchColumn() ?: 1);
+            $seed = max(time(), $maxId, 1);
+            $insert = $this->db->prepare(
+                'INSERT INTO battle_id_sequence (id, next_id)
+                 VALUES (1, :seed)
+                 ON DUPLICATE KEY UPDATE next_id = GREATEST(next_id, VALUES(next_id))'
+            );
+            $insert->execute(['seed' => $seed]);
+
+            $current = (int) ($this->db->query('SELECT next_id FROM battle_id_sequence WHERE id = 1')->fetchColumn() ?: 0);
+            $candidate = max($current, $seed, $maxId);
+            for ($attempt = 0; $attempt < 20; $attempt++) {
+                $exists = $this->db->prepare('SELECT 1 FROM battles WHERE id = :id LIMIT 1');
+                $exists->execute(['id' => $candidate]);
+                if ($exists->fetchColumn() === false) {
+                    $update = $this->db->prepare('UPDATE battle_id_sequence SET next_id = :next WHERE id = 1');
+                    $update->execute(['next' => $candidate + 1]);
+                    return $candidate;
+                }
+                $candidate++;
+            }
+        } catch (\Throwable) {
+            // fallback below
+        } finally {
+            if ($lockAcquired) {
+                try {
+                    $this->db->query('SELECT RELEASE_LOCK("pokemon8_seq_battles_id")');
+                } catch (\Throwable) {
+                    // no-op
+                }
+            }
+        }
+
+        return max(time(), (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM battles')->fetchColumn() ?: 1));
     }
 
     private function normalizeHazardKind(string $kind): string
