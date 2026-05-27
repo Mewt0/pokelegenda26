@@ -19,7 +19,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <link rel="stylesheet" href="/public/css/trainer-profile-window.css?v=20260527-social-polish4">
   <link rel="stylesheet" href="/public/css/game-market-overlay.css">
   <link rel="stylesheet" href="/public/css/commission-market.css?v=20260527-my-lots">
-  <link rel="stylesheet" href="/public/css/quest-journal.css?v=20260527-quest-mockup">
+  <link rel="stylesheet" href="/public/css/quest-journal.css?v=20260527-quest-mockup2">
 </head>
 <body>
   <main class="world game-shell" data-csrf="<?= View::e($csrf) ?>" data-user-id="<?= (int) ($userId ?? 0) ?>">

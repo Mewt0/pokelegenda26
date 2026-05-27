@@ -771,6 +771,7 @@
   bottom: 96px;
   z-index: 70000;
   width: min(300px, calc(100vw - 40px));
+  display: none !important;
 }
 
 .quest-mini-tracker button {
