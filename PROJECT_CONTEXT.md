@@ -38,7 +38,7 @@
   - `tools/beta_data_audit.php --fix-safe` - только безопасные исправления: merge одинаковых item stacks, expire due commission/PvP.
   - `tools/background_jobs.php --status|--dry-run|--job=<name>` - ручной запуск фоновых задач;
   - `tools/db_integrity_smoke.php [--fix-safe]` - integrity/anti-dupe проверки.
-- Последний статус миграций: `71/71`, `pending=0`, `dirty=0`, `failed=0`.
+- Последний статус миграций: `72/72`, `pending=0`, `dirty=0`, `failed=0`.
 - Последний beta audit: `P0=0`, `P1=0`; `WARN` остаётся по историческим незавершённым rows в `battles`.
 - Комиссионная лавка резервирует покемонов/яйца через `commission.reserve_user_id`, сейчас это аккаунт `Система`, а не живой игрок `id=3`; дополнительно ведётся ledger `market_reserved_objects`.
 - Safe Storage: `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`, `SafeStorageRepository`, `tools/safe_storage_smoke.php`.
@@ -87,6 +87,7 @@
 - Bug reports: `/api/bug-reports` принимает игровые отчёты с state/battle/log attachments; `/api/admin/bug-reports` и `/status` доступны только админам.
 - Transport: `/api/transport/*`, самолет/пароход/рейсы.
 - Bosses: `/api/bosses/start`, `/api/admin/bosses`, `BossRepository`.
+- Tournaments: `/game/tournaments`, `/api/tournaments`, `TournamentRepository`; player-flow покрывает расписание, дедлайн регистрации, куратора, взнос, лимиты, вход/выход с арены, одноразовые награды и медали. NPC-куратор и нижнее меню `/game` ведут в новый модуль, admin CRUD хранит `registration_deadline_at`, `arena_exit_location_id`, `reward_json`.
 - Dex: `/api/dex/pokemon`, `/api/dex/pokemon/show`, `/api/dex/attacks`, `/api/dex/attack/show`, `DexRepository`, `public/js/dex-overlay.js`; battle forms показывают свои статы/способности/спрайты, но learnset/egg/hidden moves/ареалы наследуют от базового dex-id. Smoke: `tools/dex_attackdex_smoke.php`.
 - Chat/friends/messages/notifications: новые JSON API, legacy только источник данных там, где ещё не перенесено.
 
@@ -103,6 +104,7 @@
 - Markets: `market_lots`, `market_logs`, `market_return_storage`, `market_reserved_objects`, `market_deal_reviews`, `economy_guard_alerts`; legacy `auction_items`/`rinok_poke` только compat/import.
 - Safe storage: `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`.
 - Trainer Card rewards: `user_gym_badges`, medals/reward tables.
+- Tournaments/medals: `admin_tournaments`, `admin_tournament_participants`, `admin_tournament_logs`, `admin_medals`, `admin_user_medals`.
 - Events/bosses/transport: current migration tables in `database/migrations`.
 - Background jobs: `background_job_runs`, `background_job_logs`.
 - Integrity logs: `data_integrity_logs`.
@@ -117,6 +119,7 @@
 - `/game/items` - новый инвентарь.
 - `/game/pokemon` - команда, питомник, breeding UI.
 - `/game/eggs`, `/game/quests`, `/game/events`, `/game/market/pokemon` - новые страницы модулей.
+- `/game/tournaments` - игроковая страница турниров с регистрацией, взносом, ареной и наградами.
 - Trainer Card - модальное окно на `/game`, не отдельная legacy-страница; клики по профилю/друзьям открывают overlay, API отдаёт `social` и `badgeSummary`.
 
 ## Комиссионная Лавка: Финальная V1
@@ -162,8 +165,10 @@
 - `tools/location_npc_transport_smoke.php`
 - `tools/admin_gm_center_smoke.php`
 - `tools/bug_reporter_smoke.php`
+- `tools/tournament_qa_smoke.php`
 - `tools/prepare_qa_teams.php`
 
+Последняя Tournament QA проверка: миграции `72/72`, `tools/tournament_qa_smoke.php --password=...` `33/33`; покрыты `/game/tournaments`, `/api/tournaments`, CSRF-negative, расписание/timezone payload, куратор, взнос, списание/возврат, дедлайн, лимит участников, запрет дубля, нехватка средств, вход/выход с арены через `buildmy`, одноразовая награда, медаль и `admin_tournament_logs`; browser QA подтвердил рендер карточки турнира, кнопку регистрации, дедлайн, куратора, арену и отсутствие пустых состояний.
 Последняя Phase 6 Bug Reporter проверка: миграции `71/71`, `tools/bug_reporter_smoke.php` `9/9`, `tools/admin_gm_center_smoke.php` `26/26`; browser QA `/game` подтвердил кнопку `Report bug`, открытие overlay, прикрепление state/battle id/client logs/server logs и отправку тестового report. Дополнительно исправлен mobile actionbar overlap: quick controls больше не перекрываются ссылкой `Лавка`.
 Последняя Phase 6 QA Seed Tools проверка: `tools/admin_gm_center_smoke.php` `23/23`; `/api/admin/qa-seed-tools` отдаёт состояние `Tacos/NIGA/Система`, команд, item stacks, QA market lots и последних `qa_seed.*` audit logs; `/run` умеет `setup_accounts`, `give_teams`, `give_items`, `reset_market`, `run_smokes`; NIGA получает `403`, POST без CSRF даёт `419`; прямой запуск `give_items/reset_market/run_smokes` OK, `reset_market` снял 8 QA-лотов и вернул 8 объектов без pending returns; browser QA `/game/admin` подтвердил рендер блока, кнопку `setup test accounts`, обновление `#qaSeedResult` и отсутствие horizontal overflow.
 Последняя Phase 4 NPC/Locations проверка: `tools/location_npc_transport_smoke.php` `24/24`, FPE `25/25`, Legacy Core `30/30`, HTTP `51/51`, migration status `69/69`, integrity `P0=0/P1=0/WARN=4`; покрыты routes, map transitions, blocked routes, wild encounter, NPC dialogs, ship travel и airplane boarding/early-exit block.

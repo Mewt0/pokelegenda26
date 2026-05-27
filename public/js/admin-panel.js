@@ -684,15 +684,18 @@
         ['status', 'Статус', 'select:draft,registration,active,finished,cancelled'],
         ['starts_at', 'Старт UNIX или дата', 'text'],
         ['ends_at', 'Финиш UNIX или дата', 'text'],
+        ['registration_deadline_at', 'Дедлайн регистрации UNIX или дата', 'text'],
         ['entry_fee_item_id', 'Предмет взноса', 'number'],
         ['entry_fee_amount', 'Размер взноса', 'number'],
         ['location_id', 'Локация/арена', 'number'],
+        ['arena_exit_location_id', 'Локация выхода с арены', 'number'],
         ['curator_user_id', 'Куратор user_id', 'number'],
         ['min_level', 'Мин. уровень', 'number'],
         ['max_level', 'Макс. уровень', 'number'],
         ['max_participants', 'Макс. участников', 'number'],
         ['rules', 'Правила', 'textarea'],
-        ['reward_note', 'Награды', 'textarea']
+        ['reward_note', 'Текст наград', 'textarea'],
+        ['reward_json', 'Reward JSON, например {"items":{"1":1000}}', 'textarea']
       ],
       extra: 'tournamentTools'
     },

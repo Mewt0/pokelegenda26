@@ -84,6 +84,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
         <a href="#" data-open-dex="attacks"><img src="/public/img/ui/menu-attackdex.png" alt="">Атакадекс</a>
         <a href="/game/quests"><img src="/public/img/ui/menu-quests.png" alt="">Квесты</a>
         <a href="/game/battle/pvp"><img src="/public/img/ui/menu-battle.png" alt="">Бои</a>
+        <a href="/game/tournaments"><img src="/public/img/ui/menu-battle.png" alt="">Турниры</a>
         <a href="/game/messages"><img src="/public/img/ui/menu-mail.png" alt="">Почта</a>
       </div>
       <div class="system-status">

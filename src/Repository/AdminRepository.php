@@ -1652,15 +1652,18 @@ final class AdminRepository
             'status' => $status,
             'starts_at' => $this->adminTimestamp((string) ($payload['starts_at'] ?? '')),
             'ends_at' => $this->adminTimestamp((string) ($payload['ends_at'] ?? '')),
+            'registration_deadline_at' => $this->adminTimestamp((string) ($payload['registration_deadline_at'] ?? '')),
             'entry_fee_item_id' => max(0, (int) ($payload['entry_fee_item_id'] ?? 1)),
             'entry_fee_amount' => max(0, (int) ($payload['entry_fee_amount'] ?? 0)),
             'location_id' => max(0, (int) ($payload['location_id'] ?? 40)),
+            'arena_exit_location_id' => max(0, (int) ($payload['arena_exit_location_id'] ?? 0)),
             'curator_user_id' => max(0, (int) ($payload['curator_user_id'] ?? 0)),
             'min_level' => max(1, (int) ($payload['min_level'] ?? 1)),
             'max_level' => max(1, (int) ($payload['max_level'] ?? 100)),
             'max_participants' => max(0, (int) ($payload['max_participants'] ?? 0)),
             'rules' => trim((string) ($payload['rules'] ?? '')),
             'reward_note' => trim((string) ($payload['reward_note'] ?? '')),
+            'reward_json' => trim((string) ($payload['reward_json'] ?? '')),
             'updated_by' => $adminId,
             'updated_at' => $now,
         ];
@@ -1670,11 +1673,11 @@ final class AdminRepository
             $this->db->prepare(
                 'UPDATE admin_tournaments
                     SET legacy_id = :legacy_id, title = :title, status = :status,
-                        starts_at = :starts_at, ends_at = :ends_at,
+                        starts_at = :starts_at, ends_at = :ends_at, registration_deadline_at = :registration_deadline_at,
                         entry_fee_item_id = :entry_fee_item_id, entry_fee_amount = :entry_fee_amount,
-                        location_id = :location_id, curator_user_id = :curator_user_id,
+                        location_id = :location_id, arena_exit_location_id = :arena_exit_location_id, curator_user_id = :curator_user_id,
                         min_level = :min_level, max_level = :max_level, max_participants = :max_participants,
-                        rules = :rules, reward_note = :reward_note, updated_by = :updated_by, updated_at = :updated_at
+                        rules = :rules, reward_note = :reward_note, reward_json = :reward_json, updated_by = :updated_by, updated_at = :updated_at
                   WHERE id = :id'
             )->execute($data);
             $action = 'tournament.update';
@@ -1683,13 +1686,13 @@ final class AdminRepository
             $data['created_at'] = $now;
             $this->db->prepare(
                 'INSERT INTO admin_tournaments
-                    (legacy_id, title, status, starts_at, ends_at, entry_fee_item_id, entry_fee_amount,
-                     location_id, curator_user_id, min_level, max_level, max_participants,
-                     rules, reward_note, created_by, updated_by, created_at, updated_at)
+                    (legacy_id, title, status, starts_at, ends_at, registration_deadline_at, entry_fee_item_id, entry_fee_amount,
+                     location_id, arena_exit_location_id, curator_user_id, min_level, max_level, max_participants,
+                     rules, reward_note, reward_json, created_by, updated_by, created_at, updated_at)
                  VALUES
-                    (:legacy_id, :title, :status, :starts_at, :ends_at, :entry_fee_item_id, :entry_fee_amount,
-                     :location_id, :curator_user_id, :min_level, :max_level, :max_participants,
-                     :rules, :reward_note, :created_by, :updated_by, :created_at, :updated_at)'
+                    (:legacy_id, :title, :status, :starts_at, :ends_at, :registration_deadline_at, :entry_fee_item_id, :entry_fee_amount,
+                     :location_id, :arena_exit_location_id, :curator_user_id, :min_level, :max_level, :max_participants,
+                     :rules, :reward_note, :reward_json, :created_by, :updated_by, :created_at, :updated_at)'
             )->execute($data);
             $id = (int) $this->db->lastInsertId();
             $action = 'tournament.create';
@@ -2670,7 +2673,7 @@ final class AdminRepository
 
     private function participantStatus(string $value): string
     {
-        return in_array($value, ['registered', 'checked_in', 'eliminated', 'winner', 'disqualified'], true) ? $value : 'registered';
+        return in_array($value, ['registered', 'checked_in', 'eliminated', 'winner', 'disqualified', 'cancelled'], true) ? $value : 'registered';
     }
 
     private function medalType(string $value): string
