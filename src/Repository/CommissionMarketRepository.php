@@ -28,7 +28,11 @@ final class CommissionMarketRepository
         'other' => 'Прочие предметы',
     ];
 
-    public function __construct(private PDO $db, private InventoryRepository $inventory)
+    public function __construct(
+        private PDO $db,
+        private InventoryRepository $inventory,
+        private ?SafeStorageRepository $safeStorage = null
+    )
     {
     }
 
@@ -1264,6 +1268,11 @@ final class CommissionMarketRepository
 
     private function storeReturn(int $userId, int $lotId, string $type, int $objectId, int $quantity, string $reason, string $error): void
     {
+        $this->safeStorage()?->storeObject($userId, $type, $objectId, max(1, $quantity), 'commission', $lotId, [
+            'lot_id' => $lotId,
+            'reason' => $reason,
+        ], $reason, $error);
+
         $this->db->prepare(
             'INSERT INTO market_return_storage (user_id, lot_id, object_type, object_id, quantity, payload_json, status, created_at, resolved_at)
              VALUES (:user, :lot, :type, :object, :qty, :payload, "pending", :time, 0)'
@@ -1276,6 +1285,19 @@ final class CommissionMarketRepository
             'payload' => $this->jsonEncode(['reason' => $reason, 'error' => $error]),
             'time' => time(),
         ]);
+    }
+
+    private function safeStorage(): ?SafeStorageRepository
+    {
+        if ($this->safeStorage !== null) {
+            return $this->safeStorage;
+        }
+        try {
+            $this->safeStorage = new SafeStorageRepository($this->db);
+        } catch (Throwable) {
+            return null;
+        }
+        return $this->safeStorage;
     }
 
     private function nextTableId(string $table, string $column): int

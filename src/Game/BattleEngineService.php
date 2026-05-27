@@ -6,6 +6,7 @@ namespace Pokemon8\Game;
 use Pokemon8\Repository\BattleRepository;
 use Pokemon8\Repository\BossRepository;
 use Pokemon8\Repository\RewardRepository;
+use Pokemon8\Repository\SafeStorageRepository;
 
 final class BattleEngineService
 {
@@ -16,6 +17,7 @@ final class BattleEngineService
         private BattleRepository $battles,
         private ?RewardRepository $rewards = null,
         private ?BossRepository $bosses = null,
+        private ?SafeStorageRepository $safeStorage = null,
     )
     {
         $this->math = new BattleMathService();
@@ -371,6 +373,32 @@ final class BattleEngineService
                 $messages[] = $rewardMessage;
                 $this->battles->insertBattleLog((int) $battle['id'], $currentRound, $rewardMessage);
             }
+            $this->safeStorage?->recordRollback(
+                'pve_battle_reward:' . (int) $battle['id'],
+                'battle_reward',
+                $userId,
+                'battle',
+                (int) $battle['id'],
+                [
+                    'battle_id' => (int) $battle['id'],
+                    'player_pokemon_id' => (int) ($player['id'] ?? 0),
+                    'enemy_pokemon_id' => (int) ($enemy['id'] ?? 0),
+                    'round' => $currentRound,
+                ],
+                [
+                    'result' => 'win',
+                    'rewards' => $rewards,
+                    'effort' => $effort,
+                ],
+                [
+                    'manual_review' => true,
+                    'reverse_coins' => (int) ($rewards['coins'] ?? 0),
+                    'reverse_drops' => $drops,
+                    'reverse_exp' => (int) ($effort['exp'] ?? 0),
+                    'reverse_happiness' => (int) ($rewards['happiness'] ?? 0),
+                ],
+                'recorded'
+            );
             $finalLogRows = $this->formatLogRows($this->battles->getBattleLog((int) $battle['id']));
             $this->battles->finishBattle((int) $battle['id'], $userId, $userId);
         } elseif ((int) $player['hp_my'] <= 0) {

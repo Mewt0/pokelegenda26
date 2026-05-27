@@ -7,8 +7,13 @@ use PDO;
 
 final class RewardRepository
 {
-    public function __construct(private PDO $db)
+    public function __construct(private PDO $db, private ?SafeStorageRepository $safeStorage = null)
     {
+    }
+
+    public function setSafeStorageRepository(SafeStorageRepository $safeStorage): void
+    {
+        $this->safeStorage = $safeStorage;
     }
 
     /**
@@ -28,8 +33,28 @@ final class RewardRepository
                 continue;
             }
 
-            $this->addItem($userId, $itemId, $count);
-            $messages[] = $this->itemRewardText($itemId, $count);
+            try {
+                $this->addItem($userId, $itemId, $count);
+                $messages[] = $this->itemRewardText($itemId, $count);
+            } catch (\Throwable $e) {
+                $this->safeStorage?->storeItem($userId, $itemId, $count, 'reward.grantItems', $source, [
+                    'source' => $source,
+                    'item_id' => $itemId,
+                    'count' => $count,
+                ], 'reward_grant_failed', $e->getMessage());
+                $this->safeStorage?->recordRollback(
+                    'reward_grant_failed:' . $userId . ':' . $itemId . ':' . time(),
+                    'reward_grant_items',
+                    $userId,
+                    'reward',
+                    $source,
+                    [],
+                    ['failed_item_id' => $itemId, 'failed_count' => $count],
+                    ['safe_storage' => true, 'item_id' => $itemId, 'count' => $count],
+                    'failed',
+                    $e->getMessage()
+                );
+            }
         }
 
         if ($messages !== []) {
@@ -438,7 +463,7 @@ final class RewardRepository
 
     private function withItemsUsersLock(callable $callback): void
     {
-        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 15)');
         $lock->execute(['name' => 'pokemon8_seq_items_users_id']);
         if ((int) ($lock->fetchColumn() ?: 0) !== 1) {
             throw new \RuntimeException('Unable to acquire items_users lock.');

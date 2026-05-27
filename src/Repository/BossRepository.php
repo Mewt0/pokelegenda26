@@ -990,7 +990,7 @@ final class BossRepository
             throw new \InvalidArgumentException('Unsupported sequence target.');
         }
         $name = 'pokemon8_seq_' . $table . '_' . $column;
-        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 15)');
         $lock->execute(['name' => $name]);
         if ((int) ($lock->fetchColumn() ?: 0) !== 1) {
             throw new \RuntimeException('Не удалось получить блокировку ID.');

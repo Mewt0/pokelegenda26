@@ -16,7 +16,11 @@ final class BreedingRepository
     private const REQUEST_TTL_SECONDS = 600;
     private const EGG_READY_SECONDS = 24 * 24 * 3600;
 
-    public function __construct(private PDO $db, private InventoryRepository $inventory)
+    public function __construct(
+        private PDO $db,
+        private InventoryRepository $inventory,
+        private ?SafeStorageRepository $safeStorage = null
+    )
     {
     }
 
@@ -262,6 +266,18 @@ final class BreedingRepository
             if ($startedTransaction && $this->db->inTransaction()) {
                 $this->db->rollBack();
             }
+            $this->safeStorage?->recordRollback(
+                'breeding_failed:' . $requestId . ':' . time(),
+                'breeding_accept',
+                $userId,
+                'breeding',
+                $requestId,
+                ['request_id' => $requestId, 'target_pokemon_id' => $pokemonId],
+                [],
+                ['transaction_rolled_back' => true, 'egg_created' => false],
+                'failed',
+                $e->getMessage()
+            );
             return ['ok' => false, 'message' => 'Не удалось завершить спарку: ' . $e->getMessage()];
         }
     }
@@ -552,6 +568,36 @@ final class BreedingRepository
             'request_id' => $requestId,
             'method_key' => $method,
         ]);
+
+        $this->safeStorage?->recordRollback(
+            'breeding_egg:' . $eggId,
+            'breeding_egg_create',
+            $ownerId,
+            'breeding',
+            $requestId,
+            [
+                'parent_one_id' => (int) $first['id'],
+                'parent_two_id' => $second !== null ? (int) $second['id'] : 0,
+                'parent_one_user_id' => (int) $first['users'],
+                'parent_two_user_id' => $second !== null ? (int) $second['users'] : 0,
+            ],
+            [
+                'egg_id' => $eggId,
+                'base_id' => $eggBaseId,
+                'owner_id' => $ownerId,
+                'ready_at' => time() + self::EGG_READY_SECONDS,
+                'iv' => $iv,
+                'attack_id' => $attackId,
+                'method' => $method,
+            ],
+            [
+                'action' => 'delete_egg',
+                'egg_id' => $eggId,
+                'owner_id' => $ownerId,
+                'reason' => 'Rollback breeding egg creation',
+            ],
+            'recorded'
+        );
 
         return $eggId;
     }

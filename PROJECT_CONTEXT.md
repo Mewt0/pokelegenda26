@@ -36,9 +36,11 @@
   - `tools/beta_backup.php` - дамп БД в `storage/backups/`;
   - `tools/beta_data_audit.php` - аудит P0/P1/WARN;
   - `tools/beta_data_audit.php --fix-safe` - только безопасные исправления: merge одинаковых item stacks, expire due commission/PvP.
-- Последний baseline: `59/59` миграций, `pending=0`, `dirty=0`, `failed=0`.
+- Последний статус миграций: `60/60`, `pending=0`, `dirty=0`, `failed=0`.
 - Последний beta audit: `P0=0`, `P1=0`; `WARN` остаётся по историческим незавершённым rows в `battles`.
 - Комиссионная лавка резервирует покемонов/яйца через `commission.reserve_user_id`, сейчас это аккаунт `Система`, а не живой игрок `id=3`.
+- Safe Storage: `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`, `SafeStorageRepository`, `tools/safe_storage_smoke.php`.
+- Safe Storage используется для возврата/резерва при сбоях commission, gift/inventory, rewards, breeding egg create и battle reward rollback-plan. Нормальные успешные операции пишут rollback-plan со статусом `recorded`, аварийные - `failed/open`.
 - Дампы и backup-файлы не коммитить: `storage/backups/` в `.gitignore`.
 
 ## Основные Рабочие Системы
@@ -73,6 +75,7 @@
 - Quests: `quest`, `quest_definitions`, `quest_steps`.
 - Eggs/breeding: `eggs`, `pokemon_breeding_rules`, `pokemon_breeding_requests`.
 - Markets: `market_lots`, `market_logs`, `market_return_storage`, `market_deal_reviews`; legacy `auction_items`/`rinok_poke` только compat/import.
+- Safe storage: `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`.
 - Trainer Card rewards: `user_gym_badges`, medals/reward tables.
 - Events/bosses/transport: current migration tables in `database/migrations`.
 
@@ -92,10 +95,10 @@
 - Запрещено: зелья, ягоды, quest/bound/temporary/blocked/equipped/in-use objects.
 - Резерв:
   - items через списание/резерв в `market_lots`;
-  - pokemon через `pok_user.users = 3`;
-  - eggs через `eggs.users_egg = 3`.
+  - pokemon через `pok_user.users = commission.reserve_user_id`;
+  - eggs через `eggs.users_egg = commission.reserve_user_id`.
 - Покупка/отмена/истечение должны быть транзакционными.
-- Safe return: `market_return_storage`.
+- Safe return: `SafeStorageRepository` + совместимое зеркало `market_return_storage`.
 - Logs: `market_logs`.
 - Risk deals:
   - overpriced easy items/pokeballs, total 50m+, unit 10m+, big expensive stacks;
@@ -115,6 +118,7 @@
 - `tools/legacy_core_qa_smoke.php`
 - `tools/breeding_qa_smoke.php`
 - `tools/commission_market_smoke.php`
+- `tools/safe_storage_smoke.php`
 - `tools/prepare_qa_teams.php`
 
 ## Правило Для Следующих Задач

@@ -161,6 +161,10 @@ function buildAuditReport(PDO $db, array $fixes): array
     if (tableExists($db, 'pvp_requests') && columnExists($db, 'pvp_requests', 'expires_at')) {
         addCheck($checks, $db, 'pvp.expired_pending_requests', 'warn', 'pending PvP requests past expires_at', 'SELECT COUNT(*) FROM pvp_requests WHERE status = "pending" AND expires_at > 0 AND expires_at <= UNIX_TIMESTAMP()');
     }
+    if (tableExists($db, 'safe_storage_entries')) {
+        addCheck($checks, $db, 'safe_storage.pending_entries', 'warn', 'pending objects in unified safe storage', 'SELECT COUNT(*) FROM safe_storage_entries WHERE status = "pending"');
+        addCheck($checks, $db, 'safe_storage.open_rollbacks', 'warn', 'open or failed rollback plans', tableExists($db, 'safe_operation_rollbacks') ? 'SELECT COUNT(*) FROM safe_operation_rollbacks WHERE status IN ("open", "failed")' : null);
+    }
 
     $summary = ['p0' => 0, 'p1' => 0, 'warn' => 0, 'ok' => 0];
     foreach ($checks as $check) {

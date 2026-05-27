@@ -56,6 +56,8 @@ final class AdminRepository
             'commissionActiveLots' => $this->tableExists('market_lots') ? $this->countTable('market_lots', 'status = "active" AND expires_at > UNIX_TIMESTAMP()') : 0,
             'commissionPendingReturns' => $this->tableExists('market_return_storage') ? $this->countTable('market_return_storage', 'status = "pending"') : 0,
             'commissionRiskDeals' => $this->commissionRiskCount(),
+            'safeStoragePending' => $this->tableExists('safe_storage_entries') ? $this->countTable('safe_storage_entries', 'status = "pending"') : 0,
+            'safeRollbackOpen' => $this->tableExists('safe_operation_rollbacks') ? $this->countTable('safe_operation_rollbacks', 'status IN ("open", "failed")') : 0,
         ];
     }
 
@@ -2419,7 +2421,7 @@ final class AdminRepository
 
     private function withItemsUsersLock(callable $callback): void
     {
-        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 15)');
         $lock->execute(['name' => 'pokemon8_seq_items_users_id']);
         if ((int) ($lock->fetchColumn() ?: 0) !== 1) {
             throw new \RuntimeException('Unable to acquire items_users lock.');

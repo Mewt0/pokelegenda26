@@ -11,6 +11,7 @@ final class InventoryRepository
 {
     private PokemonEvolutionRepository $evolutions;
     private ?RewardRepository $rewards = null;
+    private ?SafeStorageRepository $safeStorage = null;
     private ?bool $itemGameplayMetadataAvailable = null;
 
     public function __construct(private PDO $db, ?PokemonEvolutionRepository $evolutions = null)
@@ -21,6 +22,11 @@ final class InventoryRepository
     public function setRewardRepository(RewardRepository $rewards): void
     {
         $this->rewards = $rewards;
+    }
+
+    public function setSafeStorageRepository(SafeStorageRepository $safeStorage): void
+    {
+        $this->safeStorage = $safeStorage;
     }
 
     public function countItem(int $userId, int $itemId): int
@@ -391,10 +397,22 @@ final class InventoryRepository
             if ($startedTransaction) {
                 $this->db->commit();
             }
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
             if ($startedTransaction && $this->db->inTransaction()) {
                 $this->db->rollBack();
             }
+            $this->safeStorage?->recordRollback(
+                'gift_open_failed:' . $userId . ':' . $itemUserId . ':' . time(),
+                'inventory_gift_open',
+                $userId,
+                'inventory',
+                $itemUserId,
+                ['gift_item_user_id' => $itemUserId, 'gift_item_id' => (int) ($gift['item_id'] ?? 0)],
+                ['granted' => $granted],
+                ['gift_item_user_id' => $itemUserId, 'gift_spent' => false, 'granted_rolled_back' => true],
+                'failed',
+                $e->getMessage()
+            );
             return ['ok' => false, 'message' => 'Не удалось открыть подарок. Предмет не списан.'];
         }
 
@@ -710,29 +728,36 @@ final class InventoryRepository
             return;
         }
 
-        $this->withItemsUsersLock(function () use ($userId, $itemId, $count): void {
-            $existing = $this->findRow($userId, $itemId);
-            if ($existing !== null) {
-                $stmt = $this->db->prepare('UPDATE items_users SET count = count + :count WHERE id = :id LIMIT 1');
-                $stmt->execute([
-                    'count' => $count,
-                    'id' => (int) $existing['id'],
-                ]);
-                return;
-            }
+        try {
+            $this->withItemsUsersLock(function () use ($userId, $itemId, $count): void {
+                $existing = $this->findRow($userId, $itemId);
+                if ($existing !== null) {
+                    $stmt = $this->db->prepare('UPDATE items_users SET count = count + :count WHERE id = :id LIMIT 1');
+                    $stmt->execute([
+                        'count' => $count,
+                        'id' => (int) $existing['id'],
+                    ]);
+                    return;
+                }
 
-            $stmt = $this->db->prepare(
-                'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers) VALUES (:id, :item, :user, :count, :dattimer, :timers)'
-            );
-            $stmt->execute([
-                'id' => $this->nextItemsUsersId(),
-                'item' => $itemId,
-                'user' => $userId,
-                'count' => $count,
-                'dattimer' => 'not',
-                'timers' => 'not',
-            ]);
-        });
+                $stmt = $this->db->prepare(
+                    'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers) VALUES (:id, :item, :user, :count, :dattimer, :timers)'
+                );
+                $stmt->execute([
+                    'id' => $this->nextItemsUsersId(),
+                    'item' => $itemId,
+                    'user' => $userId,
+                    'count' => $count,
+                    'dattimer' => 'not',
+                    'timers' => 'not',
+                ]);
+            });
+        } catch (\Throwable $e) {
+            $this->safeStorage?->storeItem($userId, $itemId, $count, 'inventory.addItem', '', [
+                'method' => 'InventoryRepository::addItem',
+            ], 'inventory_add_failed', $e->getMessage());
+            throw $e;
+        }
     }
 
     private function nextItemsUsersId(): int
@@ -742,7 +767,7 @@ final class InventoryRepository
 
     private function withItemsUsersLock(callable $callback): void
     {
-        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 15)');
         $lock->execute(['name' => 'pokemon8_seq_items_users_id']);
         if ((int) ($lock->fetchColumn() ?: 0) !== 1) {
             throw new \RuntimeException('Unable to acquire items_users lock.');

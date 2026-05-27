@@ -2124,7 +2124,7 @@ final class BattleRepository
 
     private function withItemsUsersLock(callable $callback): void
     {
-        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 15)');
         $lock->execute(['name' => 'pokemon8_seq_items_users_id']);
         if ((int) ($lock->fetchColumn() ?: 0) !== 1) {
             throw new \RuntimeException('Unable to acquire items_users lock.');
@@ -3273,7 +3273,7 @@ final class BattleRepository
         }
 
         $lockName = sprintf('pokemon8_seq_%s_%s', $table, $column);
-        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 15)');
         $lock->execute(['name' => $lockName]);
 
         try {
