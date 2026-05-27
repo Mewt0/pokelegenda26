@@ -9,7 +9,8 @@
     selected: null,
     page: 1,
     pagination: null,
-    filters: {}
+    filters: {},
+    payload: null
   };
 
   const $ = selector => document.querySelector(selector);
@@ -120,6 +121,32 @@
     return time > 0 ? new Date(time * 1000).toLocaleString('ru-RU') : fallback;
   }
 
+  function fmtDuration(seconds) {
+    let value = Math.max(0, Number(seconds || 0));
+    const days = Math.floor(value / 86400);
+    value -= days * 86400;
+    const hours = Math.floor(value / 3600);
+    value -= hours * 3600;
+    const minutes = Math.floor(value / 60);
+    if (days > 0) return `${days}д ${hours}ч`;
+    if (hours > 0) return `${hours}ч ${minutes}м`;
+    return `${minutes}м`;
+  }
+
+  function gmStatusLabel(status) {
+    return {
+      ok: 'OK',
+      warn: 'Внимание',
+      critical: 'Критично',
+      active: 'Активно',
+      info: 'Info'
+    }[String(status || '')] || status || '';
+  }
+
+  function gmRow(area, status, metric, details, target, raw = {}) {
+    return { area, status, metric, details, target, raw };
+  }
+
   function objectLabel(row) {
     const type = row.object_type ? `${row.object_type} ` : '';
     const id = row.object_id ? `#${row.object_id} ` : '';
@@ -218,39 +245,45 @@
   const modules = {
     dashboard: {
       title: 'Дашборд',
-      subtitle: 'Онлайн, последние бои, аудит и системные показатели.',
+      subtitle: 'GM Center: здоровье проекта, активные/зависшие бои, рынок, replay, логи и модерация.',
       endpoint: '/api/admin/dashboard',
       dataKey: 'dashboard',
       create: false,
-      columns: ['Блок', 'Значение', 'Детали'],
+      columns: ['Блок', 'Статус', 'Показатель', 'Детали'],
       rows: data => {
+        const gm = data.gmCenter || {};
         const overview = data.overview || {};
         const online = data.onlineUsers || [];
         const audit = data.recentAudit || [];
         const activeEvents = data.activeEvents || [];
+        const market = gm.marketModeration || {};
+        const replay = gm.replayTools || {};
+        const moderation = gm.moderationPanel || {};
+        const jobs = gm.jobs || {};
+        const migrations = gm.migrations || {};
+        const safe = gm.safeStorage || {};
         return [
-          ...Object.keys(overview).map(key => ({ block: key, value: overview[key], details: 'count' })),
-          ...activeEvents.map(event => ({
-            block: 'active event',
-            value: `${event.title} x${Number(event.multiplier || 1).toFixed(2)}`,
-            details: `${event.boost_label || event.boost_key} · ${event.scope_label || event.scope}`
-          })),
-          ...(data.recentMarketLogs || []).slice(0, 8).map(row => ({
-            block: 'market',
-            value: `${row.action || ''} · lot #${row.lot_id || row.id || 0}`,
-            details: `${row.object_name || ''} · ${fmtMoney(row.total_price || 0)}`
-          })),
-          ...(data.recentErrors || []).slice(0, 5).map(row => ({
-            block: 'error log',
-            value: 'PHP/API',
-            details: row.line || ''
-          })),
-          ...online.map(user => ({ block: 'online', value: '#' + user.id + ' ' + user.login, details: 'loc ' + user.buildmy + ', battle ' + user.battleid })),
-          ...audit.slice(0, 8).map(row => ({ block: 'audit', value: row.action, details: '#' + row.entity_id + ' ' + (row.admin_login || row.admin_id) }))
+          ...(gm.health?.cards || []).map(card => gmRow('health', card.status, `${card.label}: ${card.value}`, card.details, 'dashboard', card)),
+          gmRow('market moderation', Number(market.riskOpen || 0) > 0 ? 'warn' : 'ok', `risk ${market.riskOpen || 0} / active lots ${market.activeLots || 0}`, `returns ${market.pendingReturns || 0}, locked ${market.lockedLots || 0}, expired ${market.expiredActiveLots || 0}`, 'commission', market),
+          gmRow('battle replay', replay.ready ? 'ok' : 'warn', `active ${replay.active || 0} / finished ${replay.finished || 0}`, `events ${replay.events || 0}, last ${fmtTime(replay.lastUpdatedAt || 0, 'нет')}`, 'battle_replays', replay),
+          gmRow('moderation', Number(moderation.activePunishments || 0) > 0 ? 'warn' : 'ok', `punishments ${moderation.activePunishments || 0}`, `banip ${moderation.activeBanIps || 0}`, 'moderation', moderation),
+          gmRow('background jobs', Number(jobs.failed || 0) > 0 ? 'critical' : 'ok', `failed ${jobs.failed || 0} / running ${jobs.running || 0}`, `last ${fmtTime(jobs.lastRunAt || 0, 'нет')}`, 'settings', jobs),
+          gmRow('migrations', Number(migrations.attentionTotal || 0) > 0 ? 'critical' : 'ok', `${migrations.applied || 0}/${migrations.total || 0}`, `pending ${migrations.pending || 0}, dirty ${migrations.dirty || 0}, failed ${migrations.failed || 0}`, 'settings', migrations),
+          gmRow('safe storage', Number(safe.attentionTotal || 0) > 0 ? 'warn' : 'ok', `attention ${safe.attentionTotal || 0}`, `pending ${safe.pendingStorage || 0}, rollbacks ${safe.openRollbacks || 0}`, 'settings', safe),
+          ...(gm.stuckBattles || []).map(row => gmRow('stuck battle', 'warn', `#${row.id} ${row.type} round ${row.round}`, `${row.user1?.login || '#' + row.user1?.id} vs ${row.user2?.login || (row.user2?.id ? '#' + row.user2.id : 'wild')} · age ${fmtDuration(row.ageSeconds)}`, 'battle_replays', row)),
+          ...(gm.activeBattles || []).slice(0, 12).map(row => gmRow('active battle', row.stuck ? 'warn' : 'active', `#${row.id} ${row.type} round ${row.round}`, `${row.user1?.login || '#' + row.user1?.id} vs ${row.user2?.login || (row.user2?.id ? '#' + row.user2.id : 'wild')} · age ${fmtDuration(row.ageSeconds)}`, 'battle_replays', row)),
+          ...activeEvents.map(event => gmRow('active event', 'active', `${event.title} x${Number(event.multiplier || 1).toFixed(2)}`, `${event.boost_label || event.boost_key} · ${event.scope_label || event.scope}`, 'events', event)),
+          ...(data.recentMarketLogs || []).slice(0, 8).map(row => gmRow('market log', row.risk?.is_risky && !row.risk?.reviewed ? 'warn' : 'info', `${row.action || ''} · lot #${row.lot_id || row.id || 0}`, `${row.object_name || ''} · ${fmtMoney(row.total_price || 0)}`, 'commission', row)),
+          ...(data.recentErrors || []).slice(0, 5).map(row => gmRow('error log', 'warn', 'PHP/API', row.line || '', 'dashboard', row)),
+          ...online.map(user => gmRow('online', 'active', '#' + user.id + ' ' + user.login, 'loc ' + user.buildmy + ', battle ' + user.battleid, 'users', user)),
+          ...audit.slice(0, 8).map(row => gmRow('audit', 'info', row.action, '#' + row.entity_id + ' ' + (row.admin_login || row.admin_id), 'settings', row)),
+          ...Object.keys(overview).map(key => gmRow('overview', 'info', key, overview[key], 'dashboard', { key, value: overview[key] }))
         ];
       },
-      cells: row => [row.block, row.value, row.details],
-      fields: []
+      cells: row => [row.area, gmStatusLabel(row.status), row.metric, row.details],
+      rowClass: row => row.status === 'critical' || row.status === 'warn' ? 'is-risk' : (row.status === 'ok' ? 'is-reviewed' : ''),
+      fields: [],
+      extra: 'gmCenterTools'
     },
     users: {
       title: 'Пользователи',
@@ -904,6 +937,7 @@
       return;
     }
 
+    state.payload = data;
     state.pagination = data.pagination || null;
     state.rows = rowsFor(config, data);
     renderStats(data.dashboard && data.dashboard.overview ? data.dashboard.overview : null);
@@ -1073,6 +1107,75 @@
 
   function buildExtra(config, row) {
     const danger = $('#adminDanger');
+    if (config.extra === 'gmCenterTools') {
+      const gm = state.payload?.dashboard?.gmCenter || {};
+      if (!row) {
+        const cards = gm.health?.cards || [];
+        danger.insertAdjacentHTML('beforeend', `
+          <h3>GM Center</h3>
+          <p class="muted">Единый экран контроля: здоровье API/БД, активные и зависшие бои, рынок, replay, фоновые jobs, safe storage и модерация.</p>
+          <div class="admin-gm-cards">
+            ${cards.map(card => `
+              <button type="button" class="admin-gm-card ${esc(card.status || '')}" data-gm-target="dashboard">
+                <span>${esc(card.label)}</span>
+                <b>${esc(card.value)}</b>
+                <small>${esc(gmStatusLabel(card.status))}</small>
+              </button>
+            `).join('')}
+          </div>
+          <div class="admin-inline-actions">
+            <button type="button" data-gm-open="commission">Комиссионка</button>
+            <button type="button" data-gm-open="economy_guard">Economy Guard</button>
+            <button type="button" data-gm-open="battle_replays">Повторы боёв</button>
+            <button type="button" data-gm-open="moderation">Модерация</button>
+            <button type="button" data-gm-open="settings">Система</button>
+          </div>
+          <div class="admin-detail-grid">
+            <div><b>Health</b>${esc(gmStatusLabel(gm.health?.status || 'ok'))} · generated ${esc(fmtTime(gm.generatedAt || 0, 'now'))}</div>
+            <div><b>Бои</b>active ${(gm.activeBattles || []).length} · stuck ${(gm.stuckBattles || []).length}</div>
+            <div><b>Рынок</b>risk ${esc(gm.marketModeration?.riskOpen || 0)} · returns ${esc(gm.marketModeration?.pendingReturns || 0)}</div>
+            <div><b>Replay</b>${gm.replayTools?.ready ? 'готов' : 'нет таблиц'} · events ${esc(gm.replayTools?.events || 0)}</div>
+          </div>
+        `);
+        document.querySelectorAll('[data-gm-open]').forEach(button => {
+          button.addEventListener('click', () => setTab(button.dataset.gmOpen));
+        });
+        return;
+      }
+
+      danger.insertAdjacentHTML('beforeend', `
+        <h3>GM деталь</h3>
+        <div class="admin-detail-grid">
+          <div><b>Блок</b>${esc(row.area || '')}</div>
+          <div><b>Статус</b>${esc(gmStatusLabel(row.status))}</div>
+          <div><b>Показатель</b>${esc(row.metric || '')}</div>
+          <div><b>Детали</b>${esc(row.details || '')}</div>
+        </div>
+        <div class="admin-inline-actions">
+          ${row.target && row.target !== 'dashboard' ? `<button type="button" id="gmOpenTarget">Открыть раздел</button>` : ''}
+          ${row.area && String(row.area).includes('battle') && row.raw?.id ? '<button type="button" id="gmFindReplay">Найти replay боя</button>' : ''}
+          ${row.area === 'market log' || row.area === 'market moderation' ? '<button type="button" id="gmOpenRisk">Риск-сделки</button>' : ''}
+        </div>
+        <details class="admin-json-details">
+          <summary>Raw data</summary>
+          <pre class="admin-json-preview">${esc(safeJson(row.raw || row))}</pre>
+        </details>
+      `);
+      $('#gmOpenTarget')?.addEventListener('click', () => setTab(row.target));
+      $('#gmFindReplay')?.addEventListener('click', () => {
+        setTab('battle_replays');
+        state.filters = { q: String(row.raw?.id || '') };
+        renderFilterbar(modules.battle_replays);
+        reloadCurrent();
+      });
+      $('#gmOpenRisk')?.addEventListener('click', () => {
+        setTab('commission');
+        state.filters = { risky: '1', sort: 'price_desc' };
+        renderFilterbar(modules.commission);
+        reloadCurrent();
+      });
+    }
+
     if (config.extra === 'userTools' && row) {
       danger.insertAdjacentHTML('beforeend', `
         <h3>Инструменты игрока</h3>

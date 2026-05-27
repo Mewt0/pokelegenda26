@@ -46,6 +46,15 @@ final class AdminApiController
         return $this->json(['ok' => true, 'dashboard' => $this->admin->dashboard()]);
     }
 
+    public function gmCenter(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+
+        return $this->json(['ok' => true, 'gmCenter' => $this->admin->gmCenter()]);
+    }
+
     public function lookups(Request $request): Response
     {
         if (!$this->authorized()) {

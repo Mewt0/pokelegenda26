@@ -9,6 +9,7 @@ use Throwable;
 final class AdminRepository
 {
     use AdminCommissionRepositoryTrait;
+    use AdminGmCenterRepositoryTrait;
 
     public function __construct(private PDO $db)
     {
@@ -65,8 +66,10 @@ final class AdminRepository
 
     public function dashboard(): array
     {
+        $gmCenter = $this->gmCenter();
         return [
             'overview' => $this->overview(),
+            'gmCenter' => $gmCenter,
             'onlineUsers' => $this->lookupRows(
                 'SELECT id, login, buildmy, battleid, pve, pvp, karma_score, onlinetime
                    FROM users

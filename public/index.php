@@ -275,6 +275,7 @@ $router->post('/api/quests/start', fn (Request $request) => $questApi->start($re
 $router->get('/api/profile/card', fn (Request $request) => $profilePage->card($request));
 $router->get('/api/admin/overview', fn (Request $request) => $adminApi->overview($request));
 $router->get('/api/admin/dashboard', fn (Request $request) => $adminApi->dashboard($request));
+$router->get('/api/admin/gm-center', fn (Request $request) => $adminApi->gmCenter($request));
 $router->get('/api/admin/lookups', fn (Request $request) => $adminApi->lookups($request));
 $router->get('/api/admin/legacy-map', fn (Request $request) => $adminApi->legacyMap($request));
 $router->get('/api/admin/items', fn (Request $request) => $adminApi->items($request));
