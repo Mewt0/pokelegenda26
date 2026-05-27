@@ -13,7 +13,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pokemon 8.0 - Игровой мир</title>
   <link rel="stylesheet" href="/public/css/game-start.css?v=20260526-pokemon-drag3">
-  <link rel="stylesheet" href="/public/css/game-shell.css?v=20260527-bug-reporter-2">
+  <link rel="stylesheet" href="/public/css/game-shell.css?v=20260527-topbar-tools">
   <link rel="stylesheet" href="/public/css/game-battle-dock.css?v=20260527-battle-replay">
   <link rel="stylesheet" href="/public/css/player-menu.css?v=20260527-breeding-popup2">
   <link rel="stylesheet" href="/public/css/trainer-profile-window.css?v=20260527-social-polish4">
@@ -68,7 +68,6 @@ $itemIconIndex = is_file($itemIconIndexPath)
         <?php if (!empty($isAdmin)): ?>
           <button type="button" id="debugForceBattleBtn" class="status-pill debug" style="display:none">DEBUG: бой (Дорога 1)</button>
         <?php endif; ?>
-        <button type="button" id="bugReportBtn" class="status-pill bug-report">Report bug</button>
         <button type="button" class="status-pill mode">Режим: общий</button>
       </div>
       <div class="main-menu">
@@ -92,7 +91,15 @@ $itemIconIndex = is_file($itemIconIndexPath)
         <?php if (!empty($isAdmin)): ?>
           <a href="/game/admin" class="admin-entry" title="Админпанель" aria-label="Админпанель">Админ</a>
         <?php endif; ?>
-        <button type="button" class="settings-btn" aria-label="Настройки">⚙</button>
+        <div class="game-tools-menu" id="gameToolsMenu">
+          <button type="button" class="settings-btn" id="gameToolsBtn" aria-label="Настройки" aria-haspopup="true" aria-expanded="false">⚙</button>
+          <div class="game-tools-dropdown" id="gameToolsDropdown" role="menu" aria-hidden="true">
+            <button type="button" id="bugReportBtn" role="menuitem">
+              <span class="game-tools-icon" aria-hidden="true">⚑</span>
+              <span>Report bug</span>
+            </button>
+          </div>
+        </div>
         <span class="status" id="status">Готово</span>
         <span class="signal" aria-hidden="true">▂▄▆</span>
       </div>
@@ -2811,7 +2818,6 @@ $itemIconIndex = is_file($itemIconIndexPath)
     }
 
     document.getElementById('pveButton').addEventListener('click', togglePveButton);
-    document.getElementById('bugReportBtn')?.addEventListener('click', openBugReportModal);
     document.getElementById('bugReportCloseBtn')?.addEventListener('click', closeBugReportModal);
     document.getElementById('bugReportCancelBtn')?.addEventListener('click', closeBugReportModal);
     document.getElementById('bugReportSubmitBtn')?.addEventListener('click', submitBugReport);
@@ -2968,6 +2974,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <script src="/public/js/trainer-profile-window.js?v=20260527-social-polish4"></script>
   <script src="/public/js/chat.js?v=20260525-trainer-card-hover"></script>
   <script src="/public/js/player-menu.js?v=20260527-breeding-popup2"></script>
+  <script src="/public/js/game-toolbar.js?v=20260527-topbar-tools"></script>
   <script src="/public/js/dex-overlay.js?v=20260525-dex-filters"></script>
   <script src="/public/js/game-market-overlay.js"></script>
   <script src="/public/js/commission-market.js?v=20260527-my-lots"></script>

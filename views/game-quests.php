@@ -9,7 +9,7 @@ $title = (string) ($module['title'] ?? 'Квесты');
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= View::e($title) ?> - Pokemon 8.0</title>
-  <link rel="stylesheet" href="/public/css/game-shell.css?v=20260527-bug-reporter-2">
+  <link rel="stylesheet" href="/public/css/game-shell.css?v=20260527-topbar-tools">
   <link rel="stylesheet" href="/public/css/quest-journal.css?v=20260527-quest-mockup2">
 </head>
 <body class="quest-journal-body">
