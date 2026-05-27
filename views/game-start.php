@@ -19,7 +19,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <link rel="stylesheet" href="/public/css/trainer-profile-window.css?v=20260527-social-polish4">
   <link rel="stylesheet" href="/public/css/game-market-overlay.css">
   <link rel="stylesheet" href="/public/css/commission-market.css?v=20260527-my-lots">
-  <link rel="stylesheet" href="/public/css/quest-journal.css?v=20260527-quest-overlay2">
+  <link rel="stylesheet" href="/public/css/quest-journal.css?v=20260527-quest-mockup">
 </head>
 <body>
   <main class="world game-shell" data-csrf="<?= View::e($csrf) ?>" data-user-id="<?= (int) ($userId ?? 0) ?>">
@@ -2971,7 +2971,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <script src="/public/js/dex-overlay.js?v=20260525-dex-filters"></script>
   <script src="/public/js/game-market-overlay.js"></script>
   <script src="/public/js/commission-market.js?v=20260527-my-lots"></script>
-  <script src="/public/js/quest-journal.js?v=20260527-quest-overlay2"></script>
+  <script src="/public/js/quest-journal.js?v=20260527-quest-mockup"></script>
 
 </body>
 </html>

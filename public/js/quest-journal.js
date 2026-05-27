@@ -17,6 +17,12 @@
     event: 'Ивентовый',
     chain: 'Цепочка',
   };
+  const summaryConfig = [
+    ['active', 'В процессе', '◎'],
+    ['available', 'Новых', '★'],
+    ['completed', 'Выполнено', '✓'],
+    ['locked', 'Закрыто', '▣'],
+  ];
   const highlightWords = [
     'Профессор', 'Оук', 'Спайк', 'Канто', 'Виридиан', 'Оливин',
     'Pidgey', 'Pidgeotto', 'Spearow', 'Metapod', 'Horsea',
@@ -136,14 +142,8 @@
 
     function renderSummary() {
       if (!els.summary) return;
-      const items = [
-        ['active', 'В процессе'],
-        ['available', 'Новые'],
-        ['completed', 'Выполнено'],
-        ['locked', 'Закрыто'],
-      ];
-      els.summary.innerHTML = items.map(([key, label]) => (
-        `<span class="quest-summary-pill">${escapeHtml(label)}: ${formatNumber(state.summary[key] || 0)}</span>`
+      els.summary.innerHTML = summaryConfig.map(([key, label, icon]) => (
+        `<span class="quest-summary-pill is-${key}"><i>${escapeHtml(icon)}</i>${escapeHtml(label)}: ${formatNumber(state.summary[key] || 0)}</span>`
       )).join('');
     }
 
@@ -160,10 +160,12 @@
         const status = String(quest.status || 'available');
         return `<button type="button" class="quest-list-card${Number(quest.id) === state.selectedId ? ' is-selected' : ''}${quest.tracked ? ' is-tracked' : ''}" data-quest-select="${Number(quest.id || 0)}">
           <span class="quest-list-card-icon"><img src="${escapeHtml(quest.icon || '/public/img/ui/menu-quests.png')}" alt=""></span>
-          <span>
+          <span class="quest-list-card-main">
             <b>${escapeHtml(quest.title || `Квест #${quest.id}`)}</b>
             <small>${escapeHtml(statusLabels[status] || status)} · ${escapeHtml(typeLabels[quest.type] || 'Квест')} · ${percent}%</small>
           </span>
+          ${status === 'available' ? '<span class="quest-new-dot" aria-hidden="true"></span>' : ''}
+          <span class="quest-card-arrow" aria-hidden="true">›</span>
           <span class="quest-list-progress"><span style="width:${percent}%"></span></span>
         </button>`;
       }).join('');
@@ -187,7 +189,7 @@
       els.detail.innerHTML = `
         <div class="quest-detail-title">
           <h2>${escapeHtml(quest.title || `Квест #${quest.id}`)}</h2>
-          <span class="quest-status-badge is-${escapeHtml(status)}">${escapeHtml(statusLabels[status] || status)}</span>
+          <span class="quest-status-badge is-${escapeHtml(status)}"><i>${status === 'completed' ? '✓' : status === 'available' ? '★' : status === 'locked' ? '▣' : '◎'}</i>${escapeHtml(statusLabels[status] || status)}</span>
         </div>
         <p class="quest-description">${highlighted(quest.description || 'Описание пока не заполнено.')}</p>
         <div class="quest-overall">
@@ -214,15 +216,18 @@
       const stateClass = status === 'done' ? 'is-done' : (percent >= 70 && status === 'active' ? 'is-near' : '');
       const label = status === 'done' ? 'Завершено' : (status === 'active' ? 'Выполняется' : 'Закрыто');
       return `<article class="quest-objective ${stateClass}">
-        <div class="quest-objective-head">
-          <b>${escapeHtml(step.title || `Цель ${step.step_no || ''}`)}</b>
-          <span class="quest-step-state is-${escapeHtml(status)}">${escapeHtml(label)}</span>
-        </div>
-        <p>${highlighted(step.description || '')}</p>
-        <span class="quest-objective-bar"><span style="width:${percent}%"></span></span>
-        <div class="quest-objective-meta">
-          <span>${formatNumber(progress.current)} / ${formatNumber(progress.target)}</span>
-          <span>${percent}%</span>
+        <span class="quest-objective-icon is-${escapeHtml(status)}">${status === 'done' ? '✓' : status === 'active' ? '<img src="/public/img/ui/menu-profile.png" alt="">' : '•'}</span>
+        <div class="quest-objective-main">
+          <div class="quest-objective-head">
+            <b>${escapeHtml(step.title || `Цель ${step.step_no || ''}`)}</b>
+            <span class="quest-step-state is-${escapeHtml(status)}">${escapeHtml(label)}</span>
+          </div>
+          <p>${highlighted(step.description || '')}</p>
+          <span class="quest-objective-bar"><span style="width:${percent}%"></span></span>
+          <div class="quest-objective-meta">
+            <span>${formatNumber(progress.current)} / ${formatNumber(progress.target)}</span>
+            <span>${percent}%</span>
+          </div>
         </div>
       </article>`;
     }
@@ -241,7 +246,7 @@
           <img src="${escapeHtml(reward.icon || '/public/img/ui/menu-quests.png')}" alt="" onerror="this.src='/public/img/ui/menu-quests.png'">
           <span>
             <b>${escapeHtml(reward.label || 'Награда')}</b>
-            <small>${escapeHtml(reward.type || 'reward')} × ${formatNumber(reward.amount || 1)}</small>
+            <small>${reward.type === 'rank' ? '+' : '× '}${formatNumber(reward.amount || 1)}</small>
           </span>
         </article>
       `).join('');
