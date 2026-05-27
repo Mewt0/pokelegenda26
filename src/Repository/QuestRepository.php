@@ -76,6 +76,67 @@ final class QuestRepository
         $this->updateState($userId, $questId, $process, $completed);
     }
 
+    public function startIfAvailable(int $userId, int $questId, int $process): bool
+    {
+        if (!$this->canStart($userId, $questId)) {
+            return false;
+        }
+
+        $existing = $this->findForUser($userId, $questId);
+        if ($existing === null) {
+            return $this->createIfMissing($userId, $questId, $process);
+        }
+
+        if ((int) ($existing['gotov'] ?? 0) === 1) {
+            return false;
+        }
+
+        if ((int) ($existing['process'] ?? 0) < $process) {
+            $this->updateState($userId, $questId, $process, 0);
+            return true;
+        }
+
+        return false;
+    }
+
+    public function completeIfActive(int $userId, int $questId, int $process): bool
+    {
+        if (!$this->canStart($userId, $questId)) {
+            return false;
+        }
+
+        $existing = $this->findForUser($userId, $questId);
+        if ($existing === null) {
+            $steps = $this->steps($questId);
+            $firstProcess = $steps !== [] ? max(1, (int) ($steps[0]['required_process'] ?? 1)) : 1;
+            $this->createIfMissing($userId, $questId, $firstProcess);
+            $existing = $this->findForUser($userId, $questId);
+        }
+
+        if ($existing === null || (int) ($existing['gotov'] ?? 0) === 1) {
+            return false;
+        }
+
+        $this->updateState($userId, $questId, $process, 1);
+        return true;
+    }
+
+    public function isCompleted(int $userId, int $questId): bool
+    {
+        $state = $this->findForUser($userId, $questId);
+        return $state !== null && (int) ($state['gotov'] ?? 0) === 1;
+    }
+
+    public function addQuestRank(int $userId, int $points): void
+    {
+        if ($userId <= 0 || $points === 0) {
+            return;
+        }
+
+        $stmt = $this->db->prepare('UPDATE users SET rang_c = rang_c + :points WHERE id = :user LIMIT 1');
+        $stmt->execute(['points' => $points, 'user' => $userId]);
+    }
+
     public function updateState(int $userId, int $questId, int $process, int $completed): void
     {
         $stmt = $this->db->prepare(

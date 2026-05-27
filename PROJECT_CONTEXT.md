@@ -38,7 +38,7 @@
   - `tools/beta_data_audit.php --fix-safe` - только безопасные исправления: merge одинаковых item stacks, expire due commission/PvP.
   - `tools/background_jobs.php --status|--dry-run|--job=<name>` - ручной запуск фоновых задач;
   - `tools/db_integrity_smoke.php [--fix-safe]` - integrity/anti-dupe проверки.
-- Последний статус миграций: `68/68`, `pending=0`, `dirty=0`, `failed=0`.
+- Последний статус миграций: `69/69`, `pending=0`, `dirty=0`, `failed=0`.
 - Последний beta audit: `P0=0`, `P1=0`; `WARN` остаётся по историческим незавершённым rows в `battles`.
 - Комиссионная лавка резервирует покемонов/яйца через `commission.reserve_user_id`, сейчас это аккаунт `Система`, а не живой игрок `id=3`; дополнительно ведётся ledger `market_reserved_objects`.
 - Safe Storage: `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`, `SafeStorageRepository`, `tools/safe_storage_smoke.php`.
@@ -58,6 +58,7 @@
 - Auth: регистрация без обязательной почты, password reset, techwork, роли через users/admin repository.
 - Game state/location: `/api/game/state`, `/api/map/move`, `LocationStateService`, `MapMoveService`.
 - NPC/quests: `/api/location/npc`, `/api/quests`, `NpcDialogService`, `QuestRepository`, `quest_definitions`, `quest_steps`.
+- First Player Experience: квесты `1 -> 101 -> 102 -> 103` ведут игрока через Оука, стартера, Дорогу 1, первый PvE бой, Вертанию и первый транспорт; smoke `tools/fpe_quest_smoke.php`.
 - PvE/PvP battle: `/api/battle/pve/*`, `/api/battle/pvp/*`, `BattleEngineService`, `BattleRepository`; активный бой выбирается строго по флагу `pve/pvp` и `batl_tip`, чтобы PvE catch не попадал в PvP-row при legacy-дублях id.
 - Battle replay viewer: игроки открывают свой replay через `/api/battle/replay`; админы смотрят список и детали через вкладку `Повторы боёв` в GM Center.
 - Battle transformations: Mega/Primal через `BattleTransformationCatalog`; формы боевые, не постоянные в `pok_user.basenum`.

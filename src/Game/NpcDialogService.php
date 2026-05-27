@@ -717,8 +717,9 @@ final class NpcDialogService
         $this->grantRewardItems($userId, [10 => 3, 1 => 5000], 'Квест: Первый покемон');
         $this->quests->updateState($userId, 1, 10, 1);
         $this->addQuestRank($userId, 1);
+        $this->quests->startIfAvailable($userId, 101, 1);
 
-        return $this->dialog('Профессор Оук', 'Готово. Стартовый покемон зарегистрирован, а в инвентарь добавлены покеболы и 5000 монет.', [
+        return $this->dialog('Профессор Оук', 'Готово. Стартовый покемон зарегистрирован, а в инвентарь добавлены покеболы и 5000 монет. Следующий шаг: выйди на Дорогу 1 и проведи первый бой.', [
             ['label' => 'Спасибо', 'close' => true],
         ]);
     }
@@ -983,7 +984,7 @@ final class NpcDialogService
                  hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv, tips, startone, startepoke,
                  reproduction, happy, datemay, usersone, sprz, item, ability_key)
              VALUES
-                (:id, :users, :base, :name, 1, 0, :lvl, 1, 16, :hp, :hp, 0, 100,
+                (:id, :users, :base, :name, 1, 0, :lvl, 1, 16, :hp_my, :hp_max, 0, 100,
                  :atk, :def, :satk, :sdef, :speed, 0, 0, 0, 0, 0, 0,
                  1, 1, 1, 1, 1, 1, "normal", :startone, :starter,
                  0, 0, NOW(), :usersone, 0, 0, :ability)'
@@ -994,7 +995,8 @@ final class NpcDialogService
             'base' => $baseId,
             'name' => $name,
             'lvl' => $level,
-            'hp' => $stats['hp'],
+            'hp_my' => $stats['hp'],
+            'hp_max' => $stats['hp'],
             'atk' => $stats['atk'],
             'def' => $stats['def'],
             'satk' => $stats['satk'],
@@ -1031,18 +1033,22 @@ final class NpcDialogService
             'INSERT INTO attac_my_poke
                 (id, pok_id, a_id, a_pp_min, a_pp_max, b_id, b_pp_min, b_pp_max, c_id, c_pp_min, c_pp_max, d_id, d_pp_min, d_pp_max)
              VALUES
-                (:id, :pokemon, :a_id, :a_pp, :a_pp, :b_id, :b_pp, :b_pp, :c_id, :c_pp, :c_pp, :d_id, :d_pp, :d_pp)'
+                (:id, :pokemon, :a_id, :a_pp_min, :a_pp_max, :b_id, :b_pp_min, :b_pp_max, :c_id, :c_pp_min, :c_pp_max, :d_id, :d_pp_min, :d_pp_max)'
         )->execute([
             'id' => $this->nextTableId('attac_my_poke', 'id'),
             'pokemon' => $pokemonId,
             'a_id' => $slots[0]['id'],
-            'a_pp' => $slots[0]['pp'],
+            'a_pp_min' => $slots[0]['pp'],
+            'a_pp_max' => $slots[0]['pp'],
             'b_id' => $slots[1]['id'],
-            'b_pp' => $slots[1]['pp'],
+            'b_pp_min' => $slots[1]['pp'],
+            'b_pp_max' => $slots[1]['pp'],
             'c_id' => $slots[2]['id'],
-            'c_pp' => $slots[2]['pp'],
+            'c_pp_min' => $slots[2]['pp'],
+            'c_pp_max' => $slots[2]['pp'],
             'd_id' => $slots[3]['id'],
-            'd_pp' => $slots[3]['pp'],
+            'd_pp_min' => $slots[3]['pp'],
+            'd_pp_max' => $slots[3]['pp'],
         ]);
     }
 

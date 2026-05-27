@@ -6,6 +6,7 @@ namespace Pokemon8\Game;
 use Pokemon8\Repository\BattleRepository;
 use Pokemon8\Repository\BattleReplayRepository;
 use Pokemon8\Repository\BossRepository;
+use Pokemon8\Repository\QuestRepository;
 use Pokemon8\Repository\RewardRepository;
 use Pokemon8\Repository\SafeStorageRepository;
 
@@ -20,6 +21,7 @@ final class BattleEngineService
         private ?BossRepository $bosses = null,
         private ?SafeStorageRepository $safeStorage = null,
         private ?BattleReplayRepository $replay = null,
+        private ?QuestRepository $quests = null,
     )
     {
         $this->math = new BattleMathService();
@@ -412,6 +414,11 @@ final class BattleEngineService
                 ],
                 'recorded'
             );
+            $questMessage = $this->completeFirstBattleQuest($userId, (int) $battle['id'], 'win');
+            if ($questMessage !== null) {
+                $messages[] = $questMessage;
+                $this->battles->insertBattleLog((int) $battle['id'], $currentRound, $questMessage);
+            }
             $finalLogRows = $this->formatLogRows($this->battles->getBattleLog((int) $battle['id']));
             $this->battles->finishBattle((int) $battle['id'], $userId, $userId);
         } elseif ((int) $player['hp_my'] <= 0) {
@@ -1390,6 +1397,10 @@ final class BattleEngineService
             ? sprintf('Покемон #%s успешно пойман и добавлен в команду.', $enemyName)
             : sprintf('Покемон #%s успешно пойман и отправлен в питомник.', $enemyName);
         $this->battles->insertBattleLog((int) $battle['id'], $round, $message);
+        $questMessage = $this->completeFirstBattleQuest($userId, (int) $battle['id'], 'catch');
+        if ($questMessage !== null) {
+            $this->battles->insertBattleLog((int) $battle['id'], $round, $questMessage);
+        }
         $logRows = $this->formatLogRows($this->battles->getBattleLog((int) $battle['id']));
         $this->battles->finishBattle((int) $battle['id'], $userId, $userId);
         $environment = $this->battleEnvironment((int) $battle['id'], $round);
@@ -1400,7 +1411,7 @@ final class BattleEngineService
             'finished' => true,
             'result' => 'caught',
             'rewards' => ['coins' => 0, 'exp' => 0],
-            'messages' => [$message],
+            'messages' => array_values(array_filter([$message, $questMessage])),
             'caughtPokemonId' => $newPokemonId,
             'caughtActive' => $active > 0,
             'battle' => [
@@ -1416,6 +1427,31 @@ final class BattleEngineService
                 'logByRound' => $this->groupLogByRound($logRows),
             ],
         ];
+    }
+
+    private function completeFirstBattleQuest(int $userId, int $battleId, string $result): ?string
+    {
+        if ($this->quests === null) {
+            return null;
+        }
+
+        $this->quests->startIfAvailable($userId, 101, 10);
+        if (!$this->quests->completeIfActive($userId, 101, 20)) {
+            return null;
+        }
+
+        $this->rewards?->grantItems($userId, [1 => 2000, 10 => 2], 'Квест: Первый бой на Дороге 1');
+        $this->quests->addQuestRank($userId, 1);
+        $this->quests->startIfAvailable($userId, 102, 10);
+        $this->rewards?->notify(
+            $userId,
+            'Квест завершён',
+            'Первый бой засчитан. Следующий шаг: добраться до Вертании через Дорогу 1.',
+            'quest',
+            ['quest_id' => 101, 'battle_id' => $battleId, 'result' => $result]
+        );
+
+        return 'Квест завершён: Первый бой на Дороге 1. Открыт следующий шаг пути.';
     }
 
     private function isCaptureBallItem(array $item): bool

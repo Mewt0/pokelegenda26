@@ -13,9 +13,21 @@ final class TransportRepository
     public const COIN_ITEM_ID = 1;
     public const PLANE_LOCATION_ID = 95001;
     public const DEFAULT_FLIGHT_DURATION_SECONDS = 900;
+    private ?QuestRepository $quests = null;
+    private ?RewardRepository $rewards = null;
 
     public function __construct(private PDO $db, private InventoryRepository $inventory)
     {
+    }
+
+    public function setQuestRepository(?QuestRepository $quests): void
+    {
+        $this->quests = $quests;
+    }
+
+    public function setRewardRepository(?RewardRepository $rewards): void
+    {
+        $this->rewards = $rewards;
     }
 
     public function routesForUser(int $userId): array
@@ -79,10 +91,11 @@ final class TransportRepository
 
         $this->db->prepare('UPDATE users SET buildmy = :location WHERE id = :user LIMIT 1')
             ->execute(['location' => (int) $route['to_location_id'], 'user' => $userId]);
+        $questMessage = $this->completeFirstTransportQuest($userId, (string) ($route['title'] ?? 'рейс'));
 
         return [
             'ok' => true,
-            'message' => sprintf('Вы отправились: %s.', (string) ($route['title'] ?? 'рейс')),
+            'message' => trim(sprintf('Вы отправились: %s.', (string) ($route['title'] ?? 'рейс')) . ($questMessage !== null ? ' ' . $questMessage : '')),
             'route' => $this->formatRoute($route),
             'locationId' => (int) $route['to_location_id'],
         ];
@@ -220,10 +233,11 @@ final class TransportRepository
 
             $flight = $this->activeFlight($userId, true);
             $this->db->commit();
+            $questMessage = $this->completeFirstTransportQuest($userId, (string) ($route['title'] ?? 'рейс'));
 
             return [
                 'ok' => true,
-                'message' => sprintf('Посадка завершена. %s, полёт займёт %s.', (string) ($route['title'] ?? 'Рейс'), $this->formatDuration($duration)),
+                'message' => trim(sprintf('Посадка завершена. %s, полёт займёт %s.', (string) ($route['title'] ?? 'Рейс'), $this->formatDuration($duration)) . ($questMessage !== null ? ' ' . $questMessage : '')),
                 'flight' => $flight !== null ? $this->formatFlight($flight) : null,
                 'locationId' => self::PLANE_LOCATION_ID,
             ];
@@ -428,6 +442,30 @@ final class TransportRepository
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         return is_array($row) ? $row : null;
+    }
+
+    private function completeFirstTransportQuest(int $userId, string $routeTitle): ?string
+    {
+        if ($this->quests === null) {
+            return null;
+        }
+
+        $this->quests->startIfAvailable($userId, 103, 10);
+        if (!$this->quests->completeIfActive($userId, 103, 20)) {
+            return null;
+        }
+
+        $this->rewards?->grantItems($userId, [1 => 2000], 'Квест: Первый транспорт');
+        $this->quests->addQuestRank($userId, 1);
+        $this->rewards?->notify(
+            $userId,
+            'Квест завершён',
+            'Первый транспортный маршрут засчитан: ' . $routeTitle . '.',
+            'quest',
+            ['quest_id' => 103, 'route' => $routeTitle]
+        );
+
+        return 'Квест завершён: Первый транспорт.';
     }
 
     private function userIsBusy(int $userId): bool
