@@ -115,6 +115,7 @@
   color: #66686d;
   font: 900 18px/1 Tahoma, Arial, sans-serif;
   text-align: center;
+  white-space: nowrap;
 }
 
 .trainer-profile-clan-top,
@@ -207,6 +208,12 @@
   filter: drop-shadow(0 2px 3px rgba(0,0,0,.18));
 }
 
+.trainer-profile-gym-more {
+  color: #536173;
+  font-size: 15px;
+  font-weight: 900;
+}
+
 .trainer-profile-gym-empty {
   grid-column: 1 / -1;
   min-height: 34px;
@@ -238,6 +245,13 @@
   color: #66686d;
   font-size: 17px;
   font-weight: 900;
+}
+
+.trainer-profile-badges-count {
+  min-height: 24px;
+  border-top: 0;
+  border-bottom: 1px solid #c0c4ca;
+  font-size: 13px;
 }
 
 .trainer-profile-info {
@@ -280,7 +294,7 @@
 
 .trainer-profile-center {
   display: grid;
-  grid-template-rows: 92px minmax(0, 1fr);
+  grid-template-rows: 160px minmax(0, 1fr);
   padding-inline: 0;
 }
 
@@ -373,6 +387,54 @@
   display: block;
   height: 100%;
   background: linear-gradient(90deg, #d2c876, #f2e89a);
+}
+
+.trainer-profile-social {
+  min-height: 26px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.trainer-profile-social-status {
+  min-height: 24px;
+  display: inline-grid;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid #bdc5cf;
+  border-radius: 5px;
+  background: rgba(255,255,255,.58);
+  color: #59687a;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.trainer-profile-social-button {
+  min-height: 24px;
+  display: inline-grid;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid #9bb4d2;
+  border-radius: 5px;
+  background: linear-gradient(#f9fcff, #dbeeff);
+  color: #265d9a;
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.trainer-profile-social-button:hover {
+  border-color: #6b95c3;
+  color: #174e88;
+}
+
+.trainer-profile-social-button.is-disabled,
+.trainer-profile-social-button:disabled {
+  cursor: default;
+  opacity: .66;
 }
 
 .trainer-profile-avatar-zone {
@@ -508,5 +570,153 @@
   .trainer-profile-center {
     min-height: 520px;
     order: -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .trainer-profile-overlay {
+    padding: 5px;
+  }
+
+  .trainer-profile-window {
+    width: calc(100vw - 10px);
+    height: calc(100vh - 10px);
+    grid-template-rows: 36px minmax(0, 1fr) auto;
+    border-width: 1px;
+  }
+
+  .trainer-profile-head strong {
+    max-width: calc(100vw - 74px);
+    overflow: hidden;
+    font-size: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .trainer-profile-body {
+    gap: 6px;
+    padding: 5px;
+  }
+
+  .trainer-profile-side,
+  .trainer-profile-center {
+    padding: 0;
+  }
+
+  .trainer-profile-center {
+    min-height: 440px;
+    grid-template-rows: auto minmax(300px, 1fr);
+  }
+
+  .trainer-profile-namezone {
+    grid-template-columns: minmax(0, 1fr);
+    padding-top: 3px;
+  }
+
+  .trainer-profile-hand {
+    display: none;
+  }
+
+  .trainer-profile-name-main h2 {
+    font-size: 20px;
+    white-space: normal;
+  }
+
+  .trainer-profile-party {
+    gap: 5px;
+  }
+
+  .trainer-profile-party-slot {
+    width: 29px;
+    height: 29px;
+    flex-basis: 29px;
+  }
+
+  .trainer-profile-party-mon {
+    width: 25px;
+    height: 25px;
+  }
+
+  .trainer-profile-social {
+    gap: 4px;
+  }
+
+  .trainer-profile-social-status,
+  .trainer-profile-social-button {
+    min-height: 28px;
+    padding-inline: 8px;
+    font-size: 12px;
+  }
+
+  .trainer-profile-avatar-zone::before,
+  .trainer-profile-avatar-zone::after {
+    top: 44px;
+    width: 62px;
+    height: 62px;
+  }
+
+  .trainer-profile-avatar-zone::before {
+    left: 8px;
+  }
+
+  .trainer-profile-avatar-zone::after {
+    right: 8px;
+  }
+
+  .trainer-profile-panel h3 {
+    min-height: 28px;
+    font-size: 15px;
+  }
+
+  .trainer-profile-clan-top,
+  .trainer-profile-activity-top {
+    min-height: 58px;
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  .trainer-profile-activity-top {
+    grid-template-columns: minmax(0, 1fr) 58px;
+  }
+
+  .trainer-profile-ribbon {
+    min-height: 26px;
+    font-size: 14px;
+  }
+
+  .trainer-profile-awards,
+  .trainer-profile-gifts {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 3px;
+    padding: 5px;
+  }
+
+  .trainer-profile-cell img {
+    width: 36px;
+    height: 36px;
+  }
+
+  .trainer-profile-stat {
+    grid-template-columns: 104px minmax(0, 1fr);
+    font-size: 12px;
+  }
+
+  .trainer-profile-foot {
+    grid-template-columns: 1fr;
+    gap: 1px;
+    padding: 3px 0;
+    text-align: center;
+  }
+
+  .trainer-profile-foot span,
+  .trainer-profile-foot span:last-child {
+    padding-inline: 8px;
+    text-align: center;
+  }
+
+  .trainer-profile-location {
+    width: calc(100% - 18px);
+    min-width: 0;
+    margin: 0 auto;
+    padding: 5px 10px;
   }
 }

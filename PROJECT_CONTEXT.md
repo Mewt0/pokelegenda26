@@ -74,7 +74,7 @@
   - `PokemonMarketRepository` - совместимый рынок покемонов поверх legacy.
   - `CommissionMarketRepository` - текущий единый рынок item/pokemon/egg.
 - Commission admin: `/api/admin/commission/*`, `market_lots`, `market_logs`, `market_return_storage`, `market_deal_reviews`; отдельная вкладка `Economy Guard` показывает автоалерты экономики и даёт ручной review.
-- Trainer Card: `/api/profile/card`, модальное окно на текущей странице, gym badges через reward-flow.
+- Trainer Card: `/api/profile/card`, модальное окно на текущей странице, social viewing/actions, held items и gym badges через reward-flow.
 - Events/buffs: `/api/events`, `/api/events/active`, `GameEventRepository`.
 - Transport: `/api/transport/*`, самолет/пароход/рейсы.
 - Bosses: `/api/bosses/start`, `/api/admin/bosses`, `BossRepository`.
@@ -106,7 +106,7 @@
 - `/game/items` - новый инвентарь.
 - `/game/pokemon` - команда, питомник, breeding UI.
 - `/game/eggs`, `/game/quests`, `/game/events`, `/game/market/pokemon` - новые страницы модулей.
-- Trainer Card - модальное окно, не отдельная legacy-страница.
+- Trainer Card - модальное окно на `/game`, не отдельная legacy-страница; клики по профилю/друзьям открывают overlay, API отдаёт `social` и `badgeSummary`.
 
 ## Комиссионная Лавка: Финальная V1
 

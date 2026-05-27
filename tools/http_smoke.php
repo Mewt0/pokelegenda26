@@ -125,13 +125,22 @@ try {
     assertTrue(
         $results,
         'profile.card.shape',
-        isset($profile['user'], $profile['uid'], $profile['avatar'], $profile['rank'], $profile['clan'], $profile['party'], $profile['activeTeam'], $profile['gifts'], $profile['gymBadges'], $profile['badges'])
+        isset($profile['user'], $profile['uid'], $profile['avatar'], $profile['rank'], $profile['clan'], $profile['party'], $profile['activeTeam'], $profile['gifts'], $profile['gymBadges'], $profile['badges'], $profile['badgeSummary'], $profile['friends'], $profile['social'])
             && is_array($profile['party'])
             && is_array($profile['activeTeam'])
             && is_array($profile['gifts'])
             && is_array($profile['gymBadges'])
-            && is_array($profile['badges']),
+            && is_array($profile['badges'])
+            && is_array($profile['badgeSummary'])
+            && is_array($profile['friends'])
+            && is_array($profile['social']),
         'uid=' . (int) ($profile['uid'] ?? 0) . ', party=' . count($profile['party'] ?? []) . ', badges=' . count($profile['gymBadges'] ?? [])
+    );
+    assertTrue(
+        $results,
+        'profile.card.social_self',
+        ($profile['social']['status'] ?? '') === 'self' && ($profile['viewerOwnsProfile'] ?? false) === true,
+        'status=' . (string) ($profile['social']['status'] ?? 'missing')
     );
     $partyHeldShape = true;
     foreach (($profile['party'] ?? []) as $pokemon) {

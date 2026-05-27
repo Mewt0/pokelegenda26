@@ -12,6 +12,7 @@
   let offsetX = 0;
   let offsetY = 0;
   let loadSeq = 0;
+  let currentProfileOptions = {};
 
   function ensureDom() {
     if (overlay) return;
@@ -39,6 +40,7 @@
               '<h3>Награды</h3>',
               '<div class="trainer-profile-gym-title">Значки гим-лидеров</div>',
               '<div class="trainer-profile-gymbadges" data-trainer-gym-badges></div>',
+              '<div class="trainer-profile-count trainer-profile-badges-count"><span data-trainer-badges-count>0</span> значков</div>',
               '<div class="trainer-profile-awards" data-trainer-awards></div>',
               '<div class="trainer-profile-count"><span data-trainer-awards-count>0</span> наград</div>',
             '</section>',
@@ -55,6 +57,7 @@
                 '<h2 data-trainer-name>...</h2>',
                 '<div class="trainer-profile-party" data-trainer-party></div>',
                 '<div class="trainer-profile-party-meter"><i data-trainer-party-meter style="width:0%"></i></div>',
+                '<div class="trainer-profile-social" data-trainer-social></div>',
               '</div>',
               '<div class="trainer-profile-hand is-right" aria-hidden="true">&#128075;</div>',
             '</section>',
@@ -184,6 +187,7 @@
 
   function open(options = {}) {
     ensureDom();
+    currentProfileOptions = { ...options };
     overlay.classList.add('is-open');
     overlay.setAttribute('aria-hidden', 'false');
     renderLoading(options.login || options.user || options.id || '');
@@ -265,7 +269,9 @@
     clearList('[data-trainer-awards]', '');
     clearList('[data-trainer-gifts]', '');
     clearList('[data-trainer-friends]', 'Загрузка...');
+    clearList('[data-trainer-social]', '');
     setText('[data-trainer-awards-count]', '0');
+    setText('[data-trainer-badges-count]', '0');
     setText('[data-trainer-gifts-count]', '0');
     setText('[data-trainer-friends-count]', '0');
     qs('[data-trainer-party-meter]').style.width = '0%';
@@ -279,6 +285,8 @@
     clearList('[data-trainer-awards]', '');
     clearList('[data-trainer-gifts]', '');
     clearList('[data-trainer-friends]', '');
+    clearList('[data-trainer-social]', '');
+    setText('[data-trainer-badges-count]', '0');
     qs('[data-trainer-stats]').innerHTML = '<div class="trainer-profile-error"></div>';
     qs('.trainer-profile-error').textContent = message;
   }
@@ -294,6 +302,7 @@
       ? profile.gymBadges
       : (Array.isArray(profile.badges) ? profile.badges : []);
     const friends = Array.isArray(profile.friends) ? profile.friends : [];
+    const social = profile.social || {};
 
     setText('[data-trainer-name]', '[' + Number(user.id || profile.uid || 0) + '] ' + (user.login || 'Тренер'));
     setText('[data-trainer-clan-name]', clan.name || 'Без клана');
@@ -313,8 +322,10 @@
     renderPresentCells('[data-trainer-awards]', awards, 10);
     renderPresentCells('[data-trainer-gifts]', gifts, 10);
     renderFriends(friends);
+    renderSocialActions(user, social);
     renderStats(user, karma);
     setText('[data-trainer-awards-count]', awards.length);
+    setText('[data-trainer-badges-count]', gymBadges.length);
     setText('[data-trainer-gifts-count]', gifts.length);
     setText('[data-trainer-friends-count]', friends.length);
   }
@@ -392,7 +403,7 @@
   function renderGymBadges(badges) {
     const box = qs('[data-trainer-gym-badges]');
     box.innerHTML = '';
-    const visible = badges.slice(0, 8);
+    const visible = badges.slice(0, 12);
     if (!visible.length) {
       const empty = document.createElement('span');
       empty.className = 'trainer-profile-gym-empty';
@@ -423,6 +434,101 @@
       cell.appendChild(image);
       box.appendChild(cell);
     });
+
+    if (badges.length > visible.length) {
+      const more = document.createElement('span');
+      more.className = 'trainer-profile-gym-badge trainer-profile-gym-more';
+      more.textContent = '+' + (badges.length - visible.length);
+      more.title = 'Ещё значков: ' + (badges.length - visible.length);
+      box.appendChild(more);
+    }
+  }
+
+  function renderSocialActions(user, social) {
+    const box = qs('[data-trainer-social]');
+    box.innerHTML = '';
+    const id = Number(user.id || social.profileId || 0);
+    const login = String(user.login || '').trim();
+    const status = String(social.status || (social.own ? 'self' : 'none'));
+    const own = Boolean(social.own || status === 'self');
+
+    const state = document.createElement('span');
+    state.className = 'trainer-profile-social-status';
+    state.textContent = own ? 'Мой профиль' : socialLabel(status);
+    box.appendChild(state);
+
+    if (own || id <= 0) return;
+
+    if (social.canMessage !== false) {
+      const message = document.createElement('a');
+      message.className = 'trainer-profile-social-button';
+      message.href = '/game/messages?mail_to=' + encodeURIComponent(login || String(id));
+      message.textContent = 'Сообщение';
+      box.appendChild(message);
+    }
+
+    if (social.canAcceptFriend) {
+      box.appendChild(socialButton('Принять', () => runSocialAction('acceptFriend', id)));
+    } else if (social.canRemoveFriend) {
+      box.appendChild(socialButton('Убрать', () => runSocialAction('removeFriend', id)));
+    } else if (social.canRequestFriend) {
+      box.appendChild(socialButton('В друзья', () => runSocialAction('requestFriend', id)));
+    } else if (status === 'outgoing') {
+      const pending = document.createElement('button');
+      pending.type = 'button';
+      pending.className = 'trainer-profile-social-button is-disabled';
+      pending.disabled = true;
+      pending.textContent = 'Заявка отправлена';
+      box.appendChild(pending);
+    }
+
+    if (social.canBattle !== false) {
+      box.appendChild(socialButton('Вызвать', () => runSocialAction('requestBattle', id)));
+    }
+  }
+
+  function socialButton(label, handler) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'trainer-profile-social-button';
+    button.textContent = label;
+    button.addEventListener('click', handler);
+    return button;
+  }
+
+  function socialLabel(status) {
+    if (status === 'friends') return 'Друзья';
+    if (status === 'incoming') return 'Входящая';
+    if (status === 'outgoing') return 'Заявка отправлена';
+    return 'Не в друзьях';
+  }
+
+  async function runSocialAction(method, id) {
+    const api = window.PokemonSocial || {};
+    if (!api || typeof api[method] !== 'function') {
+      notify('Социальные действия ещё загружаются.', 'error');
+      return;
+    }
+
+    try {
+      await api[method](id);
+      if (method !== 'requestBattle') {
+        loadProfile(currentProfileOptions);
+      }
+    } catch (error) {
+      console.error('Trainer social action failed:', error);
+      notify('Не удалось выполнить действие.', 'error');
+    }
+  }
+
+  function notify(message, type) {
+    if (window.PokemonSocial && typeof window.PokemonSocial.notify === 'function') {
+      window.PokemonSocial.notify(message, type || 'info');
+      return;
+    }
+    if (type === 'error') {
+      console.warn(message);
+    }
   }
 
   function pokemonSprite(pokemon) {
@@ -526,7 +632,11 @@
     if (url.origin !== window.location.origin || url.pathname !== '/game/profile') return;
     const id = Number(url.searchParams.get('id') || 0);
     const login = String(url.searchParams.get('user') || url.searchParams.get('login') || '').trim();
-    if (id <= 0 && login === '') return;
+    if (id <= 0 && login === '') {
+      event.preventDefault();
+      open({});
+      return;
+    }
 
     event.preventDefault();
     open(id > 0 ? { id, login } : { login });

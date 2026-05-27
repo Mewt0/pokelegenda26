@@ -56,8 +56,10 @@ final class ProfileRepository
 
         $formattedUser = $this->formatUser($user, $normalDex, $shinyDex);
         $party = $this->activeParty($profileId);
+        $awards = $this->presents($profileId, 1);
         $gifts = $this->presents($profileId, 2);
         $gymBadges = $this->gymBadges($profileId);
+        $friends = $this->friends($profileId);
 
         return [
             'user' => $formattedUser,
@@ -67,11 +69,18 @@ final class ProfileRepository
             'clan' => $formattedUser['clan'],
             'party' => $party,
             'activeTeam' => $party,
-            'awards' => $this->presents($profileId, 1),
+            'awards' => $awards,
             'gifts' => $gifts,
             'gymBadges' => $gymBadges,
             'badges' => $gymBadges,
-            'friends' => $this->friends($profileId),
+            'friends' => $friends,
+            'badgeSummary' => [
+                'gym' => count($gymBadges),
+                'awards' => count($awards),
+                'gifts' => count($gifts),
+                'friends' => count($friends),
+            ],
+            'social' => $this->socialState($viewerId, $profileId),
             'viewerOwnsProfile' => $viewerId === $profileId,
         ];
     }
@@ -210,6 +219,52 @@ final class ProfileRepository
         }
 
         return $items;
+    }
+
+    private function socialState(int $viewerId, int $profileId): array
+    {
+        $status = 'none';
+        if ($viewerId <= 0 || $profileId <= 0) {
+            $status = 'none';
+        } elseif ($viewerId === $profileId) {
+            $status = 'self';
+        } elseif ($this->friendRowExists($viewerId, $profileId)) {
+            $status = 'friends';
+        } elseif ($this->friendRequestExists($viewerId, $profileId)) {
+            $status = 'outgoing';
+        } elseif ($this->friendRequestExists($profileId, $viewerId)) {
+            $status = 'incoming';
+        }
+
+        return [
+            'viewerId' => $viewerId,
+            'profileId' => $profileId,
+            'status' => $status,
+            'own' => $status === 'self',
+            'canMessage' => $viewerId > 0 && $profileId > 0 && $viewerId !== $profileId,
+            'canBattle' => $viewerId > 0 && $profileId > 0 && $viewerId !== $profileId,
+            'canRequestFriend' => $status === 'none',
+            'canAcceptFriend' => $status === 'incoming',
+            'canRemoveFriend' => $status === 'friends',
+        ];
+    }
+
+    private function friendRowExists(int $userId, int $friendId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT 1 FROM friends WHERE id_user = :user AND id_my_friend = :friend LIMIT 1'
+        );
+        $stmt->execute(['user' => $userId, 'friend' => $friendId]);
+        return (bool) $stmt->fetchColumn();
+    }
+
+    private function friendRequestExists(int $fromId, int $toId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT 1 FROM friends_zayv WHERE id_user = :from_user AND id_user_to = :to_user LIMIT 1'
+        );
+        $stmt->execute(['from_user' => $fromId, 'to_user' => $toId]);
+        return (bool) $stmt->fetchColumn();
     }
 
     private function gymBadges(int $profileId): array

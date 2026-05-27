@@ -16,7 +16,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <link rel="stylesheet" href="/public/css/game-shell.css">
   <link rel="stylesheet" href="/public/css/game-battle-dock.css?v=20260527-battle-replay">
   <link rel="stylesheet" href="/public/css/player-menu.css">
-  <link rel="stylesheet" href="/public/css/trainer-profile-window.css?v=20260526-profile-window6">
+  <link rel="stylesheet" href="/public/css/trainer-profile-window.css?v=20260527-social-polish4">
   <link rel="stylesheet" href="/public/css/game-market-overlay.css">
   <link rel="stylesheet" href="/public/css/commission-market.css?v=20260527-my-lots">
 </head>
@@ -2743,7 +2743,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
       }
     }, 2000);
   </script>
-  <script src="/public/js/trainer-profile-window.js?v=20260526-trainer-held-items"></script>
+  <script src="/public/js/trainer-profile-window.js?v=20260527-social-polish4"></script>
   <script src="/public/js/chat.js?v=20260525-trainer-card-hover"></script>
   <script src="/public/js/player-menu.js?v=20260526-breeding-entry"></script>
   <script src="/public/js/dex-overlay.js?v=20260525-dex-filters"></script>
