@@ -38,11 +38,12 @@
   - `tools/beta_data_audit.php --fix-safe` - только безопасные исправления: merge одинаковых item stacks, expire due commission/PvP.
   - `tools/background_jobs.php --status|--dry-run|--job=<name>` - ручной запуск фоновых задач;
   - `tools/db_integrity_smoke.php [--fix-safe]` - integrity/anti-dupe проверки.
-- Последний статус миграций: `65/65`, `pending=0`, `dirty=0`, `failed=0`.
+- Последний статус миграций: `66/66`, `pending=0`, `dirty=0`, `failed=0`.
 - Последний beta audit: `P0=0`, `P1=0`; `WARN` остаётся по историческим незавершённым rows в `battles`.
 - Комиссионная лавка резервирует покемонов/яйца через `commission.reserve_user_id`, сейчас это аккаунт `Система`, а не живой игрок `id=3`.
 - Safe Storage: `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`, `SafeStorageRepository`, `tools/safe_storage_smoke.php`.
 - Safe Storage используется для возврата/резерва при сбоях commission, gift/inventory, rewards, breeding egg create и battle reward rollback-plan. Нормальные успешные операции пишут rollback-plan со статусом `recorded`, аварийные - `failed/open`.
+- Reward pipeline: `reward_transactions`, `reward_transaction_entries`, `RewardRepository::grantPipeline()`, `tools/reward_pipeline_smoke.php`. Подарки и `grantItems()` идут через единый лог начислений, push-уведомления и rollback/safe-storage failure record.
 - Background jobs: `background_job_runs`, `background_job_logs`, `BackgroundJobRepository`, `tools/background_jobs.php`, `tools/background_jobs_smoke.php`.
 - Текущие jobs: `expire_market`, `pvp_timeouts`, `stuck_battles` (warning-only), `temporary_items`, `transport_flights` (scan), `event_cleanup`, `safe_storage_status`.
 - Battle IDs: `battle_id_sequence` резервирует уникальные положительные `battles.id` для PvE/PvP/Boss на старой схеме без `AUTO_INCREMENT`; duplicate positive ids считаются P1.
@@ -61,6 +62,7 @@
 - Battle transformations: Mega/Primal через `BattleTransformationCatalog`; формы боевые, не постоянные в `pok_user.basenum`.
 - Inventory/items: `/api/inventory/page`, `/battle`, `/equip`, `/unequip`, `/use-target`, `/open-gift`, `InventoryRepository`.
 - Held items metadata: `item_gameplay_metadata` is source of truth for `item_target_rules`; `equip_held` replacement returns old held item to inventory. Effects can be `implemented`, `visual_only`, `todo`.
+- Gifts/rewards: `/api/inventory/open-gift` блокирует gift row через `FOR UPDATE`, считает loot table, начисляет награды через `RewardRepository::grantPipeline()` и списывает подарок только после успешного начисления.
 - Pokemon/team/daycare: `/game/pokemon`, `/api/pokemon/*`, active team отдельно от питомника.
 - Breeding/eggs: `/api/pokemon/breeding/*`, `/api/eggs`, `BreedingRepository`, `EggRepository`.
 - Markets:
@@ -80,6 +82,7 @@
 - Users/session: `users`, `site_settings`, `game_notifications`.
 - Pokemon: `pok_user`, `attac_my_poke`, base pokedex tables, form metadata.
 - Items: `items`, `items_users`, `item_gameplay_metadata`.
+- Rewards/notifications: `reward_transactions`, `reward_transaction_entries`, `game_notifications`.
 - Battles: `battles`, battle state/log/archive tables, PvP request tables.
 - Battle Replay: `battle_replays`, `battle_replay_events`.
 - Quests: `quest`, `quest_definitions`, `quest_steps`.
@@ -135,8 +138,10 @@
 - `tools/db_integrity_smoke.php`
 - `tools/battle_replay_smoke.php`
 - `tools/inventory_held_items_smoke.php`
+- `tools/reward_pipeline_smoke.php`
 - `tools/prepare_qa_teams.php`
 
+Последняя Phase 3 gifts/reward проверка: Reward Pipeline `13/13`, Inventory/Held `16/16`, Legacy Core `30/30`, HTTP `51/51`, Commission `24/24`, Safe Storage `7/7`, integrity `P0=0/P1=0/WARN=4`; gift-box теперь пишет `reward_transactions/reward_transaction_entries`, отправляет push и имеет rollback/safe-storage failure record.
 Последняя Phase 3 inventory/economy проверка: Inventory/Held `16/16`, HTTP `51/51`, Commission `24/24`, PvP `126/126`, Safe Storage `7/7`, integrity `P0=0/P1=0/WARN=4`; Browser QA подтвердил `/game` inventory overlay, targetable items, категории и held-item icons на `/game/pokemon`.
 Последняя Phase 2 проверка: PvE catch `57/57`, PvE finish/rewards/ack `58/58`, PvP Tacos/NIGA `126/126`, PvP NIGA/Tacos `126/126`, Mega Rayquaza smoke `126/126`, Battle Replay `6/6`, Commission `24/24`, background jobs `9/9`, safe storage `7/7`, integrity `P0=0/P1=0/WARN=4`.
 Последний Primal/Mega/weather факт: battle logs подтвердили `[TRANSFORM]` и `[WEATHER]` для Primal Kyogre/Primordial Sea, Primal Groudon/Desolate Land и Mega Rayquaza/Delta Stream; `battle_transformations.active=0` после ack, `pok_user.basenum` не хранит форму навсегда.

@@ -315,48 +315,63 @@ final class InventoryRepository
             return ['ok' => false, 'message' => 'Выберите подарок.'];
         }
 
-        $stmt = $this->db->prepare(
-            'SELECT iu.id, iu.item_id, iu.count, i.name
-               FROM items_users iu
-               INNER JOIN items i ON i.id = iu.item_id
-               INNER JOIN item_target_rules itr ON itr.item_id = iu.item_id AND itr.enabled = 1
-              WHERE iu.id = :id
-                AND iu.user_id = :user
-                AND iu.count > 0
-                AND (iu.dattimer = "not" OR (iu.dattimer REGEXP "^[0-9]+$" AND CAST(iu.dattimer AS UNSIGNED) > :time))
-                AND itr.target_type = "gift"
-                AND itr.effect_key = "open_gift"
-              LIMIT 1'
-        );
-        $stmt->execute(['id' => $itemUserId, 'user' => $userId, 'time' => time()]);
-        $gift = $stmt->fetch();
-        if (!$gift) {
-            return ['ok' => false, 'message' => 'Этот предмет нельзя открыть как подарок.'];
-        }
-
-        try {
-            $lootStmt = $this->db->prepare(
-                'SELECT reward_item_id, min_count, max_count, chance_bps, guaranteed
-                   FROM item_gift_loot
-                  WHERE gift_item_id = :gift AND enabled = 1
-               ORDER BY guaranteed DESC, sort_order ASC, reward_item_id ASC'
-            );
-            $lootStmt->execute(['gift' => (int) $gift['item_id']]);
-            $loot = $lootStmt->fetchAll();
-        } catch (\Throwable) {
-            return ['ok' => false, 'message' => 'Таблица подарков еще не применена в БД.'];
-        }
-
-        if (!is_array($loot) || $loot === []) {
-            return ['ok' => false, 'message' => 'У подарка пока нет таблицы наград. Предмет не списан.'];
-        }
-
         $granted = [];
+        $rewardItems = [];
+        $failureEntries = [];
+        $gift = null;
+        $operationKey = 'gift_open:' . $userId . ':' . $itemUserId;
         $startedTransaction = !$this->db->inTransaction();
         if ($startedTransaction) {
             $this->db->beginTransaction();
         }
         try {
+            $stmt = $this->db->prepare(
+                'SELECT iu.id, iu.item_id, iu.count, i.name
+                   FROM items_users iu
+                   INNER JOIN items i ON i.id = iu.item_id
+                   INNER JOIN item_target_rules itr ON itr.item_id = iu.item_id AND itr.enabled = 1
+                  WHERE iu.id = :id
+                    AND iu.user_id = :user
+                    AND iu.count > 0
+                    AND (iu.dattimer = "not" OR (iu.dattimer REGEXP "^[0-9]+$" AND CAST(iu.dattimer AS UNSIGNED) > :time))
+                    AND itr.target_type = "gift"
+                    AND itr.effect_key = "open_gift"
+                  LIMIT 1
+                  FOR UPDATE'
+            );
+            $stmt->execute(['id' => $itemUserId, 'user' => $userId, 'time' => time()]);
+            $gift = $stmt->fetch();
+            if (!$gift) {
+                if ($startedTransaction && $this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                return ['ok' => false, 'message' => 'Этот предмет нельзя открыть как подарок.'];
+            }
+            $operationKey = 'gift_open:' . $userId . ':' . $itemUserId . ':' . (int) $gift['item_id'];
+
+            try {
+                $lootStmt = $this->db->prepare(
+                    'SELECT reward_item_id, min_count, max_count, chance_bps, guaranteed
+                       FROM item_gift_loot
+                      WHERE gift_item_id = :gift AND enabled = 1
+                   ORDER BY guaranteed DESC, sort_order ASC, reward_item_id ASC'
+                );
+                $lootStmt->execute(['gift' => (int) $gift['item_id']]);
+                $loot = $lootStmt->fetchAll();
+            } catch (\Throwable) {
+                if ($startedTransaction && $this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                return ['ok' => false, 'message' => 'Таблица подарков еще не применена в БД.'];
+            }
+
+            if (!is_array($loot) || $loot === []) {
+                if ($startedTransaction && $this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                return ['ok' => false, 'message' => 'У подарка пока нет таблицы наград. Предмет не списан.'];
+            }
+
             foreach ($loot as $row) {
                 $guaranteed = (int) ($row['guaranteed'] ?? 0) === 1;
                 $chance = max(0, min(10000, (int) ($row['chance_bps'] ?? 0)));
@@ -372,28 +387,46 @@ final class InventoryRepository
                     continue;
                 }
 
-                $this->addItem($userId, $rewardItemId, $count);
-                $granted[] = ['item_id' => $rewardItemId, 'count' => $count, 'name' => $this->itemName($rewardItemId)];
+                $rewardItems[$rewardItemId] = ($rewardItems[$rewardItemId] ?? 0) + $count;
             }
 
-            if ($granted === []) {
+            if ($rewardItems === []) {
                 if ($startedTransaction && $this->db->inTransaction()) {
                     $this->db->rollBack();
                 }
                 return ['ok' => false, 'message' => 'Подарок ничего не выдал. Предмет не списан, проверь шансы loot table.'];
             }
 
-            $parts = array_map(
-                static fn (array $row): string => sprintf('%s x%d', (string) ($row['name'] ?? ('#' . $row['item_id'])), (int) $row['count']),
-                $granted
-            );
+            foreach ($rewardItems as $rewardItemId => $count) {
+                $name = $this->itemName((int) $rewardItemId);
+                $granted[] = ['item_id' => (int) $rewardItemId, 'count' => (int) $count, 'name' => $name];
+                $failureEntries[] = [
+                    'type' => 'item',
+                    'object_id' => (int) $rewardItemId,
+                    'quantity' => (int) $count,
+                    'title' => $name,
+                    'message' => sprintf('%s x%d', $name, (int) $count),
+                    'data' => ['item_id' => (int) $rewardItemId, 'count' => (int) $count],
+                ];
+            }
+
+            if ($this->rewards !== null) {
+                $this->rewards->grantPipeline($userId, ['items' => $rewardItems], 'gift_box', (int) $gift['item_id'], [
+                    'operation_key' => $operationKey,
+                    'allow_retry' => true,
+                    'throw_on_fail' => true,
+                    'title' => 'Подарок открыт',
+                    'variant' => 'reward',
+                    'gift_item_id' => (int) $gift['item_id'],
+                    'inventory_row_id' => (int) $gift['id'],
+                ]);
+            } else {
+                foreach ($rewardItems as $rewardItemId => $count) {
+                    $this->addItem($userId, (int) $rewardItemId, (int) $count);
+                }
+            }
 
             $this->decrementInventoryRowById($userId, $itemUserId, 1);
-            $this->rewards?->notify($userId, 'Подарок открыт', 'Получено: ' . implode(', ', $parts) . '.', 'reward', [
-                'gift_item_id' => (int) $gift['item_id'],
-                'inventory_row_id' => (int) $gift['id'],
-                'rewards' => $granted,
-            ]);
             if ($startedTransaction) {
                 $this->db->commit();
             }
@@ -401,6 +434,15 @@ final class InventoryRepository
             if ($startedTransaction && $this->db->inTransaction()) {
                 $this->db->rollBack();
             }
+            $this->rewards?->recordPipelineFailure(
+                $userId,
+                $operationKey,
+                'gift_box',
+                (int) ($gift['item_id'] ?? 0),
+                'Подарок открыт',
+                $failureEntries,
+                $e->getMessage()
+            );
             $this->safeStorage?->recordRollback(
                 'gift_open_failed:' . $userId . ':' . $itemUserId . ':' . time(),
                 'inventory_gift_open',
