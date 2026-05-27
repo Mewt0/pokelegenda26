@@ -16,11 +16,13 @@ final class BackgroundJobRepository
         'transport_flights' => 'Контроль авиарейсов',
         'event_cleanup' => 'Очистка завершённых событий',
         'safe_storage_status' => 'Контроль Safe Storage',
+        'economy_guard' => 'Economy Guard: экономика и трансферы',
     ];
 
     public function __construct(
         private PDO $db,
         private ?CommissionMarketRepository $commission = null,
+        private ?EconomyGuardRepository $economyGuard = null,
     ) {
     }
 
@@ -101,6 +103,7 @@ final class BackgroundJobRepository
                 'transport_flights' => $this->jobTransportFlights($dryRun, $limit, $runId),
                 'event_cleanup' => $this->jobEventCleanup($dryRun, $this->limitFor('background_jobs.event_cleanup_limit', $limit), $runId),
                 'safe_storage_status' => $this->jobSafeStorageStatus($dryRun, $limit, $runId),
+                'economy_guard' => $this->jobEconomyGuard($dryRun, $this->limitFor('background_jobs.economy_guard_limit', $limit), $runId),
                 default => ['message' => 'Unknown job'],
             };
             $durationMs = max(0, (int) floor(microtime(true) * 1000) - $startedMs);
@@ -288,6 +291,21 @@ final class BackgroundJobRepository
         return $summary;
     }
 
+    /**
+     * @return array<string,mixed>
+     */
+    private function jobEconomyGuard(bool $dryRun, int $limit, int $runId): array
+    {
+        if (!$this->tableExists('economy_guard_alerts')) {
+            return ['skipped' => true, 'reason' => 'economy_guard_alerts missing'];
+        }
+        $guard = $this->economyGuard ?? new EconomyGuardRepository($this->db);
+        $summary = $guard->scan($dryRun, $limit);
+        $alertCount = (int) (($summary['created'] ?? 0) + ($summary['updated'] ?? 0));
+        $this->log($runId, 'economy_guard', 'economy.guard.scan', $alertCount > 0 ? 'warn' : 'info', 'economy_guard', '', $summary);
+        return $summary;
+    }
+
     private function pendingCount(string $jobName): int
     {
         $now = time();
@@ -299,6 +317,7 @@ final class BackgroundJobRepository
             'transport_flights' => $this->tableExists('transport_flights') ? $this->countSql('SELECT COUNT(*) FROM transport_flights WHERE status = "active" AND arrives_at > 0 AND arrives_at <= :now', ['now' => $now]) : 0,
             'event_cleanup' => $this->tableExists('game_event_boosts') ? $this->countSql('SELECT COUNT(*) FROM game_event_boosts WHERE enabled = 1 AND ends_at > 0 AND ends_at < :now', ['now' => $now]) : 0,
             'safe_storage_status' => $this->tableExists('safe_storage_entries') ? $this->countSql('SELECT COUNT(*) FROM safe_storage_entries WHERE status = "pending"') : 0,
+            'economy_guard' => $this->tableExists('economy_guard_alerts') ? $this->countSql('SELECT COUNT(*) FROM economy_guard_alerts WHERE status = "open"') : 0,
             default => 0,
         };
     }

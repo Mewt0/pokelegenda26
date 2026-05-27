@@ -8,6 +8,7 @@ use Pokemon8\Http\Response;
 use Pokemon8\Repository\AdminRepository;
 use Pokemon8\Repository\BattleReplayRepository;
 use Pokemon8\Repository\BossRepository;
+use Pokemon8\Repository\EconomyGuardRepository;
 use Pokemon8\Security\Csrf;
 use Pokemon8\Security\Session;
 
@@ -19,6 +20,7 @@ final class AdminApiController
         private AdminRepository $admin,
         private ?BossRepository $bosses = null,
         private ?BattleReplayRepository $replays = null,
+        private ?EconomyGuardRepository $economyGuard = null,
     ) {
     }
 
@@ -587,6 +589,59 @@ final class AdminApiController
     public function reviewCommissionRisk(Request $request): Response
     {
         return $this->mutate($request, fn (int $adminId) => $this->admin->reviewCommissionRisk($adminId, $request->post));
+    }
+
+    public function economyGuardAlerts(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+        if ($this->economyGuard === null) {
+            return $this->json(['ok' => false, 'error' => 'economy_guard_unavailable'], 503);
+        }
+
+        [$page, $perPage, $offset] = $this->pageParams($request, 80);
+        $result = $this->economyGuard->alerts([
+            'q' => $request->input('q'),
+            'status' => $request->input('status'),
+            'type' => $request->input('type'),
+            'severity' => $request->input('severity'),
+            'user_id' => (int) $request->input('user_id', '0'),
+        ], $perPage, $offset);
+
+        return $this->json([
+            'ok' => true,
+            'alerts' => $result['rows'],
+            'rows' => $result['rows'],
+            'pagination' => $this->pagination($page, $perPage, (int) $result['total']),
+        ]);
+    }
+
+    public function economyGuardScan(Request $request): Response
+    {
+        return $this->mutate($request, function (int $adminId) use ($request): array {
+            if ($this->economyGuard === null) {
+                return ['ok' => false, 'message' => 'Economy Guard unavailable.'];
+            }
+            $dryRun = (string) ($request->post['dry_run'] ?? '0') === '1';
+            $limit = max(10, min(1000, (int) ($request->post['limit'] ?? 200)));
+            return ['ok' => true, 'summary' => $this->economyGuard->scan($dryRun, $limit)];
+        });
+    }
+
+    public function economyGuardReview(Request $request): Response
+    {
+        return $this->mutate($request, function (int $adminId) use ($request): array {
+            if ($this->economyGuard === null) {
+                return ['ok' => false, 'message' => 'Economy Guard unavailable.'];
+            }
+            return $this->economyGuard->review(
+                $adminId,
+                (int) ($request->post['alert_id'] ?? 0),
+                (string) ($request->post['status'] ?? 'reviewed'),
+                (string) ($request->post['note'] ?? '')
+            );
+        });
     }
 
     public function battleReplays(Request $request): Response

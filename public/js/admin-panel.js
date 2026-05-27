@@ -730,6 +730,39 @@
       ],
       extra: 'commissionTools'
     },
+    economy_guard: {
+      title: 'Economy Guard',
+      subtitle: 'Автообнаружение подозрительных сделок, резкого прироста монет, трансферов и фейковых цен.',
+      endpoint: '/api/admin/economy-guard/alerts',
+      dataKey: 'alerts',
+      paginated: true,
+      perPage: 80,
+      create: false,
+      columns: ['Статус', 'Риск', 'Тип', 'Игрок', 'Связанный', 'Сумма', 'Объект', 'Описание', 'Обновлён'],
+      cells: row => [
+        row.status || '',
+        `${row.severity || ''} · ${row.score || 0}`,
+        row.alert_type || '',
+        row.user_login || (row.user_id ? '#' + row.user_id : ''),
+        row.related_user_login || (row.related_user_id ? '#' + row.related_user_id : ''),
+        fmtMoney(row.amount || 0),
+        `${row.entity_type || ''} ${row.entity_id ? '#' + row.entity_id : ''}`.trim(),
+        row.title || '',
+        fmtTime(row.last_seen_at || 0)
+      ],
+      rowClass: row => {
+        if (row.status === 'reviewed' || row.status === 'ignored') return 'is-reviewed';
+        return row.severity === 'critical' || Number(row.score || 0) >= 80 ? 'is-risk' : '';
+      },
+      fields: [],
+      filterFields: [
+        ['status', 'Статус', 'select:=любой,open=open,reviewed=reviewed,ignored=ignored'],
+        ['type', 'Тип', 'select:=любой,suspicious_trade=suspicious_trade,massive_money_gain=massive_money_gain,transfer_abuse=transfer_abuse,fake_market_price=fake_market_price'],
+        ['severity', 'Риск', 'select:=любой,critical=critical,warn=warn,info=info'],
+        ['user_id', 'User ID', 'number']
+      ],
+      extra: 'economyGuardTools'
+    },
     battle_replays: {
       title: 'Повторы боёв',
       subtitle: 'Снимки боя, логи раундов, random rolls, damage audit и просмотр спорных PvE/PvP ситуаций.',
@@ -1411,6 +1444,71 @@
       $('#commissionApproveRisk')?.addEventListener('click', () => approveCommissionRisk(row));
     }
 
+    if (config.extra === 'economyGuardTools') {
+      if (!row) {
+        danger.insertAdjacentHTML('beforeend', `
+          <h3>Economy Guard</h3>
+          <p class="muted">Сканирует лавку, reward pipeline и балансы: подозрительные цены, трансферы между игроками и резкий рост монет.</p>
+          <div class="admin-inline-actions">
+            <button type="button" id="economyGuardDryRun">Dry-run scan</button>
+            <button type="button" id="economyGuardRun">Запустить scan</button>
+            <button type="button" id="economyGuardOpenOnly">Только open</button>
+            <button type="button" id="economyGuardCritical">Критичные</button>
+          </div>
+        `);
+        $('#economyGuardDryRun')?.addEventListener('click', () => runEconomyGuardScan(true));
+        $('#economyGuardRun')?.addEventListener('click', () => runEconomyGuardScan(false));
+        $('#economyGuardOpenOnly')?.addEventListener('click', () => {
+          state.filters = { status: 'open' };
+          renderFilterbar(modules.economy_guard);
+          reloadCurrent();
+        });
+        $('#economyGuardCritical')?.addEventListener('click', () => {
+          state.filters = { status: 'open', severity: 'critical' };
+          renderFilterbar(modules.economy_guard);
+          reloadCurrent();
+        });
+        return;
+      }
+
+      const details = row.details || {};
+      danger.insertAdjacentHTML('beforeend', `
+        <h3>Economy Alert</h3>
+        <span class="admin-risk-badge ${row.status === 'reviewed' || row.status === 'ignored' ? 'is-ok' : ''}">
+          ${esc(row.severity || '')} · score ${esc(row.score || 0)} · ${esc(row.status || '')}
+        </span>
+        <div class="admin-detail-grid">
+          <div><b>Alert</b>#${esc(row.id)} · ${esc(row.alert_type || '')}</div>
+          <div><b>Игрок</b>${esc(row.user_login || ('#' + (row.user_id || 0)))}</div>
+          <div><b>Связанный</b>${esc(row.related_user_login || (row.related_user_id ? '#' + row.related_user_id : 'нет'))}</div>
+          <div><b>Сумма</b>${esc(fmtMoney(row.amount || 0))}</div>
+          <div><b>Объект</b>${esc(row.entity_type || '')} ${row.entity_id ? '#' + esc(row.entity_id) : ''}</div>
+          <div><b>Первый раз</b>${esc(fmtTime(row.first_seen_at || 0))}</div>
+          <div><b>Последний раз</b>${esc(fmtTime(row.last_seen_at || 0))}</div>
+          <div><b>Заметка</b>${esc(row.note || '')}</div>
+        </div>
+        <p class="audit-line">${esc(row.title || '')}</p>
+        <details class="admin-json-details" open>
+          <summary>Детали проверки</summary>
+          <pre class="admin-json-preview">${esc(safeJson(details))}</pre>
+        </details>
+        <div class="admin-inline-actions">
+          <button type="button" id="economyGuardReviewOk">Проверено, норма</button>
+          <button type="button" id="economyGuardIgnore">Игнорировать</button>
+          <button type="button" id="economyGuardReopen">Вернуть в open</button>
+          <button type="button" id="economyGuardUserFilter">Все алерты игрока</button>
+        </div>
+      `);
+      $('#economyGuardReviewOk')?.addEventListener('click', () => reviewEconomyGuardAlert(row, 'reviewed'));
+      $('#economyGuardIgnore')?.addEventListener('click', () => reviewEconomyGuardAlert(row, 'ignored'));
+      $('#economyGuardReopen')?.addEventListener('click', () => reviewEconomyGuardAlert(row, 'open'));
+      $('#economyGuardUserFilter')?.addEventListener('click', () => {
+        state.filters = { user_id: String(row.user_id || '') };
+        renderFilterbar(modules.economy_guard);
+        reloadCurrent();
+      });
+    }
+
     if (config.extra === 'battleReplayTools') {
       if (!row) {
         danger.insertAdjacentHTML('beforeend', `
@@ -1669,6 +1767,31 @@
     const result = await send('/api/admin/commission/risk-review', {
       lot_id: row.lot_id || row.id,
       note: 'Проверено вручную: сделка нормальная.'
+    });
+    setStatus(result.message || '', !result.ok);
+    if (result.ok) reloadCurrent();
+  }
+
+  async function runEconomyGuardScan(dryRun) {
+    const result = await send('/api/admin/economy-guard/scan', {
+      dry_run: dryRun ? '1' : '0',
+      limit: '300'
+    });
+    const summary = result.summary || {};
+    const checks = summary.checks || {};
+    const checkText = Object.keys(checks).map(key => `${key}: ${checks[key]}`).join(', ');
+    setStatus(result.ok ? `Economy Guard ${dryRun ? 'dry-run' : 'scan'}: created ${summary.created || 0}, updated ${summary.updated || 0}. ${checkText}` : (result.message || 'Scan failed.'), !result.ok);
+    if (result.ok && !dryRun) reloadCurrent();
+  }
+
+  async function reviewEconomyGuardAlert(row, status) {
+    const note = status === 'reviewed'
+      ? 'Проверено вручную: алерт нормальный.'
+      : (status === 'ignored' ? 'Игнорировать в текущем виде.' : 'Возвращено в open.');
+    const result = await send('/api/admin/economy-guard/review', {
+      alert_id: row.id,
+      status,
+      note
     });
     setStatus(result.message || '', !result.ok);
     if (result.ok) reloadCurrent();

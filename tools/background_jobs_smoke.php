@@ -4,6 +4,7 @@ declare(strict_types=1);
 use Pokemon8\Database\Connection;
 use Pokemon8\Repository\BackgroundJobRepository;
 use Pokemon8\Repository\CommissionMarketRepository;
+use Pokemon8\Repository\EconomyGuardRepository;
 use Pokemon8\Repository\InventoryRepository;
 use Pokemon8\Repository\PokemonEvolutionRepository;
 use Pokemon8\Repository\SafeStorageRepository;
@@ -24,7 +25,8 @@ $inventory = new InventoryRepository($db, $evolutions);
 $safeStorage = new SafeStorageRepository($db);
 $inventory->setSafeStorageRepository($safeStorage);
 $commission = new CommissionMarketRepository($db, $inventory, $safeStorage);
-$jobs = new BackgroundJobRepository($db, $commission);
+$economyGuard = new EconomyGuardRepository($db);
+$jobs = new BackgroundJobRepository($db, $commission, $economyGuard);
 $results = [];
 
 $db->beginTransaction();
@@ -34,7 +36,7 @@ try {
     assertTrue($results, 'users.ready', $tacos > 0 && $niga > 0, 'Tacos=' . $tacos . ', NIGA=' . $niga);
 
     $status = $jobs->status();
-    assertTrue($results, 'status.jobs', isset($status['jobs']['expire_market'], $status['jobs']['pvp_timeouts']), 'jobs=' . count($status['jobs'] ?? []));
+    assertTrue($results, 'status.jobs', isset($status['jobs']['expire_market'], $status['jobs']['pvp_timeouts'], $status['jobs']['economy_guard']), 'jobs=' . count($status['jobs'] ?? []));
 
     $dry = $jobs->runAll(true, 10);
     assertTrue($results, 'dry_run.all', (bool) ($dry['ok'] ?? false), 'jobs=' . count($dry['jobs'] ?? []));
@@ -85,6 +87,9 @@ try {
 
     $safe = $jobs->runJob('safe_storage_status', true, 10);
     assertTrue($results, 'safe_storage_status.dry', (bool) ($safe['ok'] ?? false), json_encode($safe['summary'] ?? []));
+
+    $economy = $jobs->runJob('economy_guard', true, 10);
+    assertTrue($results, 'economy_guard.dry', (bool) ($economy['ok'] ?? false), json_encode($economy['summary'] ?? []));
 
     $db->rollBack();
 } catch (Throwable $e) {

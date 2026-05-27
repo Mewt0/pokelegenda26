@@ -4,6 +4,7 @@ declare(strict_types=1);
 use Pokemon8\Database\Connection;
 use Pokemon8\Repository\BackgroundJobRepository;
 use Pokemon8\Repository\CommissionMarketRepository;
+use Pokemon8\Repository\EconomyGuardRepository;
 use Pokemon8\Repository\InventoryRepository;
 use Pokemon8\Repository\PokemonEvolutionRepository;
 use Pokemon8\Repository\SafeStorageRepository;
@@ -32,7 +33,8 @@ $inventory = new InventoryRepository($db, $evolutions);
 $safeStorage = new SafeStorageRepository($db);
 $inventory->setSafeStorageRepository($safeStorage);
 $commission = new CommissionMarketRepository($db, $inventory, $safeStorage);
-$jobs = new BackgroundJobRepository($db, $commission);
+$economyGuard = new EconomyGuardRepository($db);
+$jobs = new BackgroundJobRepository($db, $commission, $economyGuard);
 
 if ($statusOnly) {
     output($jobs->status(), $jsonOutput);
