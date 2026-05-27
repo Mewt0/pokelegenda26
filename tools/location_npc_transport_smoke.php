@@ -136,7 +136,7 @@ function runFlightSmoke(PDO $db, array &$results, int $userId, LocationStateServ
 {
     $savedUser = fetchUserState($db, $userId);
     $pausedFlights = activeFlights($db, $userId);
-    $ticketRowId = nextId($db, 'items_users', 'id');
+    $ticketRowId = 0;
     $testFlightIds = [];
 
     try {
@@ -146,13 +146,13 @@ function runFlightSmoke(PDO $db, array &$results, int $userId, LocationStateServ
         }
         prepareUser($db, $userId, 1);
         $db->prepare(
-            'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers)
-             VALUES (:id, :item, :user, 1, "not", "not")'
+            'INSERT INTO items_users (item_id, user_id, count, dattimer, timers)
+             VALUES (:item, :user, 1, "not", "not")'
         )->execute([
-            'id' => $ticketRowId,
             'item' => TransportRepository::PLANE_TICKET_ITEM_ID,
             'user' => $userId,
         ]);
+        $ticketRowId = (int) $db->lastInsertId();
 
         $flightRoutes = $transport->planeDestinationsForUser($userId);
         $routeId = (int) ($flightRoutes[0]['id'] ?? 0);
@@ -184,8 +184,10 @@ function runFlightSmoke(PDO $db, array &$results, int $userId, LocationStateServ
             $db->prepare('DELETE FROM transport_flights WHERE id = :id AND user_id = :user LIMIT 1')
                 ->execute(['id' => $flightId, 'user' => $userId]);
         }
-        $db->prepare('DELETE FROM items_users WHERE id = :id AND user_id = :user AND item_id = :item LIMIT 1')
-            ->execute(['id' => $ticketRowId, 'user' => $userId, 'item' => TransportRepository::PLANE_TICKET_ITEM_ID]);
+        if ($ticketRowId > 0) {
+            $db->prepare('DELETE FROM items_users WHERE id = :id AND user_id = :user AND item_id = :item LIMIT 1')
+                ->execute(['id' => $ticketRowId, 'user' => $userId, 'item' => TransportRepository::PLANE_TICKET_ITEM_ID]);
+        }
         foreach ($pausedFlights as $flight) {
             $db->prepare('UPDATE transport_flights SET status = :status WHERE id = :id LIMIT 1')
                 ->execute(['status' => (string) $flight['status'], 'id' => (int) $flight['id']]);
@@ -314,11 +316,6 @@ function userId(PDO $db, string $login): int
     $stmt = $db->prepare('SELECT id FROM users WHERE LOWER(login) = LOWER(:login) LIMIT 1');
     $stmt->execute(['login' => $login]);
     return (int) ($stmt->fetchColumn() ?: 0);
-}
-
-function nextId(PDO $db, string $table, string $column): int
-{
-    return (int) ($db->query('SELECT COALESCE(MAX(`' . $column . '`), 0) + 1 FROM `' . $table . '`')->fetchColumn() ?: 1);
 }
 
 function assertTrue(array &$results, string $label, bool $ok, string $detail = ''): void

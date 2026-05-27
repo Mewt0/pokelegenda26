@@ -1190,10 +1190,9 @@ final class CommissionMarketRepository
         $message = $this->messageWithActor($message);
 
         $this->db->prepare(
-            'INSERT INTO game_notifications (id, user_id, title, message, variant, payload_json, source, created_at, read_at)
-             VALUES (:id, :user, :title, :message, "info", :payload, "Система", :time, 0)'
+            'INSERT INTO game_notifications (user_id, title, message, variant, payload_json, source, created_at, read_at)
+             VALUES (:user, :title, :message, "info", :payload, "Система", :time, 0)'
         )->execute([
-            'id' => $this->nextTableId('game_notifications', 'id'),
             'user' => $userId,
             'title' => $title,
             'message' => $message,
@@ -1480,14 +1479,6 @@ final class CommissionMarketRepository
         );
         $stmt->execute(['table' => $table]);
         return (int) ($stmt->fetchColumn() ?: 0) > 0;
-    }
-
-    private function nextTableId(string $table, string $column): int
-    {
-        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table) || !preg_match('/^[a-zA-Z0-9_]+$/', $column)) {
-            return 1;
-        }
-        return (int) ($this->db->query('SELECT COALESCE(MAX(`' . $column . '`), 0) + 1 FROM `' . $table . '`')->fetchColumn() ?: 1);
     }
 
     private function cleanItemName(array $row): string

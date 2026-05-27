@@ -71,15 +71,14 @@ try {
         'expires' => $now - 60,
         'created' => $now - 3600,
     ]);
-    $itemRowId = nextId($db, 'items_users', 'id');
     $db->prepare(
-        'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers)
-         VALUES (:id, 1, :user, 1, :expires, "not")'
+        'INSERT INTO items_users (item_id, user_id, count, dattimer, timers)
+         VALUES (1, :user, 1, :expires, "not")'
     )->execute([
-        'id' => $itemRowId,
         'user' => $tacos,
         'expires' => (string) ($now - 60),
     ]);
+    $itemRowId = (int) $db->lastInsertId();
     $tmp = $jobs->runJob('temporary_items', false, 10);
     assertTrue($results, 'temporary_items.run', (bool) ($tmp['ok'] ?? false), json_encode($tmp['summary'] ?? []));
     assertTrue($results, 'temporary_items.boost_disabled', (int) scalar($db, 'SELECT active FROM player_boosts WHERE id = :id', ['id' => $boostId]) === 0);

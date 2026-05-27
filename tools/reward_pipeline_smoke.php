@@ -102,13 +102,12 @@ function itemCount(PDO $db, int $userId, int $itemId): int
 
 function grantGiftRow(PDO $db, int $userId, int $itemId): int
 {
-    $id = (int) ($db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM items_users')->fetchColumn() ?: 1);
     $stmt = $db->prepare(
-        'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers)
-         VALUES (:id, :item, :user, 1, "not", "not")'
+        'INSERT INTO items_users (item_id, user_id, count, dattimer, timers)
+         VALUES (:item, :user, 1, "not", "not")'
     );
-    $stmt->execute(['id' => $id, 'item' => $itemId, 'user' => $userId]);
-    return $id;
+    $stmt->execute(['item' => $itemId, 'user' => $userId]);
+    return (int) $db->lastInsertId();
 }
 
 function transactionStatus(PDO $db, string $operationKey): string

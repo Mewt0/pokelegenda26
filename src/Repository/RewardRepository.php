@@ -819,10 +819,9 @@ final class RewardRepository
             }
 
             $this->db->prepare(
-                'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers)
-                 VALUES (:id, :item, :user, :count, "not", "not")'
+                'INSERT INTO items_users (item_id, user_id, count, dattimer, timers)
+                 VALUES (:item, :user, :count, "not", "not")'
             )->execute([
-                'id' => $this->nextTableId('items_users', 'id'),
                 'item' => $itemId,
                 'user' => $userId,
                 'count' => $count,
@@ -935,14 +934,6 @@ final class RewardRepository
         $stmt->execute(['table' => $table, 'column' => $column]);
         $cache[$key] = (bool) $stmt->fetchColumn();
         return $cache[$key];
-    }
-
-    private function nextTableId(string $table, string $column): int
-    {
-        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table) || !preg_match('/^[a-zA-Z0-9_]+$/', $column)) {
-            return 1;
-        }
-        return (int) ($this->db->query(sprintf('SELECT COALESCE(MAX(`%s`), 0) + 1 FROM `%s`', $column, $table))->fetchColumn() ?: 1);
     }
 
     private function withItemsUsersLock(callable $callback): void

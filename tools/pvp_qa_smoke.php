@@ -414,17 +414,15 @@ function pvpRequestRowStatus(PDO $db, int $requestId): string
 
 function createTemporaryItemRow(PDO $db, int $userId, int $itemId): int
 {
-    $rowId = (int) ($db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM items_users')->fetchColumn() ?: 1);
     $stmt = $db->prepare(
-        'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers)
-         VALUES (:id, :item, :user, 1, "not", 0)'
+        'INSERT INTO items_users (item_id, user_id, count, dattimer, timers)
+         VALUES (:item, :user, 1, "not", 0)'
     );
     $stmt->execute([
-        'id' => $rowId,
         'item' => $itemId,
         'user' => $userId,
     ]);
-    return $rowId;
+    return (int) $db->lastInsertId();
 }
 
 function cleanupTemporaryItemRow(PDO $db, int $rowId): void

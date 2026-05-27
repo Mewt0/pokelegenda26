@@ -473,6 +473,9 @@ button:hover { border-color: #2f78dc; color: #0b63cf; }
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 10px;
 }
+.admin-legacy-list[hidden] {
+  display: none;
+}
 .admin-legacy-list article {
   border: 1px solid #d5e2f2;
   border-radius: 8px;

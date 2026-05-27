@@ -191,10 +191,9 @@ function grantItemRow(PDO $db, int $userId, int $itemId, int $count): int
         throw new RuntimeException('Missing item #' . $itemId);
     }
 
-    $id = nextId($db, 'items_users', 'id');
-    $stmt = $db->prepare('INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers) VALUES (:id, :item, :user, :count, "not", "not")');
-    $stmt->execute(['id' => $id, 'item' => $itemId, 'user' => $userId, 'count' => $count]);
-    return $id;
+    $stmt = $db->prepare('INSERT INTO items_users (item_id, user_id, count, dattimer, timers) VALUES (:item, :user, :count, "not", "not")');
+    $stmt->execute(['item' => $itemId, 'user' => $userId, 'count' => $count]);
+    return (int) $db->lastInsertId();
 }
 
 function heldItem(PDO $db, int $pokemonId): int
