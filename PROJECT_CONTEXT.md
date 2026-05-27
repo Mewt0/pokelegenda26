@@ -60,6 +60,7 @@
 - NPC/quests: `/api/location/npc`, `/api/quests`, `NpcDialogService`, `QuestRepository`, `quest_definitions`, `quest_steps`.
 - First Player Experience: квесты `1 -> 101 -> 102 -> 103` ведут игрока через Оука, стартера, Дорогу 1, первый PvE бой, Вертанию и первый транспорт; smoke `tools/fpe_quest_smoke.php`.
 - Quests minimum: стартовые/battle/reward/cooldown/repeatable сценарии покрыты `tools/quests_minimum_smoke.php`; ежедневный Metapod-квест нельзя перезапустить во время cooldown, после истечения он снова становится `available`.
+- NPC + Locations: routes/map transitions/wild encounters/blocked routes/transport NPC/ship/flight smoke покрыты `tools/location_npc_transport_smoke.php`.
 - PvE/PvP battle: `/api/battle/pve/*`, `/api/battle/pvp/*`, `BattleEngineService`, `BattleRepository`; активный бой выбирается строго по флагу `pve/pvp` и `batl_tip`, чтобы PvE catch не попадал в PvP-row при legacy-дублях id.
 - Battle replay viewer: игроки открывают свой replay через `/api/battle/replay`; админы смотрят список и детали через вкладку `Повторы боёв` в GM Center.
 - Battle transformations: Mega/Primal через `BattleTransformationCatalog`; формы боевые, не постоянные в `pok_user.basenum`.
@@ -147,8 +148,10 @@
 - `tools/reward_pipeline_smoke.php`
 - `tools/fpe_quest_smoke.php`
 - `tools/quests_minimum_smoke.php`
+- `tools/location_npc_transport_smoke.php`
 - `tools/prepare_qa_teams.php`
 
+Последняя Phase 4 NPC/Locations проверка: `tools/location_npc_transport_smoke.php` `24/24`, FPE `25/25`, Legacy Core `30/30`, HTTP `51/51`, migration status `69/69`, integrity `P0=0/P1=0/WARN=4`; покрыты routes, map transitions, blocked routes, wild encounter, NPC dialogs, ship travel и airplane boarding/early-exit block.
 Последняя Phase 4 quests проверка: `tools/quests_minimum_smoke.php` `23/23`, FPE `25/25`, Legacy Core `30/30`, HTTP `51/51`, migration status `69/69`, integrity `P0=0/P1=0/WARN=4`; исправлен repeatable/cooldown state machine в `QuestRepository` и NPC-start для ежедневного Metapod-квеста.
 Последняя Phase 3 Economy Guard проверка: миграции `68/68`, Economy Guard `11/11`, Background Jobs `10/10`, Commission Hardening `36/36`, HTTP `51/51`, integrity `P0=0/P1=0/WARN=4`; добавлены `economy_guard_alerts`, background job `economy_guard`, admin API/GM вкладка и автообнаружение suspicious trades/massive money gain/transfer abuse/fake market prices.
 Последняя Phase 3 commission hardening проверка: миграции `67/67`, `tools/commission_hardening_smoke.php --iterations=600` `36/36`, Commission `24/24`, Background Jobs `9/9`, Reward Pipeline `13/13`, HTTP `51/51`, integrity `P0=0/P1=0/WARN=4`; добавлены freeze audit, object reserve ledger, stricter lot limits, risk review auto-flag и return.pending logs.
