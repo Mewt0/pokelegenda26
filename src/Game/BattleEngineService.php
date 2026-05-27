@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Pokemon8\Game;
 
 use Pokemon8\Repository\BattleRepository;
+use Pokemon8\Repository\BattleReplayRepository;
 use Pokemon8\Repository\BossRepository;
 use Pokemon8\Repository\RewardRepository;
 use Pokemon8\Repository\SafeStorageRepository;
@@ -18,6 +19,7 @@ final class BattleEngineService
         private ?RewardRepository $rewards = null,
         private ?BossRepository $bosses = null,
         private ?SafeStorageRepository $safeStorage = null,
+        private ?BattleReplayRepository $replay = null,
     )
     {
         $this->math = new BattleMathService();
@@ -73,6 +75,16 @@ final class BattleEngineService
         $moves = $this->formatMoves($player);
         $switchOptions = $finished ? [] : $this->formatSwitchOptions($userId, (int) ($player['id'] ?? 0));
         $environment = $this->battleEnvironment((int) $battle['id'], (int) ($battle['raund'] ?? 1));
+        $this->replay?->recordSnapshot(
+            (int) $battle['id'],
+            (int) ($battle['raund'] ?? 1),
+            'pve_state',
+            $battle,
+            $player,
+            $enemy,
+            $environment,
+            ['viewer_id' => $userId, 'mode' => 'pve', 'finished' => $finished]
+        );
 
         return $this->decorateBossState([
             'ok' => true,
@@ -236,6 +248,7 @@ final class BattleEngineService
             return ['ok' => false, 'active' => false, 'message' => 'Не удалось получить покемонов.'];
         }
         $this->applyEntryWeatherAbilities($battleId, (int) ($battle['raund'] ?? 1), $player, $enemy);
+        $this->replay?->recordAction($battleId, (int) ($battle['raund'] ?? 1), 'pve_attack', $userId, ['move_id' => $moveId]);
 
         $playerMove = $this->selectMove($this->movesForPokemon($player), $moveId);
         $enemyMove = $this->enemyMoveForBattle((int) ($battle['id'] ?? 0), $enemy);
@@ -504,6 +517,16 @@ final class BattleEngineService
             'id' => $opponentUserId,
             'login' => $opponentLogin,
         ];
+        $this->replay?->recordSnapshot(
+            (int) $battle['id'],
+            (int) ($battle['raund'] ?? 1),
+            'pvp_state',
+            $battle,
+            $player,
+            $enemy,
+            $environment,
+            ['viewer_id' => $userId, 'mode' => 'pvp', 'side' => $side, 'finished' => $finished]
+        );
 
         return [
             'ok' => true,
@@ -574,6 +597,7 @@ final class BattleEngineService
         if ((int) ($battle['pobeda'] ?? 0) !== 0) {
             return $this->pvpState($userId, $battleId);
         }
+        $this->replay?->recordAction($battleId, (int) ($battle['raund'] ?? 1), 'pvp_attack', $userId, ['move_id' => $moveId]);
 
         $side = (int) ($battle['user_2'] ?? 0) === $userId ? 2 : 1;
         if ((int) ($battle['attac_' . $side] ?? 0) !== 0) {
@@ -1337,7 +1361,15 @@ final class BattleEngineService
         $caught = $this->tryCatchWildPokemon(
             (int) ($enemy['hp_my'] ?? 1),
             (int) ($enemy['hp_max'] ?? 1),
-            max(1, (int) round($this->captureBallBonus($item) * $catchMultiplier))
+            max(1, (int) round($this->captureBallBonus($item) * $catchMultiplier)),
+            (int) $battle['id'],
+            $round,
+            [
+                'actor_key' => 'user:' . $userId,
+                'target_key' => (string) ($enemy['battle_pokemon'] ?? ''),
+                'item_user_id' => $itemUserId,
+                'item_id' => (int) ($item['item_id'] ?? 0),
+            ]
         );
 
         if (!$caught) {
@@ -1424,12 +1456,20 @@ final class BattleEngineService
         ];
     }
 
-    private function tryCatchWildPokemon(int $hp, int $hpMax, int $bonus): bool
+    private function replayRoll(int $battleId, int $round, string $label, int $min, int $max, ?int $threshold = null, ?bool $success = null, array $context = []): int
+    {
+        $roll = random_int($min, $max);
+        $this->replay?->recordRandomRoll($battleId, $round, $label, $roll, $min, $max, $threshold, $success, $context);
+        return $roll;
+    }
+
+    private function tryCatchWildPokemon(int $hp, int $hpMax, int $bonus, int $battleId = 0, int $round = 0, array $context = []): bool
     {
         $hp = max(1, $hp);
         $hpMax = max($hp, $hpMax);
         $bonus = max(1, $bonus);
-        $catchValue = (int) round(((3 * $hpMax - 2 * $hp) * (random_int(0, 255) * $bonus) / (3 * $hp)) * 1);
+        $roll = $this->replayRoll($battleId, $round, 'catch_value_roll', 0, 255, null, null, $context);
+        $catchValue = (int) round(((3 * $hpMax - 2 * $hp) * ($roll * $bonus) / (3 * $hp)) * 1);
         if ($catchValue <= 0) {
             $catchValue = 1;
         }
@@ -1440,7 +1480,15 @@ final class BattleEngineService
         }
 
         $catch = (int) round(sqrt(918510 / $catchValue2));
-        return $catchValue > $catch;
+        $success = $catchValue > $catch;
+        $this->replay?->recordRandomRoll($battleId, $round, 'catch_result', $catchValue, 1, max($catchValue, $catch), $catch, $success, $context + [
+            'catch_value' => $catchValue,
+            'catch_threshold' => $catch,
+            'hp' => $hp,
+            'hp_max' => $hpMax,
+            'bonus' => $bonus,
+        ]);
+        return $success;
     }
 
     private function applyMove(int $battleId, int $round, array &$attacker, array &$defender, array $move): string
@@ -1477,7 +1525,19 @@ final class BattleEngineService
         }
 
         $hitChance = $this->effectiveAccuracy($battleId, $attacker, $defender, $move);
-        if (random_int(1, 100) > $hitChance) {
+        $hitRoll = $this->replayRoll($battleId, $round, 'accuracy', 1, 100, $hitChance, null, [
+            'actor_key' => (string) ($attacker['battle_pokemon'] ?? ''),
+            'target_key' => (string) ($defender['battle_pokemon'] ?? ''),
+            'move_id' => $moveId,
+            'move_name' => $moveName,
+        ]);
+        $this->replay?->recordRandomRoll($battleId, $round, 'accuracy_result', $hitRoll, 1, 100, $hitChance, $hitRoll <= $hitChance, [
+            'actor_key' => (string) ($attacker['battle_pokemon'] ?? ''),
+            'target_key' => (string) ($defender['battle_pokemon'] ?? ''),
+            'move_id' => $moveId,
+            'move_name' => $moveName,
+        ]);
+        if ($hitRoll > $hitChance) {
             $missText = sprintf('%s использует %s — промах!', $attackerName, $moveName);
             $crashText = $this->applyMissMoveEffect($attacker, $move);
             return trim(implode(' ', array_filter([...$parts, $missText, $crashText])));
@@ -1485,7 +1545,7 @@ final class BattleEngineService
 
         $damageText = '';
         if ($category < 3 && $power > 0) {
-            $damageText = $this->damageMove($battleId, $attacker, $defender, $move);
+            $damageText = $this->damageMove($battleId, $round, $attacker, $defender, $move);
         } else {
             $damageText = sprintf('%s использует %s.', $attackerName, $moveName);
         }
@@ -1548,7 +1608,14 @@ final class BattleEngineService
         }
         foreach ($secondaryEffects as $effect) {
             $chance = max(1, min(100, (int) ($effect['chance'] ?? 100)));
-            if (random_int(1, 100) > $chance) {
+            $effectRoll = $this->replayRoll($battleId, $round, 'secondary_effect', 1, 100, $chance, null, [
+                'actor_key' => (string) ($attacker['battle_pokemon'] ?? ''),
+                'target_key' => (string) ($defender['battle_pokemon'] ?? ''),
+                'move_id' => $moveId,
+                'move_name' => $moveName,
+                'effect' => $effect,
+            ]);
+            if ($effectRoll > $chance) {
                 continue;
             }
             if (($effect['kind'] ?? '') === 'status') {
@@ -1591,7 +1658,13 @@ final class BattleEngineService
         if ((int) ($move['atac_categori'] ?? 1) >= 3 || (int) ($move['atac_power'] ?? 0) <= 0) {
             return '';
         }
-        if (random_int(1, 100) > 5) {
+        $trainingRoll = $this->replayRoll($battleId, $round, 'training_named_effect', 1, 100, 5, null, [
+            'actor_key' => (string) ($attacker['battle_pokemon'] ?? ''),
+            'target_key' => (string) ($defender['battle_pokemon'] ?? ''),
+            'move_id' => (int) ($move['id'] ?? $move['atac_id'] ?? 0),
+            'move_name' => (string) ($move['atac_name'] ?? ''),
+        ]);
+        if ($trainingRoll > 5) {
             return '';
         }
 
@@ -1932,7 +2005,7 @@ final class BattleEngineService
         return $messages;
     }
 
-    private function damageMove(int $battleId, array $attacker, array &$defender, array $move): string
+    private function damageMove(int $battleId, int $round, array $attacker, array &$defender, array $move): string
     {
         $attackerName = strip_tags((string) ($attacker['names'] ?? 'Покемон'));
         $defenderName = strip_tags((string) ($defender['names'] ?? 'Покемон'));
@@ -1985,14 +2058,36 @@ final class BattleEngineService
         }
         if ($typeEffect <= 0.0) {
             $this->lastDamageDealt = 0;
+            $this->replay?->recordDamage($battleId, $round, [
+                'actor_key' => (string) ($attacker['battle_pokemon'] ?? ''),
+                'target_key' => (string) ($defender['battle_pokemon'] ?? ''),
+                'move_id' => (int) ($move['id'] ?? $move['atac_id'] ?? 0),
+                'move_name' => $moveName,
+                'damage' => 0,
+                'blocked_by_type' => true,
+                'type_effectiveness' => $typeEffect,
+                'move_type' => $moveType,
+            ]);
             return sprintf('%s использует %s. %s не получает урона. %s', $attackerName, $moveName, $defenderName, $this->math->typeMessage($typeEffect));
         }
 
         $base = (((2 * $lvl / 5 + 2) * $power * $atk / max(1, $def)) / 50) + 2;
-        $rand = random_int(85, 100) / 100;
+        $randRoll = $this->replayRoll($battleId, $round, 'damage_variance', 85, 100, null, null, [
+            'actor_key' => (string) ($attacker['battle_pokemon'] ?? ''),
+            'target_key' => (string) ($defender['battle_pokemon'] ?? ''),
+            'move_id' => (int) ($move['id'] ?? $move['atac_id'] ?? 0),
+            'move_name' => $moveName,
+        ]);
+        $rand = $randRoll / 100;
         $critChance = $this->criticChance((string) ($move['critic'] ?? '3'));
         $critChance = max(0, min(100, $critChance + $this->heldItemCriticalBonus($attacker)));
-        $isCrit = random_int(1, 100) <= $critChance;
+        $critRoll = $this->replayRoll($battleId, $round, 'critical', 1, 100, $critChance, null, [
+            'actor_key' => (string) ($attacker['battle_pokemon'] ?? ''),
+            'target_key' => (string) ($defender['battle_pokemon'] ?? ''),
+            'move_id' => (int) ($move['id'] ?? $move['atac_id'] ?? 0),
+            'move_name' => $moveName,
+        ]);
+        $isCrit = $critRoll <= $critChance;
         $crit = $isCrit ? 1.5 : 1.0;
         $weatherPower = $this->weatherPowerModifier($weatherKind, $moveType);
         if ($weatherPower > 1.0) {
@@ -2017,9 +2112,45 @@ final class BattleEngineService
         $damage = max(1, (int) floor($base * $stab * $typeEffect * $rand * $crit * $weatherPower * $abilityPower * $terrainPower * $screenPower * $heldPower));
         $this->lastDamageDealt = $damage;
 
+        $hpBefore = (int) ($defender['hp_my'] ?? 0);
         $defender['hp_my'] = max(0, (int) ($defender['hp_my'] ?? 0) - $damage);
         $hpLeft = (int) ($defender['hp_my'] ?? 0);
         $hpMax = max(1, (int) ($defender['hp_max'] ?? 1));
+        $this->replay?->recordDamage($battleId, $round, [
+            'actor_key' => (string) ($attacker['battle_pokemon'] ?? ''),
+            'target_key' => (string) ($defender['battle_pokemon'] ?? ''),
+            'move_id' => (int) ($move['id'] ?? $move['atac_id'] ?? 0),
+            'move_name' => $moveName,
+            'move_type' => $moveType,
+            'category' => $category,
+            'level' => $lvl,
+            'power' => $power,
+            'atk' => $atk,
+            'def' => $def,
+            'base_damage' => round($base, 4),
+            'random_roll' => $randRoll,
+            'critical_roll' => $critRoll,
+            'critical_chance' => $critChance,
+            'critical' => $isCrit,
+            'stab' => $stab,
+            'type_effectiveness' => $typeEffect,
+            'weather' => $weatherKind,
+            'terrain' => $terrainKind,
+            'modifiers' => [
+                'random' => $rand,
+                'critical' => $crit,
+                'weather' => $weatherPower,
+                'ability' => $abilityPower,
+                'terrain' => $terrainPower,
+                'screen' => $screenPower,
+                'held_item' => $heldPower,
+            ],
+            'modifier_logs' => $modifierLogs,
+            'damage' => $damage,
+            'hp_before' => $hpBefore,
+            'hp_after' => $hpLeft,
+            'hp_max' => $hpMax,
+        ]);
         $typeText = $this->math->typeMessage($typeEffect);
         $critText = $isCrit ? ' КРИТ!' : '';
         $tail = trim($critText . ' ' . $typeText);
@@ -2049,7 +2180,17 @@ final class BattleEngineService
 
     private function tryApplyStatus(int $battleId, int $round, array $target, int $statusId, int $chance, string $moveType = '', string $moveName = ''): string
     {
-        if ($statusId <= 0 || random_int(1, 100) > max(1, min(100, $chance))) {
+        if ($statusId <= 0) {
+            return '';
+        }
+        $chance = max(1, min(100, $chance));
+        $statusRoll = $this->replayRoll($battleId, $round, 'status_apply', 1, 100, $chance, null, [
+            'target_key' => (string) ($target['battle_pokemon'] ?? ''),
+            'status_id' => $statusId,
+            'move_type' => $moveType,
+            'move_name' => $moveName,
+        ]);
+        if ($statusRoll > $chance) {
             return '';
         }
         $targetName = strip_tags((string) ($target['names'] ?? 'Покемон'));
@@ -2068,10 +2209,10 @@ final class BattleEngineService
             return sprintf('%s уже имеет этот статус.', $targetName);
         }
         $duration = match ($statusId) {
-            2 => random_int(1, 3),
-            4 => random_int(1, 3),
+            2 => $this->replayRoll($battleId, $round, 'status_duration_sleep', 1, 3, null, null, ['target_key' => $battlePokemon, 'status_id' => $statusId]),
+            4 => $this->replayRoll($battleId, $round, 'status_duration_freeze', 1, 3, null, null, ['target_key' => $battlePokemon, 'status_id' => $statusId]),
             6 => 1,
-            7 => random_int(1, 4),
+            7 => $this->replayRoll($battleId, $round, 'status_duration_confusion', 1, 4, null, null, ['target_key' => $battlePokemon, 'status_id' => $statusId]),
             default => 999999,
         };
         $ok = $this->battles->applyBattleStatus($battleId, $battlePokemon, $statusId, $round, $duration);
@@ -2110,7 +2251,11 @@ final class BattleEngineService
                     $messages[] = sprintf('%s спит и пропускает ход.', $name);
                 }
             } elseif ($id === 4) { // freeze
-                if (random_int(1, 100) <= 20) {
+                $roll = $this->replayRoll($battleId, $round, 'freeze_thaw', 1, 100, 20, null, [
+                    'actor_key' => $battlePokemon,
+                    'status_id' => $id,
+                ]);
+                if ($roll <= 20) {
                     $this->battles->deleteBattleStatus($battleId, $battlePokemon, 4);
                     $messages[] = sprintf('%s разморозился.', $name);
                 } else {
@@ -2118,7 +2263,11 @@ final class BattleEngineService
                     $messages[] = sprintf('%s заморожен и не может атаковать.', $name);
                 }
             } elseif ($id === 5) { // paralysis
-                if (random_int(1, 100) <= 25) {
+                $roll = $this->replayRoll($battleId, $round, 'paralysis_skip', 1, 100, 25, null, [
+                    'actor_key' => $battlePokemon,
+                    'status_id' => $id,
+                ]);
+                if ($roll <= 25) {
                     $canAct = false;
                     $messages[] = sprintf('%s парализован и пропускает ход.', $name);
                 }
@@ -2127,11 +2276,23 @@ final class BattleEngineService
                 $messages[] = sprintf('%s напуган и пропускает ход.', $name);
                 $this->battles->deleteBattleStatus($battleId, $battlePokemon, 6);
             } elseif ($id === 7) { // confusion
-                if (random_int(1, 100) <= 50) {
+                $roll = $this->replayRoll($battleId, $round, 'confusion_self_hit', 1, 100, 50, null, [
+                    'actor_key' => $battlePokemon,
+                    'status_id' => $id,
+                ]);
+                if ($roll <= 50) {
                     $damage = max(1, (int) floor((((2 * max(1, (int) ($actor['lvl'] ?? 1)) / 5 + 2) * 40 * max(1, (int) ($actor['atk'] ?? 1)) / max(1, (int) ($actor['def'] ?? 1))) / 50) + 2));
                     $actor['hp_my'] = max(0, (int) ($actor['hp_my'] ?? 0) - $damage);
                     $canAct = false;
                     $messages[] = sprintf('%s спутан и ранит себя на %d HP.', $name, $damage);
+                    $this->replay?->recordDamage($battleId, $round, [
+                        'actor_key' => $battlePokemon,
+                        'target_key' => $battlePokemon,
+                        'move_name' => 'confusion',
+                        'damage' => $damage,
+                        'hp_after' => (int) ($actor['hp_my'] ?? 0),
+                        'self_damage' => true,
+                    ]);
                 }
             }
             if ($id === 8) { // leech seed

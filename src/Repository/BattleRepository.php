@@ -10,10 +10,16 @@ use PDO;
 final class BattleRepository
 {
     private PokemonEvolutionRepository $evolutions;
+    private ?BattleReplayRepository $replay = null;
 
     public function __construct(private PDO $db, ?PokemonEvolutionRepository $evolutions = null)
     {
         $this->evolutions = $evolutions ?? new PokemonEvolutionRepository($db);
+    }
+
+    public function setBattleReplayRepository(?BattleReplayRepository $replay): void
+    {
+        $this->replay = $replay;
     }
 
     public function findActivePveBattleIdForUser(int $userId): int
@@ -1468,6 +1474,7 @@ final class BattleRepository
 
     public function insertBattleLog(int $battleId, int $round, string $message): void
     {
+        $logId = 0;
         try {
             $stmt = $this->db->prepare(
                 'INSERT INTO battle_log (battle_id, demage, raund) VALUES (:battle_id, :demage, :raund)'
@@ -1477,6 +1484,19 @@ final class BattleRepository
                 'demage' => $message,
                 'raund' => $round,
             ]);
+            $logId = (int) ($this->db->lastInsertId() ?: 0);
+            if ($logId <= 0) {
+                $lookup = $this->db->prepare(
+                    'SELECT id FROM battle_log WHERE battle_id = :battle_id AND raund = :raund AND demage = :demage ORDER BY id DESC LIMIT 1'
+                );
+                $lookup->execute([
+                    'battle_id' => $battleId,
+                    'raund' => $round,
+                    'demage' => $message,
+                ]);
+                $logId = (int) ($lookup->fetchColumn() ?: 0);
+            }
+            $this->replay?->recordRoundLog($battleId, $round, $message, $logId);
             return;
         } catch (\Throwable) {
             // Server DB keeps battle_log.id without AUTO_INCREMENT. Use safe fallback.
@@ -1492,6 +1512,7 @@ final class BattleRepository
             'demage' => $message,
             'raund' => $round,
         ]);
+        $this->replay?->recordRoundLog($battleId, $round, $message, $nextId);
     }
 
     public function getBattleLog(int $battleId, int $limit = 40): array
@@ -2486,6 +2507,7 @@ final class BattleRepository
 
     public function finishBattle(int $battleId, int $userId, int $winner): void
     {
+        $battleRow = $this->battleRowById($battleId);
         // Не удаляем бой/лог сразу: frontend должен успеть показать финальный экран.
         // Удаление делается только после /api/battle/pve/ack-end.
         $this->db->prepare(
@@ -2503,10 +2525,15 @@ final class BattleRepository
             'next_attack' => time() + 30,
             'id' => $userId,
         ]);
+        if ($battleRow !== null) {
+            $battleRow['pobeda'] = $winner;
+        }
+        $this->replay?->markFinished($battleId, $winner, $battleRow ?? []);
     }
 
     public function finishPvpBattle(int $battleId, int $winner): void
     {
+        $battleRow = $this->battleRowById($battleId);
         $this->db->prepare(
             'UPDATE battles SET pobeda = :winner WHERE id = :id AND batl_tip = "pvp" LIMIT 1'
         )->execute(['winner' => $winner, 'id' => $battleId]);
@@ -2517,6 +2544,21 @@ final class BattleRepository
                 SET pvp = 0, battleid = :set_battle
               WHERE battleid = :where_battle AND pvp = 1'
         )->execute(['set_battle' => $battleId, 'where_battle' => $battleId]);
+        if ($battleRow !== null) {
+            $battleRow['pobeda'] = $winner;
+        }
+        $this->replay?->markFinished($battleId, $winner, $battleRow ?? []);
+    }
+
+    private function battleRowById(int $battleId): ?array
+    {
+        if ($battleId <= 0) {
+            return null;
+        }
+        $stmt = $this->db->prepare('SELECT * FROM battles WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $battleId]);
+        $row = $stmt->fetch();
+        return is_array($row) ? $row : null;
     }
 
     public function acknowledgePvpBattleForUser(int $userId): void

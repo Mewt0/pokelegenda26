@@ -41,6 +41,7 @@ $adminJsVersion = @filemtime(__DIR__ . '/../public/js/admin-panel.js') ?: time()
         <button type="button" class="is-active" data-admin-tab="dashboard">Дашборд</button>
         <button type="button" data-admin-tab="users">Пользователи</button>
         <button type="button" data-admin-tab="commission">Комиссионная лавка</button>
+        <button type="button" data-admin-tab="battle_replays">Повторы боёв</button>
         <button type="button" data-admin-tab="moderation">Модерация</button>
         <button type="button" data-admin-tab="settings">Система</button>
         <span class="admin-nav-group">Контент</span>

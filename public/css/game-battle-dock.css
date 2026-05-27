@@ -1025,6 +1025,98 @@
   color: #fff5d7;
 }
 
+.battle-replay-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(8, 25, 48, .36);
+  backdrop-filter: blur(3px);
+}
+
+.battle-replay-card {
+  width: min(920px, calc(100vw - 28px));
+  max-height: min(760px, calc(100vh - 42px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(131, 173, 219, .82);
+  border-radius: 8px;
+  background: rgba(236, 246, 255, .98);
+  box-shadow: 0 18px 42px rgba(7, 27, 52, .26);
+  color: #142b49;
+}
+
+.battle-replay-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(131, 173, 219, .64);
+  background: linear-gradient(180deg, rgba(247, 252, 255, .96), rgba(218, 235, 251, .9));
+}
+
+.battle-replay-card header b {
+  display: block;
+  font-size: 18px;
+}
+
+.battle-replay-card header small {
+  display: block;
+  color: #58708c;
+}
+
+.battle-replay-close {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(106, 146, 188, .72);
+  border-radius: 8px;
+  background: #f9fdff;
+  color: #294b72;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.battle-replay-rounds {
+  overflow: auto;
+  padding: 12px;
+}
+
+.battle-replay-round {
+  margin-bottom: 9px;
+  border: 1px solid rgba(138, 174, 211, .68);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .62);
+}
+
+.battle-replay-round summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  font-weight: 800;
+}
+
+.battle-replay-round section {
+  padding: 0 12px 10px;
+}
+
+.battle-replay-round ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.battle-replay-round li {
+  margin: 4px 0;
+  line-height: 1.35;
+}
+
+.battle-replay-round small {
+  color: #637891;
+}
+
 @media (max-width: 1180px) {
   .battle-dock-overlay {
     padding: 12px;
@@ -1054,6 +1146,15 @@
 }
 
 @media (max-width: 620px) {
+  .battle-replay-modal {
+    padding: 8px;
+  }
+
+  .battle-replay-card {
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+  }
+
   .battle-dock-actions .battle-tab {
     grid-template-columns: 1fr;
     gap: 0;

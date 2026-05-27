@@ -46,6 +46,7 @@
 - Background jobs: `background_job_runs`, `background_job_logs`, `BackgroundJobRepository`, `tools/background_jobs.php`, `tools/background_jobs_smoke.php`.
 - Текущие jobs: `expire_market`, `pvp_timeouts`, `stuck_battles` (warning-only), `temporary_items`, `transport_flights` (scan), `event_cleanup`, `safe_storage_status`.
 - Battle IDs: `battle_id_sequence` резервирует уникальные положительные `battles.id` для PvE/PvP/Boss на старой схеме без `AUTO_INCREMENT`; duplicate positive ids считаются P1.
+- Battle Replay: `battle_replays`, `battle_replay_events`, `BattleReplayRepository`, `/api/battle/replay`, `/api/admin/battle-replays`; пишет snapshots, round logs, actions, random rolls и damage audit для QA/спорных боёв.
 - DB Integrity: `data_integrity_logs`, `IntegrityRepository`, `tools/db_integrity_smoke.php`. `--fix-safe` чинит только очевидно безопасное: `items_users.count<=0`, orphan held rows, finished active transformations, expired PvP requests, `battles.id<=0` и stale user battle flags.
 - Текущие integrity WARN: orphan legacy owners и исторические unfinished battles; P0/P1 после safe-fix нет.
 - Дампы и backup-файлы не коммитить: `storage/backups/` в `.gitignore`.
@@ -56,6 +57,7 @@
 - Game state/location: `/api/game/state`, `/api/map/move`, `LocationStateService`, `MapMoveService`.
 - NPC/quests: `/api/location/npc`, `/api/quests`, `NpcDialogService`, `QuestRepository`, `quest_definitions`, `quest_steps`.
 - PvE/PvP battle: `/api/battle/pve/*`, `/api/battle/pvp/*`, `BattleEngineService`, `BattleRepository`; активный бой выбирается строго по флагу `pve/pvp` и `batl_tip`, чтобы PvE catch не попадал в PvP-row при legacy-дублях id.
+- Battle replay viewer: игроки открывают свой replay через `/api/battle/replay`; админы смотрят список и детали через вкладку `Повторы боёв` в GM Center.
 - Battle transformations: Mega/Primal через `BattleTransformationCatalog`; формы боевые, не постоянные в `pok_user.basenum`.
 - Inventory/items: `/api/inventory/page`, `/battle`, `/equip`, `/unequip`, `/use-target`, `/open-gift`, `InventoryRepository`.
 - Held items metadata: `item_gameplay_metadata`; эффекты могут быть `implemented`, `visual_only`, `todo`.
@@ -79,6 +81,7 @@
 - Pokemon: `pok_user`, `attac_my_poke`, base pokedex tables, form metadata.
 - Items: `items`, `items_users`, `item_gameplay_metadata`.
 - Battles: `battles`, battle state/log/archive tables, PvP request tables.
+- Battle Replay: `battle_replays`, `battle_replay_events`.
 - Quests: `quest`, `quest_definitions`, `quest_steps`.
 - Eggs/breeding: `eggs`, `pokemon_breeding_rules`, `pokemon_breeding_requests`.
 - Markets: `market_lots`, `market_logs`, `market_return_storage`, `market_deal_reviews`; legacy `auction_items`/`rinok_poke` только compat/import.
@@ -130,9 +133,10 @@
 - `tools/safe_storage_smoke.php`
 - `tools/background_jobs_smoke.php`
 - `tools/db_integrity_smoke.php`
+- `tools/battle_replay_smoke.php`
 - `tools/prepare_qa_teams.php`
 
-Последняя Phase 2 проверка: PvE catch `57/57`, PvE finish/rewards/ack `58/58`, PvP Tacos/NIGA `126/126`, PvP NIGA/Tacos `126/126`, Mega Rayquaza smoke `126/126`, Commission `24/24`, background jobs `9/9`, safe storage `7/7`, integrity `P0=0/P1=0/WARN=4`.
+Последняя Phase 2 проверка: PvE catch `57/57`, PvE finish/rewards/ack `58/58`, PvP Tacos/NIGA `126/126`, PvP NIGA/Tacos `126/126`, Mega Rayquaza smoke `126/126`, Battle Replay `6/6`, Commission `24/24`, background jobs `9/9`, safe storage `7/7`, integrity `P0=0/P1=0/WARN=4`.
 Последний Primal/Mega/weather факт: battle logs подтвердили `[TRANSFORM]` и `[WEATHER]` для Primal Kyogre/Primordial Sea, Primal Groudon/Desolate Land и Mega Rayquaza/Delta Stream; `battle_transformations.active=0` после ack, `pok_user.basenum` не хранит форму навсегда.
 
 ## Правило Для Следующих Задач

@@ -14,7 +14,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <title>Pokemon 8.0 - Игровой мир</title>
   <link rel="stylesheet" href="/public/css/game-start.css?v=20260526-pokemon-drag3">
   <link rel="stylesheet" href="/public/css/game-shell.css">
-  <link rel="stylesheet" href="/public/css/game-battle-dock.css?v=20260526-switch-visibility2">
+  <link rel="stylesheet" href="/public/css/game-battle-dock.css?v=20260527-battle-replay">
   <link rel="stylesheet" href="/public/css/player-menu.css">
   <link rel="stylesheet" href="/public/css/trainer-profile-window.css?v=20260526-profile-window6">
   <link rel="stylesheet" href="/public/css/game-market-overlay.css">
@@ -477,7 +477,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
         '<button type="button" id="battleCloseReviewBtn">&#10006; Закрыть окно</button>'
       ].join('');
       left.appendChild(review);
-      review.querySelector('#battleReplayBtn').addEventListener('click', () => setStatus('Повтор боя будет подключен позже.'));
+      review.querySelector('#battleReplayBtn').addEventListener('click', openBattleReplay);
       review.querySelector('#battleCloseReviewBtn').addEventListener('click', acknowledgeBattleEnd);
 
       tabs.querySelectorAll('[data-battle-tab]').forEach(button => {
@@ -505,6 +505,83 @@ $itemIconIndex = is_file($itemIconIndexPath)
       if (name === 'items' || name === 'balls') {
         loadBattlePocket();
       }
+    }
+
+    function currentBattleReplayId() {
+      const explicit = Number(battleState.battleId || 0);
+      if (explicit > 0) return explicit;
+      const title = document.getElementById('battleTitle')?.textContent || '';
+      const match = title.match(/#(\d+)/);
+      return match ? Number(match[1] || 0) : 0;
+    }
+
+    async function openBattleReplay() {
+      const battleId = currentBattleReplayId();
+      if (!battleId) {
+        setStatus('Повтор боя недоступен: battle_id не найден.', true);
+        return;
+      }
+      setStatus('Загружаем повтор боя...');
+      try {
+        const response = await fetch('/api/battle/replay?battle_id=' + encodeURIComponent(String(battleId)), { credentials: 'same-origin' });
+        const payload = await response.json();
+        if (!payload.ok) {
+          setStatus(payload.message || 'Повтор боя недоступен.', true);
+          return;
+        }
+        renderBattleReplay(payload.replay || {});
+        setStatus('Повтор боя загружен.');
+      } catch (error) {
+        setStatus('Не удалось загрузить повтор боя.', true);
+      }
+    }
+
+    function renderBattleReplay(replay) {
+      document.querySelector('.battle-replay-modal')?.remove();
+      const summary = replay.summary || {};
+      const byType = summary.byType || {};
+      const rounds = Array.isArray(replay.rounds) ? replay.rounds : [];
+      const modal = document.createElement('div');
+      modal.className = 'battle-replay-modal';
+      modal.innerHTML = `
+        <div class="battle-replay-card" role="dialog" aria-modal="true" aria-label="Повтор боя">
+          <header>
+            <div>
+              <b>Повтор боя #${escapeHtml((replay.battle && replay.battle.battle_id) || currentBattleReplayId())}</b>
+              <small>events ${escapeHtml(summary.events || 0)} · logs ${escapeHtml(byType.round_log || 0)} · rolls ${escapeHtml(byType.random_roll || 0)} · damage ${escapeHtml(byType.damage || 0)}</small>
+            </div>
+            <button type="button" class="battle-replay-close" aria-label="Закрыть">&times;</button>
+          </header>
+          <div class="battle-replay-rounds">
+            ${rounds.length ? rounds.map(round => {
+              const logs = (round.logs || []).slice(-8).map(item => `<li>${escapeHtml(item)}</li>`).join('');
+              const damage = (round.damage || []).slice(-8).map(item => `<li>${escapeHtml(item.move_name || item.moveName || 'damage')}: ${escapeHtml(item.damage || 0)} HP <small>${escapeHtml(item.actor_key || '')} -> ${escapeHtml(item.target_key || '')}</small></li>`).join('');
+              const rolls = (round.randomRolls || []).slice(-10).map(item => `<li>${escapeHtml(item.label || 'roll')}: ${escapeHtml(item.roll)}${item.threshold !== null && item.threshold !== undefined ? ' / ' + escapeHtml(item.threshold) : ''} ${item.success === true ? '<b>OK</b>' : (item.success === false ? '<b>FAIL</b>' : '')}</li>`).join('');
+              return `
+                <details class="battle-replay-round" ${round.round === rounds[rounds.length - 1].round ? 'open' : ''}>
+                  <summary>Раунд ${escapeHtml(round.round)} · logs ${(round.logs || []).length} · rolls ${(round.randomRolls || []).length} · damage ${(round.damage || []).length}</summary>
+                  ${logs ? `<section><b>Логи</b><ul>${logs}</ul></section>` : ''}
+                  ${damage ? `<section><b>Урон</b><ul>${damage}</ul></section>` : ''}
+                  ${rolls ? `<section><b>Random</b><ul>${rolls}</ul></section>` : ''}
+                </details>
+              `;
+            }).join('') : '<p class="battle-empty">Replay ещё не содержит событий.</p>'}
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      const close = () => modal.remove();
+      modal.querySelector('.battle-replay-close').addEventListener('click', close);
+      modal.addEventListener('click', event => {
+        if (event.target === modal) close();
+      });
+      const onKey = event => {
+        if (event.key === 'Escape') {
+          close();
+          document.removeEventListener('keydown', onKey);
+        }
+      };
+      document.addEventListener('keydown', onKey);
     }
 
     function syncBattleCatchControls(isPvpBattle) {
@@ -1145,6 +1222,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
       const enemy = battle.enemy || { name: 'Дикий покемон', level: 1, hp: 0, hpMax: 1, baseNum: 0 };
       const isPvpBattle = battle.mode === 'pvp' || !!(enemy && enemy.trainer);
       battleState.mode = isPvpBattle ? 'pvp' : 'pve';
+      battleState.battleId = Number(battle.id || payload.battle_id || payload.battleId || 0);
       syncBattleCatchControls(isPvpBattle);
 
       document.getElementById('battleTitle').textContent = battle.title || ((battle.mode === 'pvp' ? 'PvP бой #' : 'PvE бой #') + battle.id);

@@ -6,6 +6,7 @@ namespace Pokemon8\Controller;
 use Pokemon8\Http\Request;
 use Pokemon8\Http\Response;
 use Pokemon8\Repository\AdminRepository;
+use Pokemon8\Repository\BattleReplayRepository;
 use Pokemon8\Repository\BossRepository;
 use Pokemon8\Security\Csrf;
 use Pokemon8\Security\Session;
@@ -17,6 +18,7 @@ final class AdminApiController
         private Csrf $csrf,
         private AdminRepository $admin,
         private ?BossRepository $bosses = null,
+        private ?BattleReplayRepository $replays = null,
     ) {
     }
 
@@ -585,6 +587,46 @@ final class AdminApiController
     public function reviewCommissionRisk(Request $request): Response
     {
         return $this->mutate($request, fn (int $adminId) => $this->admin->reviewCommissionRisk($adminId, $request->post));
+    }
+
+    public function battleReplays(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+        if ($this->replays === null) {
+            return $this->json([
+                'ok' => true,
+                'rows' => [],
+                'replays' => [],
+                'pagination' => $this->pagination(1, 80, 0),
+                'dashboard' => ['installed' => false],
+            ]);
+        }
+
+        [$page, $perPage, $offset] = $this->pageParams($request, 80);
+        $result = $this->replays->adminList($request->input('q'), $perPage, $offset);
+        return $this->json([
+            'ok' => true,
+            'rows' => $result['rows'],
+            'replays' => $result['rows'],
+            'pagination' => $this->pagination($page, $perPage, (int) $result['total']),
+            'dashboard' => $this->replays->adminDashboard(),
+        ]);
+    }
+
+    public function battleReplayView(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+        if ($this->replays === null) {
+            return $this->json(['ok' => false, 'message' => 'Battle Replay repository is not configured.'], 503);
+        }
+
+        $battleId = (int) $request->input('battle_id', '0');
+        $payload = $this->replays->replayForBattle($battleId, $this->authorizedAdminId(), true);
+        return $this->json($payload, !empty($payload['ok']) ? 200 : 404);
     }
 
     public function settings(Request $request): Response

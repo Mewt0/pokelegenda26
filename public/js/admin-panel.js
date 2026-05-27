@@ -730,6 +730,33 @@
       ],
       extra: 'commissionTools'
     },
+    battle_replays: {
+      title: 'Повторы боёв',
+      subtitle: 'Снимки боя, логи раундов, random rolls, damage audit и просмотр спорных PvE/PvP ситуаций.',
+      endpoint: '/api/admin/battle-replays',
+      dataKey: 'replays',
+      paginated: true,
+      perPage: 80,
+      create: false,
+      columns: ['Battle', 'Тип', 'Статус', 'Раундов', 'Игроки', 'Победитель', 'Events', 'Damage', 'Rolls', 'Обновлён'],
+      cells: row => [
+        '#' + (row.battle_id || ''),
+        row.battle_type || '',
+        row.status || '',
+        row.rounds || 0,
+        `${row.user_1_login || ('#' + (row.user_1 || 0))} / ${row.user_2_login || (row.user_2 ? '#' + row.user_2 : 'wild')}`,
+        row.winner_id || '',
+        row.event_count || 0,
+        row.damage_count || 0,
+        row.roll_count || 0,
+        fmtTime(row.updated_at || 0)
+      ],
+      fields: [],
+      filterFields: [
+        ['q', 'Battle ID / игрок / тип', 'text']
+      ],
+      extra: 'battleReplayTools'
+    },
     settings: {
       title: 'Система',
       subtitle: 'Техработы, аудит и системные флаги.',
@@ -1384,6 +1411,34 @@
       $('#commissionApproveRisk')?.addEventListener('click', () => approveCommissionRisk(row));
     }
 
+    if (config.extra === 'battleReplayTools') {
+      if (!row) {
+        danger.insertAdjacentHTML('beforeend', `
+          <h3>Battle Replay</h3>
+          <p class="muted">Выберите бой в таблице. В инспекторе появятся снимки состояния, логи раундов, броски рандома и damage audit.</p>
+        `);
+        return;
+      }
+      danger.insertAdjacentHTML('beforeend', `
+        <h3>Replay #${esc(row.battle_id || '')}</h3>
+        <p class="audit-line">
+          <b>${esc(row.battle_type || '')}</b> · ${esc(row.status || '')} · раундов ${esc(row.rounds || 0)}<br>
+          <small>${esc(row.user_1_login || ('#' + (row.user_1 || 0)))} vs ${esc(row.user_2_login || (row.user_2 ? '#' + row.user_2 : 'wild'))}</small>
+        </p>
+        <div class="admin-inline-actions">
+          <button type="button" id="battleReplayLoad">Открыть replay</button>
+          <button type="button" id="battleReplayFilter">Найти этот бой</button>
+        </div>
+        <div id="battleReplayBox"></div>
+      `);
+      $('#battleReplayLoad')?.addEventListener('click', () => loadAdminBattleReplay(row));
+      $('#battleReplayFilter')?.addEventListener('click', () => {
+        state.filters = { q: String(row.battle_id || '') };
+        renderFilterbar(modules.battle_replays);
+        reloadCurrent();
+      });
+    }
+
     if (config.extra === 'legacyActions' && row) {
       danger.insertAdjacentHTML('beforeend', `
         <h3>Legacy-раздел</h3>
@@ -1568,6 +1623,45 @@
       ${last ? `<p class="audit-line">#${esc(last.lot_id || last.id)} · ${esc(last.object_name || '')}<br><small>${esc(fmtMoney(last.total_price || 0))} · ${esc(last.sold_at_text || '')}</small></p>` : '<p class="muted">Продаж по этому объекту ещё нет.</p>'}
       <h3>Активные похожие лоты</h3>
       ${active.length ? active.slice(0, 8).map(lot => `<p class="audit-line">#${esc(lot.lot_id || lot.id)} · ${esc(lot.object_name || '')}<br><small>${esc(fmtMoney(lot.price_per_unit || 0))} за штуку · ${esc(lot.seller_name || '')}</small></p>`).join('') : '<p class="muted">Активных похожих лотов нет.</p>'}
+    `;
+  }
+
+  async function loadAdminBattleReplay(row) {
+    const box = $('#battleReplayBox');
+    if (!box) return;
+    box.innerHTML = '<p class="muted">Загружаем replay...</p>';
+    const result = await request('/api/admin/battle-replays/view?battle_id=' + encodeURIComponent(row.battle_id || 0));
+    if (!result.ok) {
+      box.innerHTML = `<p class="admin-status is-bad">${esc(result.message || 'Replay недоступен.')}</p>`;
+      return;
+    }
+    const replay = result.replay || {};
+    const summary = replay.summary || {};
+    const rounds = Array.isArray(replay.rounds) ? replay.rounds : [];
+    const byType = summary.byType || {};
+    box.innerHTML = `
+      <h3>Сводка</h3>
+      <p class="audit-line">
+        events ${esc(summary.events || 0)} · snapshots ${esc(byType.snapshot || 0)} · logs ${esc(byType.round_log || 0)} · rolls ${esc(byType.random_roll || 0)} · damage ${esc(byType.damage || 0)}
+      </p>
+      <h3>Раунды</h3>
+      ${rounds.length ? rounds.map(round => {
+        const logs = (round.logs || []).slice(-5).map(item => `<li>${esc(item)}</li>`).join('');
+        const damage = (round.damage || []).slice(-5).map(item => `<li>${esc(item.move_name || item.moveName || 'damage')}: ${esc(item.damage || 0)} HP (${esc(item.actor_key || '')} -> ${esc(item.target_key || '')})</li>`).join('');
+        const rolls = (round.randomRolls || []).slice(-6).map(item => `<li>${esc(item.label || 'roll')}: ${esc(item.roll)} / ${esc(item.threshold ?? '-')} ${item.success === true ? 'OK' : (item.success === false ? 'FAIL' : '')}</li>`).join('');
+        return `
+          <details class="admin-replay-round">
+            <summary>Раунд ${esc(round.round)} · logs ${(round.logs || []).length} · rolls ${(round.randomRolls || []).length} · damage ${(round.damage || []).length}</summary>
+            ${logs ? `<b>Логи</b><ul>${logs}</ul>` : ''}
+            ${damage ? `<b>Урон</b><ul>${damage}</ul>` : ''}
+            ${rolls ? `<b>Random</b><ul>${rolls}</ul>` : ''}
+          </details>
+        `;
+      }).join('') : '<p class="muted">Событий пока нет.</p>'}
+      <details>
+        <summary>Raw replay JSON</summary>
+        <pre>${esc(JSON.stringify(replay, null, 2))}</pre>
+      </details>
     `;
   }
 
