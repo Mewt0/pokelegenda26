@@ -29,6 +29,7 @@ cache/
 log/
 templates_c/
 tmp/
+storage/backups/
 log_php_errors.txt
 error.log
 

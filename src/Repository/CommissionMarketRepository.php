@@ -9,8 +9,9 @@ use Throwable;
 final class CommissionMarketRepository
 {
     private const COIN_ITEM_ID = 1;
-    private const RESERVE_USER_ID = 3;
+    private const FALLBACK_RESERVE_USER_ID = 3;
     private const SYSTEM_LOGIN = 'Система';
+    private ?int $reserveUserId = null;
 
     private const CATEGORY_LABELS = [
         'all' => 'Все',
@@ -488,7 +489,7 @@ final class CommissionMarketRepository
         }
 
         $this->db->prepare('UPDATE pok_user SET users = :reserve, active = 0, startepoke = 0 WHERE id = :pokemon AND users = :user LIMIT 1')
-            ->execute(['reserve' => self::RESERVE_USER_ID, 'pokemon' => $pokemonId, 'user' => $userId]);
+            ->execute(['reserve' => $this->reserveUserId(), 'pokemon' => $pokemonId, 'user' => $userId]);
 
         $baseId = (int) ($pokemon['basenum'] ?? 0);
         $name = strip_tags((string) ($pokemon['names'] ?? $this->cleanBaseName((string) ($pokemon['base_title'] ?? ''), $baseId)));
@@ -520,7 +521,7 @@ final class CommissionMarketRepository
             return ['ok' => false, 'message' => 'Яйцо не найдено.'];
         }
         $this->db->prepare('UPDATE eggs SET users_egg = :reserve WHERE id_egg = :egg AND users_egg = :user LIMIT 1')
-            ->execute(['reserve' => self::RESERVE_USER_ID, 'egg' => $eggId, 'user' => $userId]);
+            ->execute(['reserve' => $this->reserveUserId(), 'egg' => $eggId, 'user' => $userId]);
         $baseId = (int) ($egg['base_id_egg'] ?? 0);
         $name = 'Яйцо #' . $baseId . ' ' . $this->cleanBaseName((string) ($egg['base_title'] ?? ''), $baseId);
         return [
@@ -544,7 +545,7 @@ final class CommissionMarketRepository
         if ($type === 'pokemon') {
             $active = $this->activePokemonCount($buyerId) < 6 ? 1 : 0;
             $stmt = $this->db->prepare('UPDATE pok_user SET users = :buyer, active = :active, startepoke = 0 WHERE id = :pokemon AND users = :reserve LIMIT 1');
-            $stmt->execute(['buyer' => $buyerId, 'active' => $active, 'pokemon' => $objectId, 'reserve' => self::RESERVE_USER_ID]);
+            $stmt->execute(['buyer' => $buyerId, 'active' => $active, 'pokemon' => $objectId, 'reserve' => $this->reserveUserId()]);
             if ($stmt->rowCount() !== 1) {
                 throw new \RuntimeException('Покемон в резерве не найден.');
             }
@@ -552,7 +553,7 @@ final class CommissionMarketRepository
         }
         if ($type === 'egg') {
             $stmt = $this->db->prepare('UPDATE eggs SET users_egg = :buyer WHERE id_egg = :egg AND users_egg = :reserve LIMIT 1');
-            $stmt->execute(['buyer' => $buyerId, 'egg' => $objectId, 'reserve' => self::RESERVE_USER_ID]);
+            $stmt->execute(['buyer' => $buyerId, 'egg' => $objectId, 'reserve' => $this->reserveUserId()]);
             if ($stmt->rowCount() !== 1) {
                 throw new \RuntimeException('Яйцо в резерве не найдено.');
             }
@@ -572,13 +573,13 @@ final class CommissionMarketRepository
             } elseif ($type === 'pokemon') {
                 $active = $this->activePokemonCount($sellerId) < 6 ? 1 : 0;
                 $stmt = $this->db->prepare('UPDATE pok_user SET users = :seller, active = :active, startepoke = 0 WHERE id = :pokemon AND users = :reserve LIMIT 1');
-                $stmt->execute(['seller' => $sellerId, 'active' => $active, 'pokemon' => $objectId, 'reserve' => self::RESERVE_USER_ID]);
+                $stmt->execute(['seller' => $sellerId, 'active' => $active, 'pokemon' => $objectId, 'reserve' => $this->reserveUserId()]);
                 if ($stmt->rowCount() !== 1) {
                     throw new \RuntimeException('Покемон в резерве не найден.');
                 }
             } elseif ($type === 'egg') {
                 $stmt = $this->db->prepare('UPDATE eggs SET users_egg = :seller WHERE id_egg = :egg AND users_egg = :reserve LIMIT 1');
-                $stmt->execute(['seller' => $sellerId, 'egg' => $objectId, 'reserve' => self::RESERVE_USER_ID]);
+                $stmt->execute(['seller' => $sellerId, 'egg' => $objectId, 'reserve' => $this->reserveUserId()]);
                 if ($stmt->rowCount() !== 1) {
                     throw new \RuntimeException('Яйцо в резерве не найдено.');
                 }
@@ -1166,6 +1167,31 @@ final class CommissionMarketRepository
         $stmt = $this->db->prepare('SELECT id FROM users WHERE login = :login ORDER BY id ASC LIMIT 1');
         $stmt->execute(['login' => self::SYSTEM_LOGIN]);
         return (int) ($stmt->fetchColumn() ?: 0);
+    }
+
+    private function reserveUserId(): int
+    {
+        if ($this->reserveUserId !== null) {
+            return $this->reserveUserId;
+        }
+
+        $id = 0;
+        try {
+            $stmt = $this->db->prepare('SELECT value FROM site_settings WHERE name = "commission.reserve_user_id" LIMIT 1');
+            $stmt->execute();
+            $id = (int) ($stmt->fetchColumn() ?: 0);
+        } catch (Throwable) {
+            $id = 0;
+        }
+        if ($id <= 0) {
+            $id = $this->systemUserId();
+        }
+        if ($id <= 0) {
+            $id = self::FALLBACK_RESERVE_USER_ID;
+        }
+
+        $this->reserveUserId = $id;
+        return $id;
     }
 
     private function dealRisk(array $lot): array

@@ -110,6 +110,7 @@ function smokeCancel(PDO $db, array &$results, CommissionMarketRepository $marke
 
 function smokePokemonAndEggReserve(PDO $db, array &$results, CommissionMarketRepository $market, int $seller): void
 {
+    $reserveUserId = commissionReserveUserId($db);
     $sellable = $market->sellable($seller);
     $pokemon = firstAvailable($sellable['pokemon'] ?? []);
     if ($pokemon !== null) {
@@ -122,7 +123,7 @@ function smokePokemonAndEggReserve(PDO $db, array &$results, CommissionMarketRep
         ]);
         $lotId = (int) ($created['lot_id'] ?? 0);
         assertTrue($results, 'pokemon.create', ($created['ok'] ?? false) === true, $created['message'] ?? '');
-        assertTrue($results, 'pokemon.reserve', pokemonOwner($db, (int) $pokemon['id']) === 3, 'owner=' . pokemonOwner($db, (int) $pokemon['id']));
+        assertTrue($results, 'pokemon.reserve', pokemonOwner($db, (int) $pokemon['id']) === $reserveUserId, 'owner=' . pokemonOwner($db, (int) $pokemon['id']));
         $market->cancel($seller, $lotId);
         assertTrue($results, 'pokemon.return', pokemonOwner($db, (int) $pokemon['id']) === $seller, 'owner=' . pokemonOwner($db, (int) $pokemon['id']));
     } else {
@@ -141,7 +142,7 @@ function smokePokemonAndEggReserve(PDO $db, array &$results, CommissionMarketRep
         ]);
         $lotId = (int) ($created['lot_id'] ?? 0);
         assertTrue($results, 'egg.create', ($created['ok'] ?? false) === true, $created['message'] ?? '');
-        assertTrue($results, 'egg.reserve', eggOwner($db, (int) $egg['id']) === 3, 'owner=' . eggOwner($db, (int) $egg['id']));
+        assertTrue($results, 'egg.reserve', eggOwner($db, (int) $egg['id']) === $reserveUserId, 'owner=' . eggOwner($db, (int) $egg['id']));
         $market->cancel($seller, $lotId);
         assertTrue($results, 'egg.return', eggOwner($db, (int) $egg['id']) === $seller, 'owner=' . eggOwner($db, (int) $egg['id']));
     } else {
@@ -202,6 +203,17 @@ function userId(PDO $db, string $login): int
     $stmt = $db->prepare('SELECT id FROM users WHERE login = :login LIMIT 1');
     $stmt->execute(['login' => $login]);
     return (int) ($stmt->fetchColumn() ?: 0);
+}
+
+function commissionReserveUserId(PDO $db): int
+{
+    $stmt = $db->query('SELECT CAST(value AS UNSIGNED) FROM site_settings WHERE name = "commission.reserve_user_id" LIMIT 1');
+    $id = (int) ($stmt->fetchColumn() ?: 0);
+    if ($id <= 0) {
+        $stmt = $db->query('SELECT id FROM users WHERE login = "Система" ORDER BY id ASC LIMIT 1');
+        $id = (int) ($stmt->fetchColumn() ?: 3);
+    }
+    return max(1, $id);
 }
 
 function lotStatus(PDO $db, int $lotId): string

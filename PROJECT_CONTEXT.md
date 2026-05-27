@@ -25,6 +25,22 @@
 - Карта legacy -> новый слой: `src/Game/GameRoutes.php`.
 - Миграции: `database/migrations/*.sql`; новые изменения применять в живую БД и оставлять идемпотентными.
 
+## Beta Foundation / Защита Данных
+
+- Рабочая beta-ветка: `codex/beta-foundation`.
+- Реестр миграций: `schema_migrations`; снимки статуса: `migration_status`.
+- CLI:
+  - `tools/migration_status.php --record-status` - статус миграций;
+  - `tools/migration_status.php --baseline` - только для фиксации уже существующей живой базы;
+  - `tools/migration_status.php --apply` - применить pending миграции;
+  - `tools/beta_backup.php` - дамп БД в `storage/backups/`;
+  - `tools/beta_data_audit.php` - аудит P0/P1/WARN;
+  - `tools/beta_data_audit.php --fix-safe` - только безопасные исправления: merge одинаковых item stacks, expire due commission/PvP.
+- Последний baseline: `59/59` миграций, `pending=0`, `dirty=0`, `failed=0`.
+- Последний beta audit: `P0=0`, `P1=0`; `WARN` остаётся по историческим незавершённым rows в `battles`.
+- Комиссионная лавка резервирует покемонов/яйца через `commission.reserve_user_id`, сейчас это аккаунт `Система`, а не живой игрок `id=3`.
+- Дампы и backup-файлы не коммитить: `storage/backups/` в `.gitignore`.
+
 ## Основные Рабочие Системы
 
 - Auth: регистрация без обязательной почты, password reset, techwork, роли через users/admin repository.
