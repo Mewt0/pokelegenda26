@@ -1,5 +1,7 @@
 # Pokemon 8.0 Rewrite Status
 
+Обновлено 2026-05-27: Phase 1.3 Cron/background jobs получил безопасный CLI-runner. Добавлена и применена миграция `2026_05_27_000006_background_jobs.sql`: `background_job_runs`, `background_job_logs` и настройки `background_jobs.*` в `site_settings`. Добавлен `BackgroundJobRepository`, CLI `tools/background_jobs.php` (`--status`, `--dry-run`, `--job=<name>`, `--limit`, `--json`) и `tools/background_jobs_smoke.php`. Jobs: `expire_market` транзакционно вызывает expiry Комиссионной лавки и safe return; `pvp_timeouts` истекает pending PvP-заявки; `temporary_items` удаляет просроченные inventory/held rows и выключает expired `player_boosts`; `event_cleanup` отключает завершённые `game_event_boosts`; `transport_flights` сканирует прибывшие/зависшие рейсы без авто-выхода игрока; `stuck_battles` пока warning-only до ручного PvE/PvP regression; `safe_storage_status` контролирует pending safe storage/open rollbacks. Добавлена защита от параллельного запуска через MySQL `GET_LOCK`, каждый запуск логируется. Реальный запуск `tools/background_jobs.php` прошёл успешно: рынок/PvP/рейсы/events/safe storage без хвостов, временные предметы очистили `4` inventory rows и `1` held row. Проверено: PHP lint новых/изменённых файлов; `tools/background_jobs_smoke.php` `9/9`; `tools/background_jobs.php --dry-run` OK; `tools/background_jobs.php --status --json` показывает последние success-runs; `tools/migration_status.php --record-status` `61/61`, `pending=0`, `dirty=0`, `failed=0`; `tools/beta_data_audit.php` без P0/P1, остаётся исторический `WARN battle.active_unfinished=900`.
+
 Обновлено 2026-05-27: Phase 1.2 Safe Storage + rollback system завершён как базовый слой защиты данных. Добавлена и применена миграция `2026_05_27_000005_safe_storage_rollback.sql`: таблицы `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`, настройки `safe_storage.enabled` и `safe_storage.auto_restore`. Добавлен `SafeStorageRepository` и smoke `tools/safe_storage_smoke.php`; safe storage подключён в `public/index.php` к `CommissionMarketRepository`, `InventoryRepository`, `RewardRepository`, `BreedingRepository` и `BattleEngineService`. Комиссионная лавка при невозможности возврата пишет объект в safe storage и сохраняет совместимое зеркало в `market_return_storage`; gift/inventory и reward-flow создают аварийные записи при ошибке начисления; breeding и PvE reward-flow пишут rollback-plan, чтобы можно было восстановить/проверить операцию без потери предметов, покемонов или яиц. `tools/beta_data_audit.php` теперь проверяет pending safe storage и open/failed rollback. Дополнительно увеличены таймауты `GET_LOCK('pokemon8_seq_items_users_id')` до 15 секунд в критичных репозиториях, чтобы smoke/QA не падали на временной гонке выдачи item rows. Проверено: PHP lint изменённых файлов; `tools/migration_status.php --record-status` показывает `60/60`, `pending=0`, `dirty=0`, `failed=0`; `tools/safe_storage_smoke.php` `7/7`; `tools/beta_data_audit.php` `P0=0`, `P1=0`, `WARN=1` только по историческим `battle.active_unfinished=900`; `tools/commission_market_smoke.php` `24/24`; `tools/legacy_core_qa_smoke.php` `30/30`; `tools/breeding_qa_smoke.php` `55/55`; `tools/http_smoke.php --login=Tacos --password=...` `51/51`; `tools/pvp_qa_smoke.php --login1=Tacos --login2=NIGA ...` `126/126`; battle finish smoke `53/53` прошёл, но debug-force battle был пропущен текущей локацией, поэтому боевой rollback-path дополнительно остаётся в плане ручного PvE/regression.
 
 Обновлено 2026-05-27: начат Phase 1 подготовки к beta/open test - “основа и защита данных”. Создана ветка `codex/beta-foundation`. Добавлена миграция `2026_05_27_000003_schema_migrations.sql` с таблицами `schema_migrations` и `migration_status`, а также CLI `tools/migration_status.php`: текущая база зафиксирована baseline, статус `59/59` миграций, `pending=0`, `dirty=0`, `failed=0`; snapshots пишутся в `migration_status`. Добавлен `tools/beta_backup.php`; создан дамп `storage/backups/pokemonchic_beta_20260527_031659.sql` размером 6.39 MB, папка `storage/backups/` исключена из git. Добавлен `tools/beta_data_audit.php`: read-only аудит + `--fix-safe` для безопасных хвостов. Исправлен риск Комиссионной лавки: резерв покемонов/яиц больше не завязан на живого игрока `id=3`, добавлена миграция `2026_05_27_000004_commission_reserve_user_setting.sql`, настройка `commission.reserve_user_id` указывает на аккаунт `Система` (`id=10153`), а `CommissionMarketRepository` читает резерв из настроек. Safe-cleanup слил один дубль стека `items_users` без потери количества и истёк старые pending PvP-заявки, если они есть. Текущий аудит: `P0=0`, `P1=0`, остаётся только `WARN battle.active_unfinished=900` как исторические незавершённые battle rows, их не чистим автоматически. Проверено: PHP lint новых tools и `CommissionMarketRepository`; `tools/commission_market_smoke.php` `24/24`; `tools/legacy_core_qa_smoke.php` `30/30`; `tools/breeding_qa_smoke.php` `55/55`; `tools/http_smoke.php --login=Tacos --password=...` `51/51`; `tools/pvp_qa_smoke.php --login1=Tacos --login2=NIGA ...` `126/126`.
@@ -112,9 +114,9 @@
 
 | Уровень | Готовность | Почему |
 |---|---:|---|
-| Dev-сборка для активной разработки | 85% | Основные экраны/API живые, есть подготовленные QA-аккаунты, транзакционные smoke-скрипты, migration status, beta backup, Safe Storage и browser-regression по ключевым боевым/инвентарным сценариям. |
-| Закрытая alpha для 1-3 доверенных тестеров | 75% | Можно гонять карту, чат, NPC, инвентарь, PvE/PvP, яйца, breeding, рынок/лавку, подарки и Trainer Card; safe storage снижает риск потерь, но нужен контроль логов и быстрый retest багов. |
-| Открытая beta | 63% | Закрыты PvP timeout/accept/history/anti-double-click, PvE catch/finish/ack, временные предметы, gift-box, held items, базовая админка, лавка v1 и rollback-layer; остаются cron, редкие legacy-правила, UX и единый regression. |
+| Dev-сборка для активной разработки | 86% | Основные экраны/API живые, есть подготовленные QA-аккаунты, транзакционные smoke-скрипты, migration status, beta backup, Safe Storage, background jobs и browser-regression по ключевым боевым/инвентарным сценариям. |
+| Закрытая alpha для 1-3 доверенных тестеров | 76% | Можно гонять карту, чат, NPC, инвентарь, PvE/PvP, яйца, breeding, рынок/лавку, подарки и Trainer Card; safe storage и jobs снижают риск потерь/зависаний, но нужен контроль логов и быстрый retest багов. |
+| Открытая beta | 64% | Закрыты PvP timeout/accept/history/anti-double-click, PvE catch/finish/ack, временные предметы, gift-box, held items, базовая админка, лавка v1, rollback-layer и job runner; остаются редкие legacy-правила, UX и единый regression. |
 | Публичный production-релиз | 38% | Нужны production replay/audit боёв, CI, cleanup/background jobs, права по ролям, фоновые jobs лавки/рейсов/ивентов и полный ручной прогон долгих edge cases. |
 
 Готовность по крупным блокам:
@@ -129,7 +131,7 @@
 | PvP бой | 72% | Invite/reject/timeout/accept/refresh/anti-double-click/history/items/surrender smoke прошёл `126/126`; до релиза нужны долгие реальные 6x6 бои и replay/audit. |
 | Инвентарь и предметная логика | 72% | Категории, поиск, временные предметы, gift-box, held equip/unequip и основные battle effects работают; редкие consumables/evolution/TM ещё требуют полного QA. |
 | Покемоны, питомник и breeding | 70% | Активная команда отделена от питомника, held icons видны, breeding-flow через буквы/Extract и `/api/eggs` проверен; нужен UX-полиш питомника. |
-| Покемаркет и экономика | 75% | Магазин предметов, legacy-compat рынок покемонов и новая Комиссионная лавка v1 работают; нужен cron истечения лотов, админский UI настроек и длинный двухоконный market-regression. |
+| Покемаркет и экономика | 76% | Магазин предметов, legacy-compat рынок покемонов и новая Комиссионная лавка v1 работают; cron истечения лотов подключён, дальше нужны админский UI настроек и длинный двухоконный market-regression. |
 | Покедекс и атакадекс | 68% | Поиск и карточки есть, импорт атак расширен, формы/Primal/Mega добавлены; нужны полная проверка 937 атак, эволюций, hidden moves и missing assets. |
 | NPC и квесты | 62% | Основные NPC переписаны, quest journal читает `quest_definitions/quest_steps`, rewards идут через общий flow; редкие event-NPC и сюжетные ветки ещё переносить. |
 | Trainer Card и gym badges | 75% | `/api/profile/card` отдаёт UID/avatar/rank/clan/team/gifts/badges, gym badges рендерятся и выдаются один раз; автоматическую выдачу за gym-лидера ещё привязать. |
@@ -138,8 +140,9 @@
 | Почта/сообщения | 62% | Отправка, входящие/исходящие, read/unread и архив поверх `sends` подключены; нужны диалоги/thread UX, restore и двухоконный прогон. |
 | Транспорт | 60% | Самолёт/пароход/рейсы/билет/15-минутный полёт подключены; нужен редактор маршрутов, закрытые локации и полный региональный QA. |
 | Турниры и медали | 45% | Таблицы и CRUD начаты с нуля; игровой сценарий турнира, сетка, награды и отображение игрокам ещё не закрыты. |
-| Комиссионная лавка | 58% | `/game/commission` и `/api/commission/*` реализованы для item/pokemon/egg: резерв, покупка, отмена, история, комиссия, safe storage, логи, запрет зелий/ягод и smoke `24/24`; остались cron expire, полный админский UI и валютные объекты. |
+| Комиссионная лавка | 58% | `/game/commission` и `/api/commission/*` реализованы для item/pokemon/egg: резерв, покупка, отмена, история, комиссия, safe storage, background expire-job, логи, запрет зелий/ягод и smoke `24/24`; остались полный админский UI настроек, валютные объекты и длинный market-regression. |
 | Safe Storage / rollback | 70% | Единый склад и rollback-журнал есть, интегрирован в commission/gift/reward/breeding/battle reward-plan и покрыт smoke; дальше нужны cron-возвраты, admin UI просмотра/resolve и реальные failure-regression. |
+| Cron/background jobs | 55% | CLI-runner, логи запусков, dry-run/status и базовые jobs готовы; market/PvP/temp/events уже мутируют безопасно, transport/stuck battles пока scan/warning-only до ручных regression-правил. |
 
 Минимум до закрытой alpha:
 
@@ -156,22 +159,22 @@
 - Довести инвентарь: все расходники, TM, evolution items, редкие held effects, квестовый дроп и массовый UX.
 - Завершить почту: диалоги/thread UX, restore из архива и кнопка из popup игрока.
 - Довести админку до стабильного Game Master Center: роли, валидации, формы редактирования, полное audit coverage.
-- Довести Комиссионную лавку: cron истечения лотов, админский UI настроек, импорт/миграция старых активных лотов и длинный market-regression.
+- Довести Комиссионную лавку: админский UI настроек, импорт/миграция старых активных лотов и длинный market-regression; cron expire уже подключён через background jobs, но нужен долгий QA.
 - Поднять CI/API-smoke/browser-regression для обычного игрока, модератора, админа и двух игроков одновременно.
 
 ## Оставшиеся большие системы
 
-- `Комиссионная лавка` - `PARTIAL_NEW`: общий рынок предметов, покемонов и яиц уже работает через `market_lots`; дальше нужны cron expire, админский UI настроек, валютные объекты, модерация лотов и длинный regression на реальных лотах.
+- `Комиссионная лавка` - `PARTIAL_NEW`: общий рынок предметов, покемонов и яиц уже работает через `market_lots`; cron expire подключён через background jobs, дальше нужны админский UI настроек, валютные объекты, модерация лотов и длинный regression на реальных лотах.
 - `Unified market` - старые `auction_items` и `rinok_poke` импортируются лениво в `market_lots`, но нужен отдельный one-shot importer/отчёт и режим read-only для старых таблиц после стабилизации.
 - `Редкие NPC и event-NPC` - перенести оставшиеся сюжетные ветки, сезонные действия и тонкие условия проходов из legacy PHP в сервисы/quest definitions.
 - `Кланы` - сейчас маршрут в `GameRoutes` остаётся `todo`; нужны API, роли, чат/рейтинги/взносы и UI.
 - `Турниры` - CRUD есть, но нужна игровая сетка, регистрация, матчмейкинг, награды и отображение результата в профиле.
 - `Production battle logging/replay` - хранить полный state раундов PvE/PvP/Boss для восстановления, спорных ситуаций и QA-replay.
 - `Health Dashboard` - админский мониторинг миграций, API-smoke, последних 500, очередей/cron, ошибок и состояния БД.
-- `Cron/jobs` - истечение лотов, рейсов, событий, временных предметов, expired mails/storage, cleanup battle locks.
+- `Cron/jobs` - `PARTIAL_NEW`: runner/status/dry-run/logs есть; market expire, PvP timeout, temp items, event cleanup работают; flights/stuck battles пока scan-only, дальше нужны scheduler-интеграция и правила auto-finish.
 - `Permission matrix` - явная таблица прав игрок/модератор/admin/game master по каждому `/api/admin/*` и опасному действию.
 - `QA matrix` - отдельный документ/скрипт сценариев Tacos/NIGA/admin, чтобы regression не жил только в чате.
-- `Safe storage` - `PARTIAL_NEW`: базовый склад и rollback-журнал готовы; нужен admin UI, auto-restore policy и cron обработки pending записей.
+- `Safe storage` - `PARTIAL_NEW`: базовый склад и rollback-журнал готовы; background job уже мониторит pending/open, дальше нужны admin UI и auto-restore policy.
 - `Migration runner/status` - `DONE_NEW`: `schema_migrations`, `migration_status`, `tools/migration_status.php`, baseline/apply/status snapshots работают; нужен только CI gate.
 - `Asset registry checker` - проверка отсутствующих item/pokemon sprites до запуска QA.
 - `Production dump checklist` - что чистить, что оставлять, какие тестовые аккаунты и публичные данные не удалять.
@@ -213,7 +216,7 @@
 | `/api/shop/training/buy` | `PARTIAL_NEW` | Покупка наборов тренировки/ослабления за алмазы или монеты. |
 | `/api/transport/*` | `PARTIAL_NEW` | Старые transport_routes для парохода/моментальных рейсов сохранены; добавлены рейсы самолёта по билету из любой локации, активный полёт 15 минут, статус проводника и выход после прибытия. |
 | `/game/admin`, `/api/admin/*` | `PARTIAL_NEW` | Новая админка v1: дашборд, пользователи, предметы, Покемаркет, дроп, локации, покемоны, атаки, новости, модерация, настройки и аудит. Нужна ручная UX-дошлифовка и расширение тонких legacy-правил. |
-| `/game/commission`, `/api/commission/*` | `PARTIAL_NEW` | Комиссионная лавка v1: список/поиск/категории/сортировка, sellable, выставление item/pokemon/egg, покупка, снятие, история, safe-return storage, комиссия 5%, admin settings API; валютные объекты и cron expire ещё довести. |
+| `/game/commission`, `/api/commission/*` | `PARTIAL_NEW` | Комиссионная лавка v1: список/поиск/категории/сортировка, sellable, выставление item/pokemon/egg, покупка, снятие, история, safe-return storage, комиссия 5%, admin settings API и background expire; валютные объекты ещё довести. |
 
 ## База данных
 

@@ -58,6 +58,8 @@ final class AdminRepository
             'commissionRiskDeals' => $this->commissionRiskCount(),
             'safeStoragePending' => $this->tableExists('safe_storage_entries') ? $this->countTable('safe_storage_entries', 'status = "pending"') : 0,
             'safeRollbackOpen' => $this->tableExists('safe_operation_rollbacks') ? $this->countTable('safe_operation_rollbacks', 'status IN ("open", "failed")') : 0,
+            'backgroundJobFailed' => $this->tableExists('background_job_runs') ? $this->countTable('background_job_runs', 'status = "failed"') : 0,
+            'backgroundJobLastRunAt' => $this->backgroundJobLastRunAt(),
         ];
     }
 
@@ -2623,6 +2625,14 @@ final class AdminRepository
     {
         $sql = 'SELECT COUNT(*) FROM ' . $table . ($where !== '' ? ' WHERE ' . $where : '');
         return (int) ($this->db->query($sql)->fetchColumn() ?: 0);
+    }
+
+    private function backgroundJobLastRunAt(): int
+    {
+        if (!$this->tableExists('background_job_runs')) {
+            return 0;
+        }
+        return (int) ($this->db->query('SELECT COALESCE(MAX(finished_at), 0) FROM background_job_runs')->fetchColumn() ?: 0);
     }
 
     private function normalizeTime(string $value): string

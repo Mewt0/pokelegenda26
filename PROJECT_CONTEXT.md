@@ -36,11 +36,14 @@
   - `tools/beta_backup.php` - дамп БД в `storage/backups/`;
   - `tools/beta_data_audit.php` - аудит P0/P1/WARN;
   - `tools/beta_data_audit.php --fix-safe` - только безопасные исправления: merge одинаковых item stacks, expire due commission/PvP.
-- Последний статус миграций: `60/60`, `pending=0`, `dirty=0`, `failed=0`.
+  - `tools/background_jobs.php --status|--dry-run|--job=<name>` - ручной запуск фоновых задач;
+- Последний статус миграций: `61/61`, `pending=0`, `dirty=0`, `failed=0`.
 - Последний beta audit: `P0=0`, `P1=0`; `WARN` остаётся по историческим незавершённым rows в `battles`.
 - Комиссионная лавка резервирует покемонов/яйца через `commission.reserve_user_id`, сейчас это аккаунт `Система`, а не живой игрок `id=3`.
 - Safe Storage: `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`, `SafeStorageRepository`, `tools/safe_storage_smoke.php`.
 - Safe Storage используется для возврата/резерва при сбоях commission, gift/inventory, rewards, breeding egg create и battle reward rollback-plan. Нормальные успешные операции пишут rollback-plan со статусом `recorded`, аварийные - `failed/open`.
+- Background jobs: `background_job_runs`, `background_job_logs`, `BackgroundJobRepository`, `tools/background_jobs.php`, `tools/background_jobs_smoke.php`.
+- Текущие jobs: `expire_market`, `pvp_timeouts`, `stuck_battles` (warning-only), `temporary_items`, `transport_flights` (scan), `event_cleanup`, `safe_storage_status`.
 - Дампы и backup-файлы не коммитить: `storage/backups/` в `.gitignore`.
 
 ## Основные Рабочие Системы
@@ -78,6 +81,7 @@
 - Safe storage: `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`.
 - Trainer Card rewards: `user_gym_badges`, medals/reward tables.
 - Events/bosses/transport: current migration tables in `database/migrations`.
+- Background jobs: `background_job_runs`, `background_job_logs`.
 
 ## Актуальные UI-Системы
 
@@ -119,6 +123,7 @@
 - `tools/breeding_qa_smoke.php`
 - `tools/commission_market_smoke.php`
 - `tools/safe_storage_smoke.php`
+- `tools/background_jobs_smoke.php`
 - `tools/prepare_qa_teams.php`
 
 ## Правило Для Следующих Задач

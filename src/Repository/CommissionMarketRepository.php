@@ -595,8 +595,26 @@ final class CommissionMarketRepository
 
     private function expireDueLots(): void
     {
-        $stmt = $this->db->prepare('SELECT * FROM market_lots WHERE status = "active" AND expires_at <= :time ORDER BY expires_at ASC LIMIT 50');
+        $this->expireDueLotsJob(50, false);
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    public function expireDueLotsJob(int $limit = 50, bool $dryRun = false): array
+    {
+        $limit = max(1, min(500, $limit));
+        $dueStmt = $this->db->prepare('SELECT COUNT(*) FROM market_lots WHERE status = "active" AND expires_at <= :time');
+        $dueStmt->execute(['time' => time()]);
+        $due = (int) ($dueStmt->fetchColumn() ?: 0);
+        if ($dryRun || $due === 0) {
+            return ['due' => $due, 'expired' => 0, 'failed' => 0, 'dryRun' => $dryRun];
+        }
+
+        $stmt = $this->db->prepare('SELECT * FROM market_lots WHERE status = "active" AND expires_at <= :time ORDER BY expires_at ASC LIMIT ' . $limit);
         $stmt->execute(['time' => time()]);
+        $expired = 0;
+        $failed = 0;
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $lot) {
             $this->db->beginTransaction();
             try {
@@ -605,14 +623,18 @@ final class CommissionMarketRepository
                 $locked = $lock->fetch(PDO::FETCH_ASSOC);
                 if ($locked && (int) ($locked['expires_at'] ?? 0) <= time()) {
                     $this->expireLockedLot($locked, 0);
+                    $expired++;
                 }
                 $this->db->commit();
             } catch (Throwable) {
+                $failed++;
                 if ($this->db->inTransaction()) {
                     $this->db->rollBack();
                 }
             }
         }
+
+        return ['due' => $due, 'expired' => $expired, 'failed' => $failed, 'dryRun' => false];
     }
 
     private function expireLockedLot(array $lot, int $actorId): void
