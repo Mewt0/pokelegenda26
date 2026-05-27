@@ -4,9 +4,13 @@ declare(strict_types=1);
 namespace Pokemon8\Repository;
 
 use PDO;
+use Pokemon8\Support\Mailer;
 
 final class RewardRepository
 {
+    private ?Mailer $mailer = null;
+    private ?MessageRepository $messages = null;
+
     public function __construct(private PDO $db, private ?SafeStorageRepository $safeStorage = null)
     {
     }
@@ -14,6 +18,16 @@ final class RewardRepository
     public function setSafeStorageRepository(SafeStorageRepository $safeStorage): void
     {
         $this->safeStorage = $safeStorage;
+    }
+
+    public function setMailer(Mailer $mailer): void
+    {
+        $this->mailer = $mailer;
+    }
+
+    public function setMessageRepository(MessageRepository $messages): void
+    {
+        $this->messages = $messages;
     }
 
     public function grantPipeline(
@@ -96,6 +110,8 @@ final class RewardRepository
                         'source_type' => $sourceType,
                         'source_id' => (string) $sourceId,
                         'entries' => $entries,
+                        'email' => (bool) ($context['email'] ?? $this->settingBool('notifications.reward_email_enabled', false)),
+                        'mailbox' => (bool) ($context['mailbox'] ?? $this->settingBool('notifications.reward_mailbox_enabled', false)),
                     ]
                 );
                 $this->insertRewardEntry($transactionId, [
@@ -362,19 +378,119 @@ final class RewardRepository
             return;
         }
 
-        $stmt = $this->db->prepare(
-            'INSERT INTO game_notifications (user_id, title, message, variant, payload_json, source, created_at, read_at)
-             VALUES (:user_id, :title, :message, :variant, :payload_json, :source, :created_at, 0)'
-        );
-        $stmt->execute([
+        $senderId = (int) ($payload['sender_id'] ?? 0);
+        if ($senderId <= 0 && $this->settingBool('notifications.system_sender_enabled', true)) {
+            $senderId = $this->systemAccountId();
+        }
+        $source = mb_substr((string) ($payload['source'] ?? 'Система'), 0, 64);
+        $sourceType = mb_substr((string) ($payload['source_type'] ?? 'system'), 0, 64);
+        $sourceId = mb_substr((string) ($payload['source_id'] ?? ''), 0, 96);
+        $emailRequested = (bool) ($payload['email'] ?? false);
+        $mailboxRequested = (bool) ($payload['mailbox'] ?? false);
+        $emailStatus = $emailRequested ? 'pending' : 'not_requested';
+        $emailSentAt = 0;
+        $mailboxId = 0;
+
+        if ($mailboxRequested && $this->messages !== null) {
+            $mail = $this->messages->sendSystem(
+                $userId,
+                (string) ($payload['mail_subject'] ?? $title),
+                (string) ($payload['mail_text'] ?? $message),
+                ['source_type' => $sourceType, 'source_id' => $sourceId]
+            );
+            $mailboxId = (int) ($mail['id'] ?? 0);
+        }
+
+        if ($emailRequested && $this->mailer !== null) {
+            $email = $this->userEmail($userId);
+            if ($email !== '') {
+                $sent = $this->mailer->send($email, (string) ($payload['email_subject'] ?? $title), (string) ($payload['email_text'] ?? $message));
+                $emailStatus = $sent ? 'sent' : 'failed';
+                $emailSentAt = $sent ? time() : 0;
+            } else {
+                $emailStatus = 'missing_email';
+            }
+        }
+
+        if ($mailboxId > 0) {
+            $payload['mailbox_message_id'] = $mailboxId;
+        }
+
+        $columns = [
             'user_id' => $userId,
             'title' => mb_substr($title, 0, 120),
             'message' => mb_substr($message, 0, 500),
             'variant' => mb_substr($variant, 0, 32),
             'payload_json' => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-            'source' => mb_substr($title, 0, 64),
+            'source' => $source,
             'created_at' => time(),
-        ]);
+            'read_at' => 0,
+        ];
+        if ($this->columnExists('game_notifications', 'sender_id')) {
+            $columns['sender_id'] = $senderId;
+        }
+        if ($this->columnExists('game_notifications', 'source_type')) {
+            $columns['source_type'] = $sourceType;
+        }
+        if ($this->columnExists('game_notifications', 'source_id')) {
+            $columns['source_id'] = $sourceId;
+        }
+        if ($this->columnExists('game_notifications', 'email_status')) {
+            $columns['email_status'] = $emailStatus;
+        }
+        if ($this->columnExists('game_notifications', 'email_sent_at')) {
+            $columns['email_sent_at'] = $emailSentAt;
+        }
+
+        $names = array_keys($columns);
+        $placeholders = array_map(static fn (string $name): string => ':' . $name, $names);
+        $stmt = $this->db->prepare(
+            'INSERT INTO game_notifications (' . implode(', ', $names) . ')
+             VALUES (' . implode(', ', $placeholders) . ')'
+        );
+        $stmt->execute($columns);
+    }
+
+    private function userEmail(int $userId): string
+    {
+        $stmt = $this->db->prepare(
+            'SELECT email FROM users WHERE id = :id AND activation = 1 LIMIT 1'
+        );
+        $stmt->execute(['id' => $userId]);
+        $email = trim((string) ($stmt->fetchColumn() ?: ''));
+        return filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : '';
+    }
+
+    public function systemAccountId(): int
+    {
+        if ($this->tableExists('site_settings')) {
+            $stmt = $this->db->prepare('SELECT value FROM site_settings WHERE name = "system.account_id" LIMIT 1');
+            $stmt->execute();
+            $id = (int) ($stmt->fetchColumn() ?: 0);
+            if ($id > 0) {
+                return $id;
+            }
+        }
+
+        $stmt = $this->db->prepare('SELECT id FROM users WHERE login = "Система" ORDER BY id ASC LIMIT 1');
+        $stmt->execute();
+        return (int) ($stmt->fetchColumn() ?: 0);
+    }
+
+    private function settingBool(string $name, bool $default): bool
+    {
+        if (!$this->tableExists('site_settings')) {
+            return $default;
+        }
+
+        $stmt = $this->db->prepare('SELECT value FROM site_settings WHERE name = :name LIMIT 1');
+        $stmt->execute(['name' => $name]);
+        $value = $stmt->fetchColumn();
+        if ($value === false || $value === null || $value === '') {
+            return $default;
+        }
+
+        return filter_var((string) $value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? $default;
     }
 
     /**

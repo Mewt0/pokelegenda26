@@ -37,9 +37,12 @@ final class GameEventRepository
      */
     public function dashboardForUser(int $userId): array
     {
+        $activeEvents = $this->globalEvents('active');
+        $this->notifyActiveEventsForUser($userId, $activeEvents);
+
         return [
             'serverTime' => time(),
-            'activeEvents' => $this->globalEvents('active'),
+            'activeEvents' => $activeEvents,
             'upcomingEvents' => $this->globalEvents('upcoming'),
             'personalBoosts' => $this->personalBoosts($userId),
             'effectiveMultipliers' => $this->effectiveMultipliers($userId),
@@ -52,9 +55,12 @@ final class GameEventRepository
      */
     public function activePayload(int $userId): array
     {
+        $activeEvents = $this->globalEvents('active');
+        $this->notifyActiveEventsForUser($userId, $activeEvents);
+
         return [
             'serverTime' => time(),
-            'activeEvents' => $this->globalEvents('active'),
+            'activeEvents' => $activeEvents,
             'personalBoosts' => $this->personalBoosts($userId),
             'effectiveMultipliers' => $this->effectiveMultipliers($userId),
         ];
@@ -209,6 +215,65 @@ final class GameEventRepository
         ];
     }
 
+    /**
+     * @param list<array<string,mixed>> $events
+     */
+    private function notifyActiveEventsForUser(int $userId, array $events): void
+    {
+        if ($userId <= 0 || $events === [] || !$this->settingBool('notifications.event_enabled', true)) {
+            return;
+        }
+        if (!$this->tableExists('game_event_notification_receipts')) {
+            return;
+        }
+
+        foreach ($events as $event) {
+            $eventId = (int) ($event['id'] ?? 0);
+            if ($eventId <= 0 || $this->eventReceiptExists($userId, $eventId)) {
+                continue;
+            }
+
+            $title = (string) ($event['title'] ?? 'Игровое событие');
+            $boost = (string) ($event['boost_label'] ?? $event['boost_key'] ?? '');
+            $multiplier = (float) ($event['multiplier'] ?? 1);
+            $remaining = (int) ($event['remaining_seconds'] ?? 0);
+            $message = trim(sprintf(
+                'Активно событие "%s"%s%s.',
+                $title,
+                $boost !== '' ? ': ' . $boost . ' x' . rtrim(rtrim(number_format($multiplier, 2, '.', ''), '0'), '.') : '',
+                $remaining > 0 ? ' до ' . date('d.m.Y H:i', time() + $remaining) : ''
+            ));
+
+            $this->rewards->notify($userId, 'Игровое событие активно', $message, 'event', [
+                'source' => 'Система',
+                'source_type' => 'event',
+                'source_id' => (string) $eventId,
+                'event' => $event,
+                'mailbox' => $this->settingBool('notifications.event_mailbox_enabled', false),
+            ]);
+            $this->markEventReceipt($userId, $eventId);
+        }
+    }
+
+    private function eventReceiptExists(int $userId, int $eventId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT 1 FROM game_event_notification_receipts WHERE user_id = :user AND event_id = :event LIMIT 1'
+        );
+        $stmt->execute(['user' => $userId, 'event' => $eventId]);
+        return (bool) $stmt->fetchColumn();
+    }
+
+    private function markEventReceipt(int $userId, int $eventId): void
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO game_event_notification_receipts (event_id, user_id, notified_at, status)
+             VALUES (:event, :user, :time, "sent")
+             ON DUPLICATE KEY UPDATE notified_at = notified_at'
+        );
+        $stmt->execute(['event' => $eventId, 'user' => $userId, 'time' => time()]);
+    }
+
     private function boostKey(string $value): string
     {
         $value = trim($value);
@@ -256,5 +321,21 @@ final class GameEventRepository
         $stmt = $this->db->query('SHOW TABLES LIKE ' . $this->db->quote($table));
         $cache[$table] = (bool) $stmt->fetchColumn();
         return $cache[$table];
+    }
+
+    private function settingBool(string $name, bool $default): bool
+    {
+        if (!$this->tableExists('site_settings')) {
+            return $default;
+        }
+
+        $stmt = $this->db->prepare('SELECT value FROM site_settings WHERE name = :name LIMIT 1');
+        $stmt->execute(['name' => $name]);
+        $value = $stmt->fetchColumn();
+        if ($value === false || $value === null || $value === '') {
+            return $default;
+        }
+
+        return filter_var((string) $value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? $default;
     }
 }

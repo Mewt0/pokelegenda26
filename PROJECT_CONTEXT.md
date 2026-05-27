@@ -38,12 +38,14 @@
   - `tools/beta_data_audit.php --fix-safe` - только безопасные исправления: merge одинаковых item stacks, expire due commission/PvP.
   - `tools/background_jobs.php --status|--dry-run|--job=<name>` - ручной запуск фоновых задач;
   - `tools/db_integrity_smoke.php [--fix-safe]` - integrity/anti-dupe проверки.
-- Последний статус миграций: `69/69`, `pending=0`, `dirty=0`, `failed=0`.
+- Последний статус миграций: `70/70`, `pending=0`, `dirty=0`, `failed=0`.
 - Последний beta audit: `P0=0`, `P1=0`; `WARN` остаётся по историческим незавершённым rows в `battles`.
 - Комиссионная лавка резервирует покемонов/яйца через `commission.reserve_user_id`, сейчас это аккаунт `Система`, а не живой игрок `id=3`; дополнительно ведётся ledger `market_reserved_objects`.
 - Safe Storage: `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`, `SafeStorageRepository`, `tools/safe_storage_smoke.php`.
 - Safe Storage используется для возврата/резерва при сбоях commission, gift/inventory, rewards, breeding egg create и battle reward rollback-plan. Нормальные успешные операции пишут rollback-plan со статусом `recorded`, аварийные - `failed/open`.
 - Reward pipeline: `reward_transactions`, `reward_transaction_entries`, `RewardRepository::grantPipeline()`, `tools/reward_pipeline_smoke.php`. Подарки и `grantItems()` идут через единый лог начислений, push-уведомления и rollback/safe-storage failure record.
+- Notifications + Mail: `game_notifications` хранит `sender_id/source_type/source_id/email_status/email_sent_at`, системный отправитель берётся из аккаунта `Система`, `MessageRepository::sendSystem()` пишет внутренние письма в `sends`, `Mailer` поддерживает `mail/smtp/log` transport и delivery-log в `mail_delivery_logs`.
+- Event notifications: `GameEventRepository` создаёт одноразовые push-уведомления по активным событиям через `game_event_notification_receipts`, без дублей при повторных `/api/events/active`.
 - Background jobs: `background_job_runs`, `background_job_logs`, `BackgroundJobRepository`, `tools/background_jobs.php`, `tools/background_jobs_smoke.php`.
 - Текущие jobs: `expire_market`, `pvp_timeouts`, `stuck_battles` (warning-only), `temporary_items`, `transport_flights` (scan), `event_cleanup`, `safe_storage_status`, `economy_guard`.
 - Economy Guard: `economy_guard_alerts`, `EconomyGuardRepository`, `tools/economy_guard_smoke.php`, background job `economy_guard`, admin API `/api/admin/economy-guard/alerts|scan|review`; ловит suspicious trades, massive money gain, transfer abuse и fake market prices.
@@ -76,6 +78,7 @@
 - Commission admin: `/api/admin/commission/*`, `market_lots`, `market_logs`, `market_return_storage`, `market_deal_reviews`; отдельная вкладка `Economy Guard` показывает автоалерты экономики и даёт ручной review.
 - Trainer Card: `/api/profile/card`, модальное окно на текущей странице, social viewing/actions, held items и gym badges через reward-flow.
 - Events/buffs: `/api/events`, `/api/events/active`, `GameEventRepository`.
+- Notifications/mail: `/api/notifications`, `RewardRepository::notify()`, `MessageRepository::sendSystem()`, `Mailer`; SMTP задаётся через `.env`, smoke использует `MAIL_TRANSPORT=log`.
 - Transport: `/api/transport/*`, самолет/пароход/рейсы.
 - Bosses: `/api/bosses/start`, `/api/admin/bosses`, `BossRepository`.
 - Dex: `/api/dex/pokemon`, `/api/dex/attacks`, `DexRepository`.
@@ -83,10 +86,10 @@
 
 ## Используемые Модели Данных
 
-- Users/session: `users`, `site_settings`, `game_notifications`.
+- Users/session: `users`, `site_settings`, `game_notifications`, `game_event_notification_receipts`.
 - Pokemon: `pok_user`, `attac_my_poke`, base pokedex tables, form metadata.
 - Items: `items`, `items_users`, `item_gameplay_metadata`.
-- Rewards/notifications: `reward_transactions`, `reward_transaction_entries`, `game_notifications`.
+- Rewards/notifications: `reward_transactions`, `reward_transaction_entries`, `game_notifications`, `mail_delivery_logs`.
 - Battles: `battles`, battle state/log/archive tables, PvP request tables.
 - Battle Replay: `battle_replays`, `battle_replay_events`.
 - Quests: `quest`, `quest_definitions`, `quest_steps`.
