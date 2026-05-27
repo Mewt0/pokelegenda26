@@ -15,6 +15,14 @@ if (($_GET['go'] ?? '') === 'exits') {
     app_redirect('/');
 }
 
+if (($_GET['go'] ?? '') === 'reg') {
+    app_redirect('/register', 301);
+}
+
+if (($_GET['go'] ?? '') === 'sendpass') {
+    app_redirect('/password/forgot', 301);
+}
+
 $requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
 if ($requestPath === '/index.php') {
     app_redirect('/', 301);
@@ -55,6 +63,11 @@ $news = [
         'text' => 'Новая версия строится вокруг front controller, контроллеров, репозиториев, CSRF-защиты и отдельных игровых сервисов. Legacy-файлы остаются только как источник бизнес-логики на время переноса.',
     ],
 ];
+
+if (empty($_SESSION['_csrf']) || !is_string($_SESSION['_csrf'])) {
+    $_SESSION['_csrf'] = bin2hex(random_bytes(32));
+}
+$csrfToken = (string) $_SESSION['_csrf'];
 
 function render_rank_list(array $items, string $scoreKey, string $emptyText = 'Нет данных'): void
 {
@@ -458,7 +471,7 @@ function render_rank_list(array $items, string $scoreKey, string $emptyText = '�
                                 <a class="button" href="/?go=exits">Выйти</a>
                             <?php else: ?>
                                 <a class="button button-primary" href="#login">Войти</a>
-                                <a class="button button-green" href="/index.php?go=reg">Регистрация</a>
+                                <a class="button button-green" href="/register">Регистрация</a>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -470,15 +483,16 @@ function render_rank_list(array $items, string $scoreKey, string $emptyText = '�
                                 <a class="button button-primary" href="/game">Открыть игровой мир</a>
                             <?php else: ?>
                                 <h2 class="login-title">Вход в игру</h2>
-                                <form class="login" action="/autoriz.php" method="post">
+                                <form class="login" action="/login" method="post">
+                                    <input type="hidden" name="_csrf" value="<?= app_e($csrfToken) ?>">
                                     <input name="LOGIN" maxlength="16" autocomplete="username" placeholder="Логин" required>
-                                    <input name="PASSWORD" type="password" maxlength="40" autocomplete="current-password" placeholder="Пароль" required>
+                                    <input name="PASSWORD" type="password" maxlength="72" autocomplete="current-password" placeholder="Пароль" required>
                                     <label><input name="AUTO" type="checkbox"> Запомнить меня</label>
                                     <button class="button-primary" type="submit">Войти</button>
                                 </form>
                                 <div class="login-extra">
-                                    <a href="/index.php?go=reg">Создать аккаунт</a>
-                                    <a href="/index.php?go=sendpass">Восстановить пароль</a>
+                                    <a href="/register">Создать аккаунт</a>
+                                    <a href="/password/forgot">Восстановить пароль</a>
                                 </div>
                             <?php endif; ?>
                         </div>

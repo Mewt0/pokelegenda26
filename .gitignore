@@ -28,6 +28,13 @@ composer.lock
 cache/
 log/
 templates_c/
+tmp/
+log_php_errors.txt
+error.log
+
+# Codex/local QA workspaces
+.codex_pydeps/
+.codex_yandex_niga/
 
 # OS
 .DS_Store
@@ -35,12 +42,27 @@ Thumbs.db
 
 # Downloaded assets (игнорируем загруженные папки)
 downloaded_assets/
+downloaded_assets_sorted/
 downloaded_images/
 
 # Debug files
 debug_*.html
 debug_*.txt
 download.py
+chrome_*.png
+ChatGPT Image*.png
+
+# Local screenshots/prototype dumps
+[0-9].png
+[0-9][0-9].png
+public/prototypes/
+public/css/*prototype*.css
+public/js/*prototype*.js
+render_referat/
+build_referat.py
+render_pdf_pages.py
+*.xlsx
+/*.sql
 
 # Saved web pages (браузерные сохранения)
 *_files/

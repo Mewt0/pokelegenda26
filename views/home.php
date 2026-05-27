@@ -43,6 +43,13 @@ use Pokemon8\View\View;
     }
     .grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
     .login { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .auth-stack { display: grid; gap: 14px; }
+    .auth-card { border-top: 1px solid #edf1f7; padding-top: 12px; }
+    .auth-card:first-child { border-top: 0; padding-top: 0; }
+    .auth-card h2 { margin: 0 0 8px; font-size: 16px; }
+    .auth-card p { margin: 0 0 10px; }
+    .auth-card form { display: grid; gap: 8px; }
+    .auth-card input, .auth-card button { width: 100%; }
     input, button {
       height: 38px;
       border: 1px solid var(--line);
@@ -85,6 +92,7 @@ use Pokemon8\View\View;
         <input name="PASSWORD" type="password" maxlength="72" autocomplete="current-password" placeholder="Пароль">
         <button type="submit">Войти</button>
       </form>
+      <div class="login-extra"><a href="/password/forgot">Забыли пароль?</a></div>
     <?php endif; ?>
   </div>
 </header>
@@ -101,6 +109,22 @@ use Pokemon8\View\View;
     </article>
   </section>
   <aside class="panel">
+    <?php if (!$userLogin): ?>
+      <div class="auth-stack">
+        <section class="auth-card">
+          <h2>Регистрация</h2>
+          <p class="muted">Почта временно необязательна. Её можно будет добавить позже в профиле.</p>
+          <form action="/register" method="post">
+            <input type="hidden" name="_csrf" value="<?= View::e($csrfToken) ?>">
+            <input name="LOGIN" maxlength="16" autocomplete="username" placeholder="Логин" required>
+            <input name="PASSWORD" type="password" maxlength="72" autocomplete="new-password" placeholder="Пароль" required>
+            <input name="PASSWORD_REPEAT" type="password" maxlength="72" autocomplete="new-password" placeholder="Повтор пароля" required>
+            <input name="EMAIL" type="email" maxlength="100" autocomplete="email" placeholder="Email, необязательно">
+            <button type="submit">Создать аккаунт</button>
+          </form>
+        </section>
+      </div>
+    <?php endif; ?>
     <h2>Топ бойцов</h2>
     <?php foreach ($fighters as $index => $fighter): ?>
       <div class="rank-row">

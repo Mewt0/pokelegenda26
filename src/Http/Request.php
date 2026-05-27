@@ -35,7 +35,7 @@ final class Request
 
     public function input(string $key, string $default = ''): string
     {
-        // POST РІР°Р¶РЅРµРµ query-РїР°СЂР°РјРµС‚СЂРѕРІ, РїРѕС‚РѕРјСѓ С‡С‚Рѕ С„РѕСЂРјС‹ РґРѕР»Р¶РЅС‹ РїРµСЂРµРѕРїСЂРµРґРµР»СЏС‚СЊ Р·РЅР°С‡РµРЅРёСЏ РёР· URL.
+        // POST важнее query-параметров: формы должны переопределять значения из URL.
         $value = $this->post[$key] ?? $this->query[$key] ?? $default;
         return trim((string) $value);
     }

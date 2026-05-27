@@ -28,6 +28,26 @@ final class TransportApiController
         return $this->json(['ok' => true, 'routes' => $this->transport->routesForUser($userId)]);
     }
 
+    public function flightRoutes(Request $request): Response
+    {
+        $userId = (int) $this->session->get('id', 0);
+        if ($userId <= 0) {
+            return $this->json(['ok' => false, 'error' => 'auth'], 401);
+        }
+
+        return $this->json(['ok' => true, 'routes' => $this->transport->planeDestinationsForUser($userId)]);
+    }
+
+    public function flightStatus(Request $request): Response
+    {
+        $userId = (int) $this->session->get('id', 0);
+        if ($userId <= 0) {
+            return $this->json(['ok' => false, 'error' => 'auth'], 401);
+        }
+
+        return $this->json($this->transport->flightStatus($userId));
+    }
+
     public function travel(Request $request): Response
     {
         $userId = (int) $this->session->get('id', 0);
@@ -39,6 +59,36 @@ final class TransportApiController
         }
 
         return $this->json($this->transport->travel($userId, (int) $request->input('route_id', '0')));
+    }
+
+    public function flightStart(Request $request): Response
+    {
+        $userId = (int) $this->session->get('id', 0);
+        if ($userId <= 0) {
+            return $this->json(['ok' => false, 'error' => 'auth'], 401);
+        }
+        if (!$this->csrf->validate($request->input('_csrf'))) {
+            return $this->json(['ok' => false, 'error' => 'csrf', 'message' => 'Сессия устарела. Обновите страницу.'], 419);
+        }
+
+        return $this->json($this->transport->startFlight(
+            $userId,
+            (int) $request->input('item_user_id', '0'),
+            (int) $request->input('route_id', '0')
+        ));
+    }
+
+    public function flightExit(Request $request): Response
+    {
+        $userId = (int) $this->session->get('id', 0);
+        if ($userId <= 0) {
+            return $this->json(['ok' => false, 'error' => 'auth'], 401);
+        }
+        if (!$this->csrf->validate($request->input('_csrf'))) {
+            return $this->json(['ok' => false, 'error' => 'csrf', 'message' => 'Сессия устарела. Обновите страницу.'], 419);
+        }
+
+        return $this->json($this->transport->exitFlight($userId));
     }
 
     private function json(array $payload, int $status = 200): Response

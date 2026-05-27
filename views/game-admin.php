@@ -37,8 +37,13 @@ $adminJsVersion = @filemtime(__DIR__ . '/../public/js/admin-panel.js') ?: time()
 
     <section class="admin-layout">
       <aside class="admin-card admin-nav" id="adminNav" aria-label="Разделы админки">
+        <span class="admin-nav-group">Операции</span>
         <button type="button" class="is-active" data-admin-tab="dashboard">Дашборд</button>
         <button type="button" data-admin-tab="users">Пользователи</button>
+        <button type="button" data-admin-tab="commission">Комиссионная лавка</button>
+        <button type="button" data-admin-tab="moderation">Модерация</button>
+        <button type="button" data-admin-tab="settings">Система</button>
+        <span class="admin-nav-group">Контент</span>
         <button type="button" data-admin-tab="items">Предметы</button>
         <button type="button" data-admin-tab="market">Покемаркет</button>
         <button type="button" data-admin-tab="drops">Дроп</button>
@@ -47,11 +52,12 @@ $adminJsVersion = @filemtime(__DIR__ . '/../public/js/admin-panel.js') ?: time()
         <button type="button" data-admin-tab="pokemon">Покемоны</button>
         <button type="button" data-admin-tab="attacks">Атаки</button>
         <button type="button" data-admin-tab="news">Новости</button>
+        <span class="admin-nav-group">Ивенты</span>
+        <button type="button" data-admin-tab="bosses">Боссы</button>
         <button type="button" data-admin-tab="events">Ивенты/бусты</button>
         <button type="button" data-admin-tab="tournaments">Турниры</button>
         <button type="button" data-admin-tab="medals">Медали</button>
-        <button type="button" data-admin-tab="moderation">Модерация</button>
-        <button type="button" data-admin-tab="settings">Система</button>
+        <span class="admin-nav-group">Перенос</span>
         <button type="button" data-admin-tab="legacy">Legacy-карта</button>
       </aside>
 

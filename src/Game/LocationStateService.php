@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 namespace Pokemon8\Game;
 
+use Pokemon8\Repository\BossRepository;
 use Pokemon8\Repository\LocationRepository;
+use Pokemon8\Repository\TransportRepository;
 
 final class LocationStateService
 {
@@ -12,6 +14,8 @@ final class LocationStateService
         private LocationGraph $graph,
         private string $appRoot,
         private LocationContentRepository $content,
+        private ?BossRepository $bosses = null,
+        private ?TransportRepository $transport = null,
     ) {
     }
 
@@ -29,6 +33,13 @@ final class LocationStateService
             return ['ok' => false, 'error' => 'location_not_found'];
         }
 
+        $formattedLocation = $locationId === TransportRepository::PLANE_LOCATION_ID
+            ? $this->formatPlaneLocation($userId, $location)
+            : $this->formatLocation($location);
+        $flightStatus = $locationId === TransportRepository::PLANE_LOCATION_ID && $this->transport !== null
+            ? $this->transport->flightStatus($userId)
+            : null;
+
         return [
             'ok' => true,
             'user' => [
@@ -36,9 +47,11 @@ final class LocationStateService
                 'login' => (string) $user['login'],
                 'pveButton' => (int) ($user['pve_button'] ?? 0) === 1,
             ],
-            'location' => $this->formatLocation($location),
-            'moves' => $this->movesFor($locationId),
+            'location' => $formattedLocation,
+            'moves' => $locationId === TransportRepository::PLANE_LOCATION_ID ? [] : $this->movesFor($locationId),
             'users' => $this->locations->usersAtLocation($locationId),
+            'bosses' => $locationId === TransportRepository::PLANE_LOCATION_ID ? [] : ($this->bosses?->activeForLocation($locationId) ?? []),
+            'flight' => is_array($flightStatus) && is_array($flightStatus['flight'] ?? null) ? $flightStatus['flight'] : null,
         ];
     }
 
@@ -76,6 +89,36 @@ final class LocationStateService
             'image' => $this->imageFor($id, $room['image']),
             'description' => $room['about'] ?: '',
             'npcs' => $room['npcs'],
+        ];
+    }
+
+    private function formatPlaneLocation(int $userId, array $location): array
+    {
+        $status = $this->transport?->flightStatus($userId) ?? ['ok' => false];
+        $flight = is_array($status['flight'] ?? null) ? $status['flight'] : null;
+        $description = 'Вы находитесь на борту самолёта. Проводник подскажет, сколько осталось до прибытия.';
+        if ($flight !== null) {
+            $description = (string) ($flight['statusText'] ?? $description);
+        }
+
+        return [
+            'id' => (int) $location['id'],
+            'title' => $this->toUtf8((string) $location['title']),
+            'type' => (int) ($location['tipe'] ?? 0),
+            'image' => '/img/room/001.png',
+            'description' => $description,
+            'npcs' => [
+                [
+                    'title' => 'Проводник',
+                    'icon' => 'person',
+                    'params' => ['npc' => 'flight_status'],
+                ],
+                [
+                    'title' => 'Выход',
+                    'icon' => 'route',
+                    'params' => ['npc' => 'flight_exit'],
+                ],
+            ],
         ];
     }
 

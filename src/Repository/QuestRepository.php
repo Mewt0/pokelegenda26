@@ -166,9 +166,180 @@ final class QuestRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
+    public function journalForUser(int $userId): array
+    {
+        if (!$this->tableExists('quest_definitions')) {
+            return ['ok' => false, 'message' => 'Таблицы квестов не готовы.', 'quests' => []];
+        }
+
+        $stmt = $this->db->query(
+            'SELECT id, title, description, depends_on_quest_id, repeatable, reward_json, enabled, updated_at
+               FROM quest_definitions
+              WHERE enabled = 1
+              ORDER BY id ASC'
+        );
+        $definitions = $stmt ? ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+
+        $quests = [];
+        $summary = [
+            'available' => 0,
+            'active' => 0,
+            'completed' => 0,
+            'locked' => 0,
+            'cooldown' => 0,
+        ];
+
+        foreach ($definitions as $definition) {
+            $questId = (int) ($definition['id'] ?? 0);
+            $state = $this->findForUser($userId, $questId);
+            $steps = $this->steps($questId);
+            $completed = $state !== null && (int) ($state['gotov'] ?? 0) === 1;
+            $process = $state !== null ? (int) ($state['process'] ?? 0) : 0;
+            $cooldownUntil = $state !== null ? max(0, (int) ($state['time'] ?? 0)) : 0;
+            $onCooldown = (int) ($definition['repeatable'] ?? 0) === 1 && $cooldownUntil > time();
+            $canStart = $this->canStart($userId, $questId);
+            $status = 'available';
+            if (!$canStart) {
+                $status = 'locked';
+            }
+            if ($state !== null && !$completed) {
+                $status = $onCooldown ? 'cooldown' : 'active';
+            }
+            if ($completed) {
+                $status = 'completed';
+            }
+
+            $summary[$status] = ($summary[$status] ?? 0) + 1;
+            $quests[] = [
+                'id' => $questId,
+                'title' => (string) ($definition['title'] ?? ('Квест #' . $questId)),
+                'description' => (string) ($definition['description'] ?? ''),
+                'status' => $status,
+                'can_start' => $canStart && ($state === null || ((int) ($definition['repeatable'] ?? 0) === 1 && !$onCooldown)),
+                'repeatable' => (int) ($definition['repeatable'] ?? 0) === 1,
+                'depends_on_quest_id' => (int) ($definition['depends_on_quest_id'] ?? 0),
+                'process' => $process,
+                'completed' => $completed,
+                'cooldown_until' => $cooldownUntil,
+                'cooldown_remaining_seconds' => max(0, $cooldownUntil - time()),
+                'reward' => $this->decodeJson((string) ($definition['reward_json'] ?? '')),
+                'state' => $state ? [
+                    'pers' => (int) ($state['pers'] ?? 0),
+                    'time' => (int) ($state['time'] ?? 0),
+                ] : null,
+                'steps' => $this->formatSteps($steps, $process, $completed),
+                'current_step' => $this->currentStep($steps, $process, $completed),
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'quests' => $quests,
+            'summary' => $summary,
+        ];
+    }
+
+    public function startFromDefinition(int $userId, int $questId): array
+    {
+        $definition = $this->definition($questId);
+        if ($definition === [] || (int) ($definition['enabled'] ?? 0) !== 1) {
+            return ['ok' => false, 'message' => 'Квест не найден или выключен.'];
+        }
+        if (!$this->canStart($userId, $questId)) {
+            return ['ok' => false, 'message' => 'Сначала нужно завершить связанный квест.'];
+        }
+
+        $state = $this->findForUser($userId, $questId);
+        if ($state !== null) {
+            $completed = (int) ($state['gotov'] ?? 0) === 1;
+            $repeatable = (int) ($definition['repeatable'] ?? 0) === 1;
+            $cooldownUntil = (int) ($state['time'] ?? 0);
+            if (!$repeatable || !$completed && $cooldownUntil <= time()) {
+                return ['ok' => false, 'message' => 'Квест уже есть в журнале.'];
+            }
+            if ($cooldownUntil > time()) {
+                return ['ok' => false, 'message' => 'Квест будет доступен позже.'];
+            }
+        }
+
+        $steps = $this->steps($questId);
+        $firstProcess = $steps !== [] ? max(1, (int) ($steps[0]['required_process'] ?? 1)) : 1;
+        if ($state !== null) {
+            $stmt = $this->db->prepare(
+                'UPDATE quest SET process = :process, gotov = 0, pers = 0, time = 0 WHERE user_id = :user AND quest_id = :quest LIMIT 1'
+            );
+            $stmt->execute(['process' => $firstProcess, 'user' => $userId, 'quest' => $questId]);
+            return ['ok' => true, 'message' => 'Повторный квест начат.', 'quest_id' => $questId];
+        }
+
+        $created = $this->createIfMissing($userId, $questId, $firstProcess);
+        return [
+            'ok' => $created,
+            'message' => $created ? 'Квест принят.' : 'Квест уже есть в журнале.',
+            'quest_id' => $questId,
+        ];
+    }
+
     private function nextId(): int
     {
         return (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM quest')->fetchColumn() ?: 1);
+    }
+
+    private function decodeJson(string $json): array
+    {
+        $json = trim($json);
+        if ($json === '') {
+            return [];
+        }
+
+        $decoded = json_decode($json, true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function currentStep(array $steps, int $process, bool $completed): ?array
+    {
+        if ($steps === []) {
+            return null;
+        }
+        if ($completed) {
+            return $this->formatStep($steps[array_key_last($steps)], 'done');
+        }
+
+        foreach ($steps as $step) {
+            if ($process <= (int) ($step['required_process'] ?? 0)) {
+                return $this->formatStep($step, 'active');
+            }
+        }
+
+        return $this->formatStep($steps[array_key_last($steps)], 'active');
+    }
+
+    private function formatSteps(array $steps, int $process, bool $completed): array
+    {
+        $formatted = [];
+        foreach ($steps as $step) {
+            $required = (int) ($step['required_process'] ?? 0);
+            $status = $completed || ($process > 0 && $process >= $required) ? 'done' : 'locked';
+            if (!$completed && $process <= $required && !in_array('active', array_column($formatted, 'status'), true)) {
+                $status = 'active';
+            }
+            $formatted[] = $this->formatStep($step, $status);
+        }
+
+        return $formatted;
+    }
+
+    private function formatStep(array $step, string $status): array
+    {
+        return [
+            'step_no' => (int) ($step['step_no'] ?? 0),
+            'title' => (string) ($step['title'] ?? ''),
+            'description' => (string) ($step['description'] ?? ''),
+            'action_key' => (string) ($step['action_key'] ?? ''),
+            'required_process' => (int) ($step['required_process'] ?? 0),
+            'reward' => $this->decodeJson((string) ($step['reward_json'] ?? '')),
+            'status' => $status,
+        ];
     }
 
     private function tableExists(string $table): bool

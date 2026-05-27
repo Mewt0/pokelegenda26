@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Pokemon8\Repository;
 
 use PDO;
+use Pokemon8\Game\BattleAbilityCatalog;
+use Pokemon8\Game\PokemonFormCatalog;
 use Throwable;
 
 final class DexRepository
@@ -12,10 +14,12 @@ final class DexRepository
     {
     }
 
-    public function searchPokemon(string $query = '', int $limit = 1000): array
+    public function searchPokemon(string $query = '', int $limit = 1000, array $filters = []): array
     {
         $limit = max(1, min(1500, $limit));
         $query = trim($query);
+        $where = [];
+        $params = [];
 
         $sql = 'SELECT p.id, p.Name, p.Element, p.SubElement, p.Code,
                        pb.title, pb.hp, pb.atk, pb.def, pb.satk, pb.sdef, pb.speed,
@@ -24,18 +28,49 @@ final class DexRepository
              LEFT JOIN poke_base pb ON pb.id = p.id';
 
         if ($query !== '') {
-            $sql .= ' WHERE p.Name LIKE :q_name OR pb.title LIKE :q_title OR p.Code LIKE :q_code OR p.id = :id';
+            $where[] = '(p.Name LIKE :q_name OR pb.title LIKE :q_title OR p.Code LIKE :q_code OR p.id = :id)';
+            $like = '%' . $query . '%';
+            $params[':q_name'] = $like;
+            $params[':q_title'] = $like;
+            $params[':q_code'] = $like;
+            $params[':id'] = ctype_digit($query) ? (int)$query : 0;
         }
 
-        $sql .= ' ORDER BY p.id ASC LIMIT :limit';
+        $type = trim((string)($filters['type'] ?? ''));
+        if ($type !== '') {
+            $where[] = '(LOWER(p.Element) = LOWER(:pokemon_type_main) OR LOWER(p.SubElement) = LOWER(:pokemon_type_sub))';
+            $params[':pokemon_type_main'] = $type;
+            $params[':pokemon_type_sub'] = $type;
+        }
+
+        $generation = (int)($filters['generation'] ?? 0);
+        if ($generation > 0) {
+            [$from, $to] = $this->generationRange($generation);
+            if ($from > 0 && $to > 0) {
+                $where[] = 'CAST(COALESCE(NULLIF(p.Code, ""), p.id) AS UNSIGNED) BETWEEN :gen_from AND :gen_to';
+                $params[':gen_from'] = $from;
+                $params[':gen_to'] = $to;
+            }
+        }
+
+        $form = mb_strtolower(trim((string)($filters['form'] ?? '')), 'UTF-8');
+        if ($form === 'mega') {
+            $where[] = '(p.Name LIKE "%Mega%" OR pb.title LIKE "%Mega%")';
+        } elseif ($form === 'primal') {
+            $where[] = '(p.Name LIKE "%Primal%" OR pb.title LIKE "%Primal%")';
+        } elseif ($form === 'normal') {
+            $where[] = '(p.Name NOT LIKE "%Mega%" AND p.Name NOT LIKE "%Primal%" AND COALESCE(pb.title, "") NOT LIKE "%Mega%" AND COALESCE(pb.title, "") NOT LIKE "%Primal%")';
+        }
+
+        if ($where !== []) {
+            $sql .= ' WHERE ' . implode(' AND ', $where);
+        }
+
+        $sql .= ' ORDER BY CAST(COALESCE(NULLIF(p.Code, ""), p.id) AS UNSIGNED) ASC, p.id ASC LIMIT :limit';
 
         $stmt = $this->db->prepare($sql);
-        if ($query !== '') {
-            $like = '%' . $query . '%';
-            $stmt->bindValue(':q_name', $like);
-            $stmt->bindValue(':q_title', $like);
-            $stmt->bindValue(':q_code', $like);
-            $stmt->bindValue(':id', ctype_digit($query) ? (int)$query : 0, PDO::PARAM_INT);
+        foreach ($params as $name => $value) {
+            $stmt->bindValue($name, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
         }
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
@@ -52,7 +87,7 @@ final class DexRepository
         $stmt = $this->db->prepare(
             'SELECT p.*, pb.title, pb.img, pb.hp AS base_hp, pb.atk AS base_atk, pb.def AS base_def,
                     pb.satk AS base_satk, pb.sdef AS base_sdef, pb.speed AS base_speed,
-                    pb.exp AS base_exp, pb.evolution_lvl, pb.evolution_type, pb.evol_a
+                    pb.exp AS base_exp, pb.evolution_lvl, pb.evolution_type, pb.evol_a, pb.ability_key
                FROM pokemon p
           LEFT JOIN poke_base pb ON pb.id = p.id
               WHERE p.id = :id
@@ -68,63 +103,146 @@ final class DexRepository
         $data['baseExp'] = (int)($row['Base'] ?? $row['base_exp'] ?? 0);
         $data['description'] = $this->pokemonDescription($id, (string)$data['name']);
         $data['info'] = [
-            'generation' => $this->generationById($id),
+            'generation' => $this->generationById((int) preg_replace('/\D+/', '', (string) ($data['code'] ?? $id)) ?: $id),
             'category' => $this->pokemonMetaValue($id, ['category', 'class', 'species'], 'Pokémon'),
         ];
+        $data['ability'] = $this->abilityInfo($id, (string) ($row['ability_key'] ?? ''));
+        $data['forms'] = $this->pokemonForms($id, (string) ($data['code'] ?? ''));
         $data['evolutions'] = $this->evolutionChain($id);
         $data['evolutionOptions'] = $this->evolutionOptions($id);
         $data['evolution'] = $this->evolutionTextFromChain($data['evolutions']);
         $data['learnset'] = $this->pokemonLearnset($id);
         $data['eggMoves'] = $this->pokemonEggMoves($id);
+        $data['hiddenMoves'] = $this->pokemonHiddenMoves($id);
         $data['habitats'] = $this->pokemonHabitats($id);
 
         return $data;
     }
 
-    public function searchAttacks(string $query = '', int $limit = 1200): array
+    public function searchAttacks(string $query = '', int $limit = 1200, array $filters = []): array
     {
         $limit = max(1, min(1500, $limit));
         $query = trim($query);
 
         $select = 'SELECT atac_id, atac_name, atac_tip, atac_categori, atac_pp, atac_power, atac_accuracy,
                           critic, priorety, titles, atac_tittle, tittle_effect, chans_dop, chans_effect';
-        $from = ' FROM attac_power';
+        $from = ' FROM attac_power a';
+        $where = [];
+        $params = [];
 
-        if ($query === '') {
-            $stmt = $this->db->prepare($select . $from . ' ORDER BY atac_id ASC LIMIT :limit');
-            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-            $stmt->execute();
-        } else {
+        if ($query !== '') {
             $id = (int) (preg_replace('/\D+/', '', $query) ?: 0);
             $compact = '%' . mb_strtolower((string) preg_replace('/[^a-z0-9а-яё]+/iu', '', $query), 'UTF-8') . '%';
             $category = $this->categoryFromSearch($query);
-            $stmt = $this->db->prepare(
-                $select . $from .
-                ' WHERE atac_name LIKE :q_name
-                    OR atac_tip LIKE :q_type
-                    OR titles LIKE :q_titles
-                    OR atac_tittle LIKE :q_title
-                    OR tittle_effect LIKE :q_effect
-                    OR atac_id = :id
-                    OR (:category_filter > 0 AND atac_categori = :category_value)
-                    OR LOWER(REPLACE(REPLACE(REPLACE(atac_name, " ", ""), "-", ""), "_", "")) LIKE :compact
-                  ORDER BY atac_id ASC LIMIT :limit'
-            );
+            $where[] = '(a.atac_name LIKE :q_name
+                    OR a.atac_tip LIKE :q_type
+                    OR a.titles LIKE :q_titles
+                    OR a.atac_tittle LIKE :q_title
+                    OR a.tittle_effect LIKE :q_effect
+                    OR a.atac_id = :id
+                    OR (:category_filter > 0 AND a.atac_categori = :category_value)
+                    OR LOWER(REPLACE(REPLACE(REPLACE(a.atac_name, " ", ""), "-", ""), "_", "")) LIKE :compact)';
             $like = '%' . $query . '%';
-            $stmt->bindValue(':q_name', $like);
-            $stmt->bindValue(':q_type', $like);
-            $stmt->bindValue(':q_titles', $like);
-            $stmt->bindValue(':q_title', $like);
-            $stmt->bindValue(':q_effect', $like);
-            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
-            $stmt->bindValue(':category_filter', $category, PDO::PARAM_INT);
-            $stmt->bindValue(':category_value', $category, PDO::PARAM_INT);
-            $stmt->bindValue(':compact', $compact);
-            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-            $stmt->execute();
+            $params[':q_name'] = $like;
+            $params[':q_type'] = $like;
+            $params[':q_titles'] = $like;
+            $params[':q_title'] = $like;
+            $params[':q_effect'] = $like;
+            $params[':id'] = $id;
+            $params[':category_filter'] = $category;
+            $params[':category_value'] = $category;
+            $params[':compact'] = $compact;
         }
 
+        $type = trim((string)($filters['type'] ?? ''));
+        if ($type !== '') {
+            $where[] = 'LOWER(a.atac_tip) = LOWER(:attack_type)';
+            $params[':attack_type'] = $type;
+        }
+
+        $categoryFilter = $this->categoryFilterValue((string)($filters['category'] ?? ''));
+        if ($categoryFilter > 0) {
+            $where[] = 'a.atac_categori = :attack_category';
+            $params[':attack_category'] = $categoryFilter;
+        }
+
+        foreach ([
+            'power_min' => ['sql' => 'a.atac_power >= :power_min', 'param' => ':power_min'],
+            'power_max' => ['sql' => 'a.atac_power <= :power_max', 'param' => ':power_max'],
+            'accuracy_min' => ['sql' => 'a.atac_accuracy >= :accuracy_min', 'param' => ':accuracy_min'],
+            'accuracy_max' => ['sql' => 'a.atac_accuracy <= :accuracy_max', 'param' => ':accuracy_max'],
+        ] as $key => $rule) {
+            $value = trim((string)($filters[$key] ?? ''));
+            if ($value !== '' && is_numeric($value)) {
+                $where[] = $rule['sql'];
+                $params[$rule['param']] = max(0, (int)$value);
+            }
+        }
+
+        $pokemon = trim((string)($filters['pokemon'] ?? ''));
+        if ($pokemon !== '') {
+            $pokemonId = (int)(preg_replace('/\D+/', '', $pokemon) ?: 0);
+            $pokemonLike = '%' . $pokemon . '%';
+            $where[] = '(
+                EXISTS (
+                    SELECT 1
+                      FROM attac_poke lp
+                 LEFT JOIN pokemon p ON p.id = lp.poke_base_id
+                 LEFT JOIN poke_base pb ON pb.id = lp.poke_base_id
+                     WHERE lp.atac_id = a.atac_id
+                       AND (lp.poke_base_id = :learn_pokemon_id_level
+                            OR p.Name LIKE :learn_pokemon_name_level
+                            OR pb.title LIKE :learn_pokemon_title_level
+                            OR p.Code LIKE :learn_pokemon_code_level)
+                )
+                OR EXISTS (
+                    SELECT 1
+                      FROM attac_egg ep
+                 LEFT JOIN pokemon p2 ON p2.id = ep.poke_base_id
+                 LEFT JOIN poke_base pb2 ON pb2.id = ep.poke_base_id
+                     WHERE ep.atac_id = a.atac_id
+                       AND (ep.poke_base_id = :learn_pokemon_id_egg
+                            OR p2.Name LIKE :learn_pokemon_name_egg
+                            OR pb2.title LIKE :learn_pokemon_title_egg
+                            OR p2.Code LIKE :learn_pokemon_code_egg)
+                )
+            )';
+            $params[':learn_pokemon_id_level'] = $pokemonId;
+            $params[':learn_pokemon_name_level'] = $pokemonLike;
+            $params[':learn_pokemon_title_level'] = $pokemonLike;
+            $params[':learn_pokemon_code_level'] = $pokemonLike;
+            $params[':learn_pokemon_id_egg'] = $pokemonId;
+            $params[':learn_pokemon_name_egg'] = $pokemonLike;
+            $params[':learn_pokemon_title_egg'] = $pokemonLike;
+            $params[':learn_pokemon_code_egg'] = $pokemonLike;
+        }
+
+        if (in_array(strtolower(trim((string)($filters['tm'] ?? ''))), ['1', 'true', 'yes', 'on'], true)) {
+            $where[] = 'EXISTS (SELECT 1 FROM attac_poke tm WHERE tm.atac_id = a.atac_id)';
+        }
+
+        $sql = $select . $from . ($where !== [] ? (' WHERE ' . implode(' AND ', $where)) : '') . ' ORDER BY atac_id ASC LIMIT :limit';
+        $stmt = $this->db->prepare($sql);
+        foreach ($params as $name => $value) {
+            $stmt->bindValue($name, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+
         return array_map([$this, 'attackSummary'], $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+    }
+
+    private function categoryFilterValue(string $value): int
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return 0;
+        }
+        if (ctype_digit($value)) {
+            $category = (int)$value;
+            return in_array($category, [1, 2, 3], true) ? $category : 0;
+        }
+        return $this->categoryFromSearch($value);
     }
 
     private function categoryFromSearch(string $query): int
@@ -187,14 +305,23 @@ final class DexRepository
         $id = (int)($row['id'] ?? 0);
         $code = $this->pokemonCode($row, $id);
         $name = $this->cleanPokemonName((string)($row['title'] ?? ''), (string)($row['Name'] ?? 'Pokemon'), $code);
+        $displayBaseId = PokemonFormCatalog::displayBaseId($id, (string)($row['Code'] ?? $code));
+        $formKey = PokemonFormCatalog::formKey($id, $name);
+        $isForm = PokemonFormCatalog::isForm($id) || $displayBaseId !== $id;
 
         return [
             'id' => $id,
+            'formId' => $id,
+            'baseId' => $displayBaseId,
+            'dexId' => $displayBaseId,
+            'isForm' => $isForm,
+            'formKey' => $formKey,
+            'formLabel' => $isForm ? $name : '',
             'number' => $code,
             'code' => $code,
             'name' => $name,
             'types' => $this->pokemonTypes($row),
-            'sprites' => $this->pokemonSprites($code, $name),
+            'sprites' => $this->pokemonSprites($isForm ? (string)$id : $code, $name),
             'stats' => [
                 'hp' => (int)($row['base_hp'] ?? $row['hp'] ?? $row['HP'] ?? 0),
                 'atk' => (int)($row['base_atk'] ?? $row['atk'] ?? $row['Attack'] ?? 0),
@@ -240,6 +367,85 @@ final class DexRepository
         return $types ?: ['Normal'];
     }
 
+    private function abilityInfo(int $baseId, string $rawAbility): array
+    {
+        $key = BattleAbilityCatalog::key(['basenum' => $baseId, 'ability_key' => $rawAbility]);
+        $stored = $this->abilityDescription($key);
+        if ($stored !== null) {
+            return $stored;
+        }
+
+        return match ($key) {
+            'primordial_sea' => [
+                'key' => $key,
+                'name' => 'Первозданное море',
+                'description' => 'При выходе вызывает Сильный ливень: действуют эффекты дождя, атаки Огненного типа не выполняются. Погода держится, пока активна эта способность, либо пока её не заменит Сильный ветер или Жаркое солнце.',
+            ],
+            'desolate_land' => [
+                'key' => $key,
+                'name' => 'Выжженная земля',
+                'description' => 'При выходе вызывает Жаркое солнце: действуют эффекты солнца, атаки Водного типа не выполняются. Погода держится, пока активна эта способность, либо пока её не заменит Сильный ливень или Сильный ветер.',
+            ],
+            'delta_stream' => [
+                'key' => $key,
+                'name' => 'Дельта-поток',
+                'description' => 'При выходе вызывает Сильный ветер и перекрывает обычную погоду, Сильный ливень и Жаркое солнце.',
+            ],
+            'weather_lock' => [
+                'key' => $key,
+                'name' => 'Штиль',
+                'description' => 'Рассеивает текущую погоду на поле боя.',
+            ],
+            'drizzle' => [
+                'key' => $key,
+                'name' => 'Морось',
+                'description' => 'При выходе вызывает дождь.',
+            ],
+            'drought' => [
+                'key' => $key,
+                'name' => 'Засуха',
+                'description' => 'При выходе вызывает солнечную погоду.',
+            ],
+            '' => ['key' => '', 'name' => 'Не указана', 'description' => 'Способность будет уточнена в данных покемона.'],
+            default => ['key' => $key, 'name' => $this->humanAbilityName($key), 'description' => 'Способность подключена в боевой системе, описание уточняется.'],
+        };
+    }
+
+    private function abilityDescription(string $key): ?array
+    {
+        if ($key === '') {
+            return null;
+        }
+
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT name_ru, description_ru
+                   FROM pokemon_ability_descriptions
+                  WHERE ability_key = :ability
+                  LIMIT 1'
+            );
+            $stmt->execute(['ability' => $key]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
+                return null;
+            }
+
+            return [
+                'key' => $key,
+                'name' => (string)$row['name_ru'],
+                'description' => (string)$row['description_ru'],
+            ];
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    private function humanAbilityName(string $key): string
+    {
+        $name = str_replace('_', ' ', trim($key));
+        return $name !== '' ? mb_convert_case($name, MB_CASE_TITLE, 'UTF-8') : 'Не указана';
+    }
+
     private function pokemonSprites(string $code, string $name = ''): array
     {
         $num = (string) max(0, (int) $code);
@@ -247,14 +453,29 @@ final class DexRepository
         $shiny = $this->existingPublicPath('/Pok/shine/' . $num . '.png');
         $fallbackNormal = $this->existingPublicPath('/Pok/pok/' . $code . '.gif');
         $fallbackShiny = $this->existingPublicPath('/Pok/shiny/' . $code . '.gif');
-        $assetNormal = $this->pokemonAssetPath($name, false);
-        $assetShiny = $this->pokemonAssetPath($name, true);
+        $assetNormal = $this->pokemonAssetPath($name, 'normal', false);
+        $assetShiny = $this->pokemonAssetPath($name, 'shiny', false);
+        $assetSmall = $this->pokemonAssetPath($name, 'normal', true);
+        $assetSmallShiny = $this->pokemonAssetPath($name, 'shiny', true);
+        $showdown = $this->pokemonShowdownSprites($code, $name);
+        $isSpecialForm = (bool) preg_match('/\b(primal|mega)\b/i', $name);
 
         return [
-            'normal' => $normal ?: ($assetNormal ?: ($fallbackNormal ?: '/public/img/ui/dex/pokedex.png')),
-            'shiny' => $shiny ?: ($assetShiny ?: ($assetNormal ?: ($fallbackShiny ?: '/public/img/ui/dex/pokedex.png'))),
+            'normal' => $isSpecialForm
+                ? ($assetNormal ?: ($normal ?: ($fallbackNormal ?: '/public/img/ui/dex/pokedex.png')))
+                : ($normal ?: ($assetNormal ?: ($fallbackNormal ?: '/public/img/ui/dex/pokedex.png'))),
+            'shiny' => $isSpecialForm
+                ? ($assetShiny ?: ($assetNormal ?: ($shiny ?: ($fallbackShiny ?: '/public/img/ui/dex/pokedex.png'))))
+                : ($shiny ?: ($assetShiny ?: ($assetNormal ?: ($fallbackShiny ?: '/public/img/ui/dex/pokedex.png')))),
             'fallbackNormal' => $fallbackNormal,
             'fallbackShiny' => $fallbackShiny,
+            'small' => $assetSmall ?: ($assetNormal ?: ($normal ?: ($fallbackNormal ?: '/public/img/ui/dex/pokedex.png'))),
+            'smallShiny' => $assetSmallShiny ?: ($assetShiny ?: ($assetSmall ?: ($assetNormal ?: ($shiny ?: ($fallbackShiny ?: '/public/img/ui/dex/pokedex.png'))))),
+            'front' => $showdown['front'] ?? '',
+            'back' => $showdown['back'] ?? '',
+            'frontShiny' => $showdown['frontShiny'] ?? '',
+            'backShiny' => $showdown['backShiny'] ?? '',
+            'showdown' => $showdown,
         ];
     }
 
@@ -266,17 +487,93 @@ final class DexRepository
         return is_file(APP_ROOT . $path) ? $path : '';
     }
 
-    private function pokemonAssetPath(string $name, bool $small): string
+    private function pokemonAssetPath(string $name, string $variant, bool $small): string
     {
         $slug = strtolower((string) preg_replace('/[^a-z0-9]+/i', '', $name));
         if ($slug === '') {
             return '';
         }
-        $path = ($small ? '/public/img/pokemon/small/' : '/public/img/pokemon/art/') . $slug . '.png';
-        if (defined('APP_ROOT') && !is_file(APP_ROOT . $path)) {
-            return '';
+
+        $folder = match ([$variant, $small]) {
+            ['shiny', true] => '/public/img/pokemon/small-shiny/',
+            ['shiny', false] => '/public/img/pokemon/art-shiny/',
+            ['normal', true] => '/public/img/pokemon/small/',
+            default => '/public/img/pokemon/art/',
+        };
+
+        foreach ($this->pokemonAssetSlugCandidates($slug) as $candidate) {
+            $path = $folder . $candidate . '.png';
+            if (!defined('APP_ROOT') || is_file(APP_ROOT . $path)) {
+                return $path;
+            }
         }
-        return $path;
+
+        return '';
+    }
+
+    /** @return list<string> */
+    private function pokemonAssetSlugCandidates(string $slug): array
+    {
+        $aliases = [
+            'primalkyogre' => ['kyogreprimal'],
+            'kyogreprimal' => ['primalkyogre'],
+            'primalgroudon' => ['groudonprimal'],
+            'groudonprimal' => ['primalgroudon'],
+            'megarayquaza' => ['rayquazamega'],
+            'rayquazamega' => ['megarayquaza'],
+        ];
+
+        return array_values(array_unique([$slug, ...($aliases[$slug] ?? [])]));
+    }
+
+    /** @return array{front?:string,back?:string,frontShiny?:string,backShiny?:string} */
+    private function pokemonShowdownSprites(string $code, string $name): array
+    {
+        $battleSpriteId = $this->pokemonShowdownBattleId((int) $code, $name);
+        if ($battleSpriteId <= 0) {
+            return [];
+        }
+
+        $paths = [
+            'front' => '/Pok/spriteanim/' . $battleSpriteId . '.gif',
+            'back' => '/Pok/back/' . $battleSpriteId . '.gif',
+            'frontShiny' => '/Pok/shiny/' . $battleSpriteId . '.gif',
+            'backShiny' => '/Pok/sback/' . $battleSpriteId . '.gif',
+        ];
+
+        $result = [];
+        foreach ($paths as $key => $path) {
+            $existing = $this->existingPublicPath($path);
+            if ($existing !== '') {
+                $result[$key] = $existing;
+            }
+        }
+        return $result;
+    }
+
+    private function pokemonShowdownBattleId(int $baseId, string $name): int
+    {
+        $byId = [
+            5017 => 5017,
+            5018 => 5018,
+            5019 => 5019,
+        ];
+        if (isset($byId[$baseId])) {
+            return $byId[$baseId];
+        }
+
+        $lower = strtolower($name);
+        if (str_contains($lower, 'kyogre') && (str_contains($lower, 'primal') || str_contains($lower, 'праймал'))) {
+            return 5017;
+        }
+        if (str_contains($lower, 'groudon') && (str_contains($lower, 'primal') || str_contains($lower, 'праймал'))) {
+            return 5018;
+        }
+        if (str_contains($lower, 'rayquaza') && str_contains($lower, 'mega')) {
+            return 5019;
+        }
+
+        return 0;
     }
 
     private function pokemonDescription(int $id, string $name): string
@@ -335,6 +632,22 @@ final class DexRepository
             $id <= 809 => 7,
             $id <= 905 => 8,
             default => 9,
+        };
+    }
+
+    private function generationRange(int $generation): array
+    {
+        return match ($generation) {
+            1 => [1, 151],
+            2 => [152, 251],
+            3 => [252, 386],
+            4 => [387, 493],
+            5 => [494, 649],
+            6 => [650, 721],
+            7 => [722, 809],
+            8 => [810, 905],
+            9 => [906, 2000],
+            default => [0, 0],
         };
     }
 
@@ -400,6 +713,65 @@ final class DexRepository
         return $row ?: null;
     }
 
+    /** @return list<array<string,mixed>> */
+    private function pokemonForms(int $id, string $code): array
+    {
+        $baseNumber = (int) preg_replace('/\D+/', '', $code);
+        if ($baseNumber <= 0) {
+            $baseNumber = $id;
+        }
+
+        $groups = $this->specialFormGroups();
+        $ids = $groups[$id] ?? ($groups[$baseNumber] ?? []);
+        if ($ids === []) {
+            foreach ($groups as $group) {
+                if (in_array($id, $group, true)) {
+                    $ids = $group;
+                    break;
+                }
+            }
+        }
+        if ($ids === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->prepare(
+            'SELECT p.id, p.Name, p.Element, p.SubElement, p.Code,
+                    pb.title, pb.hp AS base_hp, pb.atk AS base_atk, pb.def AS base_def,
+                    pb.satk AS base_satk, pb.sdef AS base_sdef, pb.speed AS base_speed,
+                    pb.evolution_lvl, pb.evolution_type, pb.ability_key
+               FROM pokemon p
+          LEFT JOIN poke_base pb ON pb.id = p.id
+              WHERE p.id IN (' . $placeholders . ')
+              ORDER BY FIELD(p.id, ' . $placeholders . ')'
+        );
+        $stmt->execute([...$ids, ...$ids]);
+
+        $forms = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $summary = $this->pokemonSummary($row);
+            $summary['selected'] = (int) ($row['id'] ?? 0) === $id;
+            $summary['ability'] = $this->abilityInfo((int) ($row['id'] ?? 0), (string) ($row['ability_key'] ?? ''));
+            $forms[] = $summary;
+        }
+
+        return $forms;
+    }
+
+    /** @return array<int,list<int>> */
+    private function specialFormGroups(): array
+    {
+        $groups = [];
+        foreach (PokemonFormCatalog::forms() as $formId => $form) {
+            $baseId = (int)$form['baseId'];
+            $groups[$baseId] ??= [$baseId];
+            $groups[$baseId][] = $formId;
+        }
+
+        return $groups;
+    }
+
     private function evolutionTextFromChain(array $chain): array
     {
         if (count($chain) <= 1) {
@@ -417,6 +789,9 @@ final class DexRepository
     {
         $rows = [];
         foreach ($this->levelEvolutionOptions($id) as $row) {
+            $rows[] = $row;
+        }
+        foreach ($this->conditionEvolutionOptions($id) as $row) {
             $rows[] = $row;
         }
         foreach ($this->itemEvolutionMap() as $fromId => $targets) {
@@ -508,6 +883,32 @@ final class DexRepository
                 'condition' => ((int) ($row['evolution_lvl'] ?? 0) > 0 ? 'Уровень ' . (int) ($row['evolution_lvl'] ?? 0) : 'Уровневая эволюция'),
             ]);
         }
+        return $rows;
+    }
+
+    private function conditionEvolutionOptions(int $id): array
+    {
+        $rows = [];
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT from_base_id, to_base_id, condition_text
+                   FROM pokemon_evolution_rules
+                  WHERE enabled = 1
+                    AND trigger_type = "condition"
+                    AND (from_base_id = :source_id OR to_base_id = :target_id)
+                  ORDER BY from_base_id ASC, priority ASC, id ASC'
+            );
+            $stmt->execute(['source_id' => $id, 'target_id' => $id]);
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                $rows[] = $this->buildEvolutionOption((int) $row['from_base_id'], (int) $row['to_base_id'], [
+                    'kind' => 'condition',
+                    'condition' => trim((string) ($row['condition_text'] ?? '')) ?: 'Особое условие',
+                ]);
+            }
+        } catch (Throwable) {
+            return [];
+        }
+
         return $rows;
     }
 
@@ -656,9 +1057,9 @@ final class DexRepository
                 ['to' => 196, 'condition' => 'Дневное время + 100% счастья'],
                 ['to' => 197, 'condition' => 'Ночное время + 100% счастья'],
             ],
-            193 => [['to' => 469, 'condition' => '50% счастья + Ancient Power']],
-            220 => [['to' => 221, 'condition' => 'Уровень 33']],
-            221 => [['to' => 473, 'condition' => '50% счастья + Ancient Power']],
+            114 => [['to' => 465, 'condition' => 'Нужно знать Ancient Power']],
+            193 => [['to' => 469, 'condition' => 'Нужно знать Ancient Power']],
+            221 => [['to' => 473, 'condition' => 'Нужно знать Ancient Power']],
             406 => [['to' => 315, 'condition' => '100% счастья']],
             527 => [['to' => 528, 'condition' => '100% счастья']],
         ];
@@ -718,6 +1119,40 @@ final class DexRepository
         return $rows;
     }
 
+    private function pokemonHiddenMoves(int $id): array
+    {
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT aw.atac_id AS id,
+                        aw.atac_name AS name,
+                        aw.atac_tip AS type,
+                        aw.atac_categori AS category,
+                        aw.atac_power AS power,
+                        aw.atac_accuracy AS accuracy,
+                        aw.atac_pp AS pp,
+                        sm.method_type,
+                        sm.condition_text
+                   FROM pokemon_special_moves sm
+             INNER JOIN attac_power aw ON aw.atac_id = sm.atac_id
+                  WHERE sm.enabled = 1
+                    AND sm.poke_base_id = :id
+                  ORDER BY aw.atac_id ASC'
+            );
+            $stmt->execute(['id' => $id]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable) {
+            return [];
+        }
+
+        foreach ($rows as &$row) {
+            $row['categoryName'] = $this->categoryName((int)($row['category'] ?? 0));
+            $row['source'] = trim((string)($row['condition_text'] ?? '')) ?: 'Скрытая атака';
+        }
+        unset($row);
+
+        return $rows;
+    }
+
     private function pokemonHabitats(int $id): array
     {
         try {
@@ -757,7 +1192,12 @@ final class DexRepository
     private function attackLearnedBy(int $id): array
     {
         $stmt = $this->db->prepare(
-            'SELECT p.id, COALESCE(NULLIF(p.Name, ""), NULLIF(pb.title, "")) AS name, p.Code AS code, ap.atc_lvl AS level
+            'SELECT p.id,
+                    COALESCE(NULLIF(p.Name, ""), NULLIF(pb.title, "")) AS name,
+                    p.Code AS code,
+                    ap.atc_lvl AS level,
+                    CONCAT("Уровень ", ap.atc_lvl) AS source,
+                    "level" AS sourceType
                FROM attac_poke ap
          INNER JOIN pokemon p ON p.id = ap.poke_base_id
           LEFT JOIN poke_base pb ON pb.id = p.id
@@ -767,14 +1207,79 @@ final class DexRepository
         );
         $stmt->execute(['id' => $id]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = array_merge($rows, $this->attackEggLearnedBy($id), $this->attackHiddenLearnedBy($id));
+
+        $seen = [];
+        $deduped = [];
         foreach ($rows as &$row) {
             $code = $this->pokemonCode(['Code' => $row['code'] ?? ''], (int)($row['id'] ?? 0));
             $row['code'] = $code;
             $row['sprite'] = $this->pokemonSprites($code, (string)($row['name'] ?? ''))['normal'];
+            $key = (int)($row['id'] ?? 0) . ':' . (string)($row['sourceType'] ?? '') . ':' . (string)($row['source'] ?? '');
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $deduped[] = $row;
         }
         unset($row);
 
-        return $rows;
+        usort($deduped, static function (array $a, array $b): int {
+            $levelA = (int)($a['level'] ?? 9999);
+            $levelB = (int)($b['level'] ?? 9999);
+            return [$levelA, (int)($a['id'] ?? 0), (string)($a['source'] ?? '')] <=> [$levelB, (int)($b['id'] ?? 0), (string)($b['source'] ?? '')];
+        });
+
+        return array_slice($deduped, 0, 220);
+    }
+
+    private function attackEggLearnedBy(int $id): array
+    {
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT p.id,
+                        COALESCE(NULLIF(p.Name, ""), NULLIF(pb.title, "")) AS name,
+                        p.Code AS code,
+                        9999 AS level,
+                        "Яйцо" AS source,
+                        "egg" AS sourceType
+                   FROM attac_egg ae
+             INNER JOIN pokemon p ON p.id = ae.poke_base_id
+              LEFT JOIN poke_base pb ON pb.id = p.id
+                  WHERE ae.atac_id = :id
+                  ORDER BY p.id ASC
+                  LIMIT 120'
+            );
+            $stmt->execute(['id' => $id]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable) {
+            return [];
+        }
+    }
+
+    private function attackHiddenLearnedBy(int $id): array
+    {
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT p.id,
+                        COALESCE(NULLIF(p.Name, ""), NULLIF(pb.title, "")) AS name,
+                        p.Code AS code,
+                        9998 AS level,
+                        COALESCE(NULLIF(sm.condition_text, ""), "Скрытая атака") AS source,
+                        "hidden" AS sourceType
+                   FROM pokemon_special_moves sm
+             INNER JOIN pokemon p ON p.id = sm.poke_base_id
+              LEFT JOIN poke_base pb ON pb.id = p.id
+                  WHERE sm.enabled = 1
+                    AND sm.atac_id = :id
+                  ORDER BY p.id ASC
+                  LIMIT 120'
+            );
+            $stmt->execute(['id' => $id]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable) {
+            return [];
+        }
     }
 
     private function attackStatEffects(int $id): array

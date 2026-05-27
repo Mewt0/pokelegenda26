@@ -16,6 +16,21 @@
   const list = document.getElementById('dexList');
   const details = document.getElementById('dexDetails');
   const close = document.getElementById('dexCloseBtn');
+  const filterEls = {
+    pokemonPanel: document.getElementById('dexPokemonFilters'),
+    attackPanel: document.getElementById('dexAttackFilters'),
+    pokemonType: document.getElementById('dexPokemonTypeFilter'),
+    pokemonGeneration: document.getElementById('dexPokemonGenerationFilter'),
+    pokemonForm: document.getElementById('dexPokemonFormFilter'),
+    attackType: document.getElementById('dexAttackTypeFilter'),
+    attackCategory: document.getElementById('dexAttackCategoryFilter'),
+    attackPowerMin: document.getElementById('dexAttackPowerMin'),
+    attackPowerMax: document.getElementById('dexAttackPowerMax'),
+    attackAccuracyMin: document.getElementById('dexAttackAccuracyMin'),
+    attackAccuracyMax: document.getElementById('dexAttackAccuracyMax'),
+    attackPokemon: document.getElementById('dexAttackPokemonFilter'),
+    attackTm: document.getElementById('dexAttackTmFilter'),
+  };
 
   const esc = (v) => String(v ?? '').replace(/[&<>'"]/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;'
@@ -29,6 +44,8 @@
   function setMode(mode) {
     state.mode = mode === 'attacks' || mode === 'attack' || mode === 'move' ? 'attacks' : 'pokemon';
     tabs.forEach(t => t.classList.toggle('is-active', t.dataset.dexTab === state.mode));
+    filterEls.pokemonPanel?.classList.toggle('is-hidden', state.mode !== 'pokemon');
+    filterEls.attackPanel?.classList.toggle('is-hidden', state.mode !== 'attacks');
     state.pokemonShiny = false;
   }
 
@@ -56,7 +73,8 @@
     state.query = q;
     list.innerHTML = '<div class="dex-empty">Загрузка...</div>';
     try {
-      const res = await fetch(endpoint() + '?q=' + encodeURIComponent(q), { credentials: 'same-origin' });
+      const params = buildSearchParams(q);
+      const res = await fetch(endpoint() + '?' + params.toString(), { credentials: 'same-origin' });
       const data = await res.json();
       if (!data.ok) {
         list.innerHTML = '<div class="dex-empty">Ошибка загрузки</div>';
@@ -74,6 +92,32 @@
       list.innerHTML = '<div class="dex-empty">Ошибка сети</div>';
       details.innerHTML = '<div class="dex-empty">Проверь маршруты /api/dex/...</div>';
     }
+  }
+
+  function addParam(params, key, value) {
+    const normalized = String(value ?? '').trim();
+    if (normalized !== '') params.set(key, normalized);
+  }
+
+  function buildSearchParams(q) {
+    const params = new URLSearchParams();
+    params.set('q', q);
+    params.set('limit', state.mode === 'pokemon' ? '1500' : '1500');
+    if (state.mode === 'pokemon') {
+      addParam(params, 'type', filterEls.pokemonType?.value);
+      addParam(params, 'generation', filterEls.pokemonGeneration?.value);
+      addParam(params, 'form', filterEls.pokemonForm?.value);
+      return params;
+    }
+    addParam(params, 'type', filterEls.attackType?.value);
+    addParam(params, 'category', filterEls.attackCategory?.value);
+    addParam(params, 'power_min', filterEls.attackPowerMin?.value);
+    addParam(params, 'power_max', filterEls.attackPowerMax?.value);
+    addParam(params, 'accuracy_min', filterEls.attackAccuracyMin?.value);
+    addParam(params, 'accuracy_max', filterEls.attackAccuracyMax?.value);
+    addParam(params, 'pokemon', filterEls.attackPokemon?.value);
+    if (filterEls.attackTm?.checked) params.set('tm', '1');
+    return params;
   }
 
   function typeClass(type) {
@@ -195,9 +239,17 @@
     return state.pokemonShiny ? (sprites.fallbackShiny || sprites.fallbackNormal || '') : (sprites.fallbackNormal || sprites.fallbackShiny || '');
   }
 
+  function compactSprite(entity) {
+    const sprites = entity.sprites || {};
+    return state.pokemonShiny
+      ? (sprites.smallShiny || sprites.shiny || sprites.small || sprites.normal || '')
+      : (sprites.small || sprites.normal || sprites.smallShiny || sprites.shiny || '');
+  }
+
   function pokemonHtml(p) {
     const stats = p.stats || {};
     const info = p.info || {};
+    const ability = p.ability || {};
     const types = p.types || [];
     const sprite = activeSprite(p);
     const fallback = activeFallback(p);
@@ -260,8 +312,28 @@
         <td>${Number(m.accuracy || 0) <= 0 ? '∞' : Number(m.accuracy || 0)}</td>
         <td>${Number(m.pp || 0)}</td>
       </tr>`).join('');
+    const hidden = (p.hiddenMoves || []).slice(0, 80).map(m => `
+      <tr>
+        <td><a href="#" data-dex-attack-id="${Number(m.id || 0)}">${esc(m.name)}</a></td>
+        <td>${typeBadge(m.type || 'Normal', true)}</td>
+        <td>${esc(m.source || 'Скрытая атака')}</td>
+        <td>${Number(m.power || 0) || '-'}</td>
+        <td>${Number(m.accuracy || 0) <= 0 ? '∞' : Number(m.accuracy || 0)}</td>
+        <td>${Number(m.pp || 0)}</td>
+      </tr>`).join('');
 
     const habitats = (p.habitats || []).slice(0, 80).map(h => `<li>${esc(h.title || h.name || h)}${h.lvl ? ` <small>Lv.${Number(h.lvl)}</small>` : ''}</li>`).join('');
+    const forms = (p.forms || []).map(form => {
+      const formSprite = compactSprite(form);
+      const formFallback = activeFallback(form);
+      const ability = form.ability || {};
+      return `
+        <button type="button" class="dex-form-card ${form.selected ? 'is-selected' : ''}" data-dex-pokemon-id="${Number(form.id || 0)}">
+          <span class="dex-form-img">${imgTag(formSprite, form.name || '', '', formFallback)}</span>
+          <b>#${esc(form.code || form.number || form.id)} ${esc(form.name || 'Pokemon')}</b>
+          <small>${esc(ability.name || 'Способность не указана')}</small>
+        </button>`;
+    }).join('');
 
     return `
       <section class="dex-pokemon-detail">
@@ -296,6 +368,8 @@
                 <h3>${sectionTitle('info', 'Информация')}</h3>
                 <p><b>Поколение:</b> ${Number(info.generation || 1)}</p>
                 <p><b>Категория:</b> ${esc(info.category || 'Pokémon')}</p>
+                <p><b>Способность:</b> ${esc(ability.name || 'Не указана')}</p>
+                ${ability.description ? `<p class="dex-mini-muted">${esc(ability.description)}</p>` : ''}
               </div>
               <div class="dex-evo-block">
                 <h3>${sectionTitle('evolution', 'Эволюция')}</h3>
@@ -309,9 +383,11 @@
 
         <h3>${sectionTitle('pokedex', 'Описание')}</h3>
         <p class="dex-description">${esc(p.description || '')}</p>
+        ${forms ? `<h3>${sectionTitle('pokedex', 'Разновидности')}</h3><div class="dex-form-list">${forms}</div>` : ''}
 
         <h3>${sectionTitle('moves', 'Атаки по уровню')}</h3>
         <div class="dex-table-wrap"><table><thead><tr><th>Ур.</th><th>Атака</th><th>Тип</th><th>Категория</th><th>Сила</th><th>Точн.</th><th>PP</th></tr></thead><tbody>${learn}</tbody></table></div>
+        ${hidden ? `<h3>${sectionTitle('moves', 'Скрытые атаки')}</h3><div class="dex-table-wrap"><table><thead><tr><th>Атака</th><th>Тип</th><th>Условие</th><th>Сила</th><th>Точн.</th><th>PP</th></tr></thead><tbody>${hidden}</tbody></table></div>` : ''}
         ${egg ? `<h3>${sectionTitle('egg', 'Яйцевые атаки')}</h3><div class="dex-table-wrap"><table><thead><tr><th>Атака</th><th>Тип</th><th>Сила</th><th>Точн.</th><th>PP</th></tr></thead><tbody>${egg}</tbody></table></div>` : ''}
         ${habitats ? `<h3>${sectionTitle('habitat', 'Где обитает')}</h3><ul class="dex-habitats">${habitats}</ul>` : ''}
       </section>`;
@@ -348,10 +424,11 @@
     const secondary = formatAttackEffectList(a.secondaryEffects || []);
     const learnedRows = (a.learnedBy || []).slice(0, 160).map(p => {
       const sprite = p.sprite || '/public/img/ui/dex/pokedex.png';
+      const source = p.source || (Number(p.level || 0) < 9000 ? `${Number(p.level || 0)} ур.` : 'Особое условие');
       return `<tr>
         <td><img class="attack-learn-sprite" src="${esc(sprite)}" alt="${esc(p.name || '')}" loading="lazy"></td>
         <td><a href="#" data-dex-pokemon-id="${Number(p.id || 0)}">#${esc(p.code || p.id)} ${esc(p.name)}</a></td>
-        <td>${Number(p.level || 0)} ур.</td>
+        <td>${esc(source)}</td>
       </tr>`;
     }).join('') || '<tr><td colspan="3">Нет данных</td></tr>';
 
@@ -418,6 +495,14 @@
 
   tabs.forEach(tab => tab.addEventListener('click', () => open(tab.dataset.dexTab)));
   input.addEventListener('input', () => { clearTimeout(input._t); input._t = setTimeout(() => search(true), 250); });
+  Object.values(filterEls).forEach(el => {
+    if (!el || !['INPUT', 'SELECT'].includes(el.tagName)) return;
+    const eventName = el.type === 'checkbox' || el.tagName === 'SELECT' ? 'change' : 'input';
+    el.addEventListener(eventName, () => {
+      clearTimeout(input._t);
+      input._t = setTimeout(() => search(true), eventName === 'change' ? 0 : 250);
+    });
+  });
   list.addEventListener('click', e => {
     const row = e.target.closest('[data-id]');
     if (row) showDetails(row.dataset.id);

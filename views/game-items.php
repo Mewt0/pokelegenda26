@@ -115,6 +115,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
           <button id="dressBtn" type="button" disabled>Одеть</button>
           <button id="undressBtn" type="button">Снять</button>
           <button id="openBtn" type="button" disabled>Открыть</button>
+          <button id="commissionBtn" type="button">В лавку</button>
         </div>
       </section>
       <section class="card">
@@ -180,12 +181,13 @@ $itemIconIndex = is_file($itemIconIndexPath)
       const openBtn = document.getElementById('openBtn');
       const dropBtn = document.getElementById('dropBtn');
       const clanBtn = document.getElementById('clanBtn');
+      const commissionBtn = document.getElementById('commissionBtn');
 
       if (!item) {
         imgEl.src = '/img/blank.gif';
         nameEl.textContent = 'Ничего не выбрано';
         descEl.textContent = 'Выбери слот, чтобы увидеть детали.';
-        [useBtn, dressBtn, openBtn, dropBtn, clanBtn].forEach((button) => button.disabled = true);
+        [useBtn, dressBtn, openBtn, dropBtn, clanBtn, commissionBtn].forEach((button) => button.disabled = true);
         return;
       }
 
@@ -200,11 +202,19 @@ $itemIconIndex = is_file($itemIconIndexPath)
 
       const elementary = String(item.elementary || '0') === '1';
       const targetUse = item.target_use && item.target_use.enabled === true;
+      const giftUse = isGiftItem(item);
       useBtn.disabled = !targetUse;
       dressBtn.disabled = !(elementary && String(item.dress || '0') === '1');
-      openBtn.disabled = !(String(item.elementary || '0') !== '1');
+      openBtn.disabled = !giftUse;
       dropBtn.disabled = String(item.delet || '0') === '1';
       clanBtn.disabled = String(item.delet || '0') === '1';
+      commissionBtn.disabled = false;
+    }
+
+    function isGiftItem(item) {
+      const rule = item && item.target_use ? item.target_use : null;
+      if (!rule || rule.enabled !== true) return false;
+      return String(rule.target_type || '') === 'gift' || String(rule.effect_key || '') === 'open_gift';
     }
 
     function selectedPokemonId() {
@@ -321,9 +331,28 @@ $itemIconIndex = is_file($itemIconIndexPath)
         pokemon_id: pokemonId,
         count
       });
-      setToast(payload && payload.message ? payload.message : 'Готово.');
+      const message = payload && payload.message ? payload.message : 'Готово.';
+      setToast(message);
       if (payload && payload.ok) {
         await loadPage(state.page);
+        setToast(message);
+      }
+    }
+
+    async function openSelectedGift() {
+      if (!state.selected || !isGiftItem(state.selected)) {
+        setToast('Этот предмет нельзя открыть как подарок.');
+        return;
+      }
+
+      const payload = await postInventoryAction('/api/inventory/open-gift', {
+        item_user_id: state.selected.id
+      });
+      const message = payload && payload.message ? payload.message : 'Готово.';
+      setToast(message);
+      if (payload && payload.ok) {
+        await loadPage(state.page);
+        setToast(message);
       }
     }
 
@@ -400,9 +429,12 @@ $itemIconIndex = is_file($itemIconIndexPath)
       document.getElementById('useBtn').addEventListener('click', applySelectedItem);
       document.getElementById('dressBtn').addEventListener('click', equipSelectedItem);
       document.getElementById('undressBtn').addEventListener('click', unequipSelectedPokemon);
-      document.getElementById('openBtn').addEventListener('click', note);
+      document.getElementById('openBtn').addEventListener('click', openSelectedGift);
       document.getElementById('dropBtn').addEventListener('click', note);
       document.getElementById('clanBtn').addEventListener('click', note);
+      document.getElementById('commissionBtn').addEventListener('click', () => {
+        window.location.href = '/game/commission';
+      });
       document.getElementById('pokemonSelect').addEventListener('change', () => {
         document.getElementById('toast').dataset.equipHint = '1';
         renderPokemonEquipHint();

@@ -8,6 +8,8 @@ use Throwable;
 
 final class AdminRepository
 {
+    use AdminCommissionRepositoryTrait;
+
     public function __construct(private PDO $db)
     {
     }
@@ -48,8 +50,12 @@ final class AdminRepository
             'marketItems' => $this->countTable('market_shop_items'),
             'activeBattles' => $this->countTable('battles', 'pobeda = 0'),
             'auditRows' => $this->countTable('admin_audit_log'),
+            'activeEvents' => $this->activeEventCount(),
             'tournaments' => $this->tableExists('admin_tournaments') ? $this->countTable('admin_tournaments') : 0,
             'medals' => $this->tableExists('admin_medals') ? $this->countTable('admin_medals') : 0,
+            'commissionActiveLots' => $this->tableExists('market_lots') ? $this->countTable('market_lots', 'status = "active" AND expires_at > UNIX_TIMESTAMP()') : 0,
+            'commissionPendingReturns' => $this->tableExists('market_return_storage') ? $this->countTable('market_return_storage', 'status = "pending"') : 0,
+            'commissionRiskDeals' => $this->commissionRiskCount(),
         ];
     }
 
@@ -80,6 +86,10 @@ final class AdminRepository
                       LIMIT 12'
                 )
                 : [],
+            'activeEvents' => $this->activeEvents(),
+            'recentMarketLogs' => $this->commissionLogs('', 12, 0, ['period' => '30d'])['rows'] ?? [],
+            'commission' => $this->commissionDashboard(),
+            'recentErrors' => $this->recentErrorLines(8),
             'settings' => $this->settings(),
         ];
     }
@@ -95,7 +105,7 @@ final class AdminRepository
             $this->legacyModule('diamonds_grant', 'Выдача алмазов', 'admin/alm.php', 'file', 'SKIPPED_BY_DESIGN', 'users', '/game/admin', '/api/admin/users', 'items_users', 'Отдельную выдачу алмазов не переносим: экономические награды должны идти через награды, магазин и аудит.'),
             $this->legacyModule('bans', 'Баны и banip', 'admin/bans.php', 'file', 'PARTIAL_NEW', 'moderation', '/game/admin', '/api/admin/moderation', 'banip', 'Бан и разбан IP доступны из карточки игрока и модерации.'),
             $this->legacyModule('drop_rules', 'Предметы и дроп', 'items_drop', 'table', 'PARTIAL_NEW', 'drops', '/game/admin', '/api/admin/drop-rules', 'admin_drop_rules', 'Новая таблица правил дропа работает отдельно от legacy items_drop.'),
-            $this->legacyModule('logs', 'Логи обмена, продаж и действий', 'admin/logs.php', 'file', 'PARTIAL_NEW', 'settings', '/game/admin', '/api/admin/audit', 'admin_audit_log', 'Критичные админ-действия пишутся в admin_audit_log.'),
+            $this->legacyModule('logs', 'Логи обмена, продаж и действий', 'admin/logs.php', 'file', 'PARTIAL_NEW', 'commission', '/game/admin', '/api/admin/commission/logs', 'market_logs/admin_audit_log', 'Продажи и подозрительные сделки смотрим во вкладке Комиссионная лавка, админ-действия остаются в audit.'),
             $this->legacyModule('locations', 'Локации и карта мира', 'include/data.world.php', 'file', 'PARTIAL_NEW', 'locations', '/game/admin', '/api/admin/locations', 'build', 'Локации редактируются через вкладку Локации, граф переходов читается из legacy data.world.php.'),
             $this->legacyModule('market', 'Покемаркет и товары', 'game.php?go=rinok', 'virtual', 'PARTIAL_NEW', 'market', '/game/market/items', '/api/market/items', 'market_shop_items', 'Игровой магазин и админский список товаров работают через новые API.'),
             $this->legacyModule('inventory', 'Инвентарь', 'game.php?go=items', 'virtual', 'PARTIAL_NEW', 'items', '/game/items', '/api/inventory/page', 'items_users', 'Инвентарь перенесён в новый overlay/API, legacy используется только как ориентир поведения.'),
@@ -425,10 +435,14 @@ final class AdminRepository
             return $this->lookupByType($type, $query);
         }
 
+        $pokeBase = $this->formatPokeBaseLookupRows(
+            $this->lookupRows('SELECT id, title AS name FROM poke_base ORDER BY id ASC LIMIT 1200')
+        );
+
         return [
             'locations' => $this->lookupRows('SELECT id, title AS name FROM build ORDER BY title ASC LIMIT 300'),
             'pokemon' => $this->lookupRows('SELECT id, CONCAT(Code, " ", Name) AS name FROM pokemon ORDER BY id ASC LIMIT 1200'),
-            'pokeBase' => $this->lookupRows('SELECT id, title AS name FROM poke_base ORDER BY id ASC LIMIT 1200'),
+            'pokeBase' => $pokeBase,
             'attacks' => $this->lookupRows('SELECT atac_id AS id, atac_name AS name FROM attac_power ORDER BY atac_id ASC LIMIT 1200'),
             'items' => $this->lookupRows('SELECT id, name FROM items ORDER BY id ASC LIMIT 2000'),
             'users' => $this->lookupRows('SELECT id, login AS name FROM users ORDER BY id DESC LIMIT 600'),
@@ -748,7 +762,10 @@ final class AdminRepository
         $stmt->execute($params);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         foreach ($rows as &$row) {
-            $row['base_name'] = $this->plainAdminText((string) ($row['base_name'] ?? ''));
+            $row['base_name'] = $this->cleanPokemonLookupName(
+                (string) ($row['base_name'] ?? ''),
+                (int) ($row['basenum'] ?? 0)
+            );
             $row['names'] = $this->plainAdminText((string) ($row['names'] ?? ''));
             $row['equipped_item_name'] = $this->plainAdminText((string) ($row['equipped_item_name'] ?? ''));
         }
@@ -892,12 +909,12 @@ final class AdminRepository
         $har = max(1, (int) ($payload['har'] ?? 1));
         $nature = $this->rowById('har', 'id_har', $har) ?: ['atk' => 1, 'def' => 1, 'satk' => 1, 'sdef' => 1, 'speed' => 1];
         $iv = [
-            'hp' => $this->grantInt($payload, 'hp_iv', 1, 0, 31),
-            'atk' => $this->grantInt($payload, 'atk_iv', 1, 0, 31),
-            'def' => $this->grantInt($payload, 'def_iv', 1, 0, 31),
-            'satk' => $this->grantInt($payload, 'satk_iv', 1, 0, 31),
-            'sdef' => $this->grantInt($payload, 'sdef_iv', 1, 0, 31),
-            'speed' => $this->grantInt($payload, 'speed_iv', 1, 0, 31),
+            'hp' => $this->grantInt($payload, 'hp_iv', 1, 0, 9999),
+            'atk' => $this->grantInt($payload, 'atk_iv', 1, 0, 9999),
+            'def' => $this->grantInt($payload, 'def_iv', 1, 0, 9999),
+            'satk' => $this->grantInt($payload, 'satk_iv', 1, 0, 9999),
+            'sdef' => $this->grantInt($payload, 'sdef_iv', 1, 0, 9999),
+            'speed' => $this->grantInt($payload, 'speed_iv', 1, 0, 9999),
         ];
         $ev = [
             'hp' => $this->grantInt($payload, 'hp_ev', 0, 0, 252),
@@ -907,6 +924,10 @@ final class AdminRepository
             'sdef' => $this->grantInt($payload, 'sdef_ev', 0, 0, 252),
             'speed' => $this->grantInt($payload, 'speed_ev', 0, 0, 252),
         ];
+        $evTotal = array_sum($ev);
+        if ($evTotal > 510) {
+            return ['ok' => false, 'message' => sprintf('Сумма EV не может быть больше 510. Сейчас указано %d.', $evTotal)];
+        }
         $calcStat = static function (int $baseValue, int $ivValue, int $evValue, float $natureValue, int $level): int {
             return max(1, (int) round(((($ivValue + $baseValue * 2 + (int) floor($evValue / 4)) * $level / 100) + 5) * max(0.1, $natureValue)));
         };
@@ -985,7 +1006,7 @@ final class AdminRepository
                 $userId,
                 $base['ability_key'] ?? null,
             ]);
-            $this->seedPokemonMoves($pokemonId, $baseId, $level);
+            $seededMoves = $this->seedPokemonMoves($pokemonId, $baseId, $level);
             $this->audit($adminId, 'pokemon.grant', 'pok_user', $pokemonId, [
                 'user_id' => $userId,
                 'user_login' => $user['login'] ?? '',
@@ -1000,6 +1021,7 @@ final class AdminRepository
                 'ev' => $ev,
                 'all_stats' => $allStats,
                 'stats' => $stats,
+                'moves' => $seededMoves,
             ]);
             if ($startedTransaction) {
                 $this->db->commit();
@@ -1013,9 +1035,87 @@ final class AdminRepository
 
         return [
             'ok' => true,
-            'message' => sprintf('Покемон %s выдан игроку %s.', $name, (string) ($user['login'] ?? ('#' . $userId))),
+            'message' => $this->pokemonGrantMessage(
+                $name,
+                (string) ($user['login'] ?? ('#' . $userId)),
+                $userId,
+                $baseId,
+                $pokemonId,
+                $level,
+                $shiny,
+                $iv,
+                $ev,
+                $stats,
+                $hpCurrent,
+                $seededMoves,
+                $this->natureNameForGrant($har)
+            ),
             'pokemon_id' => $pokemonId,
+            'base_id' => $baseId,
+            'moves' => $seededMoves,
+            'iv' => $iv,
+            'ev' => $ev,
+            'stats' => $stats,
         ];
+    }
+
+    private function pokemonGrantMessage(
+        string $name,
+        string $login,
+        int $userId,
+        int $baseId,
+        int $pokemonId,
+        int $level,
+        bool $shiny,
+        array $iv,
+        array $ev,
+        array $stats,
+        int $hpCurrent,
+        array $moves,
+        string $natureName
+    ): string
+    {
+        $startMove = $moves[0] ?? null;
+        $startText = $startMove !== null && (int) ($startMove['id'] ?? 0) > 0
+            ? sprintf('%s #%d', (string) ($startMove['name'] ?? 'атака'), (int) $startMove['id'])
+            : 'не найдена';
+        $warning = $startMove !== null && (int) ($startMove['id'] ?? 0) > 0
+            ? ''
+            : ' Внимание: стартовая атака не найдена, проверь learnset этого вида.';
+
+        return sprintf(
+            'Покемон #%d %s Lv.%d выдан игроку #%d %s. Pokemon ID созданной записи: #%d. Shiny: %s. Характер: %s. Гены/IV: HP %d / Atk %d / Def %d / SAtk %d / SDef %d / Speed %d. EV: HP %d / Atk %d / Def %d / SAtk %d / SDef %d / Speed %d (сумма %d). Стартовая атака: %s.%s HP %d/%d, статы: Atk %d, Def %d, SAtk %d, SDef %d, Speed %d.',
+            $baseId,
+            $name,
+            $level,
+            $userId,
+            $login,
+            $pokemonId,
+            $shiny ? 'да' : 'нет',
+            $natureName,
+            (int) $iv['hp'],
+            (int) $iv['atk'],
+            (int) $iv['def'],
+            (int) $iv['satk'],
+            (int) $iv['sdef'],
+            (int) $iv['speed'],
+            (int) $ev['hp'],
+            (int) $ev['atk'],
+            (int) $ev['def'],
+            (int) $ev['satk'],
+            (int) $ev['sdef'],
+            (int) $ev['speed'],
+            array_sum($ev),
+            $startText,
+            $warning,
+            $hpCurrent,
+            (int) $stats['hp'],
+            (int) $stats['atk'],
+            (int) $stats['def'],
+            (int) $stats['satk'],
+            (int) $stats['sdef'],
+            (int) $stats['speed'],
+        );
     }
 
     private function resolveUserForGrant(array $payload): ?array
@@ -1090,6 +1190,40 @@ final class AdminRepository
             $title = trim($title);
         }
         return $title !== '' ? $title : ('Pokemon #' . $baseId);
+    }
+
+    private function cleanPokemonLookupName(string $title, int $baseId): string
+    {
+        $title = $this->plainAdminText($title);
+        if ($title !== '') {
+            $title = preg_replace('/^#?0*' . $baseId . '\s*/u', '', $title) ?: $title;
+            $title = preg_replace('/^#?0*\d+\s*/u', '', $title) ?: $title;
+            $title = trim($title);
+        }
+        return $title !== '' ? $title : ('Pokemon #' . $baseId);
+    }
+
+    /** @param array<int,array<string,mixed>> $rows */
+    private function formatPokeBaseLookupRows(array $rows): array
+    {
+        foreach ($rows as &$row) {
+            $id = (int) ($row['id'] ?? 0);
+            $name = $this->cleanPokemonLookupName((string) ($row['name'] ?? $row['title'] ?? ''), $id);
+            $row['name'] = $name;
+            $row['label'] = '#' . $id . ' ' . $name;
+        }
+        unset($row);
+        return $rows;
+    }
+
+    private function natureNameForGrant(int $id): string
+    {
+        foreach ($this->lookupNatures($id, 1) as $row) {
+            if ((int) ($row['id'] ?? 0) === $id) {
+                return (string) ($row['name'] ?? ('Характер #' . $id));
+            }
+        }
+        return 'Характер #' . $id;
     }
 
     private function plainAdminText(string $value): string
@@ -1366,10 +1500,17 @@ final class AdminRepository
                 'search' => '%' . $search . '%',
             ];
         }
-        $sql .= ' ORDER BY enabled DESC, id DESC LIMIT ' . $limit;
+        $sql .= ' ORDER BY enabled DESC, starts_at DESC, id DESC LIMIT ' . $limit;
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as &$row) {
+            $row['boost_label'] = $this->boostLabel((string) ($row['boost_key'] ?? ''));
+            $row['scope_label'] = $this->boostScopeLabel((string) ($row['scope'] ?? ''));
+            $row['status_label'] = $this->eventStatusLabel($row);
+        }
+
+        return $rows;
     }
 
     public function saveEvent(int $adminId, array $payload): array
@@ -1391,13 +1532,19 @@ final class AdminRepository
 
         $now = time();
         $before = $id > 0 ? $this->rowById('game_event_boosts', 'id', $id) : [];
+        $startsAt = $this->parseTimestamp($payload['starts_at'] ?? 0);
+        $endsAt = $this->parseTimestamp($payload['ends_at'] ?? 0);
+        if ($startsAt > 0 && $endsAt > 0 && $endsAt <= $startsAt) {
+            return ['ok' => false, 'message' => 'Дата окончания должна быть позже старта.'];
+        }
+
         $data = [
             'title' => $title,
             'boost_key' => $boostKey,
             'multiplier' => number_format($multiplier, 2, '.', ''),
             'scope' => $this->boostScope((string) ($payload['scope'] ?? 'global')),
-            'starts_at' => max(0, (int) ($payload['starts_at'] ?? 0)),
-            'ends_at' => max(0, (int) ($payload['ends_at'] ?? 0)),
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
             'enabled' => !empty($payload['enabled']) ? 1 : 0,
             'note' => mb_substr(trim((string) ($payload['note'] ?? '')), 0, 255),
             'updated_at' => $now,
@@ -1427,7 +1574,11 @@ final class AdminRepository
         }
 
         $this->audit($adminId, $action, 'game_event_boosts', $id, ['before' => $before, 'after' => $data]);
-        return ['ok' => true, 'message' => 'Ивент сохранен.', 'id' => $id];
+        return [
+            'ok' => true,
+            'message' => 'Ивент сохранен: ' . $this->boostLabel($boostKey) . ' x' . number_format($multiplier, 2, '.', '') . '.',
+            'id' => $id,
+        ];
     }
 
     public function deleteEvent(int $adminId, int $id, string $confirm): array
@@ -1759,6 +1910,15 @@ final class AdminRepository
         $like = '%' . $query . '%';
         $hasQuery = $query !== '';
 
+        if (in_array($type, ['pokeBase', 'basePokemon'], true)) {
+            return $this->formatPokeBaseLookupRows($this->lookupRowsPrepared(
+                'SELECT id, title AS name FROM poke_base
+                  ' . ($hasQuery ? 'WHERE id = :id OR title LIKE :like_title' : '') . '
+                  ORDER BY id ASC LIMIT ' . $limit,
+                $hasQuery ? ['id' => $id, 'like_title' => $like] : []
+            ));
+        }
+
         return match ($type) {
             'users', 'player', 'players' => $this->lookupRowsPrepared(
                 'SELECT id, login AS name, login AS label FROM users
@@ -1783,12 +1943,6 @@ final class AdminRepository
                   ' . ($hasQuery ? 'WHERE id = :id OR Code LIKE :like_code OR Name LIKE :like_name' : '') . '
                   ORDER BY id ASC LIMIT ' . $limit,
                 $hasQuery ? ['id' => $id, 'like_code' => $like, 'like_name' => $like] : []
-            ),
-            'pokeBase', 'basePokemon' => $this->lookupRowsPrepared(
-                'SELECT id, title AS name, CONCAT("#", id, " ", title) AS label FROM poke_base
-                  ' . ($hasQuery ? 'WHERE id = :id OR title LIKE :like_title' : '') . '
-                  ORDER BY id ASC LIMIT ' . $limit,
-                $hasQuery ? ['id' => $id, 'like_title' => $like] : []
             ),
             'natures', 'nature', 'har' => $this->lookupNatures($hasQuery ? $id : null, $limit),
             'locations', 'location' => $this->lookupRowsPrepared(
@@ -2167,18 +2321,55 @@ final class AdminRepository
             ->execute(['id' => $this->nextTableId('information_users', 'id'), 'user' => $userId]);
     }
 
-    private function seedPokemonMoves(int $pokemonId, int $baseId, int $level): void
+    private function seedPokemonMoves(int $pokemonId, int $baseId, int $level): array
     {
-        $stmt = $this->db->prepare(
-            'SELECT ap.atac_id, COALESCE(power.atac_pp, 0) AS pp
+        $startStmt = $this->db->prepare(
+            'SELECT ap.atac_id, COALESCE(power.atac_pp, 0) AS pp, power.atac_name, ap.atc_lvl
                FROM attac_poke ap
           LEFT JOIN attac_power power ON power.atac_id = ap.atac_id
               WHERE ap.poke_base_id = :base AND ap.atc_lvl <= :lvl
-              ORDER BY ap.atc_lvl DESC, ap.id_structure DESC
-              LIMIT 4'
+              ORDER BY ap.atc_lvl ASC, ap.id_structure ASC
+              LIMIT 1'
         );
-        $stmt->execute(['base' => $baseId, 'lvl' => $level]);
-        $moves = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $startStmt->execute(['base' => $baseId, 'lvl' => $level]);
+        $startMove = $startStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($startMove === null) {
+            $fallbackStmt = $this->db->prepare(
+                'SELECT ap.atac_id, COALESCE(power.atac_pp, 0) AS pp, power.atac_name, ap.atc_lvl
+                   FROM attac_poke ap
+              LEFT JOIN attac_power power ON power.atac_id = ap.atac_id
+                  WHERE ap.poke_base_id = :base
+                  ORDER BY ap.atc_lvl ASC, ap.id_structure ASC
+                  LIMIT 1'
+            );
+            $fallbackStmt->execute(['base' => $baseId]);
+            $startMove = $fallbackStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        }
+
+        $moves = [];
+        if ($startMove !== null) {
+            $moves[] = $startMove;
+        }
+
+        $extraStmt = $this->db->prepare(
+            'SELECT ap.atac_id, COALESCE(power.atac_pp, 0) AS pp, power.atac_name, ap.atc_lvl
+               FROM attac_poke ap
+          LEFT JOIN attac_power power ON power.atac_id = ap.atac_id
+              WHERE ap.poke_base_id = :base
+                AND ap.atc_lvl <= :lvl
+                AND ap.atac_id <> :start
+              ORDER BY ap.atc_lvl DESC, ap.id_structure DESC
+              LIMIT 3'
+        );
+        $extraStmt->execute([
+            'base' => $baseId,
+            'lvl' => $level,
+            'start' => (int) ($startMove['atac_id'] ?? 0),
+        ]);
+        foreach ($extraStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $move) {
+            $moves[] = $move;
+        }
+
         $slots = [
             ['id' => 0, 'pp' => 0],
             ['id' => 0, 'pp' => 0],
@@ -2209,6 +2400,13 @@ final class AdminRepository
             $slots[3]['pp'],
             $slots[3]['pp'],
         ]);
+
+        return array_map(static fn (array $move): array => [
+            'id' => (int) ($move['atac_id'] ?? 0),
+            'name' => (string) ($move['atac_name'] ?? ''),
+            'level' => (int) ($move['atc_lvl'] ?? 0),
+            'pp' => max(0, (int) ($move['pp'] ?? 0)),
+        ], $moves);
     }
 
     private function nextTableId(string $table, string $column): int
@@ -2491,14 +2689,142 @@ final class AdminRepository
         return in_array($value, ['wild', 'trainer', 'npc', 'event'], true) ? $value : 'wild';
     }
 
+    private function recentErrorLines(int $limit): array
+    {
+        $path = dirname(__DIR__, 2) . '/log_php_errors.txt';
+        if (!is_file($path) || !is_readable($path)) {
+            return [];
+        }
+        $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+        $lines = array_slice($lines, -max(1, min(40, $limit)));
+        return array_map(static fn (string $line): array => ['line' => $line], array_reverse($lines));
+    }
+
+    private function activeEventCount(): int
+    {
+        if (!$this->tableExists('game_event_boosts')) {
+            return 0;
+        }
+
+        $now = time();
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*)
+               FROM game_event_boosts
+              WHERE enabled = 1
+                AND (starts_at = 0 OR starts_at <= :now_a)
+                AND (ends_at = 0 OR ends_at >= :now_b)'
+        );
+        $stmt->execute(['now_a' => $now, 'now_b' => $now]);
+        return (int) ($stmt->fetchColumn() ?: 0);
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function activeEvents(int $limit = 12): array
+    {
+        if (!$this->tableExists('game_event_boosts')) {
+            return [];
+        }
+
+        $now = time();
+        $stmt = $this->db->prepare(
+            'SELECT id, title, boost_key, multiplier, scope, starts_at, ends_at, enabled, note
+               FROM game_event_boosts
+              WHERE enabled = 1
+                AND (starts_at = 0 OR starts_at <= :now_a)
+                AND (ends_at = 0 OR ends_at >= :now_b)
+              ORDER BY ends_at = 0 DESC, ends_at ASC, id DESC
+              LIMIT ' . max(1, min(50, $limit))
+        );
+        $stmt->execute(['now_a' => $now, 'now_b' => $now]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as &$row) {
+            $row['boost_label'] = $this->boostLabel((string) ($row['boost_key'] ?? ''));
+            $row['scope_label'] = $this->boostScopeLabel((string) ($row['scope'] ?? ''));
+            $row['status_label'] = $this->eventStatusLabel($row);
+        }
+
+        return $rows;
+    }
+
     private function boostKey(string $value): string
     {
-        return in_array($value, ['exp', 'coins', 'drop', 'quest_rewards', 'catch'], true) ? $value : 'exp';
+        $value = trim($value);
+        if ($value === 'money') {
+            $value = 'coins';
+        }
+
+        return in_array($value, ['exp', 'coins', 'drop', 'quest_rewards', 'catch', 'happiness'], true) ? $value : 'exp';
     }
 
     private function boostScope(string $value): string
     {
         return in_array($value, ['global', 'pve', 'pvp', 'quest', 'market'], true) ? $value : 'global';
+    }
+
+    private function boostLabel(string $value): string
+    {
+        return match ($this->boostKey($value)) {
+            'exp' => 'Опыт',
+            'coins' => 'Монеты',
+            'drop' => 'Шанс дропа',
+            'quest_rewards' => 'Квестовые награды',
+            'catch' => 'Шанс ловли',
+            'happiness' => 'Счастье покемонов',
+            default => 'Бонус',
+        };
+    }
+
+    private function boostScopeLabel(string $value): string
+    {
+        return match ($this->boostScope($value)) {
+            'global' => 'Везде',
+            'pve' => 'PvE',
+            'pvp' => 'PvP',
+            'quest' => 'Квесты',
+            'market' => 'Магазин',
+            default => 'Везде',
+        };
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private function eventStatusLabel(array $row): string
+    {
+        if ((int) ($row['enabled'] ?? 0) !== 1) {
+            return 'выключен';
+        }
+
+        $now = time();
+        $startsAt = (int) ($row['starts_at'] ?? 0);
+        $endsAt = (int) ($row['ends_at'] ?? 0);
+        if ($startsAt > 0 && $startsAt > $now) {
+            return 'запланирован';
+        }
+        if ($endsAt > 0 && $endsAt < $now) {
+            return 'завершён';
+        }
+
+        return 'активен';
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function parseTimestamp($value): int
+    {
+        $raw = trim((string) $value);
+        if ($raw === '' || $raw === '0') {
+            return 0;
+        }
+        if (ctype_digit($raw)) {
+            return max(0, (int) $raw);
+        }
+
+        $timestamp = strtotime($raw);
+        return $timestamp === false ? 0 : max(0, $timestamp);
     }
 
     private function resolveModerationTarget(array $payload): array
@@ -2645,3 +2971,4 @@ final class AdminRepository
         ]);
     }
 }
+

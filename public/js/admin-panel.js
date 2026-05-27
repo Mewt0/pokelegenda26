@@ -21,6 +21,200 @@
     "'": '&#039;'
   }[char]));
 
+  const lookupInput = (id, type, placeholder, value = '') => `
+    <input id="${id}" type="text" list="${id}List" data-lookup-type="${type}" placeholder="${esc(placeholder)}" value="${esc(value)}" autocomplete="off">
+    <datalist id="${id}List"></datalist>
+  `;
+
+  function lookupValueLabel(row) {
+    const label = row.label || row.name || row.login || '';
+    const id = String(row.id || '').trim();
+    const cleanLabel = String(label || '').trim();
+    if (id !== '' && cleanLabel.match(new RegExp('^#\\s*' + id + '\\b'))) {
+      return cleanLabel;
+    }
+    return `#${id} ${cleanLabel}`.trim();
+  }
+
+  function lookupId(value) {
+    const raw = String(value || '').trim();
+    const match = raw.match(/^#?\s*(\d+)\b/);
+    return match ? match[1] : '';
+  }
+
+  function cleanPokemonBaseName(baseId, name) {
+    let clean = String(name || '').trim();
+    const id = String(baseId || '').trim();
+    if (clean && id) {
+      clean = clean.replace(new RegExp('^#?0*' + id + '\\s+', 'i'), '').trim();
+    }
+    clean = clean.replace(/^#?0*\d+\s+/, '').trim();
+    return clean;
+  }
+
+  function pokemonBaseLabel(baseId, name) {
+    const id = String(baseId || '').trim();
+    const clean = cleanPokemonBaseName(id, name);
+    return id ? `#${id}${clean ? ' ' + clean : ''}` : clean;
+  }
+
+  function setupLookupInput(input, type) {
+    if (!input) return;
+    const list = document.getElementById(input.getAttribute('list') || '');
+    if (!list) return;
+    let timer = null;
+    const load = async () => {
+      const q = input.value.trim();
+      const result = await request('/api/admin/lookups?type=' + encodeURIComponent(type) + '&q=' + encodeURIComponent(q));
+      if (!result.ok || !Array.isArray(result.rows)) return;
+      list.innerHTML = result.rows.map(row => `<option value="${esc(lookupValueLabel(row))}"></option>`).join('');
+    };
+    input.addEventListener('focus', load);
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(load, 220);
+    });
+  }
+
+  function setDateTimeLocalFromNow(input, seconds) {
+    if (!input) return;
+    const date = new Date(Date.now() + seconds * 1000);
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+    input.value = date.toISOString().slice(0, 16);
+  }
+
+  function setMany(ids, value) {
+    ids.forEach(id => {
+      const input = document.getElementById(id);
+      if (input) input.value = value;
+    });
+  }
+
+  const eventBoostLabels = {
+    exp: 'Опыт за PvE/PvP',
+    coins: 'Монеты за бой',
+    drop: 'Шанс дропа',
+    quest_rewards: 'Квестовые награды',
+    catch: 'Шанс ловли',
+    happiness: 'Счастье покемонов'
+  };
+
+  const eventScopeLabels = {
+    global: 'Везде',
+    pve: 'Только PvE',
+    pvp: 'Только PvP',
+    quest: 'Только квесты',
+    market: 'Магазин'
+  };
+
+  function labelFromMap(map, value) {
+    return map[String(value || '')] || value || '';
+  }
+
+  function fmtMoney(value) {
+    return Number(value || 0).toLocaleString('ru-RU');
+  }
+
+  function fmtTime(value, fallback = '') {
+    const time = Number(value || 0);
+    return time > 0 ? new Date(time * 1000).toLocaleString('ru-RU') : fallback;
+  }
+
+  function objectLabel(row) {
+    const type = row.object_type ? `${row.object_type} ` : '';
+    const id = row.object_id ? `#${row.object_id} ` : '';
+    return `${type}${id}${row.object_name || ''}`.trim();
+  }
+
+  function riskLabel(row) {
+    const risk = row.risk || {};
+    return risk.reviewed ? 'Проверено' : (risk.is_risky ? `Риск ${risk.risk_score || ''}`.trim() : 'ОК');
+  }
+
+  function safeJson(value) {
+    try {
+      return JSON.stringify(value || {}, null, 2);
+    } catch (error) {
+      return '{}';
+    }
+  }
+
+  function statLine(value) {
+    if (!value || typeof value !== 'object') return '';
+    return Object.entries(value).map(([key, val]) => `${key.toUpperCase()} ${val}`).join(' / ');
+  }
+
+  function detailItem(label, value) {
+    if (value === undefined || value === null || value === '') return '';
+    return `<div><b>${esc(label)}</b>${esc(value)}</div>`;
+  }
+
+  function snapshotSummaryHtml(row, snapshot) {
+    const preview = snapshot.preview && typeof snapshot.preview === 'object' ? snapshot.preview : snapshot;
+    if (row.object_type === 'pokemon') {
+      const moves = Array.isArray(preview.moves) ? preview.moves.map(move => move.name || ('#' + move.id)).filter(Boolean).join(', ') : '';
+      const held = preview.held_item && preview.held_item.id ? `#${preview.held_item.id} ${preview.held_item.name || ''}` : 'нет';
+      return `
+        <div class="admin-detail-grid admin-snapshot-grid">
+          ${detailItem('Вид', preview.base_id ? '#' + preview.base_id : '')}
+          ${detailItem('Уровень', preview.level)}
+          ${detailItem('Shiny', preview.shiny ? 'да' : 'нет')}
+          ${detailItem('Характер', preview.nature)}
+          ${detailItem('Held item', held)}
+          ${detailItem('IV', statLine(preview.iv))}
+          ${detailItem('EV', statLine(preview.ev))}
+          ${detailItem('Атаки', moves)}
+        </div>
+      `;
+    }
+    if (row.object_type === 'egg') {
+      return `
+        <div class="admin-detail-grid admin-snapshot-grid">
+          ${detailItem('Вид яйца', preview.name || (preview.base_id ? '#' + preview.base_id : 'скрыт'))}
+          ${detailItem('До вылупления', preview.remaining_seconds !== undefined ? `${preview.remaining_seconds} сек.` : '')}
+          ${detailItem('Готово в', fmtTime(preview.ready_at || 0))}
+          ${detailItem('Яйцевая атака', preview.egg_attack_name || (preview.egg_attack_id ? '#' + preview.egg_attack_id : ''))}
+          ${detailItem('IV', statLine(preview.iv))}
+        </div>
+      `;
+    }
+    return `
+      <div class="admin-detail-grid admin-snapshot-grid">
+        ${detailItem('Категория', row.category || snapshot.category || '')}
+        ${detailItem('Описание', preview.description || snapshot.description || '')}
+        ${detailItem('Статус эффекта', preview.effect_status || snapshot.effect_status || '')}
+        ${detailItem('Правило применения', preview.target_use_rule || snapshot.target_use_rule || '')}
+        ${detailItem('Совместимость', preview.compatibility || preview.compatibility_rule || snapshot.compatibility_rule || '')}
+        ${detailItem('Можно экипировать', preview.equippable === undefined ? '' : (preview.equippable ? 'да' : 'нет'))}
+      </div>
+    `;
+  }
+
+  function unixToLocalInput(value) {
+    const time = Number(value || 0);
+    if (!time) return '';
+    const date = new Date(time * 1000);
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+    return date.toISOString().slice(0, 16);
+  }
+
+  function fillEventPreset(boostKey, multiplier, hours, title) {
+    const titleInput = document.querySelector('[name="title"]');
+    const boostInput = document.querySelector('[name="boost_key"]');
+    const multiplierInput = document.querySelector('[name="multiplier"]');
+    const scopeInput = document.querySelector('[name="scope"]');
+    const startInput = document.querySelector('[name="starts_at"]');
+    const endInput = document.querySelector('[name="ends_at"]');
+    const enabledInput = document.querySelector('[name="enabled"]');
+    if (titleInput) titleInput.value = title;
+    if (boostInput) boostInput.value = boostKey;
+    if (multiplierInput) multiplierInput.value = String(multiplier);
+    if (scopeInput) scopeInput.value = boostKey === 'quest_rewards' ? 'quest' : 'pve';
+    if (startInput) setDateTimeLocalFromNow(startInput, 0);
+    if (endInput) setDateTimeLocalFromNow(endInput, Math.max(1, hours) * 3600);
+    if (enabledInput) enabledInput.checked = true;
+  }
+
   const modules = {
     dashboard: {
       title: 'Дашборд',
@@ -33,8 +227,24 @@
         const overview = data.overview || {};
         const online = data.onlineUsers || [];
         const audit = data.recentAudit || [];
+        const activeEvents = data.activeEvents || [];
         return [
           ...Object.keys(overview).map(key => ({ block: key, value: overview[key], details: 'count' })),
+          ...activeEvents.map(event => ({
+            block: 'active event',
+            value: `${event.title} x${Number(event.multiplier || 1).toFixed(2)}`,
+            details: `${event.boost_label || event.boost_key} · ${event.scope_label || event.scope}`
+          })),
+          ...(data.recentMarketLogs || []).slice(0, 8).map(row => ({
+            block: 'market',
+            value: `${row.action || ''} · lot #${row.lot_id || row.id || 0}`,
+            details: `${row.object_name || ''} · ${fmtMoney(row.total_price || 0)}`
+          })),
+          ...(data.recentErrors || []).slice(0, 5).map(row => ({
+            block: 'error log',
+            value: 'PHP/API',
+            details: row.line || ''
+          })),
           ...online.map(user => ({ block: 'online', value: '#' + user.id + ' ' + user.login, details: 'loc ' + user.buildmy + ', battle ' + user.battleid })),
           ...audit.slice(0, 8).map(row => ({ block: 'audit', value: row.action, details: '#' + row.entity_id + ' ' + (row.admin_login || row.admin_id) }))
         ];
@@ -166,6 +376,59 @@
         ['sprz', 'Спец. флаг', 'number']
       ]
     },
+    bosses: {
+      title: 'Боссы',
+      subtitle: 'Ивентовые боссы на локациях: команда 6x6, ручные статы, атаки, предметы и дроп.',
+      endpoint: '/api/admin/bosses',
+      dataKey: 'bosses',
+      save: '/api/admin/bosses',
+      delete: { url: '/api/admin/bosses', id: 'id', confirm: true },
+      columns: ['ID', 'Название', 'Локация', 'Ивент', 'Команда', 'Дроп', 'Вкл'],
+      cells: row => [
+        row.id,
+        row.title,
+        row.location_title || row.location_id,
+        row.event_key || '',
+        row.team_count || (Array.isArray(row.team) ? row.team.length : 0),
+        row.drop_count || (Array.isArray(row.drops) ? row.drops.length : 0),
+        row.enabled
+      ],
+      fields: [
+        ['id', 'ID', 'number'],
+        ['location_id', 'Локация ID', 'number'],
+        ['title', 'Название', 'text'],
+        ['description', 'Описание', 'textarea'],
+        ['event_key', 'Ключ ивента', 'text'],
+        ['enabled', 'Включено', 'checkbox'],
+        ['starts_at', 'Появляется с timestamp/дата', 'text'],
+        ['ends_at', 'Исчезает в timestamp/дата', 'text'],
+        ['conditions_json', 'Условия JSON', 'textarea'],
+        ['team_json', 'Команда JSON до 6 покемонов', 'textarea'],
+        ['drops_json', 'Дроп JSON', 'textarea']
+      ],
+      formRow: row => row || {
+        enabled: 1,
+        conditions_json: '{}',
+        team_json: JSON.stringify([
+          {
+            slot: 1,
+            base_id: 150,
+            level: 80,
+            gender: 1,
+            nature_id: 1,
+            shiny: false,
+            held_item_id: 0,
+            moves: [94, 105, 129, 219],
+            stats: { hp: 320, atk: 180, def: 160, satk: 220, sdef: 170, speed: 180 }
+          }
+        ], null, 2),
+        drops_json: JSON.stringify([
+          { item_id: 1, chance_percent: 100, min_count: 10000, max_count: 25000, guaranteed: true },
+          { item_id: 25, chance_percent: 15, min_count: 1, max_count: 2, rare: true }
+        ], null, 2)
+      },
+      extra: 'bossTools'
+    },
     locations: {
       title: 'Локации',
       subtitle: 'Базовые поля локаций: название, город, PvE, опасность и защита.',
@@ -197,7 +460,7 @@
       cells: row => [
         row.id,
         row.login || row.users,
-        row.basenum + (row.base_name ? ' ' + row.base_name : ''),
+        pokemonBaseLabel(row.basenum, row.base_name),
         row.names,
         row.lvl,
         `${row.hp_my}/${row.hp_max}`,
@@ -289,24 +552,47 @@
     },
     events: {
       title: 'Ивенты и бусты',
-      subtitle: 'Глобальные x2/x4 события: опыт, монеты, дроп и другие множители.',
+      subtitle: 'Включение x2/x4 событий: опыт, монеты, дроп, ловля, счастье покемонов и квестовые награды.',
       endpoint: '/api/admin/events',
       dataKey: 'events',
       save: '/api/admin/events',
       delete: { url: '/api/admin/events', id: 'id', confirm: true },
-      columns: ['ID', 'Название', 'Ключ', 'Множитель', 'Период', 'Вкл'],
-      cells: row => [row.id, row.title, row.boost_key, 'x' + row.multiplier, `${row.starts_at || 0}-${row.ends_at || 0}`, row.enabled],
+      columns: ['ID', 'Название', 'Бонус', 'Множитель', 'Область', 'Период', 'Статус'],
+      cells: row => [
+        row.id,
+        row.title,
+        row.boost_label || labelFromMap(eventBoostLabels, row.boost_key),
+        'x' + Number(row.multiplier || 1).toFixed(2),
+        row.scope_label || labelFromMap(eventScopeLabels, row.scope),
+        `${row.starts_at > 0 ? new Date(Number(row.starts_at) * 1000).toLocaleString('ru-RU') : 'сразу'} — ${row.ends_at > 0 ? new Date(Number(row.ends_at) * 1000).toLocaleString('ru-RU') : 'бессрочно'}`,
+        row.status_label || (Number(row.enabled || 0) ? 'включён' : 'выключен')
+      ],
       fields: [
         ['id', 'ID', 'number'],
         ['title', 'Название', 'text'],
-        ['boost_key', 'Что бустим', 'select:exp,coins,drop,quest_rewards,catch'],
+        ['boost_key', 'Что бустим', 'select:exp=Опыт,coins=Монеты,drop=Шанс дропа,quest_rewards=Квестовые награды,catch=Шанс ловли,happiness=Счастье покемонов'],
         ['multiplier', 'Множитель', 'number'],
-        ['scope', 'Область', 'select:global,pve,pvp,quest,market'],
-        ['starts_at', 'Старт Unix', 'number'],
-        ['ends_at', 'Конец Unix', 'number'],
+        ['scope', 'Область', 'select:global=Везде,pve=PvE,pvp=PvP,quest=Квесты,market=Магазин'],
+        ['starts_at', 'Старт', 'datetime-local'],
+        ['ends_at', 'Конец', 'datetime-local'],
         ['enabled', 'Включено', 'checkbox'],
         ['note', 'Заметка', 'text']
-      ]
+      ],
+      formRow: row => row ? {
+        ...row,
+        starts_at: unixToLocalInput(row.starts_at),
+        ends_at: unixToLocalInput(row.ends_at)
+      } : {
+        title: 'x2 опыт на час',
+        boost_key: 'exp',
+        multiplier: '2.00',
+        scope: 'pve',
+        starts_at: unixToLocalInput(Math.floor(Date.now() / 1000)),
+        ends_at: unixToLocalInput(Math.floor(Date.now() / 1000) + 3600),
+        enabled: 1,
+        note: ''
+      },
+      extra: 'eventTools'
     },
     tournaments: {
       title: 'Турниры',
@@ -398,6 +684,51 @@
         reason: row && row.text ? String(row.text).slice(0, 180) : ''
       }),
       extra: 'moderationTools'
+    },
+    commission: {
+      title: 'Комиссионная лавка',
+      subtitle: 'Продажи, логи, подозрительные сделки, возвраты и средние цены за 1/7/14/30 дней.',
+      endpoint: '/api/admin/commission/logs',
+      dataKey: 'logs',
+      paginated: true,
+      perPage: 80,
+      create: false,
+      columns: ['Время', 'Действие', 'Лот', 'Объект', 'Кол-во', 'За 1', 'Итого', 'Комиссия', 'Продавец', 'Покупатель', 'Риск'],
+      cells: row => [
+        row.log_created_at_text || fmtTime(row.log_created_at || row.sold_at || row.created_at),
+        row.action || row.status,
+        '#' + (row.lot_id || row.id),
+        objectLabel(row),
+        row.quantity || 0,
+        fmtMoney(row.price_per_unit || 0),
+        fmtMoney(row.total_price || 0),
+        fmtMoney(row.commission_amount || 0),
+        row.seller_name || ('#' + (row.seller_id || '')),
+        row.buyer_name || (row.buyer_id ? '#' + row.buyer_id : ''),
+        riskLabel(row)
+      ],
+      rowClass: row => row.risk?.reviewed ? 'is-reviewed' : (row.risk?.is_risky ? 'is-risk' : ''),
+      fields: [],
+      filterFields: [
+        ['period', 'Период', 'select:=любой,today=сегодня,7d=7 дней,14d=14 дней,30d=30 дней,month=месяц'],
+        ['status', 'Статус', 'select:=любой,active=active,sold=sold,cancelled=cancelled,expired=expired'],
+        ['object_type', 'Тип', 'select:=любой,item=item,pokemon=pokemon,egg=egg'],
+        ['category', 'Категория', 'select:=любая,held_item=held,evolution=evolution,ticket=ticket,mega_primal=mega/primal,tm=TM,gift_box=gift,craft=craft,currency=currency,other=other,pokemon=pokemon,egg=egg'],
+        ['action', 'Лог-действие', 'select:=любое,create=create,buy=buy,cancel=cancel,expired=expired,return=return,settings.update=settings.update,risk.flagged=risk.flagged,risk.approved=risk.approved'],
+        ['seller', 'Продавец', 'text'],
+        ['buyer', 'Покупатель', 'text'],
+        ['lot_id', 'Lot ID', 'number'],
+        ['object_id', 'Object ID', 'number'],
+        ['legacy', 'Legacy source', 'text'],
+        ['price_min', 'Цена от', 'number'],
+        ['price_max', 'Цена до', 'number'],
+        ['date_from', 'С даты', 'date'],
+        ['date_to', 'По дату', 'date'],
+        ['system_only', 'Только Система', 'select:=нет,1=да'],
+        ['risky', 'Только риск', 'select:=нет,1=да'],
+        ['sort', 'Сортировка', 'select:new=новые,old=старые,price_asc=цена ↑,price_desc=цена ↓,unit_asc=за штуку ↑,unit_desc=за штуку ↓,commission_asc=комиссия ↑,commission_desc=комиссия ↓,quantity_asc=кол-во ↑,quantity_desc=кол-во ↓,seller=продавец,buyer=покупатель,name=название']
+      ],
+      extra: 'commissionTools'
     },
     settings: {
       title: 'Система',
@@ -562,8 +893,14 @@
     const [name, label, type] = field;
     const value = state.filters[name] || '';
     if (type.startsWith('select:')) {
-      const values = type.slice(7).split(',');
-      return `<label>${esc(label)}<select name="${esc(name)}">${values.map(option => `<option value="${esc(option)}" ${String(value) === option ? 'selected' : ''}>${esc(option || 'любой')}</option>`).join('')}</select></label>`;
+      const values = type.slice(7).split(',').map(raw => {
+        const [optionValue, optionLabel] = raw.split('=');
+        return {
+          value: optionValue,
+          label: optionLabel || optionValue || 'любой'
+        };
+      });
+      return `<label>${esc(label)}<select name="${esc(name)}">${values.map(option => `<option value="${esc(option.value)}" ${String(value) === option.value ? 'selected' : ''}>${esc(option.label)}</option>`).join('')}</select></label>`;
     }
     return `<label>${esc(label)}<input name="${esc(name)}" type="${esc(type)}" value="${esc(value)}"></label>`;
   }
@@ -586,7 +923,8 @@
     table.querySelector('thead').innerHTML = '<tr>' + (config.columns || []).map(col => `<th>${esc(col)}</th>`).join('') + '</tr>';
     table.querySelector('tbody').innerHTML = rows.map((row, index) => {
       const cells = (config.cells ? config.cells(row) : Object.values(row)).map(cell => `<td>${cell && String(cell).startsWith('<img') ? cell : esc(cell)}</td>`).join('');
-      return `<tr data-row="${index}">${cells}</tr>`;
+      const rowClass = config.rowClass ? String(config.rowClass(row) || '').replace(/[^a-zA-Z0-9_ -]/g, '') : '';
+      return `<tr data-row="${index}" class="${esc(rowClass)}">${cells}</tr>`;
     }).join('') || `<tr><td colspan="${(config.columns || []).length || 1}">Нет данных</td></tr>`;
     table.querySelectorAll('tbody tr[data-row]').forEach(tr => {
       tr.addEventListener('click', () => {
@@ -616,8 +954,14 @@
       return `<label class="admin-check"><input type="checkbox" name="${esc(name)}" value="1" ${checked} ${readonly ? 'disabled' : ''}> ${esc(label)}</label>`;
     }
     if (type.startsWith('select:')) {
-      const values = type.slice(7).split(',');
-      return `<label>${esc(label)}<select name="${esc(name)}" ${readonly ? 'disabled' : ''}>${values.map(option => `<option value="${esc(option)}" ${String(value) === option ? 'selected' : ''}>${esc(option || 'не задано')}</option>`).join('')}</select></label>`;
+      const values = type.slice(7).split(',').map(raw => {
+        const [optionValue, optionLabel] = raw.split('=');
+        return {
+          value: optionValue,
+          label: optionLabel || optionValue || 'не задано'
+        };
+      });
+      return `<label>${esc(label)}<select name="${esc(name)}" ${readonly ? 'disabled' : ''}>${values.map(option => `<option value="${esc(option.value)}" ${String(value) === option.value ? 'selected' : ''}>${esc(option.label)}</option>`).join('')}</select></label>`;
     }
     return `<label>${esc(label)}<input name="${esc(name)}" type="${esc(type)}" value="${esc(value)}" ${readonly ? 'readonly' : ''}></label>`;
   }
@@ -705,25 +1049,123 @@
       $('#modBanDay')?.addEventListener('click', () => moderationAction('ban', '1d'));
     }
 
+    if (config.extra === 'bossTools') {
+      danger.insertAdjacentHTML('beforeend', `
+        <h3>Шпаргалка по боссу</h3>
+        <p class="muted">Команда задаётся массивом до 6 строк. Для каждого слота: <code>base_id</code>, <code>level</code>, <code>moves</code>, <code>held_item_id</code>, <code>stats</code>. Если <code>stats</code> пустой, статы считаются автоматически.</p>
+        <p class="muted">Дроп задаётся массивом: <code>item_id</code>, <code>chance_percent</code>, <code>min_count</code>, <code>max_count</code>, <code>guaranteed</code>, <code>rare</code>. Награды выдаются только при победе над всей командой босса.</p>
+        <button type="button" id="bossFillHalloween">Пример Хэллоуин</button>
+      `);
+      $('#bossFillHalloween')?.addEventListener('click', () => {
+        const team = document.querySelector('[name="team_json"]');
+        const drops = document.querySelector('[name="drops_json"]');
+        const title = document.querySelector('[name="title"]');
+        const eventKey = document.querySelector('[name="event_key"]');
+        if (title && !title.value) title.value = 'Хэллоуинский рейд';
+        if (eventKey && !eventKey.value) eventKey.value = 'halloween';
+        if (team) {
+          team.value = JSON.stringify([
+            { slot: 1, base_id: 491, level: 80, shiny: false, moves: [94, 138, 171, 373], stats: { hp: 350, atk: 170, def: 170, satk: 230, sdef: 190, speed: 210 } },
+            { slot: 2, base_id: 150, level: 82, shiny: false, moves: [94, 105, 129, 219], stats: { hp: 380, atk: 190, def: 180, satk: 240, sdef: 200, speed: 200 } }
+          ], null, 2);
+        }
+        if (drops) {
+          drops.value = JSON.stringify([
+            { item_id: 1, chance_percent: 100, min_count: 25000, max_count: 75000, guaranteed: true },
+            { item_id: 90004, chance_percent: 2, min_count: 1, max_count: 1, rare: true }
+          ], null, 2);
+        }
+      });
+    }
+
+    if (config.extra === 'eventTools') {
+      danger.insertAdjacentHTML('beforeend', `
+        <h3>Быстро включить событие</h3>
+        <p class="muted">Выбери готовую плюшку или руками задай бонус, множитель и время. Активные ивенты сразу читаются PvE-наградами, ловлей, дропом и квестовыми наградами.</p>
+        <div class="admin-inline-actions admin-quick-actions">
+          <button type="button" data-event-preset="exp:2:1:x2 опыт на час">x2 опыт 1ч</button>
+          <button type="button" data-event-preset="exp:4:2:x4 опыт 2ч</button>
+          <button type="button" data-event-preset="drop:2:1:x2 дроп на час">x2 дроп 1ч</button>
+          <button type="button" data-event-preset="catch:2:1:x2 ловля на час">x2 ловля 1ч</button>
+          <button type="button" data-event-preset="happiness:2:1:x2 счастье на час">x2 счастье 1ч</button>
+          <button type="button" data-event-preset="coins:2:1:x2 монеты на час">x2 монеты 1ч</button>
+          <button type="button" data-event-preset="quest_rewards:2:24:x2 награды квестов на сутки">x2 квесты 24ч</button>
+        </div>
+        <div class="admin-inline-actions admin-quick-actions">
+          <button type="button" data-event-duration="3600">Конец +1 час</button>
+          <button type="button" data-event-duration="86400">Конец +1 день</button>
+          <button type="button" data-event-duration="604800">Конец +7 дней</button>
+          <button type="button" data-event-enable="1">Включить</button>
+          <button type="button" data-event-enable="0">Выключить</button>
+        </div>
+      `);
+      document.querySelectorAll('[data-event-preset]').forEach(button => {
+        button.addEventListener('click', () => {
+          const [boost, multiplier, hours, ...titleParts] = String(button.dataset.eventPreset || '').split(':');
+          fillEventPreset(boost, multiplier, Number(hours || 1), titleParts.join(':'));
+        });
+      });
+      document.querySelectorAll('[data-event-duration]').forEach(button => {
+        button.addEventListener('click', () => {
+          const endInput = document.querySelector('[name="ends_at"]');
+          if (endInput) setDateTimeLocalFromNow(endInput, Number(button.dataset.eventDuration || 3600));
+        });
+      });
+      document.querySelectorAll('[data-event-enable]').forEach(button => {
+        button.addEventListener('click', () => {
+          const enabledInput = document.querySelector('[name="enabled"]');
+          if (enabledInput) enabledInput.checked = button.dataset.eventEnable === '1';
+        });
+      });
+    }
+
     if (config.extra === 'grantItem') {
       danger.insertAdjacentHTML('beforeend', `
         <h3>Выдать предмет</h3>
-        <input id="grantUserId" type="number" placeholder="User ID">
-        <input id="grantItemId" type="number" placeholder="Item ID" value="${row ? esc(row.id) : ''}">
-        <input id="grantItemCount" type="number" min="1" value="1">
-        <label class="admin-check"><input id="grantItemTemporary" type="checkbox"> Выдать на время</label>
+        <p class="muted">Можно писать ник, ID, название предмета или выбрать подсказку из поиска.</p>
+        <label>Игрок
+          ${lookupInput('grantItemUser', 'users', 'Ник или ID игрока')}
+        </label>
+        <label>Предмет
+          ${lookupInput('grantItemLookup', 'items', 'Название или ID предмета', row ? `#${esc(row.id)} ${esc(row.name || row.tittle || '')}` : '')}
+        </label>
+        <label>Количество
+          <input id="grantItemCount" type="number" min="1" value="1">
+        </label>
+        <label class="admin-check"><input id="grantItemTemporary" type="checkbox"> Временный предмет</label>
         <div class="admin-temp-fields" id="grantItemTemporaryFields" hidden>
           <label>Действует до
             <input id="grantItemExpiresAt" type="datetime-local">
           </label>
-          <label>Или секунд от сейчас
+          <div class="admin-inline-actions admin-quick-actions">
+            <button type="button" data-item-expire="3600">+1 час</button>
+            <button type="button" data-item-expire="86400">+1 день</button>
+            <button type="button" data-item-expire="604800">+7 дней</button>
+            <button type="button" data-item-expire="2592000">+30 дней</button>
+          </div>
+          <label>Или секунд от текущего момента
             <input id="grantItemExpiresSeconds" type="number" min="1" placeholder="3600">
           </label>
+          <p class="muted">Если указана дата, предмет будет скрыт и недоступен после этого времени.</p>
         </div>
         <button type="button" id="grantItemBtn">Выдать</button>
       `);
+      setupLookupInput($('#grantItemUser'), 'users');
+      setupLookupInput($('#grantItemLookup'), 'items');
       $('#grantItemTemporary').addEventListener('change', event => {
         $('#grantItemTemporaryFields').hidden = !event.target.checked;
+        if (event.target.checked && !$('#grantItemExpiresAt').value && !$('#grantItemExpiresSeconds').value) {
+          setDateTimeLocalFromNow($('#grantItemExpiresAt'), 86400);
+        }
+      });
+      document.querySelectorAll('[data-item-expire]').forEach(button => {
+        button.addEventListener('click', () => {
+          const seconds = Number(button.dataset.itemExpire || 0);
+          setDateTimeLocalFromNow($('#grantItemExpiresAt'), seconds);
+          $('#grantItemExpiresSeconds').value = '';
+          $('#grantItemTemporary').checked = true;
+          $('#grantItemTemporaryFields').hidden = false;
+        });
       });
       $('#grantItemBtn').addEventListener('click', grantItem);
     }
@@ -743,27 +1185,41 @@
       const grantValue = (key, fallback = '') => row && row[key] !== undefined && row[key] !== null ? esc(row[key]) : fallback;
       danger.insertAdjacentHTML('beforeend', `
         <h3>Выдать покемона</h3>
-        <input id="pokeGrantUser" type="text" placeholder="User ID или ник" value="${row ? esc(row.users || row.login || '') : ''}">
-        <input id="pokeGrantBase" type="text" placeholder="Base ID или имя покемона" value="${row ? esc(row.basenum || row.base_name || '') : ''}">
-        <input id="pokeGrantLvl" type="number" min="1" max="100" value="5">
-        <select id="pokeGrantSex">
-          <option value="1" ${row && String(row.sex) === '1' ? 'selected' : ''}>Самец</option>
-          <option value="2" ${row && String(row.sex) === '2' ? 'selected' : ''}>Самка</option>
-        </select>
-        <select id="pokeGrantHar"><option value="1">Характер #1</option></select>
-        <select id="pokeGrantTips">
-          <option value="normal" ${row && String(row.tips || '').toLowerCase().includes('shine') ? '' : 'selected'}>Обычный</option>
-          <option value="shine" ${row && String(row.tips || '').toLowerCase().includes('shine') ? 'selected' : ''}>Shiny</option>
-        </select>
-        <label class="admin-check"><input id="pokeGrantShiny" type="checkbox" ${row && String(row.tips || '').toLowerCase().includes('shine') ? 'checked' : ''}> Shiny</label>
-        <h4>Гены IV</h4>
+        <p class="muted">Выбирай игрока и базового покемона через поиск. Если итоговые статы оставить пустыми, они посчитаются от базы, IV, EV, характера и уровня.</p>
+        <label>Ник / User ID
+          ${lookupInput('pokeGrantUser', 'users', 'Ник или User ID', row ? `#${esc(row.users || '')} ${esc(row.login || '')}` : '')}
+        </label>
+        <label>Pokemon Base ID / имя
+          ${lookupInput('pokeGrantBase', 'pokeBase', 'Base ID или имя покемона', row ? pokemonBaseLabel(row.basenum, row.base_name) : '')}
+        </label>
         <div class="admin-grid-mini">
-          <label>HP IV<input id="pokeGrantHpIv" type="number" min="0" max="31" value="${grantValue('hp_iv', '1')}" placeholder="0-31"></label>
-          <label>Атака IV<input id="pokeGrantAtkIv" type="number" min="0" max="31" value="${grantValue('atk_iv', '1')}" placeholder="0-31"></label>
-          <label>Защита IV<input id="pokeGrantDefIv" type="number" min="0" max="31" value="${grantValue('def_iv', '1')}" placeholder="0-31"></label>
-          <label>Спец. атака IV<input id="pokeGrantSatkIv" type="number" min="0" max="31" value="${grantValue('satk_iv', '1')}" placeholder="0-31"></label>
-          <label>Спец. защита IV<input id="pokeGrantSdefIv" type="number" min="0" max="31" value="${grantValue('sdef_iv', '1')}" placeholder="0-31"></label>
-          <label>Скорость IV<input id="pokeGrantSpeedIv" type="number" min="0" max="31" value="${grantValue('speed_iv', '1')}" placeholder="0-31"></label>
+          <label>Уровень<input id="pokeGrantLvl" type="number" min="1" max="100" value="5"></label>
+          <label>Пол<select id="pokeGrantSex">
+            <option value="1" ${row && String(row.sex) === '1' ? 'selected' : ''}>Самец</option>
+            <option value="2" ${row && String(row.sex) === '2' ? 'selected' : ''}>Самка</option>
+          </select></label>
+          <label>Характер<select id="pokeGrantHar"><option value="1">Характер #1</option></select></label>
+          <label>Вид<select id="pokeGrantTips">
+            <option value="normal" ${row && String(row.tips || '').toLowerCase().includes('shine') ? '' : 'selected'}>Обычный</option>
+            <option value="shine" ${row && String(row.tips || '').toLowerCase().includes('shine') ? 'selected' : ''}>Shiny</option>
+          </select></label>
+        </div>
+        <label class="admin-check"><input id="pokeGrantShiny" type="checkbox" ${row && String(row.tips || '').toLowerCase().includes('shine') ? 'checked' : ''}> Shiny</label>
+        <div class="admin-inline-actions admin-quick-actions">
+          <button type="button" id="pokeGrantIvMax">Гены 32 всем</button>
+          <button type="button" id="pokeGrantEvClear">EV 0 всем</button>
+          <button type="button" id="pokeGrantStats60">Статы 60 всем</button>
+          <button type="button" id="pokeGrantStatsClear">Авто-статы</button>
+        </div>
+        <h4>Гены / IV</h4>
+        <p class="muted">Гены можно задавать вручную, например атака 28 и защита 32. EV ограничены 0-252 на стат и суммой 510.</p>
+        <div class="admin-grid-mini">
+          <label>HP ген<input id="pokeGrantHpIv" type="number" min="0" max="9999" value="${grantValue('hp_iv', '1')}" placeholder="например 28"></label>
+          <label>Атака ген<input id="pokeGrantAtkIv" type="number" min="0" max="9999" value="${grantValue('atk_iv', '1')}" placeholder="например 28"></label>
+          <label>Защита ген<input id="pokeGrantDefIv" type="number" min="0" max="9999" value="${grantValue('def_iv', '1')}" placeholder="например 32"></label>
+          <label>Спец. атака ген<input id="pokeGrantSatkIv" type="number" min="0" max="9999" value="${grantValue('satk_iv', '1')}" placeholder="например 28"></label>
+          <label>Спец. защита ген<input id="pokeGrantSdefIv" type="number" min="0" max="9999" value="${grantValue('sdef_iv', '1')}" placeholder="например 28"></label>
+          <label>Скорость ген<input id="pokeGrantSpeedIv" type="number" min="0" max="9999" value="${grantValue('speed_iv', '1')}" placeholder="например 28"></label>
         </div>
         <h4>EV</h4>
         <div class="admin-grid-mini">
@@ -787,10 +1243,19 @@
         <input id="pokeGrantHpMy" type="number" min="0" value="${grantValue('hp_my')}" placeholder="Текущее HP, если нужно">
         <button type="button" id="grantPokemonBtn">Выдать</button>
       `);
+      setupLookupInput($('#pokeGrantUser'), 'users');
+      setupLookupInput($('#pokeGrantBase'), 'pokeBase');
       loadNatureOptions(row ? row.har : '1');
       $('#pokeGrantTips').addEventListener('change', event => {
         $('#pokeGrantShiny').checked = event.target.value === 'shine';
       });
+      $('#pokeGrantIvMax').addEventListener('click', () => setMany(['pokeGrantHpIv', 'pokeGrantAtkIv', 'pokeGrantDefIv', 'pokeGrantSatkIv', 'pokeGrantSdefIv', 'pokeGrantSpeedIv'], '32'));
+      $('#pokeGrantEvClear').addEventListener('click', () => setMany(['pokeGrantHpEv', 'pokeGrantAtkEv', 'pokeGrantDefEv', 'pokeGrantSatkEv', 'pokeGrantSdefEv', 'pokeGrantSpeedEv'], '0'));
+      $('#pokeGrantStats60').addEventListener('click', () => {
+        $('#pokeGrantStatAll').value = '60';
+        setMany(['pokeGrantStatHp', 'pokeGrantStatAtk', 'pokeGrantStatDef', 'pokeGrantStatSatk', 'pokeGrantStatSdef', 'pokeGrantStatSpeed', 'pokeGrantHpMy'], '');
+      });
+      $('#pokeGrantStatsClear').addEventListener('click', () => setMany(['pokeGrantStatAll', 'pokeGrantStatHp', 'pokeGrantStatAtk', 'pokeGrantStatDef', 'pokeGrantStatSatk', 'pokeGrantStatSdef', 'pokeGrantStatSpeed', 'pokeGrantHpMy'], ''));
       $('#grantPokemonBtn').addEventListener('click', grantPokemon);
     }
 
@@ -836,6 +1301,87 @@
         <button type="button" id="awardMedalBtn">Выдать медаль</button>
       `);
       $('#awardMedalBtn').addEventListener('click', awardMedal);
+    }
+
+    if (config.extra === 'commissionTools') {
+      if (!row) {
+        danger.insertAdjacentHTML('beforeend', `
+          <h3>Комиссионная лавка</h3>
+          <p class="muted">Выберите лог или лот. Здесь будут детали сделки, средние цены и риск-флаги.</p>
+          <div class="admin-inline-actions">
+            <button type="button" id="commissionShowRisk">Показать риск</button>
+            <button type="button" id="commissionShowReturns">Возвраты</button>
+            <button type="button" id="commissionShowSystem">Лоты Система</button>
+          </div>
+        `);
+        $('#commissionShowRisk')?.addEventListener('click', () => {
+          state.filters = { risky: '1', sort: 'price_desc' };
+          renderFilterbar(modules.commission);
+          reloadCurrent();
+        });
+        $('#commissionShowReturns')?.addEventListener('click', async () => {
+          const result = await request('/api/admin/commission/returns?status=pending');
+          setStatus(result.ok ? `Возвраты pending: ${(result.returns || []).length}` : (result.message || 'Ошибка возвратов'), !result.ok);
+        });
+        $('#commissionShowSystem')?.addEventListener('click', () => {
+          state.filters = { system_only: '1' };
+          renderFilterbar(modules.commission);
+          reloadCurrent();
+        });
+        return;
+      }
+
+      const risk = row.risk || {};
+      const snapshot = row.snapshot || row.data?.snapshot || {};
+      danger.insertAdjacentHTML('beforeend', `
+        <h3>Детали сделки</h3>
+        <span class="admin-risk-badge ${risk.is_risky && !risk.reviewed ? '' : 'is-ok'}">${esc(risk.risk_label || 'ОК')}</span>
+        <div class="admin-detail-grid">
+          <div><b>Лот</b>#${esc(row.lot_id || row.id)} · ${esc(row.status || '')}</div>
+          <div><b>Объект</b>${esc(objectLabel(row))}</div>
+          <div><b>Количество</b>${esc(row.quantity || 0)} × ${esc(fmtMoney(row.price_per_unit || 0))}</div>
+          <div><b>Итого</b>${esc(fmtMoney(row.total_price || 0))} · комиссия ${esc(fmtMoney(row.commission_amount || 0))} · продавцу ${esc(fmtMoney(row.seller_income || 0))}</div>
+          <div><b>Продавец</b>#${esc(row.seller_id || '')} ${esc(row.seller_name || '')}</div>
+          <div><b>Покупатель</b>${row.buyer_id ? '#' + esc(row.buyer_id) + ' ' + esc(row.buyer_name || '') : 'нет'}</div>
+          <div><b>Время</b>${esc(row.log_created_at_text || row.sold_at_text || row.created_at_text || '')}</div>
+          <div><b>Legacy</b>${esc(row.legacy_source_type || '')} ${esc(row.legacy_source_id || '')}</div>
+        </div>
+        <h3>Снимок объекта</h3>
+        ${snapshotSummaryHtml(row, snapshot)}
+        <details class="admin-json-details">
+          <summary>Показать JSON-снимок</summary>
+          <pre class="admin-json-preview">${esc(safeJson(snapshot))}</pre>
+        </details>
+        <div class="admin-inline-actions">
+          <button type="button" id="commissionSeller">Открыть продавца</button>
+          <button type="button" id="commissionBuyer">Открыть покупателя</button>
+          <button type="button" id="commissionSimilar">Похожие лоты</button>
+          <button type="button" id="commissionHistory">История цены</button>
+          ${risk.is_risky && !risk.reviewed ? '<button type="button" id="commissionApproveRisk">Проверено, сделка норм</button>' : ''}
+        </div>
+        <div id="commissionHistoryBox"></div>
+      `);
+      $('#commissionSeller')?.addEventListener('click', () => {
+        setTab('users');
+        $('#adminSearchInput').value = row.seller_name || String(row.seller_id || '');
+        reloadCurrent();
+      });
+      $('#commissionBuyer')?.addEventListener('click', () => {
+        if (!row.buyer_id) {
+          setStatus('У сделки пока нет покупателя.', true);
+          return;
+        }
+        setTab('users');
+        $('#adminSearchInput').value = row.buyer_name || String(row.buyer_id || '');
+        reloadCurrent();
+      });
+      $('#commissionSimilar')?.addEventListener('click', () => {
+        state.filters = { object_type: row.object_type || '', object_id: String(row.object_id || ''), sort: 'unit_asc' };
+        renderFilterbar(modules.commission);
+        reloadCurrent();
+      });
+      $('#commissionHistory')?.addEventListener('click', () => loadCommissionHistory(row));
+      $('#commissionApproveRisk')?.addEventListener('click', () => approveCommissionRisk(row));
     }
 
     if (config.extra === 'legacyActions' && row) {
@@ -890,9 +1436,13 @@
   }
 
   async function grantItem() {
+    const userValue = $('#grantItemUser').value.trim();
+    const itemValue = $('#grantItemLookup').value.trim();
     const result = await send('/api/admin/items/grant', {
-      user_id: $('#grantUserId').value,
-      item_id: $('#grantItemId').value,
+      user_id: lookupId(userValue),
+      user: userValue,
+      item_id: lookupId(itemValue),
+      item: itemValue,
       count: $('#grantItemCount').value,
       temporary: $('#grantItemTemporary')?.checked ? '1' : '0',
       expires_at: $('#grantItemExpiresAt')?.value || '',
@@ -907,11 +1457,13 @@
   }
 
   async function grantPokemon() {
+    const userValue = $('#pokeGrantUser').value.trim();
+    const baseValue = $('#pokeGrantBase').value.trim();
     const result = await send('/api/admin/pokemon/grant', {
-      user_id: /^\d+$/.test($('#pokeGrantUser').value.trim()) ? $('#pokeGrantUser').value.trim() : '',
-      user: $('#pokeGrantUser').value,
-      base_id: /^\d+$/.test($('#pokeGrantBase').value.trim()) ? $('#pokeGrantBase').value.trim() : '',
-      pokemon: $('#pokeGrantBase').value,
+      user_id: lookupId(userValue),
+      user: userValue,
+      base_id: lookupId(baseValue),
+      pokemon: baseValue,
       lvl: $('#pokeGrantLvl').value,
       sex: $('#pokeGrantSex').value,
       har: $('#pokeGrantHar').value,
@@ -987,6 +1539,42 @@
       user_id: $('#awardUserId').value,
       tournament_id: $('#awardTournamentId').value,
       comment: $('#awardComment').value
+    });
+    setStatus(result.message || '', !result.ok);
+    if (result.ok) reloadCurrent();
+  }
+
+  async function loadCommissionHistory(row) {
+    const params = new URLSearchParams({
+      object_type: row.object_type || '',
+      object_id: String(row.object_id || ''),
+      category: row.category || ''
+    });
+    const result = await request('/api/admin/commission/price-history?' + params.toString());
+    const box = $('#commissionHistoryBox');
+    if (!box) return;
+    if (!result.ok) {
+      box.innerHTML = `<p class="admin-status is-bad">${esc(result.message || 'Не удалось загрузить историю.')}</p>`;
+      return;
+    }
+    const windows = result.windows || [];
+    const active = result.active || [];
+    const last = result.lastSold || null;
+    box.innerHTML = '<h3>Средняя цена</h3>' + (windows.map(item => `
+      <p class="audit-line"><b>${esc(item.days)}д</b> продаж ${esc(item.sales)} · средняя ${esc(fmtMoney(item.avg_unit))} · мин/макс ${esc(fmtMoney(item.min_unit))}/${esc(fmtMoney(item.max_unit))}<br>
+      <small>оборот ${esc(fmtMoney(item.turnover))}, комиссия ${esc(fmtMoney(item.commission))}</small></p>
+    `).join('') || '<p class="muted">Продаж нет.</p>') + `
+      <h3>Последняя продажа</h3>
+      ${last ? `<p class="audit-line">#${esc(last.lot_id || last.id)} · ${esc(last.object_name || '')}<br><small>${esc(fmtMoney(last.total_price || 0))} · ${esc(last.sold_at_text || '')}</small></p>` : '<p class="muted">Продаж по этому объекту ещё нет.</p>'}
+      <h3>Активные похожие лоты</h3>
+      ${active.length ? active.slice(0, 8).map(lot => `<p class="audit-line">#${esc(lot.lot_id || lot.id)} · ${esc(lot.object_name || '')}<br><small>${esc(fmtMoney(lot.price_per_unit || 0))} за штуку · ${esc(lot.seller_name || '')}</small></p>`).join('') : '<p class="muted">Активных похожих лотов нет.</p>'}
+    `;
+  }
+
+  async function approveCommissionRisk(row) {
+    const result = await send('/api/admin/commission/risk-review', {
+      lot_id: row.lot_id || row.id,
+      note: 'Проверено вручную: сделка нормальная.'
     });
     setStatus(result.message || '', !result.ok);
     if (result.ok) reloadCurrent();

@@ -6,8 +6,13 @@ namespace Pokemon8\Controller;
 use Pokemon8\Game\GameRoutes;
 use Pokemon8\Http\Request;
 use Pokemon8\Http\Response;
+use Pokemon8\Repository\EggRepository;
+use Pokemon8\Repository\CommissionMarketRepository;
 use Pokemon8\Repository\ItemMarketRepository;
+use Pokemon8\Repository\GameEventRepository;
 use Pokemon8\Repository\MessageRepository;
+use Pokemon8\Repository\PokemonMarketRepository;
+use Pokemon8\Repository\QuestRepository;
 use Pokemon8\Repository\TrainingRepository;
 use Pokemon8\Repository\TransportRepository;
 use Pokemon8\Security\Csrf;
@@ -22,6 +27,11 @@ final class GameModuleController
         private ?TransportRepository $transport = null,
         private ?MessageRepository $messages = null,
         private ?ItemMarketRepository $itemMarket = null,
+        private ?GameEventRepository $events = null,
+        private ?EggRepository $eggs = null,
+        private ?PokemonMarketRepository $pokemonMarket = null,
+        private ?QuestRepository $quests = null,
+        private ?CommissionMarketRepository $commission = null,
     ) {
     }
 
@@ -52,16 +62,55 @@ final class GameModuleController
         }
 
         if ($slug === 'market/items' && $this->itemMarket !== null) {
+            return Response::redirect('/game/commission?category=other');
+        }
+
+        if ($slug === 'commission' && $this->commission !== null) {
             $userId = (int) $this->session->get('id');
-            return new Response(View::render('game-market-items', [
+            return new Response(View::render('game-commission', [
                 'module' => $module,
                 'slug' => $slug,
                 'csrf' => $this->csrf->token(),
-                'catalog' => $this->itemMarket->catalog($userId),
-                'lots' => $this->itemMarket->lots($userId),
-                'wallet' => $this->itemMarket->wallet($userId),
+                'market' => $this->commission->dashboard($userId),
                 'modules' => GameRoutes::MODULES,
             ]));
+        }
+
+        if ($slug === 'events' && $this->events !== null) {
+            $userId = (int) $this->session->get('id');
+            return new Response(View::render('game-events', [
+                'module' => $module,
+                'slug' => $slug,
+                'csrf' => $this->csrf->token(),
+                'events' => $this->events->dashboardForUser($userId),
+                'modules' => GameRoutes::MODULES,
+            ]));
+        }
+
+        if ($slug === 'quests' && $this->quests !== null) {
+            $userId = (int) $this->session->get('id');
+            return new Response(View::render('game-quests', [
+                'module' => $module,
+                'slug' => $slug,
+                'csrf' => $this->csrf->token(),
+                'journal' => $this->quests->journalForUser($userId),
+                'modules' => GameRoutes::MODULES,
+            ]));
+        }
+
+        if ($slug === 'eggs' && $this->eggs !== null) {
+            $userId = (int) $this->session->get('id');
+            return new Response(View::render('game-eggs', [
+                'module' => $module,
+                'slug' => $slug,
+                'csrf' => $this->csrf->token(),
+                'eggs' => $this->eggs->listForUser($userId),
+                'modules' => GameRoutes::MODULES,
+            ]));
+        }
+
+        if ($slug === 'market/pokemon' && $this->pokemonMarket !== null) {
+            return Response::redirect('/game/commission?category=pokemon');
         }
 
         if ($slug === 'diamond-shop') {

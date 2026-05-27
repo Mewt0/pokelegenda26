@@ -12,11 +12,13 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pokemon 8.0 - Игровой мир</title>
-  <link rel="stylesheet" href="/public/css/game-start.css">
+  <link rel="stylesheet" href="/public/css/game-start.css?v=20260526-pokemon-drag3">
   <link rel="stylesheet" href="/public/css/game-shell.css">
-  <link rel="stylesheet" href="/public/css/game-battle-dock.css">
+  <link rel="stylesheet" href="/public/css/game-battle-dock.css?v=20260526-switch-visibility2">
   <link rel="stylesheet" href="/public/css/player-menu.css">
+  <link rel="stylesheet" href="/public/css/trainer-profile-window.css?v=20260526-profile-window6">
   <link rel="stylesheet" href="/public/css/game-market-overlay.css">
+  <link rel="stylesheet" href="/public/css/commission-market.css?v=20260527-my-lots">
 </head>
 <body>
   <main class="world game-shell" data-csrf="<?= View::e($csrf) ?>" data-user-id="<?= (int) ($userId ?? 0) ?>">
@@ -32,6 +34,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
         <div class="decor-line"><span class="decor-dot"></span></div>
         <div class="location-text location-description" id="locationText"></div>
         <div class="npc-strip npc-actions" id="npcs"></div>
+        <div class="npc-strip boss-actions" id="bosses"></div>
         <div class="npc-panel" id="npcPanel" aria-live="polite"></div>
       </div>
     </section>
@@ -70,6 +73,11 @@ $itemIconIndex = is_file($itemIconIndexPath)
         <a href="/game/pokemon" id="pokemonLink"><img src="/public/img/ui/menu-pokemon.png" alt="">Покемоны</a>
         <a href="/game/items" id="inventoryLink"><img src="/public/img/ui/menu-inventory.png" alt="">Инвентарь</a>
         <a href="/game/market/items" data-open-market><img src="/public/img/ui/menu-market.png" alt="">Покемаркет</a>
+        <a href="/game/commission" class="commission-menu-entry" data-open-commission>
+          <img src="/public/img/ui/menu-market.png" alt="">
+          <span>Лавка</span>
+          <b class="commission-menu-badge" data-commission-badge>NEW</b>
+        </a>
         <a href="/game/profile"><img src="/public/img/ui/menu-profile.png" alt="">Профиль</a>
         <a href="#" data-open-dex="pokemon"><img src="/public/img/ui/menu-pokedex.png" alt="">Покедекс</a>
         <a href="#" data-open-dex="attacks"><img src="/public/img/ui/menu-attackdex.png" alt="">Атакадекс</a>
@@ -122,6 +130,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
   </section>
   <section class="pokemon-overlay" id="pokemonOverlay" aria-hidden="true">
     <div class="pokemon-window" role="dialog" aria-label="Покемоны">
+      <div class="pokemon-drag-handle" id="pokemonDragHandle" aria-hidden="true" title="Перетащить окно"></div>
       <header class="pokemon-modal-head">
         <strong>Покемоны</strong>
         <button type="button" id="pokemonCloseBtn">×</button>
@@ -190,6 +199,11 @@ $itemIconIndex = is_file($itemIconIndexPath)
       </footer>
     </div>
   </section>
+  <?php
+    $commissionMode = 'overlay';
+    $commissionRootId = 'commissionOverlay';
+    require APP_ROOT . '/views/components/commission-market-panel.php';
+  ?>
   <section class="battle-overlay battle-dock-overlay" id="battleOverlay" aria-hidden="true">
     <div class="battle-window battle-dock-window" role="dialog" aria-label="PvE бой">
       <header class="battle-head battle-dock-head">
@@ -213,6 +227,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
               <div class="battle-status-badges" id="battlePlayerStatuses"></div>
             </div>
             <h3 id="battlePlayerName">Ваш покемон</h3>
+            <div class="battle-held-item" id="battlePlayerHeld" hidden><img alt=""><span></span></div>
             <div class="hpbar"><div class="hpfill" id="battlePlayerHpBar" style="width:100%"></div></div>
             <div class="battle-dock-energy"><i id="battlePlayerEnergyBar" style="width:42%"></i></div>
             <div id="battlePlayerHp" class="muted">HP 0/0</div>
@@ -247,6 +262,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
               <div class="battle-status-badges" id="battleEnemyStatuses"></div>
             </div>
             <h3 id="battleEnemyName">Дикий покемон</h3>
+            <div class="battle-held-item" id="battleEnemyHeld" hidden><img alt=""><span></span></div>
             <div class="hpbar"><div class="hpfill" id="battleEnemyHpBar" style="width:100%"></div></div>
             <div class="battle-dock-energy"><i id="battleEnemyEnergyBar" style="width:26%"></i></div>
             <div id="battleEnemyHp" class="muted">HP 0/0</div>
@@ -257,11 +273,12 @@ $itemIconIndex = is_file($itemIconIndexPath)
             <em id="battleEnemyRarity">Частый</em>
           </div>
           <div class="battle-dock-actions">
-            <button type="button" class="battle-tab" data-battle-tab="switch" title="Сменить">↻</button>
-            <button type="button" class="battle-tab" data-battle-tab="items" title="Предметы">▣</button>
-            <button type="button" class="battle-tab is-active" data-battle-tab="attacks" title="Атаки">⚔</button>
-            <button type="button" id="battleEscapeBtn" class="battle-dock-danger" title="Сбежать">⚑</button>
+            <button type="button" class="battle-tab is-active" data-battle-tab="attacks" title="Атаки"><span>⚔</span><b>Fight</b></button>
+            <button type="button" class="battle-tab" data-battle-tab="switch" title="Покемоны"><span>↻</span><b>Pokémon</b></button>
+            <button type="button" class="battle-tab" data-battle-tab="items" title="Предметы"><span>▣</span><b>Items</b></button>
+            <button type="button" class="battle-tab" data-battle-tab="balls" title="Покеболы"><span>○</span><b>Balls</b></button>
           </div>
+          <button type="button" id="battleEscapeBtn" class="battle-dock-danger battle-run-button" title="Сбежать">⚑ Сбежать</button>
           <div class="battle-dock-panels">
             <div class="battle-tab-panel" data-battle-panel="switch">
               <select id="battleSwitchSelect" class="wide"></select>
@@ -269,8 +286,10 @@ $itemIconIndex = is_file($itemIconIndexPath)
               <div class="battle-list" id="battleSwitchList"></div>
             </div>
             <div class="battle-tab-panel" data-battle-panel="items">
-              <div class="battle-pocket-title">Предметы</div>
+              <div class="battle-pocket-toolbar" id="battleItemCategoryTabs"></div>
               <div class="battle-list" id="battleItemsList"></div>
+            </div>
+            <div class="battle-tab-panel" data-battle-panel="balls">
               <div class="battle-pocket-title">Покеболы</div>
               <div class="battle-list" id="battleBallsList"></div>
             </div>
@@ -287,7 +306,85 @@ $itemIconIndex = is_file($itemIconIndexPath)
           <button type="button" class="is-active" data-dex-tab="pokemon">Покедекс</button>
           <button type="button" data-dex-tab="attacks">Атакадекс</button>
         </nav>
-        <input id="dexSearchInput" placeholder="Поиск по названию или ID">
+        <div class="dex-search-panel">
+          <input id="dexSearchInput" placeholder="Поиск по названию или ID">
+          <div class="dex-filter-row" id="dexPokemonFilters">
+            <select id="dexPokemonTypeFilter" aria-label="Тип покемона">
+              <option value="">Все типы</option>
+              <option value="Normal">Normal</option>
+              <option value="Fire">Fire</option>
+              <option value="Water">Water</option>
+              <option value="Grass">Grass</option>
+              <option value="Electric">Electric</option>
+              <option value="Ice">Ice</option>
+              <option value="Fighting">Fighting</option>
+              <option value="Poison">Poison</option>
+              <option value="Ground">Ground</option>
+              <option value="Flying">Flying</option>
+              <option value="Psychic">Psychic</option>
+              <option value="Bug">Bug</option>
+              <option value="Rock">Rock</option>
+              <option value="Ghost">Ghost</option>
+              <option value="Dragon">Dragon</option>
+              <option value="Dark">Dark</option>
+              <option value="Steel">Steel</option>
+              <option value="Fairy">Fairy</option>
+            </select>
+            <select id="dexPokemonGenerationFilter" aria-label="Поколение">
+              <option value="">Все поколения</option>
+              <option value="1">I</option>
+              <option value="2">II</option>
+              <option value="3">III</option>
+              <option value="4">IV</option>
+              <option value="5">V</option>
+              <option value="6">VI</option>
+              <option value="7">VII</option>
+              <option value="8">VIII</option>
+              <option value="9">IX</option>
+            </select>
+            <select id="dexPokemonFormFilter" aria-label="Форма">
+              <option value="">Все формы</option>
+              <option value="normal">Обычные</option>
+              <option value="mega">Mega</option>
+              <option value="primal">Primal</option>
+            </select>
+          </div>
+          <div class="dex-filter-row is-hidden" id="dexAttackFilters">
+            <select id="dexAttackTypeFilter" aria-label="Тип атаки">
+              <option value="">Все типы</option>
+              <option value="Normal">Normal</option>
+              <option value="Fire">Fire</option>
+              <option value="Water">Water</option>
+              <option value="Grass">Grass</option>
+              <option value="Electric">Electric</option>
+              <option value="Ice">Ice</option>
+              <option value="Fighting">Fighting</option>
+              <option value="Poison">Poison</option>
+              <option value="Ground">Ground</option>
+              <option value="Flying">Flying</option>
+              <option value="Psychic">Psychic</option>
+              <option value="Bug">Bug</option>
+              <option value="Rock">Rock</option>
+              <option value="Ghost">Ghost</option>
+              <option value="Dragon">Dragon</option>
+              <option value="Dark">Dark</option>
+              <option value="Steel">Steel</option>
+              <option value="Fairy">Fairy</option>
+            </select>
+            <select id="dexAttackCategoryFilter" aria-label="Категория атаки">
+              <option value="">Все категории</option>
+              <option value="1">Физические</option>
+              <option value="2">Специальные</option>
+              <option value="3">Статусные</option>
+            </select>
+            <input id="dexAttackPowerMin" inputmode="numeric" placeholder="Сила от">
+            <input id="dexAttackPowerMax" inputmode="numeric" placeholder="до">
+            <input id="dexAttackAccuracyMin" inputmode="numeric" placeholder="Точн. от">
+            <input id="dexAttackAccuracyMax" inputmode="numeric" placeholder="до">
+            <input id="dexAttackPokemonFilter" placeholder="Покемон">
+            <label class="dex-check"><input type="checkbox" id="dexAttackTmFilter"> TM</label>
+          </div>
+        </div>
         <button type="button" id="dexCloseBtn">×</button>
       </header>
       <div class="dex-body">
@@ -307,11 +404,12 @@ $itemIconIndex = is_file($itemIconIndexPath)
     const state = { busy: false, locationId: 0, activeNpc: null, pveButton: false };
     window.state = state;
     window.PokemonGameState = state;
-    const inventory = { page: 1, pages: 1, items: [], selected: null, pokemon: [], category: '', query: '', categories: [] };
-    const battleState = { active: false, reviewing: false, moves: [], knownMoves: [] };
+    const inventory = { page: 1, pages: 1, items: [], selected: null, pokemon: [], category: '', query: '', categories: [], flightRoutes: [], flightRoutesLoaded: false, flightRoutesLoading: false };
+    const battleState = { active: false, reviewing: false, mode: '', moves: [], knownMoves: [] };
     const battleWindowDrag = { ready: false, dragging: false, offsetX: 0, offsetY: 0 };
+    const pokemonWindowDrag = { ready: false, dragging: false, offsetX: 0, offsetY: 0 };
     const battleHoverState = { ready: false, player: null, enemy: null, movePinned: false };
-    const battlePocket = { loaded: false, items: [] };
+    const battlePocket = { loaded: false, items: [], categories: { items: [], balls: [] }, activeItemCategory: 'all' };
 
     function setupBattleSideTabs() {
       const left = document.querySelector('.battle-left');
@@ -341,7 +439,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
       content.innerHTML = [
         '<div class="battle-tab-panel is-active" data-battle-panel="attacks"></div>',
         '<div class="battle-tab-panel" data-battle-panel="switch"><div class="battle-list" id="battleSwitchList"></div></div>',
-        '<div class="battle-tab-panel" data-battle-panel="items"><div class="battle-list" id="battleItemsList"></div></div>',
+        '<div class="battle-tab-panel" data-battle-panel="items"><div class="battle-pocket-toolbar" id="battleItemCategoryTabs"></div><div class="battle-list" id="battleItemsList"></div></div>',
         '<div class="battle-tab-panel" data-battle-panel="balls"><div class="battle-list" id="battleBallsList"></div></div>'
       ].join('');
 
@@ -361,10 +459,10 @@ $itemIconIndex = is_file($itemIconIndexPath)
       tabs.className = 'battle-tabs';
       tabs.setAttribute('aria-label', 'Battle actions');
       tabs.innerHTML = [
-        '<button type="button" class="battle-tab is-active" data-battle-tab="attacks" title="Attacks">&#9889;</button>',
-        '<button type="button" class="battle-tab" data-battle-tab="switch" title="Switch">&#8644;</button>',
-        '<button type="button" class="battle-tab" data-battle-tab="items" title="Inventory">&#9635;</button>',
-        '<button type="button" class="battle-tab" data-battle-tab="balls" title="Pokeballs">&#9675;</button>'
+        '<button type="button" class="battle-tab is-active" data-battle-tab="attacks" title="Attacks"><span>&#9889;</span><b>Fight</b></button>',
+        '<button type="button" class="battle-tab" data-battle-tab="switch" title="Switch"><span>&#8644;</span><b>Pokémon</b></button>',
+        '<button type="button" class="battle-tab" data-battle-tab="items" title="Inventory"><span>&#9635;</span><b>Items</b></button>',
+        '<button type="button" class="battle-tab" data-battle-tab="balls" title="Pokeballs"><span>&#9675;</span><b>Balls</b></button>'
       ].join('');
 
       left.insertBefore(turn, left.firstChild);
@@ -389,14 +487,48 @@ $itemIconIndex = is_file($itemIconIndexPath)
     }
 
     function setBattleTab(name) {
+      if (name === 'balls' && battleState.mode === 'pvp') {
+        setStatus('Покеболы нельзя использовать в PvP-бою.', true);
+        name = 'attacks';
+      }
       document.querySelectorAll('[data-battle-panel]').forEach(panel => {
         panel.classList.toggle('is-active', panel.dataset.battlePanel === name);
       });
       document.querySelectorAll('[data-battle-tab]').forEach(button => {
         button.classList.toggle('is-active', button.dataset.battleTab === name);
       });
+      const dock = document.querySelector('.battle-dock-window');
+      if (dock) {
+        dock.classList.toggle('is-subpanel-open', name === 'switch' || name === 'items' || name === 'balls');
+        dock.classList.toggle('is-switch-panel', name === 'switch');
+      }
       if (name === 'items' || name === 'balls') {
         loadBattlePocket();
+      }
+    }
+
+    function syncBattleCatchControls(isPvpBattle) {
+      const ballsDisabled = !!isPvpBattle;
+      document.querySelectorAll('[data-battle-tab="balls"]').forEach(button => {
+        button.hidden = ballsDisabled;
+        button.disabled = ballsDisabled;
+        button.setAttribute('aria-disabled', ballsDisabled ? 'true' : 'false');
+      });
+      document.querySelectorAll('[data-battle-panel="balls"]').forEach(panel => {
+        panel.hidden = ballsDisabled;
+      });
+      document.querySelectorAll('.battle-dock-catch-info').forEach(block => {
+        block.classList.toggle('is-disabled', ballsDisabled);
+      });
+      if (ballsDisabled) {
+        const ballsList = document.getElementById('battleBallsList');
+        if (ballsList) {
+          ballsList.innerHTML = '<div class="battle-empty">Ловля недоступна в PvP-бою.</div>';
+        }
+        const activeTab = document.querySelector('[data-battle-tab].is-active')?.dataset.battleTab || '';
+        if (activeTab === 'balls') {
+          setBattleTab('attacks');
+        }
       }
     }
 
@@ -440,7 +572,10 @@ $itemIconIndex = is_file($itemIconIndexPath)
       }
 
       const location = payload.location;
-      state.locationId = Number(location.id || 0);
+      const previousLocationId = Number(state.locationId || 0);
+      const nextLocationId = Number(location.id || 0);
+      const locationChanged = previousLocationId > 0 && previousLocationId !== nextLocationId;
+      state.locationId = nextLocationId;
       app.dataset.locationId = String(state.locationId);
       window.dispatchEvent(new CustomEvent('pokemon:location-changed', { detail: { locationId: state.locationId } }));
       document.getElementById('locationTitle').textContent = location.title;
@@ -448,7 +583,12 @@ $itemIconIndex = is_file($itemIconIndexPath)
       document.getElementById('locationImage').alt = location.title;
       document.getElementById('locationText').textContent = location.description || ('Локация #' + location.id);
 
+      if (locationChanged) {
+        closeNpcPanel();
+      }
+
       renderNpcs(location.npcs || []);
+      renderBosses(payload.bosses || []);
       renderMoves(payload.moves || []);
       renderUsers(location.title, payload.users || []);
       state.pveButton = !!(payload.user && payload.user.pveButton);
@@ -468,8 +608,17 @@ $itemIconIndex = is_file($itemIconIndexPath)
         document.getElementById('chatLog').appendChild(line);
       }
 
-      // Показываем id локации в статусе, чтобы не гадать.
-      setStatus('Готово • локация #' + state.locationId);
+      // Автообновление мира не должно сбивать открытый диалог NPC/питомника.
+      if (!state.activeNpc) {
+        setStatus('Готово • локация #' + state.locationId);
+      }
+    }
+
+    function closeNpcPanel() {
+      state.activeNpc = null;
+      const panel = document.getElementById('npcPanel');
+      panel.className = 'npc-panel';
+      panel.innerHTML = '';
     }
 
     function renderDebugBattleButton(location) {
@@ -483,8 +632,10 @@ $itemIconIndex = is_file($itemIconIndexPath)
 
     function renderNpcs(npcs) {
       const panel = document.getElementById('npcPanel');
-      panel.className = 'npc-panel';
-      panel.innerHTML = '';
+      if (!state.activeNpc) {
+        panel.className = 'npc-panel';
+        panel.innerHTML = '';
+      }
 
       const list = document.getElementById('npcs');
       list.innerHTML = '';
@@ -504,6 +655,23 @@ $itemIconIndex = is_file($itemIconIndexPath)
         empty.className = 'muted';
         empty.textContent = 'NPC на этой локации пока переносятся.';
         list.appendChild(empty);
+      }
+    }
+
+    function renderBosses(bosses) {
+      const list = document.getElementById('bosses');
+      if (!list) return;
+      list.innerHTML = '';
+      for (const boss of bosses) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'npc-btn boss-btn';
+        button.innerHTML = '<span class="npc-icon"><img alt="" loading="lazy"></span><span class="npc-title"></span>';
+        button.querySelector('.npc-icon img').src = assetIcon('npcs', 'trainer');
+        button.querySelector('.npc-title').textContent = (boss.title || 'Босс') + ' · 6x6';
+        button.title = boss.description || 'Ивентовый босс локации';
+        button.addEventListener('click', () => startBossBattle(Number(boss.id || 0)));
+        list.appendChild(button);
       }
     }
 
@@ -635,8 +803,11 @@ $itemIconIndex = is_file($itemIconIndexPath)
     function openPokemonModal() {
       const overlay = document.getElementById('pokemonOverlay');
       const frame = document.getElementById('pokemonFrame');
+      setupPokemonDrag();
       if (frame.getAttribute('src') === 'about:blank') {
         frame.src = '/game/pokemon';
+      } else if (frame.contentWindow && frame.contentWindow.PokemonTeamPanel) {
+        frame.contentWindow.PokemonTeamPanel.open();
       }
       overlay.classList.add('is-open');
       overlay.setAttribute('aria-hidden', 'false');
@@ -644,8 +815,66 @@ $itemIconIndex = is_file($itemIconIndexPath)
 
     function closePokemonModal() {
       const overlay = document.getElementById('pokemonOverlay');
+      const frame = document.getElementById('pokemonFrame');
+      if (frame.contentWindow && frame.contentWindow.PokemonTeamPanel) {
+        frame.contentWindow.PokemonTeamPanel.reset();
+      }
       overlay.classList.remove('is-open');
       overlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function setupPokemonDrag() {
+      if (pokemonWindowDrag.ready) return;
+      pokemonWindowDrag.ready = true;
+      const overlay = document.getElementById('pokemonOverlay');
+      const win = overlay.querySelector('.pokemon-window');
+      const handle = document.getElementById('pokemonDragHandle');
+      const clampWindow = (left, top) => {
+        const pad = 8;
+        const maxLeft = Math.max(pad, window.innerWidth - win.offsetWidth - pad);
+        const maxTop = Math.max(pad, window.innerHeight - win.offsetHeight - pad);
+        return {
+          left: Math.max(pad, Math.min(left, maxLeft)),
+          top: Math.max(pad, Math.min(top, maxTop)),
+        };
+      };
+
+      const startDrag = event => {
+        if (typeof event.button === 'number' && event.button !== 0) return;
+        const rect = win.getBoundingClientRect();
+        pokemonWindowDrag.dragging = true;
+        pokemonWindowDrag.offsetX = event.clientX - rect.left;
+        pokemonWindowDrag.offsetY = event.clientY - rect.top;
+        win.classList.add('is-dragged');
+        win.classList.add('is-dragging');
+        win.style.left = rect.left + 'px';
+        win.style.top = rect.top + 'px';
+        event.preventDefault();
+        if ('pointerId' in event) {
+          try { handle.setPointerCapture(event.pointerId); } catch (e) {}
+        }
+      };
+      const moveDrag = event => {
+        if (!pokemonWindowDrag.dragging) return;
+        const pos = clampWindow(event.clientX - pokemonWindowDrag.offsetX, event.clientY - pokemonWindowDrag.offsetY);
+        win.style.left = pos.left + 'px';
+        win.style.top = pos.top + 'px';
+      };
+      const stopDrag = event => {
+        pokemonWindowDrag.dragging = false;
+        win.classList.remove('is-dragging');
+        if ('pointerId' in event) {
+          try { handle.releasePointerCapture(event.pointerId); } catch (e) {}
+        }
+      };
+
+      handle.addEventListener('pointerdown', startDrag);
+      window.addEventListener('pointermove', moveDrag);
+      window.addEventListener('pointerup', stopDrag);
+      window.addEventListener('pointercancel', stopDrag);
+      handle.addEventListener('mousedown', startDrag);
+      window.addEventListener('mousemove', moveDrag);
+      window.addEventListener('mouseup', stopDrag);
     }
 
     function openBattleOverlay() {
@@ -718,6 +947,8 @@ $itemIconIndex = is_file($itemIconIndexPath)
       if (left) left.classList.remove('is-review');
       battleState.active = false;
       battleState.reviewing = false;
+      battleState.mode = '';
+      syncBattleCatchControls(false);
     }
 
     function renderBattleLog(logByRound, messages) {
@@ -912,6 +1143,9 @@ $itemIconIndex = is_file($itemIconIndexPath)
       const battle = payload.battle || payload;
       const player = battle.player || { name: 'Ваш покемон', level: 1, hp: 0, hpMax: 1, baseNum: 0 };
       const enemy = battle.enemy || { name: 'Дикий покемон', level: 1, hp: 0, hpMax: 1, baseNum: 0 };
+      const isPvpBattle = battle.mode === 'pvp' || !!(enemy && enemy.trainer);
+      battleState.mode = isPvpBattle ? 'pvp' : 'pve';
+      syncBattleCatchControls(isPvpBattle);
 
       document.getElementById('battleTitle').textContent = battle.title || ((battle.mode === 'pvp' ? 'PvP бой #' : 'PvE бой #') + battle.id);
       document.getElementById('battleRound').textContent = 'Раунд ' + (battle.round || 1);
@@ -931,6 +1165,8 @@ $itemIconIndex = is_file($itemIconIndexPath)
       }
       document.getElementById('battlePlayerName').textContent = player.name || 'Ваш покемон';
       document.getElementById('battleEnemyName').textContent = enemy.name || 'Дикий покемон';
+      renderBattleHeldItem('battlePlayerHeld', player.heldItem || player.held_item || null);
+      renderBattleHeldItem('battleEnemyHeld', enemy.heldItem || enemy.held_item || null);
       const playerLevel = document.getElementById('battlePlayerLevel');
       const enemyLevel = document.getElementById('battleEnemyLevel');
       if (playerLevel) playerLevel.textContent = Number(player.level || 1);
@@ -959,8 +1195,8 @@ $itemIconIndex = is_file($itemIconIndexPath)
       const enemyKind = document.getElementById('battleEnemyKind');
       const enemyCatchText = document.getElementById('battleEnemyCatchText');
       const enemyRarity = document.getElementById('battleEnemyRarity');
-      if (enemyKind) enemyKind.textContent = battle.enemy && battle.enemy.trainer ? 'Покемон тренера' : 'Дикий покемон';
-      if (enemyCatchText) enemyCatchText.textContent = battle.enemy && battle.enemy.trainer ? 'Нельзя поймать' : 'Можно поймать';
+      if (enemyKind) enemyKind.textContent = isPvpBattle || (battle.enemy && battle.enemy.trainer) ? 'Покемон тренера' : 'Дикий покемон';
+      if (enemyCatchText) enemyCatchText.textContent = isPvpBattle ? 'Ловля недоступна в PvP' : (battle.enemy && battle.enemy.trainer ? 'Нельзя поймать' : 'Можно поймать');
       if (enemyRarity) enemyRarity.textContent = enemy.rarity || enemy.rank || 'Частый';
 
       battleState.moves = Array.isArray(battle.moves) ? battle.moves : [];
@@ -1006,7 +1242,14 @@ $itemIconIndex = is_file($itemIconIndexPath)
 
       const extraMessages = [...(payload.messages || [])];
       if (payload.rewards && Number(payload.rewards.coins || 0) > 0) {
-        extraMessages.push('Награда: ' + Number(payload.rewards.coins) + ' монет, ' + Number(payload.rewards.exp || 0) + ' опыта.');
+        const rewardParts = [
+          Number(payload.rewards.coins) + ' монет',
+          Number(payload.rewards.exp || 0) + ' опыта',
+        ];
+        if (Number(payload.rewards.happiness || 0) > 0) {
+          rewardParts.push('+' + Number(payload.rewards.happiness || 0) + ' счастья');
+        }
+        extraMessages.push('Награда: ' + rewardParts.join(', ') + '.');
       }
       renderBattleLog(battle.logByRound || [], extraMessages);
 
@@ -1020,6 +1263,20 @@ $itemIconIndex = is_file($itemIconIndexPath)
       const doneBox = document.getElementById('battleFinishBox');
       doneBox.hidden = !payload.finished;
       setBattleControlsDisabled(!!payload.finished || battle.canAct === false || battle.waitingForOpponent === true);
+    }
+
+    function renderBattleHeldItem(id, heldItem) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const itemId = Number(heldItem && (heldItem.id || heldItem.item_id) || 0);
+      if (itemId <= 0) {
+        el.hidden = true;
+        return;
+      }
+      el.hidden = false;
+      setItemIcon(el.querySelector('img'), { item_id: itemId });
+      el.querySelector('span').textContent = heldItem.name || ('Item #' + itemId);
+      el.title = el.querySelector('span').textContent;
     }
 
     function setBattleControlsDisabled(disabled) {
@@ -1212,9 +1469,28 @@ $itemIconIndex = is_file($itemIconIndexPath)
         button.type = 'button';
         button.className = 'battle-switch-card';
         button.disabled = !!option.disabled;
-        button.innerHTML = '<span class="mini-poke"></span><span class="battle-row-main"><b></b><span class="mini-bars"><i class="hp"></i><i class="xp"></i></span></span>';
+        button.innerHTML = '<span class="mini-poke"><img alt=""></span><span class="battle-row-main"><b></b><small class="battle-row-meta"></small><small class="battle-row-held" hidden><img alt=""><span></span></small><span class="mini-bars"><i class="hp"></i><i class="xp"></i></span></span>';
         button.querySelector('b').textContent = option.name || 'Pokemon';
-        button.querySelector('.mini-poke').textContent = '●';
+        button.querySelector('.battle-row-meta').textContent = 'Lv.' + Number(option.level || 1) + ' • HP ' + hp + '/' + hpMax;
+        const miniImg = button.querySelector('.mini-poke img');
+        const miniCandidates = pokemonSpriteUrls(option, isShinyBattlePokemon(option)
+          ? ['frontShiny', 'shiny', 'frontSprite', 'spriteFront', 'sprite', 'front', 'normal']
+          : ['frontSprite', 'spriteFront', 'sprite', 'front', 'normal']
+        );
+        if (isShinyBattlePokemon(option)) {
+          miniCandidates.push(...spriteCandidatesAny('shiny', pokemonBaseNum(option)));
+          miniCandidates.push(...spriteCandidatesAny('shine', pokemonBaseNum(option)));
+        }
+        miniCandidates.push(...spriteCandidatesAny('anim', pokemonBaseNum(option)));
+        miniCandidates.push(...spriteCandidatesAny('pok', pokemonBaseNum(option)));
+        miniCandidates.push(...spriteCandidatesAny('normal', pokemonBaseNum(option)));
+        setSpriteWithFallback(miniImg, miniCandidates);
+        const held = button.querySelector('.battle-row-held');
+        if (held && Number(option.heldItemId || 0) > 0) {
+          held.hidden = false;
+          setItemIcon(held.querySelector('img'), { item_id: option.heldItemId });
+          held.querySelector('span').textContent = option.heldItemName || ('Item #' + Number(option.heldItemId || 0));
+        }
         button.querySelector('.hp').style.width = Math.max(0, Math.min(100, (hp / hpMax) * 100)) + '%';
         button.querySelector('.xp').style.width = '22%';
         button.addEventListener('click', () => {
@@ -1236,9 +1512,16 @@ $itemIconIndex = is_file($itemIconIndexPath)
           const response = await fetch('/api/inventory/battle', { credentials: 'same-origin' });
           const payload = await response.json();
           battlePocket.items = payload && payload.ok === true && Array.isArray(payload.items) ? payload.items : [];
+          battlePocket.categories = payload && payload.categories ? payload.categories : { items: [], balls: [] };
           battlePocket.loaded = true;
+          if (window.console && typeof window.console.debug === 'function') {
+            const summary = payload && payload.summary ? payload.summary : {};
+            console.debug('[INVENTORY] Loaded ' + Number(summary.items || 0) + ' items');
+            console.debug('[INVENTORY] Loaded ' + Number(summary.balls || 0) + ' pokeballs');
+          }
         } catch (e) {
           battlePocket.items = [];
+          battlePocket.categories = { items: [], balls: [] };
           battlePocket.loaded = true;
         }
       }
@@ -1247,10 +1530,55 @@ $itemIconIndex = is_file($itemIconIndexPath)
 
     function renderBattlePocketLists() {
       const all = battlePocket.items || [];
-      const balls = all.filter(item => isBattleBall(item));
-      const items = all.filter(item => !isBattleBall(item) && Number(item.item_id || 0) !== 1 && Number(item.battleuse || 0) === 1);
+      const balls = battleState.mode === 'pvp' ? [] : all.filter(item => battleItemPocket(item) === 'balls');
+      const itemCategory = battlePocket.activeItemCategory || 'all';
+      const items = all.filter(item => {
+        if (battleItemPocket(item) !== 'items' || Number(item.item_id || 0) === 1) return false;
+        return itemCategory === 'all' || String(item.battle_category || 'utility') === itemCategory;
+      });
+      renderBattlePocketToolbar(all.filter(item => battleItemPocket(item) === 'items'));
       renderBattlePocketList('battleItemsList', items, '&#1053;&#1077;&#1090; &#1073;&#1086;&#1077;&#1074;&#1099;&#1093; &#1087;&#1088;&#1077;&#1076;&#1084;&#1077;&#1090;&#1086;&#1074;.');
-      renderBattlePocketList('battleBallsList', balls, '&#1053;&#1077;&#1090; &#1087;&#1086;&#1082;&#1077;&#1073;&#1086;&#1083;&#1086;&#1074;.');
+      renderBattlePocketList('battleBallsList', balls, battleState.mode === 'pvp' ? 'Ловля недоступна в PvP-бою.' : '&#1053;&#1077;&#1090; &#1087;&#1086;&#1082;&#1077;&#1073;&#1086;&#1083;&#1086;&#1074;.');
+    }
+
+    function renderBattlePocketToolbar(items) {
+      const toolbar = document.getElementById('battleItemCategoryTabs');
+      if (!toolbar) return;
+      const counts = new Map();
+      (items || []).forEach(item => {
+        const key = String(item.battle_category || 'utility');
+        counts.set(key, (counts.get(key) || 0) + 1);
+      });
+      const order = ['all', 'healing', 'status', 'revive', 'buffs', 'utility'];
+      toolbar.innerHTML = '';
+      for (const key of order) {
+        const count = key === 'all' ? (items || []).length : (counts.get(key) || 0);
+        if (key !== 'all' && count <= 0) continue;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'battle-pocket-chip' + (battlePocket.activeItemCategory === key ? ' is-active' : '');
+        button.dataset.battleItemCategory = key;
+        button.textContent = battlePocketCategoryLabel(key) + ' ' + count;
+        button.addEventListener('click', () => {
+          battlePocket.activeItemCategory = key;
+          if (window.console && typeof window.console.debug === 'function') {
+            console.debug('[UI] Battle inventory category switched to ' + key);
+          }
+          renderBattlePocketLists();
+        });
+        toolbar.appendChild(button);
+      }
+    }
+
+    function battlePocketCategoryLabel(key) {
+      return {
+        all: 'Все',
+        healing: 'Лечение',
+        status: 'Статусы',
+        revive: 'Revive',
+        buffs: 'Баффы',
+        utility: 'Разное',
+      }[key] || 'Разное';
     }
 
     function renderBattlePocketList(id, items, emptyText) {
@@ -1261,20 +1589,39 @@ $itemIconIndex = is_file($itemIconIndexPath)
         list.innerHTML = '<div class="battle-empty">' + emptyText + '</div>';
         return;
       }
-      for (const item of items.slice(0, 12)) {
+      for (const item of items) {
         const row = document.createElement('button');
         row.type = 'button';
-        row.className = 'battle-item-row';
-        row.innerHTML = '<img alt=""><span><b></b><small></small></span><i aria-hidden="true">☆</i>';
+        row.className = 'battle-item-row' + (id === 'battleBallsList' ? ' is-ball' : '');
+        row.innerHTML = '<img alt=""><span><b></b><small></small></span><i aria-hidden="true"></i>';
         const rowImg = row.querySelector('img');
         setItemIcon(rowImg, item);
         row.querySelector('b').textContent = item.name || item.tittle || ('Item #' + Number(item.item_id || 0));
-        row.querySelector('small').innerHTML = '&#1050;&#1086;&#1083;&#1080;&#1095;&#1077;&#1089;&#1090;&#1074;&#1086;: ' + Number(item.count || 0) + ' &#1096;&#1090;.';
+        const meta = id === 'battleBallsList'
+          ? ('x' + Number(item.count || 0) + ' • Catch Rate x' + Number(item.catch_modifier || 1))
+          : (String(item.battle_category_label || 'Предмет') + ' • x' + Number(item.count || 0));
+        row.querySelector('small').textContent = meta;
+        row.querySelector('i').textContent = 'x' + Number(item.count || 0);
         row.addEventListener('click', () => {
           const action = id === 'battleBallsList' ? 'ball' : 'item';
+          if (action === 'ball' && battleState.mode === 'pvp') {
+            setStatus('Покеболы нельзя использовать в PvP-бою.', true);
+            return;
+          }
+          if (window.console && typeof window.console.debug === 'function') {
+            console.debug('[ITEM_USE] ' + (item.name || item.tittle || ('Item #' + Number(item.item_id || 0))) + ' used');
+          }
           battleAction(action, { item_user_id: item.id });
         });
         list.appendChild(row);
+      }
+      if (list.dataset.scrollReady !== '1') {
+        list.dataset.scrollReady = '1';
+        list.addEventListener('scroll', () => {
+          if (window.console && typeof window.console.debug === 'function') {
+            console.debug('[SCROLL] Inventory scroll position updated');
+          }
+        }, { passive: true });
       }
     }
 
@@ -1297,13 +1644,24 @@ $itemIconIndex = is_file($itemIconIndexPath)
       const id = Number(item.item_id || 0);
       const name = String((item.name || '') + ' ' + (item.tittle || '')).toLowerCase();
       return id === 3
+        || id === 90004
+        || id === 90005
         || name.includes('ball')
         || name.includes('покеб')
         || name.includes('ультрабол')
         || name.includes('мастербол')
+        || name.includes('премиум бол')
         || name.includes('шайнибол')
+        || /\bшар\b/u.test(name)
         || name.includes('ultra')
         || name.includes('master');
+    }
+
+    function battleItemPocket(item) {
+      if (item && (item.battle_pocket === 'balls' || item.battle_pocket === 'items')) {
+        return item.battle_pocket;
+      }
+      return isBattleBall(item) ? 'balls' : 'items';
     }
 
     function pad3(num) {
@@ -1396,7 +1754,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
         for (const key of keys) {
           if (pokemon.sprites[key]) result.push(String(pokemon.sprites[key]));
         }
-        for (const key of ['back', 'sback', 'front', 'normal', 'shiny', 'sprite']) {
+        for (const key of ['backShiny', 'frontShiny', 'back', 'sback', 'front', 'normal', 'shiny', 'sprite']) {
           if (pokemon.sprites[key]) result.push(String(pokemon.sprites[key]));
         }
       }
@@ -1417,7 +1775,12 @@ $itemIconIndex = is_file($itemIconIndexPath)
 
       // Back sprite for user's pokemon. Try shiny back first when name/tips says Shiny,
       // then normal back, then front/anim fallbacks so the pokemon never disappears.
-      const playerCandidates = pokemonSpriteUrls(player, ['backSprite', 'spriteBack', 'back', 'sback', 'sprite']);
+      const playerCandidates = pokemonSpriteUrls(
+        player,
+        playerIsShiny
+          ? ['backShiny', 'sback', 'backSprite', 'spriteBack', 'back', 'sprite']
+          : ['backSprite', 'spriteBack', 'back', 'sprite']
+      );
       if (playerIsShiny) {
         playerCandidates.push(...spriteCandidatesAny('sback', playerBase));
         playerCandidates.push(...spriteCandidatesAny('Sback', playerBase));
@@ -1432,7 +1795,12 @@ $itemIconIndex = is_file($itemIconIndexPath)
       playerCandidates.push(...spriteCandidatesAny('normal', playerBase));
 
       // Front sprite for wild pokemon: prefer animated battle GIFs, keep PNG as fallback.
-      const enemyCandidates = pokemonSpriteUrls(enemy, ['frontSprite', 'spriteFront', 'sprite', 'front', 'normal']);
+      const enemyCandidates = pokemonSpriteUrls(
+        enemy,
+        enemyIsShiny
+          ? ['frontShiny', 'shiny', 'frontSprite', 'spriteFront', 'sprite', 'front', 'normal']
+          : ['frontSprite', 'spriteFront', 'sprite', 'front', 'normal']
+      );
       if (enemyIsShiny) {
         enemyCandidates.push(...spriteGifCandidates('shiny', enemyBase, true));
         enemyCandidates.push(...spritePngCandidates('shine', enemyBase));
@@ -1488,6 +1856,10 @@ $itemIconIndex = is_file($itemIconIndexPath)
     }
 
     async function battleAction(action, extra = {}) {
+      if (action === 'ball' && battleState.mode === 'pvp') {
+        setStatus('Покеболы нельзя использовать в PvP-бою.', true);
+        return;
+      }
       const body = new URLSearchParams();
       body.set('_csrf', csrf);
       body.set('action', action);
@@ -1504,10 +1876,15 @@ $itemIconIndex = is_file($itemIconIndexPath)
         if (!payload || payload.ok !== true) {
           setStatus(payload && payload.message ? payload.message : 'Боевое действие отклонено.', true);
         }
-        if (action === 'item' || action === 'ball') {
+        const pocketAction = action === 'item' || action === 'ball';
+        if (pocketAction) {
           battlePocket.loaded = false;
         }
         renderBattle(payload);
+        const activeBattleTab = document.querySelector('[data-battle-tab].is-active')?.dataset.battleTab || '';
+        if (pocketAction && !payload.finished && (activeBattleTab === 'items' || activeBattleTab === 'balls')) {
+          loadBattlePocket();
+        }
       } catch (error) {
         setStatus('Боевое действие не выполнено.', true);
       }
@@ -1611,8 +1988,23 @@ $itemIconIndex = is_file($itemIconIndexPath)
     function selectedItemTargetRule() {
       const item = inventory.selected;
       if (!item || !item.target_use || item.target_use.enabled !== true) return null;
-      if (String(item.target_use.target_type || 'pokemon') !== 'pokemon') return null;
+      const targetType = String(item.target_use.target_type || 'pokemon');
+      if (targetType !== 'pokemon' && !isFlightTargetRule(item.target_use) && !isGiftTargetRule(item.target_use)) return null;
       return item.target_use;
+    }
+
+    function isGiftTargetRule(rule) {
+      if (!rule) return false;
+      const targetType = String(rule.target_type || 'pokemon');
+      const effectKey = String(rule.effect_key || '');
+      return targetType === 'gift' || effectKey === 'open_gift';
+    }
+
+    function isFlightTargetRule(rule) {
+      if (!rule) return false;
+      const targetType = String(rule.target_type || 'pokemon');
+      const effectKey = String(rule.effect_key || '');
+      return targetType === 'flight' || targetType === 'transport_flight' || effectKey === 'plane_ticket';
     }
 
     function renderInventoryTargetControls(keepPanel = true) {
@@ -1629,33 +2021,96 @@ $itemIconIndex = is_file($itemIconIndexPath)
       document.getElementById('invTargetTitle').textContent = rule.title || 'Применить предмет';
       document.getElementById('invTargetHint').textContent = rule.hint || 'Выберите покемона для применения предмета.';
       const countInput = document.getElementById('invTargetCount');
-      const owned = Number(inventory.selected.count || 1);
-      const min = Math.max(1, Number(rule.min_count || 1));
-      const max = Math.max(min, Math.min(owned, Number(rule.max_count || owned)));
-      countInput.min = String(min);
-      countInput.max = String(max);
-      countInput.value = String(rule.allow_quantity ? Math.min(max, Math.max(min, Number(countInput.value || min))) : 1);
-      countInput.disabled = !rule.allow_quantity;
-
       const select = document.getElementById('invTargetPokemon');
       const previous = select.value;
       select.innerHTML = '';
-      for (const pokemon of inventory.pokemon || []) {
-        const option = document.createElement('option');
-        option.value = String(pokemon.id || 0);
-        option.textContent = String(pokemon.names || 'Покемон').replace(/<[^>]*>/g, '');
-        select.appendChild(option);
+
+      if (isGiftTargetRule(rule)) {
+        countInput.value = '1';
+        countInput.disabled = true;
+        countInput.hidden = true;
+        select.hidden = true;
+        select.innerHTML = '<option value="1">Открыть подарок</option>';
+        document.getElementById('invTargetApplyBtn').disabled = false;
+      } else if (isFlightTargetRule(rule)) {
+        countInput.value = '1';
+        countInput.disabled = true;
+        countInput.hidden = true;
+        select.hidden = false;
+        select.setAttribute('aria-label', 'Рейс самолёта');
+        if (inventory.flightRoutesLoading) {
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = 'Загрузка рейсов...';
+          select.appendChild(option);
+        } else if (!inventory.flightRoutes.length) {
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = inventory.flightRoutesLoaded ? 'Нет доступных рейсов' : 'Откройте список рейсов';
+          select.appendChild(option);
+        } else {
+          for (const route of inventory.flightRoutes) {
+            const option = document.createElement('option');
+            option.value = String(route.id || 0);
+            option.textContent = String(route.title || 'Рейс') + ' · ' + String(route.durationText || '15 мин.');
+            option.title = String(route.description || '');
+            select.appendChild(option);
+          }
+        }
+        if (previous) select.value = previous;
+        if (!select.value && select.options.length > 0) select.selectedIndex = 0;
+        document.getElementById('invTargetApplyBtn').disabled = !Number(select.value || 0);
+      } else {
+        countInput.hidden = false;
+        select.hidden = false;
+        const owned = Number(inventory.selected.count || 1);
+        const min = Math.max(1, Number(rule.min_count || 1));
+        const max = Math.max(min, Math.min(owned, Number(rule.max_count || owned)));
+        countInput.min = String(min);
+        countInput.max = String(max);
+        countInput.value = String(rule.allow_quantity ? Math.min(max, Math.max(min, Number(countInput.value || min))) : 1);
+        countInput.disabled = !rule.allow_quantity;
+        select.setAttribute('aria-label', 'Покемон');
+        for (const pokemon of inventory.pokemon || []) {
+          const option = document.createElement('option');
+          option.value = String(pokemon.id || 0);
+          option.textContent = String(pokemon.names || 'Покемон').replace(/<[^>]*>/g, '');
+          select.appendChild(option);
+        }
+        if (previous) select.value = previous;
+        if (!select.value && select.options.length > 0) select.selectedIndex = 0;
+        document.getElementById('invTargetApplyBtn').disabled = !Number(select.value || 0);
       }
-      if (previous) select.value = previous;
-      if (!select.value && select.options.length > 0) select.selectedIndex = 0;
 
       if (!keepPanel) {
         panel.hidden = true;
       }
     }
 
-    function openInventoryTargetPanel() {
-      if (!selectedItemTargetRule()) return;
+    async function loadFlightRoutes() {
+      if (inventory.flightRoutesLoading) return;
+      inventory.flightRoutesLoading = true;
+      renderInventoryTargetControls();
+      try {
+        const response = await fetch('/api/transport/flight-routes', { credentials: 'same-origin' });
+        const payload = await response.json();
+        inventory.flightRoutes = payload && payload.ok === true && Array.isArray(payload.routes) ? payload.routes : [];
+        inventory.flightRoutesLoaded = true;
+      } catch (error) {
+        inventory.flightRoutes = [];
+        inventory.flightRoutesLoaded = true;
+      } finally {
+        inventory.flightRoutesLoading = false;
+        renderInventoryTargetControls();
+      }
+    }
+
+    async function openInventoryTargetPanel() {
+      const rule = selectedItemTargetRule();
+      if (!rule) return;
+      if (isFlightTargetRule(rule) && !inventory.flightRoutesLoaded) {
+        await loadFlightRoutes();
+      }
       renderInventoryTargetControls();
       document.getElementById('invTargetPanel').hidden = false;
       hideItemTooltip();
@@ -1664,17 +2119,68 @@ $itemIconIndex = is_file($itemIconIndexPath)
     async function applyInventoryTargetItem() {
       const rule = selectedItemTargetRule();
       if (!rule || !inventory.selected) return;
-      const pokemonId = Number(document.getElementById('invTargetPokemon').value || 0);
+      const selectedTargetId = Number(document.getElementById('invTargetPokemon').value || 0);
       const count = Number(document.getElementById('invTargetCount').value || 1);
-      if (pokemonId <= 0) {
-        setStatus('Выберите покемона.');
+      if (!isGiftTargetRule(rule) && selectedTargetId <= 0) {
+        setStatus(isFlightTargetRule(rule) ? 'Выберите рейс.' : 'Выберите покемона.');
+        return;
+      }
+
+      if (isGiftTargetRule(rule)) {
+        const body = new URLSearchParams();
+        body.set('_csrf', csrf);
+        body.set('item_user_id', String(inventory.selected.id || 0));
+
+        try {
+          const response = await fetch('/api/inventory/open-gift', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body,
+          });
+          const payload = await response.json();
+          setStatus(payload && payload.message ? payload.message : 'Готово.', !(payload && payload.ok === true));
+          if (payload && payload.ok === true) {
+            document.getElementById('invTargetPanel').hidden = true;
+            loadInventoryPage(inventory.page);
+          }
+        } catch (e) {
+          setStatus('Не удалось открыть подарок.', true);
+        }
+        return;
+      }
+
+      if (isFlightTargetRule(rule)) {
+        const body = new URLSearchParams();
+        body.set('_csrf', csrf);
+        body.set('item_user_id', String(inventory.selected.id || 0));
+        body.set('route_id', String(selectedTargetId));
+
+        try {
+          const response = await fetch('/api/transport/flight-start', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body,
+          });
+          const payload = await response.json();
+          setStatus(payload && payload.message ? payload.message : 'Готово.', !(payload && payload.ok === true));
+          if (payload && payload.ok === true) {
+            document.getElementById('invTargetPanel').hidden = true;
+            closeInventory();
+            await loadInventoryPage(inventory.page);
+            await loadState();
+          }
+        } catch (e) {
+          setStatus('Не удалось начать перелёт.', true);
+        }
         return;
       }
 
       const body = new URLSearchParams();
       body.set('_csrf', csrf);
       body.set('item_user_id', String(inventory.selected.id || 0));
-      body.set('pokemon_id', String(pokemonId));
+      body.set('pokemon_id', String(selectedTargetId));
       body.set('count', String(count));
 
       try {
@@ -1742,7 +2248,77 @@ $itemIconIndex = is_file($itemIconIndexPath)
       document.getElementById('invTooltip').style.display = 'none';
     }
 
+    function renderFlightDialog(title, text) {
+      renderNpcDialog({
+        ok: true,
+        npc: {
+          title,
+          text,
+          choices: [{ label: 'Закрыть', close: true }],
+        },
+      });
+    }
+
+    async function showFlightStatus() {
+      try {
+        setStatus('Проводник...');
+        const response = await fetch('/api/transport/flight-status', { credentials: 'same-origin' });
+        const payload = await response.json();
+        if (!payload || payload.ok !== true) {
+          setStatus(payload && payload.message ? payload.message : 'Проводник не отвечает.', true);
+          return;
+        }
+        const flight = payload.flight || {};
+        const lines = [
+          flight.statusText || 'Самолёт в пути.',
+          flight.description || '',
+        ].filter(Boolean);
+        renderFlightDialog('Проводник', lines.join('\n'));
+      } catch (error) {
+        setStatus('Проводник не отвечает.', true);
+      }
+    }
+
+    async function exitFlight() {
+      const body = new URLSearchParams();
+      body.set('_csrf', csrf);
+
+      try {
+        setStatus('Выход...');
+        const response = await fetch('/api/transport/flight-exit', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body,
+        });
+        const payload = await response.json();
+        if (!payload || payload.ok !== true) {
+          const flight = payload && payload.flight ? payload.flight : null;
+          const text = payload && payload.message ? payload.message : 'Мы ещё летим.';
+          renderFlightDialog('Выход', flight && flight.remainingText ? text + '\nДо прибытия осталось ' + flight.remainingText + '.' : text);
+          setStatus(text, true);
+          return;
+        }
+        document.getElementById('npcPanel').className = 'npc-panel';
+        document.getElementById('npcPanel').innerHTML = '';
+        setStatus(payload.message || 'Самолёт прибыл.');
+        await loadState();
+      } catch (error) {
+        setStatus('Не удалось выйти из самолёта.', true);
+      }
+    }
+
     async function openNpc(npc, overrideParams = null) {
+      const npcParams = overrideParams || (npc && npc.params) || {};
+      if (String(npcParams.npc || '') === 'flight_status') {
+        await showFlightStatus();
+        return;
+      }
+      if (String(npcParams.npc || '') === 'flight_exit') {
+        await exitFlight();
+        return;
+      }
+
       const route = npcRoute(npc, overrideParams);
       if (route) {
         openNpcRoute(route);
@@ -1842,8 +2418,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
         button.disabled = !!choice.disabled;
         if (choice.close) {
           button.addEventListener('click', () => {
-            panel.className = 'npc-panel';
-            panel.innerHTML = '';
+            closeNpcPanel();
             setStatus('Готово');
           });
         } else if (choice.action) {
@@ -1891,6 +2466,39 @@ $itemIconIndex = is_file($itemIconIndexPath)
       } finally {
         state.busy = false;
         document.querySelectorAll('.move-btn').forEach(button => button.disabled = false);
+      }
+    }
+
+    async function startBossBattle(bossId) {
+      if (!bossId || state.busy) return;
+      state.busy = true;
+      setStatus('Босс выходит на бой...');
+      document.querySelectorAll('.boss-btn').forEach(button => button.disabled = true);
+
+      const body = new URLSearchParams();
+      body.set('_csrf', csrf);
+      body.set('boss_id', String(bossId));
+
+      try {
+        const response = await fetch('/api/bosses/start', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body,
+        });
+        const payload = await response.json();
+        if (!payload.ok) {
+          setStatus(payload.message || 'Не удалось начать бой с боссом.', true);
+          return;
+        }
+        setStatus(payload.message || 'Босс выходит на бой!');
+        openBattleOverlay();
+        loadBattleState();
+      } catch (error) {
+        setStatus('Не удалось начать бой с боссом.', true);
+      } finally {
+        state.busy = false;
+        document.querySelectorAll('.boss-btn').forEach(button => button.disabled = false);
       }
     }
 
@@ -1953,6 +2561,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
     document.getElementById('invNextBtn').addEventListener('click', () => loadInventoryPage(Math.min(inventory.pages, inventory.page + 1)));
     document.getElementById('invUseTargetBtn').addEventListener('click', openInventoryTargetPanel);
     document.getElementById('invTargetApplyBtn').addEventListener('click', applyInventoryTargetItem);
+    document.getElementById('invTargetPokemon').addEventListener('change', () => renderInventoryTargetControls());
     document.getElementById('invTargetCancelBtn').addEventListener('click', () => {
       document.getElementById('invTargetPanel').hidden = true;
     });
@@ -2056,10 +2665,12 @@ $itemIconIndex = is_file($itemIconIndexPath)
       }
     }, 2000);
   </script>
-  <script src="/public/js/chat.js"></script>
-  <script src="/public/js/player-menu.js"></script>
-  <script src="/public/js/dex-overlay.js"></script>
+  <script src="/public/js/trainer-profile-window.js?v=20260526-trainer-held-items"></script>
+  <script src="/public/js/chat.js?v=20260525-trainer-card-hover"></script>
+  <script src="/public/js/player-menu.js?v=20260526-breeding-entry"></script>
+  <script src="/public/js/dex-overlay.js?v=20260525-dex-filters"></script>
   <script src="/public/js/game-market-overlay.js"></script>
+  <script src="/public/js/commission-market.js?v=20260527-my-lots"></script>
 
 </body>
 </html>

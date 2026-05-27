@@ -71,6 +71,9 @@ $lastOnlineText = $lastOnline > 0 ? date('Y-m-d H:i', $lastOnline) : 'нет д�
     .empty { color:var(--muted); font-size:13px; }
     .clan { display:flex; gap:10px; align-items:center; }
     .clan img { width:42px; height:42px; object-fit:contain; }
+    .email-form { display:grid; gap:8px; }
+    .email-form input, .email-form button { height:36px; border:1px solid var(--line); border-radius:7px; padding:0 10px; font:inherit; }
+    .email-form button { background:var(--blue); color:#fff; font-weight:800; cursor:pointer; }
     @media (max-width: 980px) { .hero { grid-template-columns:1fr; } .side, .side.right { border:0; border-top:1px solid var(--line); } .party { grid-template-columns:repeat(3,1fr); } }
   </style>
 </head>
@@ -170,6 +173,20 @@ $lastOnlineText = $lastOnline > 0 ? date('Y-m-d H:i', $lastOnline) : 'нет д�
               <div class="k">Был в игре</div><div class="v"><?= View::e($lastOnlineText) ?></div>
             </div>
           </section>
+
+          <?php if (!empty($viewerOwnsProfile)): ?>
+            <section class="card">
+              <h2>Почта</h2>
+              <form class="email-form" action="/profile/email" method="post">
+                <input type="hidden" name="_csrf" value="<?= View::e($csrfToken ?? '') ?>">
+                <input name="EMAIL" type="email" maxlength="100" value="<?= View::e((string) ($u['email'] ?? '')) ?>" placeholder="Email для восстановления пароля">
+                <button type="submit">Сохранить почту</button>
+              </form>
+              <p class="empty" style="margin-top:8px">
+                <?= $u['email'] !== '' ? ($u['emailVerified'] ? 'Почта подтверждена.' : 'Почта сохранена, подтверждение будет подключено позже.') : 'Почта не привязана. Без неё восстановление пароля через email недоступно.' ?>
+              </p>
+            </section>
+          <?php endif; ?>
 
           <section class="card">
             <h2>Награды</h2>

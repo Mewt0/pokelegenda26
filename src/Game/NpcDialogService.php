@@ -267,7 +267,7 @@ final class NpcDialogService
     private function nurseryDialog(int $userId, string $prefix = ''): array
     {
         $active = $this->pokemon->listActivePokemon($userId, 6);
-        $stored = $this->pokemon->listNurseryPokemon($userId, 8);
+        $stored = $this->pokemon->listNurseryPokemon($userId, 24);
         $activeCount = $this->pokemon->countActivePokemon($userId);
 
         $choices = [
@@ -292,8 +292,14 @@ final class NpcDialogService
             ];
         }
 
+        $choices[] = [
+            'label' => 'Открыть полный список покемонов',
+            'route' => '/game/pokemon',
+        ];
         $choices[] = ['label' => 'Назад', 'params' => ['npc' => '1', 'do_npc' => 'pc']];
-        $text = trim(($prefix !== '' ? $prefix . ' ' : '') . 'В команде сейчас ' . $activeCount . '/6. В питомнике показаны первые ' . count($stored) . ' покемонов.');
+        $text = trim(($prefix !== '' ? $prefix . ' ' : '')
+            . 'В команде сейчас ' . $activeCount . '/6. '
+            . 'Быстрый список показывает до ' . count($stored) . ' покемонов из питомника; полный список открыт в меню покемонов без перезагрузки боя/мира.');
 
         return $this->dialog('Питомник', $text, $choices);
     }

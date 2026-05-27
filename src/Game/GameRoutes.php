@@ -34,6 +34,7 @@ final class GameRoutes
         'profile' => '/game/profile',
         'diamond_shop' => '/game/diamond-shop',
         'rinok' => '/game/market/items',
+        'commission' => '/game/commission',
         'clans' => '/game/clans',
         'pokerinok' => '/game/market/pokemon',
     ];
@@ -43,7 +44,7 @@ final class GameRoutes
         'chat' => ['title' => 'Чат', 'status' => 'partial', 'legacy' => 'chat'],
         'location/users' => ['title' => 'Игроки на локации', 'status' => 'partial', 'legacy' => 'mapusers'],
         'actions' => ['title' => 'Панель действий', 'status' => 'partial', 'legacy' => 'buttons'],
-        'events' => ['title' => 'Игровые события', 'status' => 'todo', 'legacy' => 'gameload'],
+        'events' => ['title' => 'Игровые события', 'status' => 'partial', 'legacy' => 'gameload'],
         'battle/pve' => ['title' => 'PvE бой', 'status' => 'partial', 'legacy' => 'fight_pve'],
         'battle/pvp' => ['title' => 'PvP бой', 'status' => 'partial', 'legacy' => 'fight_pvp'],
         'trainers' => ['title' => 'Тренеры', 'status' => 'todo', 'legacy' => 'users/trenInfo'],
@@ -58,12 +59,13 @@ final class GameRoutes
         'items' => ['title' => 'Инвентарь', 'status' => 'partial', 'legacy' => 'items'],
         'transport' => ['title' => 'Транспорт', 'status' => 'partial', 'legacy' => 'transport'],
         'events/new-year' => ['title' => 'Новогодние события', 'status' => 'todo', 'legacy' => 'eventsNewYear'],
-        'eggs' => ['title' => 'Яйца', 'status' => 'todo', 'legacy' => 'eggs'],
+        'eggs' => ['title' => 'Яйца', 'status' => 'done', 'legacy' => 'eggs'],
         'profile' => ['title' => 'Профиль', 'status' => 'partial', 'legacy' => 'profile'],
         'diamond-shop' => ['title' => 'Алмазный магазин', 'status' => 'partial', 'legacy' => 'diamond_shop'],
         'market/items' => ['title' => 'Покемаркет', 'status' => 'partial', 'legacy' => 'rinok'],
+        'commission' => ['title' => 'Комиссионная лавка', 'status' => 'partial', 'legacy' => 'rinok/pokerinok'],
         'clans' => ['title' => 'Кланы', 'status' => 'todo', 'legacy' => 'clans'],
-        'market/pokemon' => ['title' => 'Рынок покемонов', 'status' => 'todo', 'legacy' => 'pokerinok'],
+        'market/pokemon' => ['title' => 'Рынок покемонов', 'status' => 'done', 'legacy' => 'pokerinok'],
     ];
 
     public static function newPathForLegacy(string $go): ?string

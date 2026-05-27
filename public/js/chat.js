@@ -17,6 +17,9 @@
     let pmToName = '';
     let currentLocationId = readLocationId();
     let userMenu = null;
+    let chatHoverProfileTimer = 0;
+    let chatHoverProfileKey = '';
+    let chatHoverProfileOpenedAt = 0;
     let autoScroll = true;
     let syncedInitialHistory = false;
     let allMessages = [];
@@ -175,14 +178,31 @@
             const name = author.textContent;
             const isSystem = author.dataset.system === '1';
 
-            if (id > 0 || isSystem) {
+            if (id > 0 || name || isSystem) {
                 showUserMenu(id, name, e, isSystem);
             }
         });
 
+        chatLog.addEventListener('mouseover', (e) => {
+            const author = e.target.closest('.chat-author');
+            if (!author || !chatLog.contains(author)) return;
+            if (author.contains(e.relatedTarget)) return;
+            scheduleChatHoverTrainerCard(author);
+        });
+
+        chatLog.addEventListener('mouseout', (e) => {
+            const author = e.target.closest('.chat-author');
+            if (!author || !chatLog.contains(author)) return;
+            if (author.contains(e.relatedTarget)) return;
+            clearChatHoverProfileTimer();
+        });
+
         document.addEventListener('click', hideUserMenu);
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') hideUserMenu();
+            if (e.key === 'Escape') {
+                clearChatHoverProfileTimer();
+                hideUserMenu();
+            }
         });
         document.addEventListener('player-menu-action', (e) => {
             const detail = e.detail || {};
@@ -245,9 +265,10 @@
 
     function isSystemAuthor(msg) {
         const name = String(msg && msg.author_name || '').trim().toLowerCase();
+        const hasHumanName = name !== '' && !['system', 'система', 'администрация', 'сервис', 'event', 'events'].includes(name);
         return Number(msg && msg.tipe || 0) === TIPE_SYSTEM
-            || Number(msg && msg.author_id || 0) <= 0
-            || ['system', 'система', 'администрация', 'сервис', 'event', 'events'].includes(name);
+            || ['system', 'система', 'администрация', 'сервис', 'event', 'events'].includes(name)
+            || (Number(msg && msg.author_id || 0) <= 0 && !hasHumanName);
     }
 
     function showUserMenu(id, name, event, isSystem = false) {
@@ -263,8 +284,12 @@
             title.textContent = isSystem ? 'Системное уведомление:' : '';
         }
 
-        userMenu.querySelectorAll('[data-action="private"], [data-action="friend"], [data-action="ignore"], [data-action="mail"]').forEach(button => {
-            button.hidden = isSystem;
+        const hasPlayerId = Number(id || 0) > 0;
+        userMenu.querySelectorAll('[data-action="private"], [data-action="friend"], [data-action="ignore"]').forEach(button => {
+            button.hidden = isSystem || !hasPlayerId;
+        });
+        userMenu.querySelectorAll('[data-action="mail"]').forEach(button => {
+            button.hidden = isSystem || (!hasPlayerId && !name);
         });
 
         const replyButton = userMenu.querySelector('[data-action="reply"]');
@@ -286,8 +311,62 @@
         if (userMenu) userMenu.hidden = true;
     }
 
+    function clearChatHoverProfileTimer() {
+        if (chatHoverProfileTimer) {
+            clearTimeout(chatHoverProfileTimer);
+            chatHoverProfileTimer = 0;
+        }
+    }
+
+    function openTrainerCardFromChat(id, name) {
+        const login = String(name || '').trim();
+        const playerId = Number(id || 0);
+        if (!login && playerId <= 0) return false;
+        if (!window.TrainerProfileWindow || typeof window.TrainerProfileWindow.open !== 'function') {
+            return false;
+        }
+
+        window.TrainerProfileWindow.open(playerId > 0 ? { id: playerId, login } : { login });
+        return true;
+    }
+
+    function scheduleChatHoverTrainerCard(author) {
+        clearChatHoverProfileTimer();
+        if (!author || author.dataset.system === '1') return;
+
+        const id = parseInt(author.dataset.id || '0', 10);
+        const name = String(author.textContent || '').trim();
+        const key = id > 0 ? `id:${id}` : `login:${name.toLowerCase()}`;
+        if (!name && id <= 0) return;
+
+        chatHoverProfileTimer = window.setTimeout(() => {
+            chatHoverProfileTimer = 0;
+            const now = Date.now();
+            if (chatHoverProfileKey === key && now - chatHoverProfileOpenedAt < 3000) {
+                return;
+            }
+            if (openTrainerCardFromChat(id, name)) {
+                chatHoverProfileKey = key;
+                chatHoverProfileOpenedAt = now;
+            }
+        }, 750);
+    }
+
     function handleUserMenuAction(action, id, name) {
         hideUserMenu();
+
+        if (action === 'info') {
+            const isSystem = userMenu && userMenu.dataset.system === '1';
+            if (!isSystem && openTrainerCardFromChat(id, name)) {
+                return;
+            }
+            if (window.PokemonSocial && typeof window.PokemonSocial.notify === 'function') {
+                window.PokemonSocial.notify('Тренеркарта доступна только для игровых аккаунтов.', 'error');
+            } else {
+                alert('Тренеркарта доступна только для игровых аккаунтов.');
+            }
+            return;
+        }
 
         if (action === 'reply') {
             switchToPublicChat();
@@ -306,7 +385,11 @@
         }
 
         if (action === 'mail') {
-            window.location.href = `/game/messages?to=${encodeURIComponent(id)}`;
+            if (id > 0) {
+                window.location.href = `/game/messages?to=${encodeURIComponent(id)}`;
+            } else {
+                window.location.href = `/game/messages?mail_to=${encodeURIComponent(name)}`;
+            }
             return;
         }
 
@@ -316,7 +399,6 @@
         }
 
         const labels = {
-            info: 'Информация об игроке пока не подключена.',
             ignore: 'Игнорирование пока не подключено.'
         };
         alert(labels[action] || 'Действие пока не подключено.');
@@ -470,12 +552,13 @@
         div.appendChild(timeSpan);
 
         const systemAuthor = isSystemAuthor(msg);
-        if (msg.author_id > 0 || systemAuthor) {
+        const authorName = String(msg.author_name || '').trim();
+        if (authorName !== '') {
             const authorSpan = document.createElement('span');
             authorSpan.className = 'chat-author';
-            authorSpan.dataset.id = systemAuthor ? '0' : msg.author_id;
+            authorSpan.dataset.id = systemAuthor ? '0' : String(Number(msg.author_id || 0));
             authorSpan.dataset.system = systemAuthor ? '1' : '0';
-            authorSpan.textContent = msg.author_name;
+            authorSpan.textContent = authorName;
             div.appendChild(authorSpan);
 
             if (msg.private && msg.to_id > 0) {

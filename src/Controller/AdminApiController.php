@@ -6,6 +6,7 @@ namespace Pokemon8\Controller;
 use Pokemon8\Http\Request;
 use Pokemon8\Http\Response;
 use Pokemon8\Repository\AdminRepository;
+use Pokemon8\Repository\BossRepository;
 use Pokemon8\Security\Csrf;
 use Pokemon8\Security\Session;
 
@@ -15,6 +16,7 @@ final class AdminApiController
         private Session $session,
         private Csrf $csrf,
         private AdminRepository $admin,
+        private ?BossRepository $bosses = null,
     ) {
     }
 
@@ -149,6 +151,42 @@ final class AdminApiController
         }
 
         return $this->json(['ok' => true, 'slots' => $this->admin->wildSlots($request->input('q'))]);
+    }
+
+    public function bosses(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+        if ($this->bosses === null) {
+            return $this->json(['ok' => true, 'bosses' => []]);
+        }
+
+        return $this->json(['ok' => true, 'bosses' => $this->bosses->adminBosses($request->input('q'))]);
+    }
+
+    public function saveBoss(Request $request): Response
+    {
+        return $this->mutate($request, function (int $adminId) use ($request): array {
+            if ($this->bosses === null) {
+                return ['ok' => false, 'message' => 'Сервис боссов не подключен.'];
+            }
+            return $this->bosses->saveBoss($adminId, $request->post);
+        });
+    }
+
+    public function deleteBoss(Request $request): Response
+    {
+        return $this->mutate($request, function (int $adminId) use ($request): array {
+            if ($this->bosses === null) {
+                return ['ok' => false, 'message' => 'Сервис боссов не подключен.'];
+            }
+            return $this->bosses->deleteBoss(
+                $adminId,
+                (int) $request->input('id', '0'),
+                $request->input('confirm')
+            );
+        });
     }
 
     public function saveWildSlot(Request $request): Response
@@ -476,6 +514,79 @@ final class AdminApiController
         return $this->json(['ok' => true, 'audit' => $this->admin->auditRows()]);
     }
 
+    public function commissionDashboard(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+
+        return $this->json(['ok' => true, 'dashboard' => $this->admin->commissionDashboard($this->commissionFilters($request))]);
+    }
+
+    public function commissionLots(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+
+        [$page, $perPage, $offset] = $this->pageParams($request, 80);
+        $result = $this->admin->commissionLots($request->input('q'), $perPage, $offset, $this->commissionFilters($request));
+        return $this->json([
+            'ok' => true,
+            'rows' => $result['rows'],
+            'lots' => $result['rows'],
+            'pagination' => $this->pagination($page, $perPage, (int) $result['total']),
+            'dashboard' => $this->admin->commissionDashboard($this->commissionFilters($request)),
+        ]);
+    }
+
+    public function commissionLogs(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+
+        [$page, $perPage, $offset] = $this->pageParams($request, 80);
+        $result = $this->admin->commissionLogs($request->input('q'), $perPage, $offset, $this->commissionFilters($request));
+        return $this->json([
+            'ok' => true,
+            'rows' => $result['rows'],
+            'logs' => $result['rows'],
+            'pagination' => $this->pagination($page, $perPage, (int) $result['total']),
+            'dashboard' => $this->admin->commissionDashboard($this->commissionFilters($request)),
+        ]);
+    }
+
+    public function commissionPriceHistory(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+
+        return $this->json(['ok' => true] + $this->admin->commissionPriceHistory($this->commissionFilters($request)));
+    }
+
+    public function commissionReturns(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+
+        [$page, $perPage, $offset] = $this->pageParams($request, 80);
+        $result = $this->admin->commissionReturns($request->input('q'), $perPage, $offset, $this->commissionFilters($request));
+        return $this->json([
+            'ok' => true,
+            'rows' => $result['rows'],
+            'returns' => $result['rows'],
+            'pagination' => $this->pagination($page, $perPage, (int) $result['total']),
+        ]);
+    }
+
+    public function reviewCommissionRisk(Request $request): Response
+    {
+        return $this->mutate($request, fn (int $adminId) => $this->admin->reviewCommissionRisk($adminId, $request->post));
+    }
+
     public function settings(Request $request): Response
     {
         if (!$this->authorized()) {
@@ -529,6 +640,23 @@ final class AdminApiController
             'total' => $total,
             'pages' => max(1, (int) ceil($total / max(1, $perPage))),
         ];
+    }
+
+    private function commissionFilters(Request $request): array
+    {
+        $keys = [
+            'period', 'date_from', 'date_to', 'status', 'object_type', 'category', 'seller', 'buyer',
+            'seller_id', 'buyer_id', 'object_id', 'lot_id', 'action', 'legacy', 'price_min', 'price_max',
+            'system_only', 'risky', 'sort', 'q',
+        ];
+        $filters = [];
+        foreach ($keys as $key) {
+            $value = $request->input($key);
+            if ($value !== '') {
+                $filters[$key] = $value;
+            }
+        }
+        return $filters;
     }
 
     private function json(array $payload, int $status = 200): Response

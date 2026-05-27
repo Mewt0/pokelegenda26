@@ -20,7 +20,12 @@ final class DexApiController
             return $this->json(['ok' => false, 'error' => 'auth'], 401);
         }
         $limit = (int) $request->input('limit', '1000');
-        return $this->json(['ok' => true, 'items' => $this->dex->searchPokemon((string) $request->input('q', ''), $limit)]);
+        $filters = [
+            'type' => (string) $request->input('type', ''),
+            'generation' => (string) $request->input('generation', ''),
+            'form' => (string) $request->input('form', ''),
+        ];
+        return $this->json(['ok' => true, 'items' => $this->dex->searchPokemon((string) $request->input('q', ''), $limit, $filters)]);
     }
 
     public function pokemon(Request $request): Response
@@ -39,7 +44,17 @@ final class DexApiController
             return $this->json(['ok' => false, 'error' => 'auth'], 401);
         }
         $limit = (int) $request->input('limit', '1200');
-        return $this->json(['ok' => true, 'items' => $this->dex->searchAttacks((string) $request->input('q', ''), $limit)]);
+        $filters = [
+            'type' => (string) $request->input('type', ''),
+            'category' => (string) $request->input('category', ''),
+            'power_min' => (string) $request->input('power_min', ''),
+            'power_max' => (string) $request->input('power_max', ''),
+            'accuracy_min' => (string) $request->input('accuracy_min', ''),
+            'accuracy_max' => (string) $request->input('accuracy_max', ''),
+            'pokemon' => (string) $request->input('pokemon', ''),
+            'tm' => (string) $request->input('tm', ''),
+        ];
+        return $this->json(['ok' => true, 'items' => $this->dex->searchAttacks((string) $request->input('q', ''), $limit, $filters)]);
     }
 
     public function attack(Request $request): Response

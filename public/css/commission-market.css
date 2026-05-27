@@ -1,0 +1,694 @@
+.commission-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 97000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(18, 35, 58, .42);
+  backdrop-filter: blur(3px);
+}
+
+.commission-overlay.is-open {
+  display: flex;
+}
+
+.commission-page {
+  min-height: 100vh;
+  padding: 16px;
+  display: grid;
+  place-items: start center;
+  background:
+    linear-gradient(180deg, rgba(249, 252, 255, .95), rgba(232, 242, 255, .96)),
+    url("/public/img/ui/chatgpt-pokeball.png") right -220px top -220px / 620px auto no-repeat;
+  color: #20334f;
+  font: 15px/1.45 Inter, Manrope, "Nunito Sans", Tahoma, Arial, sans-serif;
+}
+
+.commission-window {
+  width: min(1180px, calc(100vw - 32px));
+  height: min(760px, calc(100vh - 72px));
+  min-height: 560px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid rgba(159, 190, 230, .82);
+  border-radius: 8px;
+  background: rgba(248, 252, 255, .96);
+  box-shadow: 0 24px 70px rgba(50, 91, 145, .28);
+  color: #20334f;
+}
+
+.commission-page .commission-window {
+  height: min(760px, calc(100vh - 32px));
+}
+
+.commission-head {
+  min-height: 64px;
+  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) 36px;
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid #cfe0f4;
+  background: linear-gradient(90deg, #e3f1ff, #f6fbff);
+}
+
+.commission-title-mark {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #c1d8f4;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(63, 127, 255, .14);
+}
+
+.commission-title-mark img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+
+.commission-head h1 {
+  margin: 0;
+  color: #172b48;
+  font: 900 24px/1.05 Inter, Manrope, Arial, sans-serif;
+  letter-spacing: 0;
+}
+
+.commission-head p {
+  margin: 4px 0 0;
+  color: #65748f;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.commission-close {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #b8cce4;
+  border-radius: 8px;
+  background: #fff;
+  color: #526987;
+  text-decoration: none;
+  font: 900 24px/1 Tahoma, Arial, sans-serif;
+  cursor: pointer;
+}
+
+.commission-layout {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 214px minmax(0, 1fr) 288px;
+  background: linear-gradient(180deg, #f8fbff, #edf5ff);
+}
+
+.commission-side,
+.commission-center,
+.commission-preview {
+  min-height: 0;
+  min-width: 0;
+}
+
+.commission-side {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  border-right: 1px solid #cfdef0;
+  background: rgba(233, 244, 255, .72);
+}
+
+.commission-side-title {
+  padding: 12px;
+  color: #314966;
+  font-weight: 900;
+  text-align: center;
+  border-bottom: 1px solid #cfdef0;
+}
+
+.commission-categories {
+  min-height: 0;
+  padding: 10px;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  overflow: auto;
+}
+
+.commission-sellable-panel {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.commission-categories[hidden],
+.commission-sellable-panel[hidden],
+.commission-tabs button[hidden] {
+  display: none !important;
+}
+
+.commission-sellable-search {
+  padding: 9px 10px 5px;
+}
+
+.commission-sellable-search input {
+  width: 100%;
+  height: 32px;
+  min-width: 0;
+  border: 1px solid #b8cce4;
+  border-radius: 8px;
+  background: #fff;
+  color: #20334f;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.commission-sellable-grid {
+  min-height: 0;
+  padding: 7px 10px 12px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
+  gap: 8px;
+  overflow: auto;
+}
+
+.commission-sellable-card {
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid #c9daf0;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.96), rgba(236,247,255,.9)),
+    repeating-linear-gradient(135deg, rgba(95,145,205,.08) 0 8px, transparent 8px 16px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
+  cursor: pointer;
+}
+
+.commission-sellable-card:hover {
+  border-color: #6fa8ee;
+  box-shadow: 0 8px 18px rgba(59, 122, 205, .14);
+}
+
+.commission-sellable-card img {
+  max-width: 72%;
+  max-height: 72%;
+  object-fit: contain;
+}
+
+.commission-sellable-card b {
+  position: absolute;
+  right: 5px;
+  bottom: 3px;
+  color: #213651;
+  font-size: 11px;
+  text-shadow: 0 1px #fff;
+}
+
+.commission-sellable-card span {
+  display: none;
+}
+
+.commission-sellable-card.is-blocked {
+  opacity: .48;
+  cursor: not-allowed;
+  filter: grayscale(.35);
+}
+
+.commission-sellable-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 20px 8px;
+  color: #6c7e96;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.commission-category {
+  min-height: 32px;
+  border: 1px solid #c4d7ee;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .92);
+  color: #40506b;
+  font-weight: 800;
+  text-align: left;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.commission-category:hover,
+.commission-category.is-active {
+  border-color: #7fb2f2;
+  background: #eaf4ff;
+  color: #1d66c2;
+}
+
+.commission-tabs {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-top: 1px solid #cfdef0;
+}
+
+.commission-tabs button {
+  min-height: 38px;
+  border: 1px solid #c4d7ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #40506b;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.commission-tabs button.is-active {
+  border-color: #3f7fff;
+  background: #3f7fff;
+  color: #fff;
+}
+
+.commission-tab-my,
+.commission-tab-lots {
+  width: 100%;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+.commission-tab-my {
+  border-color: #97bff1 !important;
+  background: linear-gradient(180deg, #fff, #e8f4ff) !important;
+  color: #2364ad !important;
+}
+
+.commission-tab-lots {
+  background: linear-gradient(180deg, #f9fcff, #e9f1fb) !important;
+  color: #526987 !important;
+}
+
+.commission-center {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+.commission-view-title {
+  min-height: 36px;
+  display: grid;
+  place-items: center;
+  border-bottom: 1px solid #cfdef0;
+  background: rgba(255, 255, 255, .64);
+  color: #49617f;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.commission-toolbar {
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 180px minmax(180px, 1fr) 86px 104px;
+  gap: 8px;
+  border-bottom: 1px solid #cfdef0;
+  background: rgba(255, 255, 255, .72);
+}
+
+.commission-toolbar select,
+.commission-toolbar input,
+.commission-toolbar button,
+.commission-sell select,
+.commission-sell input,
+.commission-sell button {
+  height: 36px;
+  min-width: 0;
+  border: 1px solid #b8cce4;
+  border-radius: 8px;
+  background: #fff;
+  color: #20334f;
+  padding: 0 10px;
+  font: inherit;
+  font-weight: 700;
+}
+
+.commission-toolbar button,
+.commission-sell button {
+  cursor: pointer;
+  color: #1d66c2;
+}
+
+.commission-list-wrap {
+  min-height: 0;
+  overflow: auto;
+  background: rgba(255, 255, 255, .5);
+}
+
+.commission-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.commission-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 32px;
+  border-bottom: 1px solid #cfdef0;
+  background: #e4f0ff;
+  color: #5c6f8a;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.commission-table th:nth-child(1) { width: 44%; }
+.commission-table th:nth-child(2),
+.commission-table th:nth-child(3) { width: 17%; }
+.commission-table th:nth-child(4) { width: 22%; }
+
+.commission-table td {
+  min-height: 76px;
+  border-bottom: 1px solid #e2ebf7;
+  border-right: 1px solid #edf3fb;
+  background: rgba(255, 255, 255, .78);
+  vertical-align: middle;
+}
+
+.commission-lot {
+  min-height: 76px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 28px;
+  gap: 10px;
+  align-items: center;
+}
+
+.commission-lot-icon {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d2e3f6;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.commission-lot-icon img {
+  max-width: 46px;
+  max-height: 46px;
+  object-fit: contain;
+}
+
+.commission-lot-count {
+  position: absolute;
+  right: 3px;
+  bottom: 1px;
+  color: #1d3557;
+  font-size: 11px;
+  font-weight: 900;
+  text-shadow: 0 1px #fff;
+}
+
+.commission-lot-name {
+  display: block;
+  overflow: hidden;
+  color: #1c2f4c;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commission-lot-sub {
+  display: block;
+  margin-top: 4px;
+  color: #6d7f98;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.commission-preview-button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #c2d6ef;
+  border-radius: 7px;
+  background: #fff;
+  color: #42648c;
+  cursor: pointer;
+}
+
+.commission-price {
+  text-align: center;
+  color: #243750;
+  font-weight: 900;
+}
+
+.commission-seller {
+  padding: 6px;
+  display: grid;
+  gap: 5px;
+  justify-items: center;
+  text-align: center;
+}
+
+.commission-seller b {
+  color: #304763;
+}
+
+.commission-seller small {
+  color: #6b7d94;
+  font-size: 11px;
+}
+
+.commission-seller button {
+  min-width: 78px;
+  height: 30px;
+  border: 1px solid #b8cce4;
+  border-radius: 8px;
+  background: #fff;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.commission-seller .buy {
+  color: #128447;
+}
+
+.commission-seller .cancel {
+  color: #c64a4a;
+}
+
+.commission-empty {
+  padding: 42px;
+  color: #6c7e96;
+  text-align: center;
+  font-weight: 800;
+}
+
+.commission-sell {
+  padding: 10px;
+  border-top: 1px solid #cfdef0;
+  background: rgba(236, 246, 255, .82);
+}
+
+.commission-sell h2,
+.commission-preview h2 {
+  margin: 0 0 8px;
+  color: #20334f;
+  font-size: 16px;
+}
+
+.commission-sell form {
+  display: grid;
+  grid-template-columns: 94px minmax(120px, 1fr) 74px 96px 90px 96px;
+  gap: 7px;
+  align-items: end;
+}
+
+.commission-sell label span {
+  display: block;
+  margin-bottom: 3px;
+  color: #61728b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.commission-preview {
+  padding: 12px;
+  border-left: 1px solid #cfdef0;
+  background: rgba(247, 251, 255, .92);
+  overflow: auto;
+}
+
+.commission-preview ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.commission-preview li {
+  padding: 8px 0;
+  border-bottom: 1px solid #e0eaf6;
+  color: #526780;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.commission-preview b {
+  color: #213651;
+}
+
+.commission-status {
+  min-height: 34px;
+  padding: 8px 12px;
+  border-top: 1px solid #cfdef0;
+  background: #f7fbff;
+  color: #23653d;
+  font-weight: 900;
+}
+
+.commission-status.is-bad {
+  color: #bd3d3d;
+}
+
+.commission-menu-entry {
+  position: relative;
+}
+
+.actionbar a.commission-menu-entry {
+  width: 92px;
+  min-width: 92px;
+  min-height: 62px;
+  border-color: #9fc5f5;
+  background: linear-gradient(180deg, #ffffff, #eaf4ff);
+  color: #145fad;
+}
+
+.actionbar a.commission-menu-entry img {
+  width: 31px;
+  height: 31px;
+}
+
+.commission-menu-badge {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  min-width: 24px;
+  height: 17px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #ffcf4a;
+  color: #4d3510;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 2px 7px rgba(180, 117, 0, .22);
+}
+
+body.has-commission-overlay {
+  overflow: hidden;
+}
+
+@media (max-width: 980px) {
+  .commission-overlay {
+    padding: 8px;
+  }
+
+  .commission-window {
+    width: calc(100vw - 16px);
+    height: calc(100vh - 16px);
+    min-height: 0;
+  }
+
+  .commission-layout {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+
+  .commission-side {
+    border-right: 0;
+    border-bottom: 1px solid #cfdef0;
+  }
+
+  .commission-categories {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .commission-sellable-grid {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .commission-sellable-card {
+    flex: 0 0 68px;
+    width: 68px;
+    height: 68px;
+    aspect-ratio: auto;
+  }
+
+  .commission-category {
+    flex: 0 0 auto;
+  }
+
+  .commission-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .commission-toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .commission-preview {
+    border-left: 0;
+    border-top: 1px solid #cfdef0;
+    max-height: 220px;
+  }
+
+  .commission-sell form {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .commission-page {
+    padding: 8px;
+  }
+
+  .commission-head {
+    grid-template-columns: 38px minmax(0, 1fr) 34px;
+  }
+
+  .commission-head h1 {
+    font-size: 20px;
+  }
+
+  .commission-toolbar,
+  .commission-sell form {
+    grid-template-columns: 1fr;
+  }
+
+  .commission-table th:nth-child(3),
+  .commission-table td:nth-child(3) {
+    display: none;
+  }
+
+  .commission-table th:nth-child(1) { width: 50%; }
+  .commission-table th:nth-child(2) { width: 22%; }
+  .commission-table th:nth-child(4) { width: 28%; }
+
+  .commission-lot {
+    grid-template-columns: 46px minmax(0, 1fr);
+  }
+
+  .commission-preview-button {
+    display: none;
+  }
+}

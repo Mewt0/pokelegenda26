@@ -21,6 +21,9 @@
   let activeFriendStatus = 'loading';
   let activePvpStatus = 'loading';
   let activePvpPermission = null;
+  let hoverProfileTimer = 0;
+  let hoverProfilePlayerId = 0;
+  let hoverProfileOpenedAt = 0;
   let knownIncomingRequests = new Set(loadSeenRequests());
   let knownIncomingPvpRequests = new Set(loadSeenPvpRequests());
 
@@ -46,6 +49,7 @@
     removeFriend: 'Удалить из друзей',
     ignore: 'Добавить в чёрный список',
     mail: 'Написать на почту',
+    breeding: 'Разведение',
   };
 
   function loadSeenRequests() {
@@ -103,8 +107,13 @@
     return String(Math.max(0, Number(value || 0))).padStart(3, '0');
   }
 
+  function displayDexNumber(pokemon) {
+    return Number(pokemon && (pokemon.dexNumber || pokemon.displayBaseNum || pokemon.baseId || pokemon.baseNum) || 0);
+  }
+
   function pokemonSprite(pokemon) {
     const base = Math.max(0, Number(pokemon && pokemon.baseNum || 0));
+    if (base >= 5000) return '/Pok/pok/' + base + '.gif';
     return base > 0 ? '/Pok/normal/' + base + '.png' : '/public/img/ui/menu-pokemon.png';
   }
 
@@ -123,6 +132,13 @@
     menu.innerHTML = '';
     menu.dataset.playerId = '';
     activePvpPermission = null;
+  }
+
+  function clearHoverProfileTimer() {
+    if (hoverProfileTimer) {
+      window.clearTimeout(hoverProfileTimer);
+      hoverProfileTimer = 0;
+    }
   }
 
   function escapeAttr(value) {
@@ -186,6 +202,7 @@
         '<div><b></b><small>' + text.localPlayer + '</small></div>',
       '</div>',
       menuButton('card', '&#9817;', text.card),
+      menuButton('breeding', '&#10084;', text.breeding),
       isSelf ? '' : menuButton('dialog', '&#9743;', text.dialog),
       isSelf ? '' : menuButton('private', '&#9998;', text.private),
       isSelf ? '' : '<hr>',
@@ -303,10 +320,45 @@
     positionMenu(row);
   }
 
+  function openTrainerCard(playerId, login) {
+    if (playerId <= 0) {
+      notify('Не удалось определить игрока. Обнови страницу.', 'error');
+      return false;
+    }
+    if (!window.TrainerProfileWindow || typeof window.TrainerProfileWindow.open !== 'function') {
+      notify('Тренеркарта ещё загружается. Попробуй через секунду.', 'error');
+      return false;
+    }
+
+    window.TrainerProfileWindow.open({ id: playerId, login });
+    return true;
+  }
+
+  function scheduleHoverTrainerCard(row) {
+    clearHoverProfileTimer();
+    if (!row || currentUserId <= 0) return;
+
+    const login = row.dataset.playerLogin || row.querySelector('.user-name')?.textContent || '';
+    const playerId = Number(row.dataset.playerId || 0);
+    if (!login || playerId <= 0) return;
+
+    hoverProfileTimer = window.setTimeout(() => {
+      hoverProfileTimer = 0;
+      const now = Date.now();
+      if (hoverProfilePlayerId === playerId && now - hoverProfileOpenedAt < 3000) {
+        return;
+      }
+      hoverProfilePlayerId = playerId;
+      hoverProfileOpenedAt = now;
+      openTrainerCard(playerId, login);
+    }, 650);
+  }
+
   function actionUrl(action, login) {
     const encoded = encodeURIComponent(login);
     const id = Number(menu.dataset.playerId || 0);
     if (action === 'mail') return '/game/messages?mail_to=' + encoded;
+    if (action === 'breeding') return '/game/pokemon?breed_with=' + encoded;
     if (action === 'card') return id > 0 ? '/game/profile?id=' + id : '/game/profile?user=' + encoded;
     return '';
   }
@@ -487,7 +539,7 @@
             '<button type="button" class="pvp-pokemon-choice" data-pokemon-id="' + Number(item.id || 0) + '">',
               '<span class="pvp-pokemon-art"><img src="' + pokemonSprite(item) + '" alt=""></span>',
               '<span class="pvp-pokemon-main">',
-                '<b>#' + pad3(item.baseNum) + ' ' + name + '</b>',
+                '<b>#' + pad3(displayDexNumber(item)) + ' ' + name + '</b>',
                 '<small>Lv.' + Number(item.level || 0) + ' · HP ' + Number(item.hp || 0) + '/' + Number(item.hpMax || 0) + '</small>',
                 '<i><em style="width:' + hp + '%"></em></i>',
               '</span>',
@@ -585,6 +637,12 @@
         return;
       }
 
+      if (action === 'card') {
+        openTrainerCard(playerId, activeLogin);
+        closeMenu();
+        return;
+      }
+
       const url = actionUrl(action, activeLogin);
       if (url) {
         window.location.href = url;
@@ -604,6 +662,7 @@
     const row = event.target.closest('.player-row');
     if (row && document.getElementById('usersList')?.contains(row)) {
       event.preventDefault();
+      clearHoverProfileTimer();
       openMenu(row);
       return;
     }
@@ -611,6 +670,20 @@
     if (!event.target.closest('.player-context-menu')) {
       closeMenu();
     }
+  });
+
+  document.addEventListener('mouseover', event => {
+    const row = event.target.closest('.player-row');
+    if (!row || !document.getElementById('usersList')?.contains(row)) return;
+    if (row.contains(event.relatedTarget)) return;
+    scheduleHoverTrainerCard(row);
+  });
+
+  document.addEventListener('mouseout', event => {
+    const row = event.target.closest('.player-row');
+    if (!row || !document.getElementById('usersList')?.contains(row)) return;
+    if (row.contains(event.relatedTarget)) return;
+    clearHoverProfileTimer();
   });
 
   document.addEventListener('keydown', event => {
@@ -621,8 +694,14 @@
     }
   });
 
-  window.addEventListener('resize', closeMenu);
-  window.addEventListener('scroll', closeMenu, true);
+  window.addEventListener('resize', () => {
+    clearHoverProfileTimer();
+    closeMenu();
+  });
+  window.addEventListener('scroll', () => {
+    clearHoverProfileTimer();
+    closeMenu();
+  }, true);
 
   pollIncomingRequests();
   pollIncomingPvpRequests();

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Pokemon8\Repository;
 
 use PDO;
+use Pokemon8\Game\PokemonFormCatalog;
 
 final class PokemonRepository
 {
@@ -36,6 +37,7 @@ final class PokemonRepository
 
     public function countActivePokemon(int $userId): int
     {
+        $this->normalizeActiveTeam($userId);
         $stmt = $this->db->prepare('SELECT COUNT(*) FROM pok_user WHERE users = :user AND active = 1');
         $stmt->execute(['user' => $userId]);
         return (int) ($stmt->fetchColumn() ?: 0);
@@ -53,14 +55,17 @@ final class PokemonRepository
 
     public function moveToNursery(int $userId, int $pokemonId): bool
     {
+        $this->normalizeActiveTeam($userId);
         if ($this->countActivePokemon($userId) <= 1) {
             return false;
         }
 
         $stmt = $this->db->prepare(
             'UPDATE pok_user
-                SET active = 0, startepoke = 0
-              WHERE id = :pokemon AND users = :user AND active = 1
+                SET active = 0,
+                    startepoke = 0,
+                    happy = GREATEST(0, happy - 10)
+              WHERE id = :pokemon AND users = :user AND active = 1 AND startepoke <> 1
               LIMIT 1'
         );
         $stmt->execute([
@@ -73,6 +78,7 @@ final class PokemonRepository
 
     public function moveFromNursery(int $userId, int $pokemonId): bool
     {
+        $this->normalizeActiveTeam($userId);
         if ($this->countActivePokemon($userId) >= 6) {
             return false;
         }
@@ -91,11 +97,56 @@ final class PokemonRepository
         return $stmt->rowCount() > 0;
     }
 
+    public function nurseryAction(int $userId, int $pokemonId, string $action): array
+    {
+        if ($pokemonId <= 0) {
+            return ['ok' => false, 'message' => 'Покемон не выбран.', 'pokemon' => $this->moveEditorData($userId)];
+        }
+
+        $busy = $this->db->prepare('SELECT pve, pvp FROM users WHERE id = :user LIMIT 1');
+        $busy->execute(['user' => $userId]);
+        $user = $busy->fetch();
+        if ($user && ((int) ($user['pve'] ?? 0) > 0 || (int) ($user['pvp'] ?? 0) > 0)) {
+            return ['ok' => false, 'message' => 'Сначала закончите бой.', 'pokemon' => $this->moveEditorData($userId)];
+        }
+
+        $pokemon = $this->ownedPokemon($userId, $pokemonId);
+        if ($pokemon === null) {
+            return ['ok' => false, 'message' => 'Покемон не найден.', 'pokemon' => $this->moveEditorData($userId)];
+        }
+
+        if ($action === 'store') {
+            if ((int) ($pokemon['active'] ?? 0) !== 1) {
+                return ['ok' => false, 'message' => 'Этот покемон уже находится в питомнике.', 'pokemon' => $this->moveEditorData($userId)];
+            }
+            if ((int) ($pokemon['startepoke'] ?? 0) === 1) {
+                return ['ok' => false, 'message' => 'Стартового покемона нельзя отправить в питомник.', 'pokemon' => $this->moveEditorData($userId)];
+            }
+            if (!$this->moveToNursery($userId, $pokemonId)) {
+                return ['ok' => false, 'message' => 'При себе должен остаться хотя бы один активный покемон.', 'pokemon' => $this->moveEditorData($userId)];
+            }
+            return ['ok' => true, 'message' => 'Покемон отправлен в питомник.', 'pokemon' => $this->moveEditorData($userId)];
+        }
+
+        if ($action === 'take') {
+            if ((int) ($pokemon['active'] ?? 0) === 1) {
+                return ['ok' => false, 'message' => 'Этот покемон уже находится в команде.', 'pokemon' => $this->moveEditorData($userId)];
+            }
+            if (!$this->moveFromNursery($userId, $pokemonId)) {
+                return ['ok' => false, 'message' => 'В команде уже 6 покемонов. Сначала отправьте кого-нибудь в питомник.', 'pokemon' => $this->moveEditorData($userId)];
+            }
+            return ['ok' => true, 'message' => 'Покемон добавлен в команду.', 'pokemon' => $this->moveEditorData($userId)];
+        }
+
+        return ['ok' => false, 'message' => 'Неизвестное действие питомника.', 'pokemon' => $this->moveEditorData($userId)];
+    }
+
     public function moveEditorData(int $userId): array
     {
+        $this->normalizeActiveTeam($userId);
         $pokemon = array_merge(
-            $this->listActivePokemon($userId, 20),
-            $this->listNurseryPokemon($userId, 80)
+            $this->listActivePokemon($userId, 6),
+            $this->listNurseryPokemon($userId, 500)
         );
         foreach ($pokemon as &$row) {
             $row['moves'] = $this->selectedMoves((int) $row['id']);
@@ -229,19 +280,63 @@ final class PokemonRepository
      */
     private function activePokemonIds(int $userId): array
     {
+        $this->normalizeActiveTeam($userId);
         $stmt = $this->db->prepare('SELECT id FROM pok_user WHERE users = :user AND active = 1');
         $stmt->execute(['user' => $userId]);
         return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
     }
 
+    private function normalizeActiveTeam(int $userId): int
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id
+               FROM pok_user
+              WHERE users = :user AND active = 1
+              ORDER BY startepoke DESC, id ASC'
+        );
+        $stmt->execute(['user' => $userId]);
+        $ids = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+        if (count($ids) <= 6) {
+            return 0;
+        }
+
+        $overflow = array_slice($ids, 6);
+        $placeholders = implode(',', array_fill(0, count($overflow), '?'));
+        $update = $this->db->prepare(
+            'UPDATE pok_user
+                SET active = 0, startepoke = 0
+              WHERE users = ? AND id IN (' . $placeholders . ')'
+        );
+        $update->execute(array_merge([$userId], $overflow));
+        return $update->rowCount();
+    }
+
+    private function ownedPokemon(int $userId, int $pokemonId): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, users, active, startepoke
+               FROM pok_user
+              WHERE id = :pokemon AND users = :user
+              LIMIT 1'
+        );
+        $stmt->execute(['pokemon' => $pokemonId, 'user' => $userId]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
     private function listPokemonByActive(int $userId, int $active, int $limit): array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, names, basenum, lvl, hp_my, hp_max, startepoke,
-                    training_stage, training_stat, training_named_effect, training_tamed
-               FROM pok_user
-              WHERE users = :user AND active = :active
-              ORDER BY startepoke DESC, basenum ASC, id ASC
+            'SELECT pu.id, pu.names, pu.basenum, pu.lvl, pu.hp_my, pu.hp_max, pu.startepoke,
+                    pu.training_stage, pu.training_stat, pu.training_named_effect, pu.training_tamed,
+                    COALESCE(ip.id_items, pu.item, 0) AS held_item_id,
+                    held.name AS held_item_name,
+                    held.tittle AS held_item_title
+               FROM pok_user pu
+          LEFT JOIN items_poke ip ON ip.id_poke = pu.id
+          LEFT JOIN items held ON held.id = COALESCE(ip.id_items, pu.item, 0)
+              WHERE pu.users = :user AND pu.active = :active
+              ORDER BY pu.startepoke DESC, pu.basenum ASC, pu.id ASC
               LIMIT :limit'
         );
         $stmt->bindValue(':user', $userId, PDO::PARAM_INT);
@@ -255,11 +350,21 @@ final class PokemonRepository
                 'id' => (int) $row['id'],
                 'name' => strip_tags((string) $row['names']),
                 'baseNum' => (int) $row['basenum'],
+                'formId' => (int) $row['basenum'],
+                'dexNumber' => PokemonFormCatalog::displayBaseId((int) $row['basenum']),
+                'displayBaseNum' => PokemonFormCatalog::displayBaseId((int) $row['basenum']),
+                'formKey' => PokemonFormCatalog::formKey((int) $row['basenum'], (string) $row['names']),
+                'isForm' => PokemonFormCatalog::isForm((int) $row['basenum']),
                 'level' => (int) $row['lvl'],
                 'hp' => (int) $row['hp_my'],
                 'hpMax' => (int) $row['hp_max'],
                 'active' => $active === 1,
                 'starter' => (int) $row['startepoke'] === 1,
+                'heldItem' => [
+                    'id' => (int) ($row['held_item_id'] ?? 0),
+                    'name' => strip_tags((string) ($row['held_item_name'] ?? '')),
+                    'title' => strip_tags((string) ($row['held_item_title'] ?? '')),
+                ],
                 'training' => $this->trainingInfo($row),
             ];
         }
@@ -353,6 +458,16 @@ final class PokemonRepository
     }
 
     private function learnableMoves(int $baseNum, int $level): array
+    {
+        $moves = $this->learnableMovesForBase($baseNum, $level);
+        if ($moves !== [] || !PokemonFormCatalog::isForm($baseNum)) {
+            return $moves;
+        }
+
+        return $this->learnableMovesForBase(PokemonFormCatalog::displayBaseId($baseNum), $level);
+    }
+
+    private function learnableMovesForBase(int $baseNum, int $level): array
     {
         $stmt = $this->db->prepare(
             'SELECT ap.atac_id AS id, ap.atc_lvl AS level, apw.atac_name AS name, apw.atac_tip AS type, apw.atac_pp AS pp

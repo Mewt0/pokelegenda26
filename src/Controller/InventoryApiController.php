@@ -67,9 +67,39 @@ final class InventoryApiController
             return $this->json(['ok' => false, 'error' => 'auth', 'message' => 'auth'], 401);
         }
 
+        $items = $this->inventory->listBattleItemsForUser($userId);
+        $ballsCount = 0;
+        $itemsCount = 0;
+        foreach ($items as $item) {
+            if (($item['battle_pocket'] ?? '') === 'balls') {
+                $ballsCount++;
+            } else {
+                $itemsCount++;
+            }
+        }
+        error_log(sprintf('[INVENTORY] Loaded %d items', $itemsCount));
+        error_log(sprintf('[INVENTORY] Loaded %d pokeballs', $ballsCount));
+
         return $this->json([
             'ok' => true,
-            'items' => $this->inventory->listBattleItemsForUser($userId),
+            'items' => $items,
+            'summary' => [
+                'items' => $itemsCount,
+                'balls' => $ballsCount,
+                'total' => count($items),
+            ],
+            'categories' => [
+                'items' => [
+                    ['key' => 'healing', 'label' => 'Лечение'],
+                    ['key' => 'status', 'label' => 'Статусы'],
+                    ['key' => 'revive', 'label' => 'Revive'],
+                    ['key' => 'buffs', 'label' => 'Баффы'],
+                    ['key' => 'utility', 'label' => 'Разное'],
+                ],
+                'balls' => [
+                    ['key' => 'balls', 'label' => 'Покеболы'],
+                ],
+            ],
         ]);
     }
 
@@ -135,6 +165,23 @@ final class InventoryApiController
             $itemUserId,
             $pokemonId,
             (int) $request->input('count', '1')
+        ));
+    }
+
+    public function openGift(Request $request): Response
+    {
+        $userId = (int) $this->session->get('id', 0);
+        if ($userId <= 0) {
+            return $this->json(['ok' => false, 'error' => 'auth', 'message' => 'Нужно войти в игру.'], 401);
+        }
+
+        if (!$this->csrf->validate($request->input('_csrf'))) {
+            return $this->json(['ok' => false, 'error' => 'csrf', 'message' => 'Сессия устарела. Обновите страницу.'], 419);
+        }
+
+        return $this->json($this->inventory->openGiftBox(
+            $userId,
+            (int) $request->input('item_user_id', '0')
         ));
     }
 

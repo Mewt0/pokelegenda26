@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Pokemon8\Repository;
 
 use PDO;
+use Pokemon8\Game\PokemonFormCatalog;
 use Throwable;
 
 final class PokemonEvolutionRepository
@@ -87,6 +88,9 @@ final class PokemonEvolutionRepository
 
         $rule = $this->levelEvolutionTarget((int) $pokemon['basenum'], (int) $pokemon['lvl']);
         if ($rule === null) {
+            $rule = $this->conditionEvolutionTarget($pokemon);
+        }
+        if ($rule === null) {
             return null;
         }
 
@@ -103,6 +107,7 @@ final class PokemonEvolutionRepository
         $targetName = $this->basePokemonName($targetBaseId);
         $oldBaseId = (int) $pokemon['basenum'];
         $oldName = trim((string) ($pokemon['names'] ?? '')) ?: $this->basePokemonName($oldBaseId);
+        $isFormChange = $this->isSameSpeciesFormChange($oldBaseId, $targetBaseId);
 
         $this->db->prepare(
             'UPDATE pok_user
@@ -116,13 +121,18 @@ final class PokemonEvolutionRepository
             'user' => $userId,
         ]);
 
-        $this->recalculatePokemonStats($pokemonId, $userId);
+        if (!$isFormChange) {
+            $this->recalculatePokemonStats($pokemonId, $userId);
+        }
 
         return [
             'pokemonId' => $pokemonId,
             'source' => $source,
             'fromBaseId' => $oldBaseId,
             'toBaseId' => $targetBaseId,
+            'displayFromBaseId' => PokemonFormCatalog::displayBaseId($oldBaseId),
+            'displayToBaseId' => PokemonFormCatalog::displayBaseId($targetBaseId),
+            'formChange' => $isFormChange,
             'fromName' => $oldName,
             'toName' => $targetName,
             'condition' => (string) ($rule['condition'] ?? ''),
@@ -157,6 +167,35 @@ final class PokemonEvolutionRepository
         return $name !== '' ? $name : ('Pokemon #' . $baseId);
     }
 
+    private function isSameSpeciesFormChange(int $oldBaseId, int $targetBaseId): bool
+    {
+        if ($oldBaseId <= 0 || $targetBaseId <= 0 || $oldBaseId === $targetBaseId) {
+            return false;
+        }
+
+        $oldDisplay = PokemonFormCatalog::displayBaseId($oldBaseId, $this->pokemonCode($oldBaseId));
+        $targetDisplay = PokemonFormCatalog::displayBaseId($targetBaseId, $this->pokemonCode($targetBaseId));
+
+        return $oldDisplay > 0
+            && $oldDisplay === $targetDisplay
+            && (PokemonFormCatalog::isForm($oldBaseId) || PokemonFormCatalog::isForm($targetBaseId));
+    }
+
+    private function pokemonCode(int $baseId): string
+    {
+        if ($baseId <= 0) {
+            return '';
+        }
+
+        try {
+            $stmt = $this->db->prepare('SELECT Code FROM pokemon WHERE id = :id LIMIT 1');
+            $stmt->execute(['id' => $baseId]);
+            return (string)($stmt->fetchColumn() ?: '');
+        } catch (Throwable) {
+            return '';
+        }
+    }
+
     private function ownedPokemon(int $userId, int $pokemonId): ?array
     {
         $stmt = $this->db->prepare(
@@ -181,6 +220,94 @@ final class PokemonEvolutionRepository
         } catch (Throwable) {
             return null;
         }
+    }
+
+    private function conditionEvolutionTarget(array $pokemon): ?array
+    {
+        $baseId = (int)($pokemon['basenum'] ?? 0);
+        $pokemonId = (int)($pokemon['id'] ?? 0);
+        if ($baseId <= 0 || $pokemonId <= 0) {
+            return null;
+        }
+
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT *
+                   FROM pokemon_evolution_rules
+                  WHERE enabled = 1
+                    AND trigger_type = "condition"
+                    AND from_base_id = :base
+                  ORDER BY priority ASC, id ASC'
+            );
+            $stmt->execute(['base' => $baseId]);
+            $rules = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable) {
+            return null;
+        }
+
+        foreach ($rules as $rule) {
+            $condition = mb_strtolower((string)($rule['condition_text'] ?? ''), 'UTF-8');
+            if ($this->conditionRequiresAncientPower($condition) && $this->pokemonKnowsAncientPower($pokemonId)) {
+                return $this->formatRule($rule);
+            }
+        }
+
+        return null;
+    }
+
+    private function conditionRequiresAncientPower(string $condition): bool
+    {
+        return str_contains($condition, 'ancient')
+            || str_contains($condition, 'древн')
+            || str_contains($condition, '246');
+    }
+
+    private function pokemonKnowsAncientPower(int $pokemonId): bool
+    {
+        $attackIds = $this->ancientPowerAttackIds();
+        if ($attackIds === []) {
+            return false;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($attackIds), '?'));
+        $stmt = $this->db->prepare(
+            'SELECT 1
+               FROM attac_my_poke
+              WHERE pok_id = ?
+                AND (a_id IN (' . $placeholders . ')
+                 OR b_id IN (' . $placeholders . ')
+                 OR c_id IN (' . $placeholders . ')
+                 OR d_id IN (' . $placeholders . '))
+              LIMIT 1'
+        );
+        $params = array_merge([$pokemonId], $attackIds, $attackIds, $attackIds, $attackIds);
+        $stmt->execute($params);
+
+        return (bool)$stmt->fetchColumn();
+    }
+
+    private function ancientPowerAttackIds(): array
+    {
+        static $ids = null;
+        if ($ids !== null) {
+            return $ids;
+        }
+
+        try {
+            $stmt = $this->db->query(
+                'SELECT atac_id
+                   FROM attac_power
+                  WHERE LOWER(REPLACE(REPLACE(atac_name, " ", ""), "-", "")) IN ("ancientpower", "древняясила")
+                     OR atac_name LIKE "%Ancient%"
+                     OR atac_name LIKE "%Древ%"
+                  ORDER BY atac_id ASC'
+            );
+            $ids = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+        } catch (Throwable) {
+            $ids = [];
+        }
+
+        return $ids;
     }
 
     private function formatRule(array $row): array

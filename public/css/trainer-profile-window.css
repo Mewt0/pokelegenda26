@@ -1,0 +1,512 @@
+.trainer-profile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120000;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 18px;
+  pointer-events: none;
+}
+
+.trainer-profile-overlay.is-open {
+  display: flex;
+}
+
+.trainer-profile-window {
+  width: min(1040px, calc(100vw - 28px));
+  height: min(720px, calc(100vh - 36px));
+  min-height: 560px;
+  display: grid;
+  grid-template-rows: 38px minmax(0, 1fr) 28px;
+  overflow: hidden;
+  border: 2px solid rgba(178, 171, 104, .84);
+  border-radius: 7px;
+  background: #d9dde1;
+  color: #172944;
+  box-shadow: 0 20px 52px rgba(18, 35, 58, .28);
+  pointer-events: auto;
+}
+
+.trainer-profile-window.is-dragged {
+  position: absolute;
+  margin: 0;
+}
+
+.trainer-profile-head {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-bottom: 1px solid #b7bec7;
+  background:
+    linear-gradient(rgba(255,255,255,.72), rgba(236,238,240,.84)),
+    repeating-linear-gradient(135deg, rgba(255,255,255,.22) 0 14px, rgba(160,165,174,.12) 14px 28px);
+  color: #56595f;
+  cursor: grab;
+  user-select: none;
+}
+
+.trainer-profile-head:active {
+  cursor: grabbing;
+}
+
+.trainer-profile-head strong {
+  color: #585b61;
+  font: 900 19px/1 Tahoma, Arial, sans-serif;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 rgba(255,255,255,.8);
+}
+
+.trainer-profile-close {
+  position: absolute;
+  right: 8px;
+  top: 4px;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #a2a4a8;
+  font-size: 32px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.trainer-profile-close:hover {
+  background: rgba(255,255,255,.65);
+  color: #60646c;
+}
+
+.trainer-profile-body {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 305px minmax(0, 1fr) 305px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255,255,255,.72), rgba(236,238,240,.34) 44%, rgba(205,210,216,.28)),
+    repeating-linear-gradient(135deg, rgba(255,255,255,.18) 0 20px, rgba(150,160,170,.09) 20px 40px);
+}
+
+.trainer-profile-side,
+.trainer-profile-center {
+  min-height: 0;
+  padding: 6px;
+}
+
+.trainer-profile-side {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 4px;
+}
+
+.trainer-profile-panel {
+  overflow: hidden;
+  border: 1px solid #b8bdc4;
+  background: rgba(232,234,237,.82);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
+}
+
+.trainer-profile-panel h3 {
+  margin: 0;
+  min-height: 30px;
+  display: grid;
+  place-items: center;
+  border-bottom: 1px solid #c2c7cd;
+  background: linear-gradient(90deg, rgba(246,246,247,.88), rgba(218,221,225,.72), rgba(246,246,247,.88));
+  color: #66686d;
+  font: 900 18px/1 Tahoma, Arial, sans-serif;
+  text-align: center;
+}
+
+.trainer-profile-clan-top,
+.trainer-profile-activity-top {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  align-items: center;
+  min-height: 68px;
+}
+
+.trainer-profile-activity-top {
+  grid-template-columns: minmax(0, 1fr) 70px;
+}
+
+.trainer-profile-clan-art,
+.trainer-profile-vip {
+  display: grid;
+  place-items: center;
+}
+
+.trainer-profile-clan-art img,
+.trainer-profile-vip img {
+  max-width: 56px;
+  max-height: 56px;
+  object-fit: contain;
+}
+
+.trainer-profile-clan-name,
+.trainer-profile-activity-name {
+  min-width: 0;
+  color: #555962;
+  font-size: 16px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.trainer-profile-ribbon {
+  min-height: 30px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(90deg, #b978f5, #dc9cf5);
+  color: #7c39bf;
+  font-size: 17px;
+  font-weight: 900;
+  text-shadow: 0 1px 0 rgba(255,255,255,.38);
+}
+
+.trainer-profile-awards,
+.trainer-profile-gifts {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  padding: 7px;
+}
+
+.trainer-profile-gym-title {
+  min-height: 24px;
+  display: grid;
+  place-items: center;
+  border-bottom: 1px solid #c8ccd2;
+  color: #5c616a;
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.trainer-profile-gymbadges {
+  min-height: 47px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 5px 7px;
+  border-bottom: 1px solid #c8ccd2;
+}
+
+.trainer-profile-gym-badge,
+.trainer-profile-gym-empty {
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid #c0c4ca;
+  border-radius: 5px;
+  background: linear-gradient(135deg, #f5f6f7, #dde0e3);
+}
+
+.trainer-profile-gym-badge img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,.18));
+}
+
+.trainer-profile-gym-empty {
+  grid-column: 1 / -1;
+  min-height: 34px;
+  color: #7a828d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.trainer-profile-cell {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid #c0c4ca;
+  border-radius: 5px;
+  background: linear-gradient(135deg, #f0f0f1, #d8dadd);
+}
+
+.trainer-profile-cell img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+
+.trainer-profile-count {
+  min-height: 30px;
+  display: grid;
+  place-items: center;
+  border-top: 1px solid #c0c4ca;
+  color: #66686d;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.trainer-profile-info {
+  display: grid;
+  grid-template-rows: auto minmax(70px, auto) minmax(0, 1fr);
+}
+
+.trainer-profile-bio {
+  padding: 8px;
+  color: #41464f;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: pre-line;
+}
+
+.trainer-profile-stats {
+  align-self: end;
+  border-top: 1px solid #c0c4ca;
+}
+
+.trainer-profile-stat {
+  min-height: 23px;
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 2px 7px;
+  border-bottom: 1px solid #c3c7cd;
+  color: #595e66;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.trainer-profile-stat b {
+  min-width: 0;
+  color: #273c58;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.trainer-profile-center {
+  display: grid;
+  grid-template-rows: 92px minmax(0, 1fr);
+  padding-inline: 0;
+}
+
+.trainer-profile-namezone {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr) 70px;
+  align-items: start;
+  overflow: hidden;
+  padding-top: 5px;
+  text-align: center;
+}
+
+.trainer-profile-namezone > * {
+  min-width: 0;
+}
+
+.trainer-profile-hand {
+  width: 60px;
+  overflow: hidden;
+  justify-self: center;
+  opacity: .65;
+  font-size: 42px;
+  line-height: 1;
+  transform: rotate(-14deg);
+}
+
+.trainer-profile-hand.is-right {
+  transform: scaleX(-1) rotate(-14deg);
+}
+
+.trainer-profile-name-main {
+  min-width: 0;
+}
+
+.trainer-profile-name-main h2 {
+  margin: 0 0 8px;
+  overflow: hidden;
+  color: #34445b;
+  font: 400 24px/1.1 Georgia, "Times New Roman", serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trainer-profile-party {
+  min-height: 26px;
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+}
+
+.trainer-profile-party-slot {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+}
+
+.trainer-profile-party-mon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,.18));
+}
+
+.trainer-profile-party-held {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 15px;
+  height: 15px;
+  padding: 1px;
+  border: 1px solid #aab5c2;
+  border-radius: 4px;
+  background: rgba(255,255,255,.9);
+  object-fit: contain;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+
+.trainer-profile-party-meter {
+  width: min(290px, 100%);
+  height: 16px;
+  margin: 5px auto 0;
+  border: 1px solid #babec4;
+  background: rgba(255,255,255,.48);
+}
+
+.trainer-profile-party-meter i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #d2c876, #f2e89a);
+}
+
+.trainer-profile-avatar-zone {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+}
+
+.trainer-profile-avatar-zone::before,
+.trainer-profile-avatar-zone::after {
+  content: "";
+  position: absolute;
+  top: 70px;
+  width: 86px;
+  height: 86px;
+  background: radial-gradient(circle, #ff385e 0 18%, #f8c911 18% 36%, #48b5fb 36% 54%, #5bd66a 54% 72%, #a967f0 72%);
+  border-radius: 50%;
+  opacity: .82;
+  filter: drop-shadow(0 6px 8px rgba(0,0,0,.18));
+}
+
+.trainer-profile-avatar-zone::before {
+  left: 20px;
+}
+
+.trainer-profile-avatar-zone::after {
+  right: 20px;
+}
+
+.trainer-profile-avatar {
+  position: relative;
+  z-index: 1;
+  max-width: 86%;
+  max-height: 94%;
+  object-fit: contain;
+  filter: drop-shadow(0 13px 18px rgba(38,48,61,.24));
+}
+
+.trainer-profile-friends {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.trainer-profile-friends-list {
+  min-height: 0;
+  overflow: auto;
+  padding: 5px;
+}
+
+.trainer-profile-friend {
+  min-height: 28px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+  padding: 2px 7px;
+  border: 1px solid #bfc4cb;
+  border-radius: 4px;
+  background: rgba(229,231,234,.82);
+  color: #565b63;
+  font-weight: 800;
+}
+
+.trainer-profile-friend i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #929aa5;
+}
+
+.trainer-profile-friend.is-online i {
+  background: #33c77c;
+}
+
+.trainer-profile-empty,
+.trainer-profile-error,
+.trainer-profile-loading {
+  padding: 14px;
+  color: #6b7280;
+  font-weight: 800;
+  text-align: center;
+}
+
+.trainer-profile-error {
+  color: #9f1d1d;
+}
+
+.trainer-profile-foot {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  border-top: 1px solid #b7bec7;
+  background: #cdd2d6;
+  color: #6a717b;
+  font-weight: 900;
+}
+
+.trainer-profile-foot span {
+  padding-inline: 12px;
+}
+
+.trainer-profile-foot span:last-child {
+  text-align: right;
+}
+
+.trainer-profile-location {
+  min-width: 160px;
+  padding: 5px 28px;
+  background: linear-gradient(90deg, rgba(152,210,185,.75), rgba(197,216,169,.75));
+  color: #11802e;
+  text-align: center;
+  clip-path: polygon(8% 0, 92% 0, 100% 100%, 0 100%);
+}
+
+@media (max-width: 920px) {
+  .trainer-profile-window {
+    height: min(760px, calc(100vh - 24px));
+    min-height: 0;
+  }
+
+  .trainer-profile-body {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+
+  .trainer-profile-side {
+    grid-template-rows: auto;
+  }
+
+  .trainer-profile-center {
+    min-height: 520px;
+    order: -1;
+  }
+}

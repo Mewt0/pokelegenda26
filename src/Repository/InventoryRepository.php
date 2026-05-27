@@ -4,14 +4,23 @@ declare(strict_types=1);
 namespace Pokemon8\Repository;
 
 use PDO;
+use Pokemon8\Game\BattleTransformationCatalog;
+use Pokemon8\Game\PokemonFormCatalog;
 
 final class InventoryRepository
 {
     private PokemonEvolutionRepository $evolutions;
+    private ?RewardRepository $rewards = null;
+    private ?bool $itemGameplayMetadataAvailable = null;
 
     public function __construct(private PDO $db, ?PokemonEvolutionRepository $evolutions = null)
     {
         $this->evolutions = $evolutions ?? new PokemonEvolutionRepository($db);
+    }
+
+    public function setRewardRepository(RewardRepository $rewards): void
+    {
+        $this->rewards = $rewards;
     }
 
     public function countItem(int $userId, int $itemId): int
@@ -89,18 +98,27 @@ final class InventoryRepository
 
     public function listBattleItemsForUser(int $userId): array
     {
+        $ballCondition = $this->battleBallSqlCondition();
         $stmt = $this->db->prepare(
-            'SELECT iu.id, iu.item_id, iu.count, iu.dattimer, iu.timers, i.name, i.tittle, i.category, i.delet, i.dress, i.uses, i.elementary, i.battleuse
+            'SELECT iu.id, iu.item_id, iu.count, iu.dattimer, iu.timers, i.name, i.tittle, i.category, i.delet, i.dress, i.uses, i.elementary, i.battleuse, i.dopolnen
              FROM items_users iu
              INNER JOIN items i ON i.id = iu.item_id
-             WHERE iu.user_id = :user AND i.battleuse = 1
+             WHERE iu.user_id = :user
+               AND iu.count > 0
+               AND (i.battleuse = 1 OR ' . $ballCondition . ')
                AND (iu.dattimer = "not" OR (iu.dattimer REGEXP "^[0-9]+$" AND CAST(iu.dattimer AS UNSIGNED) > :time))
-             ORDER BY i.id DESC'
+             ORDER BY
+               CASE WHEN ' . $ballCondition . ' THEN 0 ELSE 1 END,
+               i.id ASC'
         );
         $stmt->execute(['user' => $userId, 'time' => time()]);
 
         $items = $stmt->fetchAll();
-        return is_array($items) ? $items : [];
+        if (!is_array($items)) {
+            return [];
+        }
+
+        return array_map(fn (array $row): array => $this->formatBattleInventoryRow($row), $items);
     }
 
     public function itemIdForInventoryRow(int $userId, int $itemUserId): int
@@ -168,6 +186,9 @@ final class InventoryRepository
             'boost_exp',
             'boost_drop',
             'boost_money',
+            'boost_coins',
+            'boost_happiness',
+            'boost_catch',
             'evolution_item',
             'tm_learn',
             'equip_held',
@@ -187,6 +208,7 @@ final class InventoryRepository
 
         $this->db->beginTransaction();
         try {
+            $happinessDelta = 0;
             if ($effectKey === 'consume_only') {
                 $resultMessage = 'Предмет использован.';
             } elseif ($effectKey === 'exp_candy') {
@@ -197,6 +219,10 @@ final class InventoryRepository
                 }
                 $evolution = $this->levelPokemon($pokemonId, $userId, $levels);
                 $resultMessage = sprintf('%s получает +%d уров.', strip_tags((string) ($pokemon['names'] ?? 'Покемон')), $levels);
+                $happinessDelta += $levels * 2;
+                if ((int) ($item['item_id'] ?? 0) === 861) {
+                    $happinessDelta += 10;
+                }
                 if ($evolution !== null) {
                     $resultMessage .= sprintf(' %s эволюционирует в %s.', (string) $evolution['fromName'], (string) $evolution['toName']);
                 }
@@ -211,6 +237,7 @@ final class InventoryRepository
                       LIMIT 1'
                 )->execute(['pokemon' => $pokemonId]);
                 $resultMessage = 'PP атак восстановлены.';
+                $happinessDelta += 2;
             } elseif ($effectKey === 'evolution_item') {
                 $rule = $this->evolutions->itemEvolutionTarget(
                     (int) ($pokemon['basenum'] ?? 0),
@@ -234,7 +261,12 @@ final class InventoryRepository
                     return ['ok' => false, 'message' => 'Для этого покемона не найдена доступная новая атака. Предмет не списан.'];
                 }
                 $resultMessage = sprintf('%s изучает %s.', strip_tags((string) ($pokemon['names'] ?? 'Покемон')), (string) ($learned['name'] ?? 'атаку'));
+                $happinessDelta += 15;
             } elseif ($effectKey === 'equip_held') {
+                if (!$this->canEquipHeldItem((int) ($pokemon['basenum'] ?? 0), (int) ($item['item_id'] ?? 0), (string) ($item['name'] ?? ''))) {
+                    $this->db->rollBack();
+                    return ['ok' => false, 'message' => 'Этот предмет не подходит выбранному покемону. Предмет не списан.'];
+                }
                 $this->equipHeldItemFromTargetUse($userId, $pokemonId, (int) ($item['item_id'] ?? 0));
                 $resultMessage = 'Предмет закреплен за покемоном.';
             } elseif ($effectKey === 'nature_neutral') {
@@ -246,6 +278,12 @@ final class InventoryRepository
                 $boostKey = substr($effectKey, 6);
                 $this->grantPlayerBoost($userId, $boostKey, 'all', 2.0, 3600 * max(1, $count));
                 $resultMessage = 'Буст активирован.';
+            }
+            if ($happinessDelta > 0) {
+                $appliedHappiness = $this->adjustPokemonHappiness($userId, $pokemonId, $happinessDelta);
+                if ($appliedHappiness > 0) {
+                    $resultMessage .= ' Счастье +' . $appliedHappiness . '.';
+                }
             }
             $this->decrementInventoryRowById($userId, $itemUserId, $count);
             $this->db->commit();
@@ -262,6 +300,114 @@ final class InventoryRepository
                 strip_tags((string) ($pokemon['names'] ?? 'покемона')),
                 $count
             ) . ($resultMessage !== '' ? ' ' . $resultMessage : ''),
+        ];
+    }
+
+    public function openGiftBox(int $userId, int $itemUserId): array
+    {
+        if ($itemUserId <= 0) {
+            return ['ok' => false, 'message' => 'Выберите подарок.'];
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT iu.id, iu.item_id, iu.count, i.name
+               FROM items_users iu
+               INNER JOIN items i ON i.id = iu.item_id
+               INNER JOIN item_target_rules itr ON itr.item_id = iu.item_id AND itr.enabled = 1
+              WHERE iu.id = :id
+                AND iu.user_id = :user
+                AND iu.count > 0
+                AND (iu.dattimer = "not" OR (iu.dattimer REGEXP "^[0-9]+$" AND CAST(iu.dattimer AS UNSIGNED) > :time))
+                AND itr.target_type = "gift"
+                AND itr.effect_key = "open_gift"
+              LIMIT 1'
+        );
+        $stmt->execute(['id' => $itemUserId, 'user' => $userId, 'time' => time()]);
+        $gift = $stmt->fetch();
+        if (!$gift) {
+            return ['ok' => false, 'message' => 'Этот предмет нельзя открыть как подарок.'];
+        }
+
+        try {
+            $lootStmt = $this->db->prepare(
+                'SELECT reward_item_id, min_count, max_count, chance_bps, guaranteed
+                   FROM item_gift_loot
+                  WHERE gift_item_id = :gift AND enabled = 1
+               ORDER BY guaranteed DESC, sort_order ASC, reward_item_id ASC'
+            );
+            $lootStmt->execute(['gift' => (int) $gift['item_id']]);
+            $loot = $lootStmt->fetchAll();
+        } catch (\Throwable) {
+            return ['ok' => false, 'message' => 'Таблица подарков еще не применена в БД.'];
+        }
+
+        if (!is_array($loot) || $loot === []) {
+            return ['ok' => false, 'message' => 'У подарка пока нет таблицы наград. Предмет не списан.'];
+        }
+
+        $granted = [];
+        $startedTransaction = !$this->db->inTransaction();
+        if ($startedTransaction) {
+            $this->db->beginTransaction();
+        }
+        try {
+            foreach ($loot as $row) {
+                $guaranteed = (int) ($row['guaranteed'] ?? 0) === 1;
+                $chance = max(0, min(10000, (int) ($row['chance_bps'] ?? 0)));
+                if (!$guaranteed && random_int(1, 10000) > $chance) {
+                    continue;
+                }
+
+                $min = max(1, (int) ($row['min_count'] ?? 1));
+                $max = max($min, (int) ($row['max_count'] ?? $min));
+                $count = random_int($min, $max);
+                $rewardItemId = (int) ($row['reward_item_id'] ?? 0);
+                if ($rewardItemId <= 0 || $count <= 0) {
+                    continue;
+                }
+
+                $this->addItem($userId, $rewardItemId, $count);
+                $granted[] = ['item_id' => $rewardItemId, 'count' => $count, 'name' => $this->itemName($rewardItemId)];
+            }
+
+            if ($granted === []) {
+                if ($startedTransaction && $this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                return ['ok' => false, 'message' => 'Подарок ничего не выдал. Предмет не списан, проверь шансы loot table.'];
+            }
+
+            $parts = array_map(
+                static fn (array $row): string => sprintf('%s x%d', (string) ($row['name'] ?? ('#' . $row['item_id'])), (int) $row['count']),
+                $granted
+            );
+
+            $this->decrementInventoryRowById($userId, $itemUserId, 1);
+            $this->rewards?->notify($userId, 'Подарок открыт', 'Получено: ' . implode(', ', $parts) . '.', 'reward', [
+                'gift_item_id' => (int) $gift['item_id'],
+                'inventory_row_id' => (int) $gift['id'],
+                'rewards' => $granted,
+            ]);
+            if ($startedTransaction) {
+                $this->db->commit();
+            }
+        } catch (\Throwable) {
+            if ($startedTransaction && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            return ['ok' => false, 'message' => 'Не удалось открыть подарок. Предмет не списан.'];
+        }
+
+        $parts = array_map(
+            static fn (array $row): string => sprintf('%s x%d', (string) ($row['name'] ?? ('#' . $row['item_id'])), (int) $row['count']),
+            $granted
+        );
+        $message = sprintf('Подарок "%s" открыт: %s.', (string) ($gift['name'] ?? 'Подарок'), implode(', ', $parts));
+
+        return [
+            'ok' => true,
+            'message' => $message,
+            'rewards' => $granted,
         ];
     }
 
@@ -295,6 +441,23 @@ final class InventoryRepository
         $this->recalculatePokemonStats($pokemonId, $userId);
 
         return $this->evolutions->applyLevelEvolution($userId, $pokemonId);
+    }
+
+    private function adjustPokemonHappiness(int $userId, int $pokemonId, int $delta): int
+    {
+        if ($userId <= 0 || $pokemonId <= 0 || $delta === 0) {
+            return 0;
+        }
+
+        $stmt = $this->db->prepare('SELECT happy FROM pok_user WHERE id = :pokemon AND users = :user LIMIT 1 FOR UPDATE');
+        $stmt->execute(['pokemon' => $pokemonId, 'user' => $userId]);
+        $before = (float) ($stmt->fetchColumn() ?: 0);
+        $after = max(0, min(100, $before + $delta));
+
+        $this->db->prepare('UPDATE pok_user SET happy = :happy WHERE id = :pokemon AND users = :user LIMIT 1')
+            ->execute(['happy' => $after, 'pokemon' => $pokemonId, 'user' => $userId]);
+
+        return (int) max(0, round($after - $before));
     }
 
     private function evolvePokemon(int $pokemonId, int $userId, int $targetBase): void
@@ -452,12 +615,12 @@ final class InventoryRepository
         $existing = $this->findEquippedPokemonItem($pokemonId);
         if ($existing !== null) {
             $this->db->prepare('UPDATE items_poke SET id_items = :item, datetime = :time WHERE id_poke = :pokemon LIMIT 1')
-                ->execute(['item' => $itemId, 'time' => time(), 'pokemon' => $pokemonId]);
+                ->execute(['item' => $itemId, 'time' => 'not', 'pokemon' => $pokemonId]);
             return;
         }
 
         $this->db->prepare('INSERT INTO items_poke (id_poke, id_items, datetime) VALUES (:pokemon, :item, :time)')
-            ->execute(['pokemon' => $pokemonId, 'item' => $itemId, 'time' => time()]);
+            ->execute(['pokemon' => $pokemonId, 'item' => $itemId, 'time' => 'not']);
     }
 
     private function basePokemonName(int $baseId): string
@@ -466,6 +629,14 @@ final class InventoryRepository
         $stmt->execute(['id' => $baseId]);
         $name = trim((string) ($stmt->fetchColumn() ?: ''));
         return $name !== '' ? $name : ('Pokemon #' . $baseId);
+    }
+
+    private function itemName(int $itemId): string
+    {
+        $stmt = $this->db->prepare('SELECT name FROM items WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $itemId]);
+        $name = trim(strip_tags((string) ($stmt->fetchColumn() ?: '')));
+        return $name !== '' ? $name : ('Предмет #' . $itemId);
     }
 
     private function evolutionTargetFor(int $baseId, int $itemId): int
@@ -657,6 +828,9 @@ final class InventoryRepository
         }
 
         $itemId = (int) $item['item_id'];
+        if (!$this->canEquipHeldItem((int) ($pokemon['basenum'] ?? 0), $itemId, (string) ($item['name'] ?? ''))) {
+            return ['ok' => false, 'message' => 'Этот предмет не подходит выбранному покемону.'];
+        }
         $expiresAt = 'not';
         $days = (int) ($item['timesnapoke'] ?? 0);
         if ($days > 0) {
@@ -778,6 +952,107 @@ final class InventoryRepository
         return $stmt->fetch() ?: null;
     }
 
+    private function canEquipHeldItem(int $baseId, int $itemId, string $itemName): bool
+    {
+        if ($itemId <= 0) {
+            return false;
+        }
+
+        $displayBaseId = PokemonFormCatalog::displayBaseId($baseId);
+
+        if (isset(BattleTransformationCatalog::items()[$itemId])) {
+            return BattleTransformationCatalog::matchRule($displayBaseId, $itemId, $itemName, false) !== null;
+        }
+
+        $compatibility = $this->heldItemCompatibility($itemId);
+        if ($compatibility !== null) {
+            return $this->heldItemCompatibilityAllows($compatibility, $displayBaseId);
+        }
+
+        return match ($itemId) {
+            344 => in_array($displayBaseId, [380, 381], true), // Soul Dew: Latias / Latios.
+            358 => in_array($displayBaseId, [104, 105], true), // Thick Club: Cubone / Marowak line.
+            default => true,
+        };
+    }
+
+    private function heldItemCompatibility(int $itemId): ?array
+    {
+        if (!$this->itemGameplayMetadataTableAvailable()) {
+            return null;
+        }
+
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT compatibility_rule, compatibility_json, safe_to_equip, equipuse_flag
+                   FROM item_gameplay_metadata
+                  WHERE item_id = :item
+                  LIMIT 1'
+            );
+            $stmt->execute(['item' => $itemId]);
+            $row = $stmt->fetch();
+        } catch (\Throwable) {
+            $this->itemGameplayMetadataAvailable = false;
+            return null;
+        }
+
+        return $row ?: null;
+    }
+
+    private function itemGameplayMetadataTableAvailable(): bool
+    {
+        if ($this->itemGameplayMetadataAvailable !== null) {
+            return $this->itemGameplayMetadataAvailable;
+        }
+
+        try {
+            $stmt = $this->db->query("SHOW TABLES LIKE 'item_gameplay_metadata'");
+            $this->itemGameplayMetadataAvailable = (bool) $stmt->fetchColumn();
+        } catch (\Throwable) {
+            $this->itemGameplayMetadataAvailable = false;
+        }
+
+        return $this->itemGameplayMetadataAvailable;
+    }
+
+    private function heldItemCompatibilityAllows(array $compatibility, int $displayBaseId): bool
+    {
+        if ((int) ($compatibility['safe_to_equip'] ?? 0) <= 0 || (int) ($compatibility['equipuse_flag'] ?? 0) <= 0) {
+            return false;
+        }
+
+        $rule = strtolower(trim((string) ($compatibility['compatibility_rule'] ?? 'universal')));
+        return match ($rule) {
+            '', 'universal' => true,
+            'none' => false,
+            'kyogre' => $displayBaseId === 382,
+            'groudon' => $displayBaseId === 383,
+            'latios_latias' => in_array($displayBaseId, [380, 381], true),
+            'cubone_marowak' => in_array($displayBaseId, [104, 105], true),
+            'base_ids' => $this->heldItemCompatibilityBaseIds($compatibility, $displayBaseId),
+            default => true,
+        };
+    }
+
+    private function heldItemCompatibilityBaseIds(array $compatibility, int $displayBaseId): bool
+    {
+        $raw = trim((string) ($compatibility['compatibility_json'] ?? ''));
+        if ($raw === '') {
+            return false;
+        }
+
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded)) {
+            $ids = $decoded['base_ids'] ?? $decoded;
+            if (is_array($ids)) {
+                return in_array($displayBaseId, array_map('intval', $ids), true);
+            }
+        }
+
+        $ids = array_map('intval', preg_split('/[^0-9]+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: []);
+        return in_array($displayBaseId, $ids, true);
+    }
+
     private function findInventoryItemForTargetUse(int $userId, int $itemUserId): ?array
     {
         $stmt = $this->db->prepare(
@@ -834,6 +1109,18 @@ final class InventoryRepository
         return $row;
     }
 
+    private function formatBattleInventoryRow(array $row): array
+    {
+        $row['category_key'] = $this->itemCategoryKey($row);
+        $row['category_label'] = $this->itemCategoryLabel((string) $row['category_key']);
+        $row['battle_pocket'] = $this->isBattleBallRow($row) ? 'balls' : 'items';
+        $row['battle_category'] = $row['battle_pocket'] === 'balls' ? 'balls' : $this->battleItemCategory($row);
+        $row['battle_category_label'] = $this->battleCategoryLabel((string) $row['battle_category']);
+        $row['catch_modifier'] = $this->battleCatchModifier($row);
+        $row['expires_at'] = ctype_digit((string) ($row['dattimer'] ?? '')) ? (int) $row['dattimer'] : 0;
+        return $row;
+    }
+
     /** @return array{0:string,1:array<string,int|string>} */
     private function inventoryFilterSql(int $userId, string $category, string $query): array
     {
@@ -870,25 +1157,35 @@ final class InventoryRepository
     private function categorySqlCondition(string $category): string
     {
         return match ($category) {
-            'balls' => '(iu.item_id IN (3, 25, 90004) OR i.name LIKE "%бол%" OR i.name LIKE "%ball%")',
+            'balls' => $this->battleBallSqlCondition(),
             'tm' => '(iu.item_id = 78 OR i.name LIKE "%TM%" OR i.name LIKE "%ТМ%" OR i.name LIKE "%атака%")',
             'eggs' => '(i.name LIKE "%яйц%" OR i.category = 7)',
             'evolution' => '(iu.item_id IN (64,66,67,68,69,74,75,76,77,80,81,82,83,86,87,89,332) OR i.name LIKE "%камень%" OR i.name LIKE "%эвол%")',
-            'consumables' => '(i.uses > 0 OR i.battleuse > 0 OR iu.item_id IN (15,217,330,678,651,652,653,654,655,861,1401))',
-            'quest' => '(i.category IN (50, 99) OR i.dopolnen LIKE "%quest%" OR i.name LIKE "%квест%")',
-            'drop' => '(i.dopolnen LIKE "%drop%" OR iu.item_id IN (13,14,20,21,22,23))',
+            'consumables' => '(i.uses > 0 OR i.battleuse > 0 OR iu.item_id IN (15,217,330,678,651,652,653,654,655,861,90111,1401))',
+            'quest' => '(iu.item_id IN (4,13,14) OR i.category IN (50, 99) OR i.dopolnen LIKE "%quest%" OR i.name LIKE "%квест%" OR i.tittle LIKE "%Квест%")',
+            'drop' => '(iu.item_id NOT IN (4,13,14) AND (i.dopolnen LIKE "%drop%" OR iu.item_id IN (20,21,22,23)))',
             default => 'NOT (
-                iu.item_id IN (3,25,64,66,67,68,69,74,75,76,77,78,80,81,82,83,86,87,89,217,330,332,678,651,652,653,654,655,861,90004,1401)
+                iu.item_id IN (3,64,66,67,68,69,74,75,76,77,78,80,81,82,83,86,87,89,217,330,332,678,651,652,653,654,655,861,90004,90005,90111,1401)
                 OR i.name LIKE "%бол%" OR i.name LIKE "%камень%" OR i.name LIKE "%яйц%" OR i.name LIKE "%TM%" OR i.name LIKE "%ТМ%"
             )',
         };
+    }
+
+    private function battleBallSqlCondition(): string
+    {
+        return '(iu.item_id IN (3, 90004, 90005)
+            OR i.name REGEXP "поке.?бол|мастер.?бол|ультра.?бол|премиум.?бол|грит.?бол|ball|шар"
+            OR i.name LIKE "%ball%"
+            OR i.tittle REGEXP "поке.?бол|мастер.?бол|ультра.?бол|премиум.?бол|грит.?бол|ball|шар"
+            OR i.tittle LIKE "%ball%"
+            OR i.tittle LIKE "%шар%")';
     }
 
     private function itemCategoryKey(array $row): string
     {
         $id = (int) ($row['item_id'] ?? 0);
         $name = mb_strtolower((string) (($row['name'] ?? '') . ' ' . ($row['tittle'] ?? '')), 'UTF-8');
-        if (in_array($id, [3, 25, 90004], true) || str_contains($name, 'бол') || str_contains($name, 'ball')) {
+        if (in_array($id, [3, 90004, 90005], true) || $this->looksLikeCaptureBall($name)) {
             return 'balls';
         }
         if ($id === 78 || str_contains($name, 'tm') || str_contains($name, 'тм')) {
@@ -900,16 +1197,74 @@ final class InventoryRepository
         if (in_array($id, [64, 66, 67, 68, 69, 74, 75, 76, 77, 80, 81, 82, 83, 86, 87, 89, 332], true) || str_contains($name, 'камень') || str_contains($name, 'эвол')) {
             return 'evolution';
         }
-        if ((int) ($row['uses'] ?? 0) > 0 || (int) ($row['battleuse'] ?? 0) > 0 || in_array($id, [15, 217, 330, 678, 651, 652, 653, 654, 655, 861, 1401], true)) {
+        if ((int) ($row['uses'] ?? 0) > 0 || (int) ($row['battleuse'] ?? 0) > 0 || in_array($id, [15, 217, 330, 678, 651, 652, 653, 654, 655, 861, 90111, 1401], true)) {
             return 'consumables';
         }
-        if ((int) ($row['category'] ?? 0) === 99 || str_contains((string) ($row['dopolnen'] ?? ''), 'quest') || str_contains($name, 'квест')) {
+        if (in_array($id, [4, 13, 14], true) || (int) ($row['category'] ?? 0) === 99 || str_contains((string) ($row['dopolnen'] ?? ''), 'quest') || str_contains($name, 'квест')) {
             return 'quest';
         }
-        if (str_contains((string) ($row['dopolnen'] ?? ''), 'drop') || in_array($id, [13, 14, 20, 21, 22, 23], true)) {
+        if (str_contains((string) ($row['dopolnen'] ?? ''), 'drop') || in_array($id, [20, 21, 22, 23], true)) {
             return 'drop';
         }
         return 'other';
+    }
+
+    private function battleItemCategory(array $row): string
+    {
+        $id = (int) ($row['item_id'] ?? 0);
+        $text = mb_strtolower((string) (($row['name'] ?? '') . ' ' . ($row['tittle'] ?? '') . ' ' . ($row['dopolnen'] ?? '')), 'UTF-8');
+
+        if (str_contains($text, 'hp') || str_contains($text, 'здоров') || str_contains($text, 'леч') || str_contains($text, 'восстанов')) {
+            return 'healing';
+        }
+        if (str_contains($text, 'ожив') || str_contains($text, 'revive') || str_contains($text, 'воскреш')) {
+            return 'revive';
+        }
+        if (str_contains($text, 'яд') || str_contains($text, 'сон') || str_contains($text, 'паралич') || str_contains($text, 'замороз') || str_contains($text, 'ожог') || in_array($id, [15], true)) {
+            return 'status';
+        }
+        if (str_contains($text, 'точност') || str_contains($text, 'атака') || str_contains($text, 'защит') || str_contains($text, 'скорост') || str_contains($text, 'баф') || str_contains($text, 'buff')) {
+            return 'buffs';
+        }
+
+        return 'utility';
+    }
+
+    private function battleCategoryLabel(string $key): string
+    {
+        return match ($key) {
+            'balls' => 'Покеболы',
+            'healing' => 'Лечение',
+            'revive' => 'Revive',
+            'status' => 'Статусы',
+            'buffs' => 'Баффы',
+            default => 'Разное',
+        };
+    }
+
+    private function isBattleBallRow(array $row): bool
+    {
+        $id = (int) ($row['item_id'] ?? 0);
+        if (in_array($id, [3, 90004, 90005], true)) {
+            return true;
+        }
+
+        $text = mb_strtolower((string) (($row['name'] ?? '') . ' ' . ($row['tittle'] ?? '')), 'UTF-8');
+        return $this->looksLikeCaptureBall($text);
+    }
+
+    private function looksLikeCaptureBall(string $text): bool
+    {
+        return (bool) preg_match('/поке.?бол|мастер.?бол|ультра.?бол|премиум.?бол|грит.?бол|great.?ball|ultra.?ball|master.?ball|ball|шар/ui', $text);
+    }
+
+    private function battleCatchModifier(array $row): int
+    {
+        return match ((int) ($row['item_id'] ?? 0)) {
+            90004 => 255,
+            90005 => 2,
+            default => 1,
+        };
     }
 
     private function itemCategoryLabel(string $key): string
@@ -928,7 +1283,8 @@ final class InventoryRepository
 
     private function grantPlayerBoost(int $userId, string $boostKey, string $scope, float $multiplier, int $durationSeconds): void
     {
-        $allowed = ['exp', 'drop', 'money'];
+        $boostKey = $boostKey === 'money' ? 'coins' : $boostKey;
+        $allowed = ['exp', 'drop', 'coins', 'happiness', 'catch', 'quest_rewards'];
         if (!in_array($boostKey, $allowed, true)) {
             return;
         }

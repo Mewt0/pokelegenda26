@@ -13,6 +13,7 @@ function infoUsers($id,$zap){
 }
 function color_group_users($id,$tip)
 {
+  $id = (int) $id;
   $login = infoUsers($id, 'login');
   $group = infoUsers($id,'groups');
   $on    = infoUsers($id,'online');
@@ -33,8 +34,9 @@ function color_group_users($id,$tip)
         $obv = "<span style='color:".$color_gr.";font-weight:bold;'>".$login."</span>";
       }
       elseif($tip == 2){
-        if($on == 1) $obv = "<span style='color:".$color_gr.";font-weight:bold;' onClick=win1=window.open('page.php?id=$id','info','width=900,height=580,scrollbars=yes');return true;>".$login."</span>";
-          else $obv = "<span style='color:".$color_gr.";font-weight:bold;'  onClick=win1=window.open('page.php?id=$id','info','width=900,height=580,scrollbars=yes');return true;>".$login."</span>";
+        $profileUrl = '/game/profile?id='.$id;
+        $weight = $on == 1 ? 'font-weight:bold;' : '';
+        $obv = "<a href='".$profileUrl."' style='color:".$color_gr.";".$weight."'>".$login."</a>";
       }else{
         $obv = "";
       }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Pokemon8\Repository;
 
 use PDO;
+use Pokemon8\Game\PokemonFormCatalog;
 
 final class ProfileRepository
 {
@@ -32,7 +33,7 @@ final class ProfileRepository
     public function profile(int $viewerId, int $profileId): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT u.id, u.login, u.online, u.onlinetime, u.datereg, u.avatars, u.groups, u.rang,
+            'SELECT u.id, u.login, u.email, u.email_verified_at, u.online, u.onlinetime, u.datereg, u.avatars, u.groups, u.rang,
                     u.rang_a, u.rang_b, u.rang_c, u.karma_score, u.count_poke, u.count_poke_s, u.info, u.gender,
                     u.clanid, u.clan_point, u.status_klan, u.buildmy, u.youtuber, u.prefics,
                     b.title AS build_title, t.townName AS town_name,
@@ -53,11 +54,24 @@ final class ProfileRepository
         $normalDex = $this->countDistinctPokemon($profileId, 'normal');
         $shinyDex = $this->countDistinctPokemon($profileId, 'shine');
 
+        $formattedUser = $this->formatUser($user, $normalDex, $shinyDex);
+        $party = $this->activeParty($profileId);
+        $gifts = $this->presents($profileId, 2);
+        $gymBadges = $this->gymBadges($profileId);
+
         return [
-            'user' => $this->formatUser($user, $normalDex, $shinyDex),
-            'party' => $this->activeParty($profileId),
+            'user' => $formattedUser,
+            'uid' => $formattedUser['id'],
+            'avatar' => $formattedUser['avatar'],
+            'rank' => $formattedUser['rank'],
+            'clan' => $formattedUser['clan'],
+            'party' => $party,
+            'activeTeam' => $party,
             'awards' => $this->presents($profileId, 1),
-            'gifts' => $this->presents($profileId, 2),
+            'gifts' => $gifts,
+            'gymBadges' => $gymBadges,
+            'badges' => $gymBadges,
+            'friends' => $this->friends($profileId),
             'viewerOwnsProfile' => $viewerId === $profileId,
         ];
     }
@@ -72,6 +86,8 @@ final class ProfileRepository
         return [
             'id' => (int) $user['id'],
             'login' => (string) $user['login'],
+            'email' => (string) ($user['email'] ?? ''),
+            'emailVerified' => (int) ($user['email_verified_at'] ?? 0) > 0,
             'online' => (int) ($user['online'] ?? 0) === 1,
             'lastOnline' => (int) ($user['onlinetime'] ?? 0),
             'registeredAt' => (string) ($user['datereg'] ?? ''),
@@ -105,10 +121,15 @@ final class ProfileRepository
     private function activeParty(int $profileId): array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, basenum, names, lvl, hp_my, hp_max, tips
-               FROM pok_user
-              WHERE users = :user AND active = 1
-              ORDER BY startepoke DESC, id ASC
+            'SELECT pu.id, pu.basenum, pu.names, pu.lvl, pu.hp_my, pu.hp_max, pu.tips,
+                    COALESCE(ip.id_items, pu.item, 0) AS held_item_id,
+                    held.name AS held_item_name,
+                    held.tittle AS held_item_title
+               FROM pok_user pu
+          LEFT JOIN items_poke ip ON ip.id_poke = pu.id
+          LEFT JOIN items held ON held.id = COALESCE(ip.id_items, pu.item, 0)
+              WHERE pu.users = :user AND pu.active = 1
+              ORDER BY pu.startepoke DESC, pu.id ASC
               LIMIT 6'
         );
         $stmt->execute(['user' => $profileId]);
@@ -118,11 +139,22 @@ final class ProfileRepository
             $party[] = [
                 'id' => (int) $row['id'],
                 'baseNum' => (int) $row['basenum'],
+                'formId' => (int) $row['basenum'],
+                'dexNumber' => PokemonFormCatalog::displayBaseId((int) $row['basenum']),
+                'displayBaseNum' => PokemonFormCatalog::displayBaseId((int) $row['basenum']),
+                'formKey' => PokemonFormCatalog::formKey((int) $row['basenum'], (string) $row['names']),
+                'isForm' => PokemonFormCatalog::isForm((int) $row['basenum']),
                 'name' => strip_tags((string) $row['names']),
                 'level' => (int) $row['lvl'],
                 'hp' => max(0, (int) $row['hp_my']),
                 'hpMax' => max(1, (int) $row['hp_max']),
                 'tips' => (string) ($row['tips'] ?? 'normal'),
+                'heldItem' => [
+                    'id' => (int) ($row['held_item_id'] ?? 0),
+                    'name' => strip_tags((string) ($row['held_item_name'] ?? '')),
+                    'title' => strip_tags((string) ($row['held_item_title'] ?? '')),
+                    'image' => $this->itemIconPath((int) ($row['held_item_id'] ?? 0)),
+                ],
             ];
         }
 
@@ -155,6 +187,99 @@ final class ProfileRepository
         return $items;
     }
 
+    private function friends(int $profileId): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT u.id, u.login, u.groups, u.online
+               FROM friends f
+               INNER JOIN users u ON u.id = f.id_my_friend
+              WHERE f.id_user = :user AND u.activation = 1
+              ORDER BY u.online DESC, u.login ASC
+              LIMIT 18'
+        );
+        $stmt->execute(['user' => $profileId]);
+
+        $items = [];
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $items[] = [
+                'id' => (int) $row['id'],
+                'login' => (string) $row['login'],
+                'group' => $this->groupName((int) ($row['groups'] ?? 6), (int) $row['id']),
+                'online' => (int) ($row['online'] ?? 0) === 1,
+            ];
+        }
+
+        return $items;
+    }
+
+    private function gymBadges(int $profileId): array
+    {
+        if (!$this->tableExists('gym_badges') || !$this->tableExists('user_gym_badges')) {
+            return [];
+        }
+
+        $hasIssuedAt = $this->columnExists('user_gym_badges', 'issued_at');
+        $hasRewardType = $this->columnExists('user_gym_badges', 'reward_type');
+        $hasBattleSource = $this->columnExists('user_gym_badges', 'source_battle_id');
+        $hasQuestSource = $this->columnExists('user_gym_badges', 'source_quest_id');
+        $hasBuild = $this->tableExists('build');
+        $issuedExpr = $hasIssuedAt ? 'COALESCE(NULLIF(ugb.issued_at, 0), ugb.awarded_at)' : 'ugb.awarded_at';
+        $rewardExpr = $hasRewardType ? 'ugb.reward_type' : "'gym_badge'";
+        $battleExpr = $hasBattleSource ? 'ugb.source_battle_id' : '0';
+        $questExpr = $hasQuestSource ? 'ugb.source_quest_id' : '0';
+        $locationSelect = $hasBuild ? 'b.title AS location_name' : "'' AS location_name";
+        $locationJoin = $hasBuild ? 'LEFT JOIN build b ON b.id = gb.location_id' : '';
+
+        $stmt = $this->db->prepare(
+            'SELECT gb.id, gb.badge_key, gb.title, gb.leader_name, gb.location_id, gb.icon_item_id,
+                    ' . $locationSelect . ',
+                    ugb.source_type, ugb.source_id, ugb.awarded_by, ugb.awarded_at,
+                    ' . $issuedExpr . ' AS issued_at,
+                    ' . $rewardExpr . ' AS reward_type,
+                    ' . $battleExpr . ' AS source_battle_id,
+                    ' . $questExpr . ' AS source_quest_id
+               FROM user_gym_badges ugb
+         INNER JOIN gym_badges gb ON gb.id = ugb.badge_id
+                    ' . $locationJoin . '
+              WHERE ugb.user_id = :user
+              ORDER BY issued_at DESC, gb.id ASC
+              LIMIT 24'
+        );
+        $stmt->execute(['user' => $profileId]);
+
+        $badges = [];
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $iconItemId = (int) ($row['icon_item_id'] ?? 0);
+            $badges[] = [
+                'id' => (int) $row['id'],
+                'key' => (string) $row['badge_key'],
+                'title' => (string) $row['title'],
+                'leader' => (string) ($row['leader_name'] ?? ''),
+                'location' => (string) ($row['location_name'] ?? ''),
+                'locationId' => (int) ($row['location_id'] ?? 0),
+                'iconItemId' => $iconItemId,
+                'image' => $this->itemIconPath($iconItemId),
+                'rewardType' => (string) ($row['reward_type'] ?? 'gym_badge'),
+                'sourceType' => (string) ($row['source_type'] ?? ''),
+                'sourceId' => (int) ($row['source_id'] ?? 0),
+                'sourceBattleId' => (int) ($row['source_battle_id'] ?? 0),
+                'sourceQuestId' => (int) ($row['source_quest_id'] ?? 0),
+                'source' => [
+                    'type' => (string) ($row['source_type'] ?? ''),
+                    'id' => (int) ($row['source_id'] ?? 0),
+                    'battleId' => (int) ($row['source_battle_id'] ?? 0),
+                    'questId' => (int) ($row['source_quest_id'] ?? 0),
+                ],
+                'awardedBy' => (int) ($row['awarded_by'] ?? 0),
+                'awardedAt' => (int) ($row['awarded_at'] ?? 0),
+                'issuedAt' => (int) ($row['issued_at'] ?? 0),
+                'issued_at' => (int) ($row['issued_at'] ?? 0),
+            ];
+        }
+
+        return $badges;
+    }
+
     private function countDistinctPokemon(int $profileId, string $tips): int
     {
         $stmt = $this->db->prepare(
@@ -163,6 +288,88 @@ final class ProfileRepository
         $stmt->execute(['user' => $profileId, 'tips' => $tips]);
 
         return (int) ($stmt->fetchColumn() ?: 0);
+    }
+
+    private function itemIconPath(int $itemId): string
+    {
+        if ($itemId <= 0) {
+            return '/public/img/ui/menu-profile.png';
+        }
+
+        $indexed = $this->itemIconIndex()[(string) $itemId] ?? '';
+        if ($indexed !== '' && defined('APP_ROOT') && is_file(APP_ROOT . '/public/img/items/' . basename((string) $indexed))) {
+            return '/public/img/items/' . basename((string) $indexed);
+        }
+
+        if (defined('APP_ROOT') && is_file(APP_ROOT . '/public/img/items/' . $itemId . '.png')) {
+            return '/public/img/items/' . $itemId . '.png';
+        }
+
+        return '/public/img/ui/menu-inventory.png';
+    }
+
+    /** @return array<string,string> */
+    private function itemIconIndex(): array
+    {
+        static $index = null;
+        if (is_array($index)) {
+            return $index;
+        }
+
+        $index = [];
+        if (!defined('APP_ROOT')) {
+            return $index;
+        }
+
+        $path = APP_ROOT . '/public/img/items/index.json';
+        if (!is_file($path)) {
+            return $index;
+        }
+
+        $decoded = json_decode((string) file_get_contents($path), true);
+        if (!is_array($decoded)) {
+            return $index;
+        }
+
+        foreach ($decoded as $key => $file) {
+            if (is_string($file) && $file !== '') {
+                $index[(string) $key] = $file;
+            }
+        }
+
+        return $index;
+    }
+
+    private function tableExists(string $table): bool
+    {
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table)) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT 1
+               FROM information_schema.tables
+              WHERE table_schema = DATABASE() AND table_name = :table
+              LIMIT 1'
+        );
+        $stmt->execute(['table' => $table]);
+        return (bool) $stmt->fetchColumn();
+    }
+
+    private function columnExists(string $table, string $column): bool
+    {
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table) || !preg_match('/^[a-zA-Z0-9_]+$/', $column)) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT 1
+               FROM information_schema.columns
+              WHERE table_schema = DATABASE() AND table_name = :table AND column_name = :column
+              LIMIT 1'
+        );
+        $stmt->execute(['table' => $table, 'column' => $column]);
+        return (bool) $stmt->fetchColumn();
     }
 
     private function groupName(int $group, int $id): string
