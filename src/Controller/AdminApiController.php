@@ -8,6 +8,7 @@ use Pokemon8\Http\Response;
 use Pokemon8\Repository\AdminRepository;
 use Pokemon8\Repository\BattleReplayRepository;
 use Pokemon8\Repository\BossRepository;
+use Pokemon8\Repository\BugReportRepository;
 use Pokemon8\Repository\EconomyGuardRepository;
 use Pokemon8\Security\Csrf;
 use Pokemon8\Security\Session;
@@ -21,6 +22,7 @@ final class AdminApiController
         private ?BossRepository $bosses = null,
         private ?BattleReplayRepository $replays = null,
         private ?EconomyGuardRepository $economyGuard = null,
+        private ?BugReportRepository $bugReports = null,
     ) {
     }
 
@@ -707,6 +709,42 @@ final class AdminApiController
         return $this->json($payload, !empty($payload['ok']) ? 200 : 404);
     }
 
+    public function bugReports(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+        if ($this->bugReports === null) {
+            return $this->json([
+                'ok' => true,
+                'reports' => [],
+                'rows' => [],
+                'pagination' => $this->pagination(1, 80, 0),
+                'dashboard' => ['ready' => false],
+            ]);
+        }
+
+        [$page, $perPage, $offset] = $this->pageParams($request, 80);
+        $result = $this->bugReports->adminList($request->input('q'), $perPage, $offset, $this->bugReportFilters($request));
+        return $this->json([
+            'ok' => true,
+            'reports' => $result['rows'],
+            'rows' => $result['rows'],
+            'pagination' => $this->pagination($page, $perPage, (int) $result['total']),
+            'dashboard' => $this->bugReports->adminSummary(),
+        ]);
+    }
+
+    public function updateBugReportStatus(Request $request): Response
+    {
+        return $this->mutate($request, function (int $adminId) use ($request): array {
+            if ($this->bugReports === null) {
+                return ['ok' => false, 'message' => 'Bug Reporter repository is not configured.'];
+            }
+            return $this->bugReports->updateStatus($adminId, $request->post);
+        });
+    }
+
     public function settings(Request $request): Response
     {
         if (!$this->authorized()) {
@@ -769,6 +807,19 @@ final class AdminApiController
             'seller_id', 'buyer_id', 'object_id', 'lot_id', 'action', 'legacy', 'price_min', 'price_max',
             'system_only', 'risky', 'sort', 'q',
         ];
+        $filters = [];
+        foreach ($keys as $key) {
+            $value = $request->input($key);
+            if ($value !== '') {
+                $filters[$key] = $value;
+            }
+        }
+        return $filters;
+    }
+
+    private function bugReportFilters(Request $request): array
+    {
+        $keys = ['status', 'severity', 'user', 'battle_id', 'date_from', 'date_to', 'q'];
         $filters = [];
         foreach ($keys as $key) {
             $value = $request->input($key);

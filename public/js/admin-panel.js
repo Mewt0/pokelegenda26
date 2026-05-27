@@ -291,10 +291,12 @@
         const jobs = gm.jobs || {};
         const migrations = gm.migrations || {};
         const safe = gm.safeStorage || {};
+        const bugs = gm.bugReports || {};
         return [
           ...(gm.health?.cards || []).map(card => gmRow('health', card.status, `${card.label}: ${card.value}`, card.details, 'dashboard', card)),
           gmRow('market moderation', Number(market.riskOpen || 0) > 0 ? 'warn' : 'ok', `risk ${market.riskOpen || 0} / active lots ${market.activeLots || 0}`, `returns ${market.pendingReturns || 0}, locked ${market.lockedLots || 0}, expired ${market.expiredActiveLots || 0}`, 'commission', market),
           gmRow('battle replay', replay.ready ? 'ok' : 'warn', `active ${replay.active || 0} / finished ${replay.finished || 0}`, `events ${replay.events || 0}, last ${fmtTime(replay.lastUpdatedAt || 0, 'нет')}`, 'battle_replays', replay),
+          gmRow('bug reports', Number(bugs.criticalOpen || 0) > 0 ? 'critical' : (Number(bugs.open || 0) > 0 ? 'warn' : 'ok'), `open ${bugs.open || 0} / today ${bugs.today || 0}`, `critical ${bugs.criticalOpen || 0}, battle ${bugs.withBattle || 0}, last ${fmtTime(bugs.lastCreatedAt || 0, 'нет')}`, 'bug_reports', bugs),
           gmRow('moderation', Number(moderation.activePunishments || 0) > 0 ? 'warn' : 'ok', `punishments ${moderation.activePunishments || 0}`, `banip ${moderation.activeBanIps || 0}`, 'moderation', moderation),
           gmRow('qa seed tools', 'ok', `QA lots ${qa.market?.activeQaLots || 0}`, `accounts ${(qa.accounts || []).filter(item => item.exists).length}/3, item stacks ${Object.values(qa.itemStacks || {}).reduce((sum, value) => sum + Number(value || 0), 0)}`, 'dashboard', qa),
           gmRow('background jobs', Number(jobs.failed || 0) > 0 ? 'critical' : 'ok', `failed ${jobs.failed || 0} / running ${jobs.running || 0}`, `last ${fmtTime(jobs.lastRunAt || 0, 'нет')}`, 'settings', jobs),
@@ -302,6 +304,7 @@
           gmRow('safe storage', Number(safe.attentionTotal || 0) > 0 ? 'warn' : 'ok', `attention ${safe.attentionTotal || 0}`, `pending ${safe.pendingStorage || 0}, rollbacks ${safe.openRollbacks || 0}`, 'settings', safe),
           ...(gm.stuckBattles || []).map(row => gmRow('stuck battle', 'warn', `#${row.id} ${row.type} round ${row.round}`, `${row.user1?.login || '#' + row.user1?.id} vs ${row.user2?.login || (row.user2?.id ? '#' + row.user2.id : 'wild')} · age ${fmtDuration(row.ageSeconds)}`, 'battle_replays', row)),
           ...(gm.activeBattles || []).slice(0, 12).map(row => gmRow('active battle', row.stuck ? 'warn' : 'active', `#${row.id} ${row.type} round ${row.round}`, `${row.user1?.login || '#' + row.user1?.id} vs ${row.user2?.login || (row.user2?.id ? '#' + row.user2.id : 'wild')} · age ${fmtDuration(row.ageSeconds)}`, 'battle_replays', row)),
+          ...(bugs.recent || []).slice(0, 8).map(row => gmRow('bug report', row.status === 'open' || row.status === 'investigating' ? (row.severity === 'critical' ? 'critical' : 'warn') : 'info', `#${row.id} ${row.title || ''}`, `${row.user_login || '#' + row.user_id} · battle ${row.battle_id || '-'} · ${fmtTime(row.created_at || 0)}`, 'bug_reports', row)),
           ...activeEvents.map(event => gmRow('active event', 'active', `${event.title} x${Number(event.multiplier || 1).toFixed(2)}`, `${event.boost_label || event.boost_key} · ${event.scope_label || event.scope}`, 'events', event)),
           ...(data.recentMarketLogs || []).slice(0, 8).map(row => gmRow('market log', row.risk?.is_risky && !row.risk?.reviewed ? 'warn' : 'info', `${row.action || ''} · lot #${row.lot_id || row.id || 0}`, `${row.object_name || ''} · ${fmtMoney(row.total_price || 0)}`, 'commission', row)),
           ...(data.recentErrors || []).slice(0, 5).map(row => gmRow('error log', 'warn', 'PHP/API', row.line || '', 'dashboard', row)),
@@ -853,6 +856,41 @@
       ],
       extra: 'battleReplayTools'
     },
+    bug_reports: {
+      title: 'Bug Reports',
+      subtitle: 'Репорты из игры со снимком состояния, battle id, клиентскими событиями и хвостом серверных логов.',
+      endpoint: '/api/admin/bug-reports',
+      dataKey: 'reports',
+      paginated: true,
+      perPage: 80,
+      create: false,
+      columns: ['ID', 'Статус', 'Тип', 'Игрок', 'Battle', 'Локация', 'Заголовок', 'URL', 'Создан'],
+      cells: row => [
+        '#' + (row.id || ''),
+        row.status || '',
+        row.severity || '',
+        row.reporter_login || row.user_login || ('#' + (row.user_id || 0)),
+        row.battle_id ? '#' + row.battle_id : '',
+        row.location_id || '',
+        row.title || '',
+        row.route || row.page_url || '',
+        row.created_at_text || fmtTime(row.created_at || 0)
+      ],
+      rowClass: row => {
+        if (row.status === 'fixed' || row.status === 'closed' || row.status === 'duplicate') return 'is-reviewed';
+        return row.severity === 'critical' ? 'is-risk' : '';
+      },
+      fields: [],
+      filterFields: [
+        ['status', 'Статус', 'select:=любой,open=open,investigating=investigating,fixed=fixed,closed=closed,duplicate=duplicate'],
+        ['severity', 'Тип', 'select:=любой,critical=critical,bug=bug,visual=visual,balance=balance,ux=ux,other=other'],
+        ['user', 'Игрок', 'text'],
+        ['battle_id', 'Battle ID', 'number'],
+        ['date_from', 'С даты', 'date'],
+        ['date_to', 'По дату', 'date']
+      ],
+      extra: 'bugReportTools'
+    },
     settings: {
       title: 'Система',
       subtitle: 'Техработы, аудит и системные флаги.',
@@ -1158,6 +1196,7 @@
             <button type="button" data-gm-open="commission">Комиссионка</button>
             <button type="button" data-gm-open="economy_guard">Economy Guard</button>
             <button type="button" data-gm-open="battle_replays">Повторы боёв</button>
+            <button type="button" data-gm-open="bug_reports">Bug Reports</button>
             <button type="button" data-gm-open="moderation">Модерация</button>
             <button type="button" data-gm-open="settings">Система</button>
           </div>
@@ -1166,6 +1205,7 @@
             <div><b>Бои</b>active ${(gm.activeBattles || []).length} · stuck ${(gm.stuckBattles || []).length}</div>
             <div><b>Рынок</b>risk ${esc(gm.marketModeration?.riskOpen || 0)} · returns ${esc(gm.marketModeration?.pendingReturns || 0)}</div>
             <div><b>Replay</b>${gm.replayTools?.ready ? 'готов' : 'нет таблиц'} · events ${esc(gm.replayTools?.events || 0)}</div>
+            <div><b>Bug reports</b>open ${esc(gm.bugReports?.open || 0)} · critical ${esc(gm.bugReports?.criticalOpen || 0)}</div>
           </div>
           <h3>QA Seed Tools</h3>
           <p class="muted">Быстрые кнопки для подготовки тестовой среды. Все действия требуют CSRF, пишутся в admin audit, а market reset трогает только QA-лоты Tacos/NIGA/Система.</p>
@@ -1687,6 +1727,100 @@
       });
     }
 
+    if (config.extra === 'bugReportTools') {
+      if (!row) {
+        const dash = state.payload?.dashboard || {};
+        danger.insertAdjacentHTML('beforeend', `
+          <h3>Bug Reporter</h3>
+          <p class="muted">Игрок отправляет репорт прямо из /game. В отчёт попадают state, battle id, клиентские события и хвост server log.</p>
+          <div class="admin-detail-grid">
+            <div><b>Open</b>${esc(dash.open || 0)} · today ${esc(dash.today || 0)}</div>
+            <div><b>Critical</b>${esc(dash.criticalOpen || 0)} · with battle ${esc(dash.withBattle || 0)}</div>
+            <div><b>Last</b>${esc(fmtTime(dash.lastCreatedAt || 0, 'нет'))}</div>
+          </div>
+          <div class="admin-inline-actions">
+            <button type="button" data-bug-filter="open">Только open</button>
+            <button type="button" data-bug-filter="critical">Критичные</button>
+            <button type="button" data-bug-filter="battle">С battle id</button>
+          </div>
+        `);
+        document.querySelector('[data-bug-filter="open"]')?.addEventListener('click', () => {
+          state.filters = { status: 'open' };
+          renderFilterbar(modules.bug_reports);
+          reloadCurrent();
+        });
+        document.querySelector('[data-bug-filter="critical"]')?.addEventListener('click', () => {
+          state.filters = { severity: 'critical' };
+          renderFilterbar(modules.bug_reports);
+          reloadCurrent();
+        });
+        document.querySelector('[data-bug-filter="battle"]')?.addEventListener('click', () => {
+          setStatus('Введите battle id в фильтр или выберите строку с battle id.');
+        });
+        return;
+      }
+
+      const clientLogRows = Array.isArray(row.client_logs)
+        ? row.client_logs
+        : (Array.isArray(row.client_logs?.items) ? row.client_logs.items : []);
+      const serverLines = Array.isArray(row.server_logs?.lines) ? row.server_logs.lines : [];
+      danger.insertAdjacentHTML('beforeend', `
+        <h3>Bug report #${esc(row.id || '')}</h3>
+        <span class="admin-risk-badge ${row.status === 'fixed' || row.status === 'closed' || row.status === 'duplicate' ? 'is-ok' : ''}">
+          ${esc(row.severity || '')} · ${esc(row.status || '')}
+        </span>
+        <div class="admin-detail-grid">
+          <div><b>Игрок</b>${esc(row.reporter_login || row.user_login || ('#' + (row.user_id || 0)))}</div>
+          <div><b>Battle</b>${row.battle_id ? '#' + esc(row.battle_id) + ' · ' + esc(row.battle_type || '') : 'нет'}</div>
+          <div><b>Локация</b>${esc(row.location_id || '')}</div>
+          <div><b>Маршрут</b>${esc(row.route || row.page_url || '')}</div>
+          <div><b>Создан</b>${esc(row.created_at_text || '')}</div>
+          <div><b>Обновлён</b>${esc(row.updated_at_text || '')}</div>
+        </div>
+        <p class="audit-line"><b>${esc(row.title || '')}</b><br>${esc(row.description || '')}</p>
+        <div class="admin-inline-actions">
+          <button type="button" data-bug-status="investigating">В работу</button>
+          <button type="button" data-bug-status="fixed">Fixed</button>
+          <button type="button" data-bug-status="closed">Закрыть</button>
+          <button type="button" data-bug-status="duplicate">Дубль</button>
+          ${row.battle_id ? '<button type="button" id="bugOpenReplay">Открыть replay</button>' : ''}
+          <button type="button" id="bugOpenUser">Открыть игрока</button>
+        </div>
+        <h3>Client logs</h3>
+        ${clientLogRows.length ? `<div class="bug-log-list">${clientLogRows.slice(-24).map(log => `<p class="audit-line"><b>${esc(log.level || log.type || 'log')}</b> ${esc(log.message || '')}<br><small>${esc(log.time || '')} ${esc(log.context ? safeJson(log.context) : '')}</small></p>`).join('')}</div>` : '<p class="muted">Клиентских логов нет.</p>'}
+        <details class="admin-json-details" open>
+          <summary>Game state</summary>
+          <pre class="admin-json-preview">${esc(safeJson(row.game_state || {}))}</pre>
+        </details>
+        <details class="admin-json-details">
+          <summary>Battle state</summary>
+          <pre class="admin-json-preview">${esc(safeJson(row.battle_state || {}))}</pre>
+        </details>
+        <details class="admin-json-details">
+          <summary>Server/User state</summary>
+          <pre class="admin-json-preview">${esc(safeJson(row.user_state || {}))}</pre>
+        </details>
+        <details class="admin-json-details">
+          <summary>Server log tail (${esc(serverLines.length)})</summary>
+          <pre class="admin-json-preview">${esc(serverLines.join('\n'))}</pre>
+        </details>
+      `);
+      document.querySelectorAll('[data-bug-status]').forEach(button => {
+        button.addEventListener('click', () => updateBugReportStatus(row, button.dataset.bugStatus || 'open'));
+      });
+      $('#bugOpenReplay')?.addEventListener('click', () => {
+        setTab('battle_replays');
+        state.filters = { q: String(row.battle_id || '') };
+        renderFilterbar(modules.battle_replays);
+        reloadCurrent();
+      });
+      $('#bugOpenUser')?.addEventListener('click', () => {
+        setTab('users');
+        $('#adminSearchInput').value = row.reporter_login || row.user_login || String(row.user_id || '');
+        reloadCurrent();
+      });
+    }
+
     if (config.extra === 'legacyActions' && row) {
       danger.insertAdjacentHTML('beforeend', `
         <h3>Legacy-раздел</h3>
@@ -1959,6 +2093,19 @@
         <pre>${esc(JSON.stringify(replay, null, 2))}</pre>
       </details>
     `;
+  }
+
+  async function updateBugReportStatus(row, status) {
+    const note = status === 'fixed'
+      ? 'Проверено вручную: баг исправлен.'
+      : (status === 'closed' ? 'Закрыто вручную.' : (status === 'duplicate' ? 'Дубль другого репорта.' : 'Взято в работу.'));
+    const result = await send('/api/admin/bug-reports/status', {
+      report_id: row.id,
+      status,
+      note
+    });
+    setStatus(result.message || '', !result.ok);
+    if (result.ok) reloadCurrent();
   }
 
   async function approveCommissionRisk(row) {

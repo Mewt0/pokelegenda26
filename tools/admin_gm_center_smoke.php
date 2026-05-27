@@ -39,11 +39,11 @@ try {
 
     $adminPage = $admin->request('GET', '/game/admin');
     assertTrue($results, 'admin.page', $adminPage['status'] === 200 && str_contains($adminPage['body'], 'admin-shell'), 'status=' . $adminPage['status']);
-    assertTrue($results, 'admin.tabs', str_contains($adminPage['body'], 'data-admin-tab="commission"') && str_contains($adminPage['body'], 'data-admin-tab="battle_replays"'), 'GM tabs present');
+    assertTrue($results, 'admin.tabs', str_contains($adminPage['body'], 'data-admin-tab="commission"') && str_contains($adminPage['body'], 'data-admin-tab="battle_replays"') && str_contains($adminPage['body'], 'data-admin-tab="bug_reports"'), 'GM tabs present');
 
     [$gm] = jsonCheck($admin, $results, 'admin.gm_center', '/api/admin/gm-center');
-    assertTrue($results, 'admin.gm_center.shape', isset($gm['gmCenter']['health']['cards'], $gm['gmCenter']['activeBattles'], $gm['gmCenter']['marketModeration'], $gm['gmCenter']['logs']), 'cards=' . count($gm['gmCenter']['health']['cards'] ?? []));
-    assertTrue($results, 'admin.gm_center.cards', count($gm['gmCenter']['health']['cards'] ?? []) >= 8, 'cards=' . count($gm['gmCenter']['health']['cards'] ?? []));
+    assertTrue($results, 'admin.gm_center.shape', isset($gm['gmCenter']['health']['cards'], $gm['gmCenter']['activeBattles'], $gm['gmCenter']['marketModeration'], $gm['gmCenter']['bugReports'], $gm['gmCenter']['logs']), 'cards=' . count($gm['gmCenter']['health']['cards'] ?? []));
+    assertTrue($results, 'admin.gm_center.cards', count($gm['gmCenter']['health']['cards'] ?? []) >= 9, 'cards=' . count($gm['gmCenter']['health']['cards'] ?? []));
     assertTrue($results, 'admin.gm_center.qa_seed', isset($gm['gmCenter']['qaSeedTools']['accounts']), 'qa seed tools');
 
     [$qaSeed] = jsonCheck($admin, $results, 'admin.qa_seed_tools', '/api/admin/qa-seed-tools');
@@ -57,6 +57,9 @@ try {
 
     [$replays] = jsonCheck($admin, $results, 'admin.replays', '/api/admin/battle-replays');
     assertTrue($results, 'admin.replays.shape', isset($replays['rows'], $replays['dashboard']), 'rows=' . count($replays['rows'] ?? []));
+
+    [$bugReports] = jsonCheck($admin, $results, 'admin.bug_reports', '/api/admin/bug-reports');
+    assertTrue($results, 'admin.bug_reports.shape', isset($bugReports['reports'], $bugReports['dashboard']['open']), 'rows=' . count($bugReports['reports'] ?? []));
 
     [$moderation] = jsonCheck($admin, $results, 'admin.moderation', '/api/admin/moderation');
     assertTrue($results, 'admin.moderation.shape', isset($moderation['moderation']['punishments'], $moderation['moderation']['chat']), 'moderation rows');
@@ -82,6 +85,8 @@ try {
         assertTrue($results, 'admin.forbidden.player', $forbidden['status'] === 403, 'status=' . $forbidden['status']);
         $forbiddenQa = $player->request('GET', '/api/admin/qa-seed-tools');
         assertTrue($results, 'admin.qa_seed.forbidden.player', $forbiddenQa['status'] === 403, 'status=' . $forbiddenQa['status']);
+        $forbiddenBugReports = $player->request('GET', '/api/admin/bug-reports');
+        assertTrue($results, 'admin.bug_reports.forbidden.player', $forbiddenBugReports['status'] === 403, 'status=' . $forbiddenBugReports['status']);
     }
 } catch (Throwable $e) {
     assertTrue($results, 'exception', false, $e->getMessage());

@@ -13,7 +13,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pokemon 8.0 - Игровой мир</title>
   <link rel="stylesheet" href="/public/css/game-start.css?v=20260526-pokemon-drag3">
-  <link rel="stylesheet" href="/public/css/game-shell.css">
+  <link rel="stylesheet" href="/public/css/game-shell.css?v=20260527-bug-reporter-2">
   <link rel="stylesheet" href="/public/css/game-battle-dock.css?v=20260527-battle-replay">
   <link rel="stylesheet" href="/public/css/player-menu.css">
   <link rel="stylesheet" href="/public/css/trainer-profile-window.css?v=20260527-social-polish4">
@@ -67,6 +67,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
         <?php if (!empty($isAdmin)): ?>
           <button type="button" id="debugForceBattleBtn" class="status-pill debug" style="display:none">DEBUG: бой (Дорога 1)</button>
         <?php endif; ?>
+        <button type="button" id="bugReportBtn" class="status-pill bug-report">Report bug</button>
         <button type="button" class="status-pill mode">Режим: общий</button>
       </div>
       <div class="main-menu">
@@ -393,6 +394,41 @@ $itemIconIndex = is_file($itemIconIndexPath)
       </div>
     </div>
   </section>
+  <section class="bug-report-overlay" id="bugReportOverlay" aria-hidden="true">
+    <div class="bug-report-window glass-card" role="dialog" aria-modal="true" aria-label="Report bug">
+      <header>
+        <div>
+          <strong>Report bug</strong>
+          <p>Прикрепим state, battle id и последние клиентские логи.</p>
+        </div>
+        <button type="button" id="bugReportCloseBtn" aria-label="Закрыть">×</button>
+      </header>
+      <label>
+        <span>Коротко что сломалось</span>
+        <input id="bugReportTitle" maxlength="190" placeholder="Например: пропали кнопки боя">
+      </label>
+      <label>
+        <span>Тип</span>
+        <select id="bugReportSeverity">
+          <option value="bug">Баг</option>
+          <option value="critical">Критично</option>
+          <option value="visual">Визуал</option>
+          <option value="balance">Баланс</option>
+          <option value="ux">UX</option>
+          <option value="other">Другое</option>
+        </select>
+      </label>
+      <label>
+        <span>Описание / шаги</span>
+        <textarea id="bugReportDescription" rows="5" maxlength="4000" placeholder="Что делал, что ожидал, что произошло"></textarea>
+      </label>
+      <div class="bug-report-attachments" id="bugReportAttachments"></div>
+      <footer>
+        <button type="button" id="bugReportSubmitBtn">Отправить</button>
+        <button type="button" id="bugReportCancelBtn">Отмена</button>
+      </footer>
+    </div>
+  </section>
   <div class="inv-tooltip" id="invTooltip"></div>
   <div class="battle-poke-tooltip" id="battlePokeTooltip"></div>
   <div class="battle-move-tooltip" id="battleMoveTooltip"></div>
@@ -410,6 +446,30 @@ $itemIconIndex = is_file($itemIconIndexPath)
     const pokemonWindowDrag = { ready: false, dragging: false, offsetX: 0, offsetY: 0 };
     const battleHoverState = { ready: false, player: null, enemy: null, movePinned: false };
     const battlePocket = { loaded: false, items: [], categories: { items: [], balls: [] }, activeItemCategory: 'all' };
+    const bugClientLogs = [];
+
+    function recordBugClientLog(level, message, context = {}) {
+      bugClientLogs.push({
+        level,
+        message: String(message || '').slice(0, 500),
+        context,
+        time: new Date().toISOString()
+      });
+      while (bugClientLogs.length > 80) {
+        bugClientLogs.shift();
+      }
+    }
+
+    window.addEventListener('error', event => {
+      recordBugClientLog('error', event.message || 'window.error', {
+        source: event.filename || '',
+        line: event.lineno || 0,
+        column: event.colno || 0
+      });
+    });
+    window.addEventListener('unhandledrejection', event => {
+      recordBugClientLog('promise', event.reason && (event.reason.message || String(event.reason)) || 'unhandled rejection');
+    });
 
     function setupBattleSideTabs() {
       const left = document.querySelector('.battle-left');
@@ -613,6 +673,151 @@ $itemIconIndex = is_file($itemIconIndexPath)
       const el = document.getElementById('status');
       el.textContent = message;
       el.className = isError ? 'status error' : 'status';
+      recordBugClientLog(isError ? 'error' : 'status', message, {
+        locationId: state.locationId,
+        battleId: currentBattleReplayId(),
+        battleMode: battleState.mode || ''
+      });
+    }
+
+    function bugReportJson(value) {
+      const seen = new WeakSet();
+      return JSON.stringify(value, (key, val) => {
+        if (typeof val === 'function') return undefined;
+        if (val && typeof val === 'object') {
+          if (seen.has(val)) return '[circular]';
+          seen.add(val);
+        }
+        if (typeof val === 'string' && val.length > 1000) {
+          return val.slice(0, 1000) + '...';
+        }
+        return val;
+      });
+    }
+
+    function bugReportSnapshot() {
+      const battleId = currentBattleReplayId();
+      return {
+        url: window.location.href,
+        route: window.location.pathname,
+        locationId: Number(state.locationId || 0),
+        status: document.getElementById('status')?.textContent || '',
+        locationTitle: document.getElementById('locationTitle')?.textContent || '',
+        pveButton: !!state.pveButton,
+        battleId,
+        battleState: {
+          active: !!battleState.active,
+          reviewing: !!battleState.reviewing,
+          mode: battleState.mode || '',
+          battleId,
+          moves: (battleState.moves || []).map(move => ({
+            id: move.id || move.move_id || 0,
+            name: move.name || move.title || '',
+            pp: move.pp || move.now_pp || ''
+          }))
+        },
+        state: {
+          busy: !!state.busy,
+          locationId: Number(state.locationId || 0),
+          activeNpc: state.activeNpc && (state.activeNpc.id || state.activeNpc.title || state.activeNpc.name) || null
+        },
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight,
+          devicePixelRatio: window.devicePixelRatio || 1
+        }
+      };
+    }
+
+    function updateBugReportAttachmentSummary() {
+      const box = document.getElementById('bugReportAttachments');
+      if (!box) return;
+      const snapshot = bugReportSnapshot();
+      box.innerHTML = '';
+      [
+        ['State', `локация #${snapshot.locationId || 0}, ${snapshot.locationTitle || 'без названия'}`],
+        ['Battle ID', snapshot.battleId ? `#${snapshot.battleId} (${snapshot.battleState.mode || 'battle'})` : 'нет активного battle id'],
+        ['Client logs', `${bugClientLogs.length} событий`],
+        ['Server logs', 'последние строки приложит сервер']
+      ].forEach(([label, value]) => {
+        const row = document.createElement('div');
+        row.innerHTML = `<b>${label}</b><span></span>`;
+        row.querySelector('span').textContent = value;
+        box.appendChild(row);
+      });
+    }
+
+    function openBugReportModal() {
+      const overlay = document.getElementById('bugReportOverlay');
+      if (!overlay) return;
+      updateBugReportAttachmentSummary();
+      overlay.classList.add('is-open');
+      overlay.setAttribute('aria-hidden', 'false');
+      document.getElementById('bugReportTitle')?.focus();
+      recordBugClientLog('ui', 'bug report modal opened', { battleId: currentBattleReplayId() });
+    }
+
+    function closeBugReportModal() {
+      const overlay = document.getElementById('bugReportOverlay');
+      if (!overlay) return;
+      overlay.classList.remove('is-open');
+      overlay.setAttribute('aria-hidden', 'true');
+    }
+
+    async function submitBugReport() {
+      const submit = document.getElementById('bugReportSubmitBtn');
+      const title = document.getElementById('bugReportTitle')?.value.trim() || '';
+      const description = document.getElementById('bugReportDescription')?.value.trim() || '';
+      const severity = document.getElementById('bugReportSeverity')?.value || 'bug';
+      if (title === '' && description === '') {
+        setStatus('Опиши баг хотя бы одной строкой.', true);
+        document.getElementById('bugReportTitle')?.focus();
+        return;
+      }
+      const snapshot = bugReportSnapshot();
+      const body = new URLSearchParams();
+      body.set('_csrf', csrf);
+      body.set('title', title);
+      body.set('description', description);
+      body.set('severity', severity);
+      body.set('page_url', window.location.href);
+      body.set('route', window.location.pathname);
+      body.set('location_id', String(snapshot.locationId || 0));
+      body.set('battle_id', String(snapshot.battleId || 0));
+      body.set('battle_type', snapshot.battleState.mode || '');
+      body.set('client_state_json', bugReportJson(snapshot));
+      body.set('battle_state_json', bugReportJson(snapshot.battleState));
+      body.set('client_logs_json', bugReportJson(bugClientLogs));
+      body.set('viewport_json', bugReportJson(snapshot.viewport));
+      body.set('meta_json', bugReportJson({ userAgent: navigator.userAgent, language: navigator.language }));
+
+      if (submit) {
+        submit.disabled = true;
+        submit.textContent = 'Отправляем...';
+      }
+      try {
+        const response = await fetch('/api/bug-reports', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body
+        });
+        const payload = await response.json();
+        setStatus(payload.message || (payload.ok ? 'Bug report отправлен.' : 'Не удалось отправить bug report.'), !payload.ok);
+        if (payload.ok) {
+          closeBugReportModal();
+          document.getElementById('bugReportTitle').value = '';
+          document.getElementById('bugReportDescription').value = '';
+        }
+      } catch (error) {
+        setStatus('Не удалось отправить bug report.', true);
+        recordBugClientLog('error', 'bug report submit failed', { error: String(error && error.message || error) });
+      } finally {
+        if (submit) {
+          submit.disabled = false;
+          submit.textContent = 'Отправить';
+        }
+      }
     }
 
     function showGameNotice(message, variant = 'info') {
@@ -2599,6 +2804,15 @@ $itemIconIndex = is_file($itemIconIndexPath)
     }
 
     document.getElementById('pveButton').addEventListener('click', togglePveButton);
+    document.getElementById('bugReportBtn')?.addEventListener('click', openBugReportModal);
+    document.getElementById('bugReportCloseBtn')?.addEventListener('click', closeBugReportModal);
+    document.getElementById('bugReportCancelBtn')?.addEventListener('click', closeBugReportModal);
+    document.getElementById('bugReportSubmitBtn')?.addEventListener('click', submitBugReport);
+    document.getElementById('bugReportOverlay')?.addEventListener('click', event => {
+      if (event.target.id === 'bugReportOverlay') {
+        closeBugReportModal();
+      }
+    });
     const debugForceBattleBtn = document.getElementById('debugForceBattleBtn');
     if (debugForceBattleBtn) {
       debugForceBattleBtn.addEventListener('click', async () => {
@@ -2710,6 +2924,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
     });
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape') hideBattleMoveTooltip();
+      if (event.key === 'Escape') closeBugReportModal();
     });
     document.addEventListener('scroll', hideBattleMoveTooltip, true);
     document.addEventListener('mousemove', event => {

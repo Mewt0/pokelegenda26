@@ -18,6 +18,7 @@ trait AdminGmCenterRepositoryTrait
         $replayTools = $this->gmReplayTools();
         $moderation = $this->gmModerationPanel();
         $qaSeedTools = $this->qaSeedTools();
+        $bugReports = $this->gmBugReports();
         $logs = $this->gmSystemLogs();
 
         $cards = [
@@ -30,6 +31,7 @@ trait AdminGmCenterRepositoryTrait
             $this->gmHealthCard('Background jobs', (int) $jobs['failed'], (int) $jobs['failed'] > 0 ? 'critical' : 'ok', 'Failed job runs'),
             $this->gmHealthCard('Migrations', (int) $migrations['attentionTotal'], (int) $migrations['attentionTotal'] > 0 ? 'critical' : 'ok', 'Pending/dirty/failed migrations'),
             $this->gmHealthCard('QA seed tools', (int) ($qaSeedTools['market']['activeQaLots'] ?? 0), 'ok', 'Tacos/NIGA/Система fixtures and local smokes'),
+            $this->gmHealthCard('Bug reports', (int) $bugReports['open'], (int) $bugReports['criticalOpen'] > 0 ? 'critical' : ((int) $bugReports['open'] > 0 ? 'warn' : 'ok'), 'Игровые репорты со state/battle/log attachments'),
         ];
 
         return [
@@ -44,6 +46,7 @@ trait AdminGmCenterRepositoryTrait
             'replayTools' => $replayTools,
             'moderationPanel' => $moderation,
             'qaSeedTools' => $qaSeedTools,
+            'bugReports' => $bugReports,
             'jobs' => $jobs,
             'migrations' => $migrations,
             'safeStorage' => $safeStorage,
@@ -243,6 +246,37 @@ trait AdminGmCenterRepositoryTrait
               LEFT JOIN users u1 ON u1.id = br.user_1
               LEFT JOIN users u2 ON u2.id = br.user_2
                   ORDER BY br.updated_at DESC, br.battle_id DESC
+                  LIMIT 10'
+            ),
+        ];
+    }
+
+    private function gmBugReports(): array
+    {
+        if (!$this->tableExists('bug_reports')) {
+            return [
+                'ready' => false,
+                'open' => 0,
+                'today' => 0,
+                'criticalOpen' => 0,
+                'withBattle' => 0,
+                'lastCreatedAt' => 0,
+                'recent' => [],
+            ];
+        }
+
+        $todayStart = strtotime('today') ?: (time() - 86400);
+        return [
+            'ready' => true,
+            'open' => $this->countTable('bug_reports', 'status IN ("open", "investigating")'),
+            'today' => $this->countTable('bug_reports', 'created_at >= ' . (int) $todayStart),
+            'criticalOpen' => $this->countTable('bug_reports', 'severity = "critical" AND status IN ("open", "investigating")'),
+            'withBattle' => $this->countTable('bug_reports', 'battle_id > 0 AND status IN ("open", "investigating")'),
+            'lastCreatedAt' => (int) ($this->db->query('SELECT COALESCE(MAX(created_at), 0) FROM bug_reports')->fetchColumn() ?: 0),
+            'recent' => $this->lookupRows(
+                'SELECT id, user_id, user_login, title, severity, status, route, battle_id, created_at
+                   FROM bug_reports
+                  ORDER BY created_at DESC, id DESC
                   LIMIT 10'
             ),
         ];

@@ -38,7 +38,7 @@
   - `tools/beta_data_audit.php --fix-safe` - только безопасные исправления: merge одинаковых item stacks, expire due commission/PvP.
   - `tools/background_jobs.php --status|--dry-run|--job=<name>` - ручной запуск фоновых задач;
   - `tools/db_integrity_smoke.php [--fix-safe]` - integrity/anti-dupe проверки.
-- Последний статус миграций: `70/70`, `pending=0`, `dirty=0`, `failed=0`.
+- Последний статус миграций: `71/71`, `pending=0`, `dirty=0`, `failed=0`.
 - Последний beta audit: `P0=0`, `P1=0`; `WARN` остаётся по историческим незавершённым rows в `battles`.
 - Комиссионная лавка резервирует покемонов/яйца через `commission.reserve_user_id`, сейчас это аккаунт `Система`, а не живой игрок `id=3`; дополнительно ведётся ledger `market_reserved_objects`.
 - Safe Storage: `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`, `SafeStorageRepository`, `tools/safe_storage_smoke.php`.
@@ -53,6 +53,7 @@
 - Battle Replay: `battle_replays`, `battle_replay_events`, `BattleReplayRepository`, `/api/battle/replay`, `/api/admin/battle-replays`; пишет snapshots, round logs, actions, random rolls и damage audit для QA/спорных боёв.
 - Admin/GM Center health: `/api/admin/gm-center`, `AdminGmCenterRepositoryTrait`, `/game/admin` dashboard; единый payload для health cards, active/stuck battles, market moderation, replay tools, background jobs, migration status, safe storage, moderation summary и unified logs.
 - QA Seed Tools: `AdminQaSeedRepositoryTrait`, `/api/admin/qa-seed-tools`, `/api/admin/qa-seed-tools/run`, блок в GM Center для `setup test accounts`, `give teams`, `give items`, `reset market`, `run smokes`; действия пишутся в `admin_audit_log` как `qa_seed.*`.
+- Bug Reporter: `bug_reports`, `bug_report_events`, `BugReportRepository`, `/api/bug-reports`, `/api/admin/bug-reports`, кнопка `Report bug` в `/game`; report прикладывает page/game state, battle id/battle snapshot, client logs и tail server logs. GM Center показывает open/critical reports, вкладка `Bug Reports` даёт фильтры, inspector и смену статуса.
 - DB Integrity: `data_integrity_logs`, `IntegrityRepository`, `tools/db_integrity_smoke.php`. `--fix-safe` чинит только очевидно безопасное: `items_users.count<=0`, orphan held rows, finished active transformations, expired PvP requests, `battles.id<=0` и stale user battle flags.
 - Текущие integrity WARN: orphan legacy owners и исторические unfinished battles; P0/P1 после safe-fix нет.
 - Дампы и backup-файлы не коммитить: `storage/backups/` в `.gitignore`.
@@ -67,6 +68,7 @@
 - NPC + Locations: routes/map transitions/wild encounters/blocked routes/transport NPC/ship/flight smoke покрыты `tools/location_npc_transport_smoke.php`.
 - PvE/PvP battle: `/api/battle/pve/*`, `/api/battle/pvp/*`, `BattleEngineService`, `BattleRepository`; активный бой выбирается строго по флагу `pve/pvp` и `batl_tip`, чтобы PvE catch не попадал в PvP-row при legacy-дублях id.
 - Battle replay viewer: игроки открывают свой replay через `/api/battle/replay`; админы смотрят список и детали через вкладку `Повторы боёв` в GM Center.
+- Bug Reporter UI: игрок отправляет report прямо из нижней панели `/game`; mobile actionbar должен быть высотой `auto`, чтобы quick controls, главное меню и system-status не перекрывали друг друга.
 - GM Center dashboard: админы видят health/status rows, QA Seed Tools, активные и зависшие бои, market moderation, replay summary, jobs/migrations/safe storage и последние логи на первой вкладке `/game/admin`; smoke `tools/admin_gm_center_smoke.php`.
 - Battle transformations: Mega/Primal через `BattleTransformationCatalog`; формы боевые, не постоянные в `pok_user.basenum`.
 - Inventory/items: `/api/inventory/page`, `/battle`, `/equip`, `/unequip`, `/use-target`, `/open-gift`, `InventoryRepository`.
@@ -82,6 +84,7 @@
 - Trainer Card: `/api/profile/card`, модальное окно на текущей странице, social viewing/actions, held items и gym badges через reward-flow.
 - Events/buffs: `/api/events`, `/api/events/active`, `GameEventRepository`.
 - Notifications/mail: `/api/notifications`, `RewardRepository::notify()`, `MessageRepository::sendSystem()`, `Mailer`; SMTP задаётся через `.env`, smoke использует `MAIL_TRANSPORT=log`.
+- Bug reports: `/api/bug-reports` принимает игровые отчёты с state/battle/log attachments; `/api/admin/bug-reports` и `/status` доступны только админам.
 - Transport: `/api/transport/*`, самолет/пароход/рейсы.
 - Bosses: `/api/bosses/start`, `/api/admin/bosses`, `BossRepository`.
 - Dex: `/api/dex/pokemon`, `/api/dex/pokemon/show`, `/api/dex/attacks`, `/api/dex/attack/show`, `DexRepository`, `public/js/dex-overlay.js`; battle forms показывают свои статы/способности/спрайты, но learnset/egg/hidden moves/ареалы наследуют от базового dex-id. Smoke: `tools/dex_attackdex_smoke.php`.
@@ -103,11 +106,13 @@
 - Events/bosses/transport: current migration tables in `database/migrations`.
 - Background jobs: `background_job_runs`, `background_job_logs`.
 - Integrity logs: `data_integrity_logs`.
+- Bug reporter: `bug_reports`, `bug_report_events`.
 
 ## Актуальные UI-Системы
 
 - `/game` - основной экран и overlays.
 - `/game/admin` - рабочий GM Center; legacy-карта должна быть только отдельной вкладкой.
+- `/game` Bug Reporter - кнопка `Report bug` открывает модалку, прикладывает state/battle/client logs/server logs и отправляет report без перезагрузки.
 - `/game/commission` и overlay на `/game` - новая комиссионная лавка.
 - `/game/items` - новый инвентарь.
 - `/game/pokemon` - команда, питомник, breeding UI.
@@ -156,8 +161,10 @@
 - `tools/quests_minimum_smoke.php`
 - `tools/location_npc_transport_smoke.php`
 - `tools/admin_gm_center_smoke.php`
+- `tools/bug_reporter_smoke.php`
 - `tools/prepare_qa_teams.php`
 
+Последняя Phase 6 Bug Reporter проверка: миграции `71/71`, `tools/bug_reporter_smoke.php` `9/9`, `tools/admin_gm_center_smoke.php` `26/26`; browser QA `/game` подтвердил кнопку `Report bug`, открытие overlay, прикрепление state/battle id/client logs/server logs и отправку тестового report. Дополнительно исправлен mobile actionbar overlap: quick controls больше не перекрываются ссылкой `Лавка`.
 Последняя Phase 6 QA Seed Tools проверка: `tools/admin_gm_center_smoke.php` `23/23`; `/api/admin/qa-seed-tools` отдаёт состояние `Tacos/NIGA/Система`, команд, item stacks, QA market lots и последних `qa_seed.*` audit logs; `/run` умеет `setup_accounts`, `give_teams`, `give_items`, `reset_market`, `run_smokes`; NIGA получает `403`, POST без CSRF даёт `419`; прямой запуск `give_items/reset_market/run_smokes` OK, `reset_market` снял 8 QA-лотов и вернул 8 объектов без pending returns; browser QA `/game/admin` подтвердил рендер блока, кнопку `setup test accounts`, обновление `#qaSeedResult` и отсутствие horizontal overflow.
 Последняя Phase 4 NPC/Locations проверка: `tools/location_npc_transport_smoke.php` `24/24`, FPE `25/25`, Legacy Core `30/30`, HTTP `51/51`, migration status `69/69`, integrity `P0=0/P1=0/WARN=4`; покрыты routes, map transitions, blocked routes, wild encounter, NPC dialogs, ship travel и airplane boarding/early-exit block.
 Последняя Phase 6 Admin/GM проверка: `tools/admin_gm_center_smoke.php` `23/23`, HTTP `52/52`, integrity `P0=0/P1=0/WARN=4`; `/api/admin/gm-center` отдаёт health cards, active/stuck battles, market moderation, replay tools, jobs, migrations, safe storage, moderation summary, QA Seed Tools и логи, NIGA получает `403`, CSRF-negative даёт `419`; browser QA `/game/admin` подтвердил GM rows, inspector detail, no console errors и отсутствие horizontal overflow на desktop/mobile.
