@@ -10,6 +10,7 @@ final class AdminRepository
 {
     use AdminCommissionRepositoryTrait;
     use AdminGmCenterRepositoryTrait;
+    use AdminQaSeedRepositoryTrait;
 
     public function __construct(private PDO $db)
     {

@@ -44,6 +44,10 @@ try {
     [$gm] = jsonCheck($admin, $results, 'admin.gm_center', '/api/admin/gm-center');
     assertTrue($results, 'admin.gm_center.shape', isset($gm['gmCenter']['health']['cards'], $gm['gmCenter']['activeBattles'], $gm['gmCenter']['marketModeration'], $gm['gmCenter']['logs']), 'cards=' . count($gm['gmCenter']['health']['cards'] ?? []));
     assertTrue($results, 'admin.gm_center.cards', count($gm['gmCenter']['health']['cards'] ?? []) >= 8, 'cards=' . count($gm['gmCenter']['health']['cards'] ?? []));
+    assertTrue($results, 'admin.gm_center.qa_seed', isset($gm['gmCenter']['qaSeedTools']['accounts']), 'qa seed tools');
+
+    [$qaSeed] = jsonCheck($admin, $results, 'admin.qa_seed_tools', '/api/admin/qa-seed-tools');
+    assertTrue($results, 'admin.qa_seed_tools.shape', isset($qaSeed['qaSeedTools']['accounts'], $qaSeed['qaSeedTools']['market']), 'accounts=' . count($qaSeed['qaSeedTools']['accounts'] ?? []));
 
     [$dashboard] = jsonCheck($admin, $results, 'admin.dashboard', '/api/admin/dashboard');
     assertTrue($results, 'admin.dashboard.gm', isset($dashboard['dashboard']['gmCenter']['health']['status']), 'health=' . (string) ($dashboard['dashboard']['gmCenter']['health']['status'] ?? 'missing'));
@@ -63,11 +67,21 @@ try {
     $csrfFail = $admin->request('POST', '/api/admin/moderation/action', ['target' => 'NIGA', 'action' => 'warn', 'reason' => 'csrf smoke']);
     assertTrue($results, 'admin.csrf.negative', $csrfFail['status'] === 419, 'status=' . $csrfFail['status']);
 
+    $seedCsrfFail = $admin->request('POST', '/api/admin/qa-seed-tools/run', ['action' => 'setup_accounts']);
+    assertTrue($results, 'admin.qa_seed.csrf.negative', $seedCsrfFail['status'] === 419, 'status=' . $seedCsrfFail['status']);
+
+    $csrf = extractCsrf($adminPage['body']);
+    $seedSetup = $admin->request('POST', '/api/admin/qa-seed-tools/run', ['_csrf' => $csrf, 'action' => 'setup_accounts']);
+    $seedJson = json_decode($seedSetup['body'], true);
+    assertTrue($results, 'admin.qa_seed.setup_accounts', $seedSetup['status'] === 200 && is_array($seedJson) && ($seedJson['ok'] ?? false) === true, 'status=' . $seedSetup['status']);
+
     if ($forbiddenLogin !== '' && $forbiddenPassword !== '') {
         $player = new SmokeClient($baseUrl);
         login($player, $forbiddenLogin, $forbiddenPassword);
         $forbidden = $player->request('GET', '/api/admin/gm-center');
         assertTrue($results, 'admin.forbidden.player', $forbidden['status'] === 403, 'status=' . $forbidden['status']);
+        $forbiddenQa = $player->request('GET', '/api/admin/qa-seed-tools');
+        assertTrue($results, 'admin.qa_seed.forbidden.player', $forbiddenQa['status'] === 403, 'status=' . $forbiddenQa['status']);
     }
 } catch (Throwable $e) {
     assertTrue($results, 'exception', false, $e->getMessage());
@@ -105,6 +119,9 @@ function extractCsrf(string $html): string
         return html_entity_decode($m[1], ENT_QUOTES, 'UTF-8');
     }
     if (preg_match('/<meta\s+name="csrf-token"\s+content="([^"]+)"/', $html, $m)) {
+        return html_entity_decode($m[1], ENT_QUOTES, 'UTF-8');
+    }
+    if (preg_match('/data-csrf="([^"]+)"/', $html, $m)) {
         return html_entity_decode($m[1], ENT_QUOTES, 'UTF-8');
     }
     return '';

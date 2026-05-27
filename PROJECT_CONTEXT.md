@@ -21,7 +21,7 @@
 - Данные: `src/Repository/*`.
 - Игровая логика: `src/Game/*`.
 - Основной игровой shell: `/game`, `views/game-start.php`, `public/js/*`, `public/css/*`.
-- Админка/GM Center: `/game/admin`, `views/game-admin.php`, `public/js/admin-panel.js`, `public/css/admin-panel.css`, `/api/admin/gm-center`.
+- Админка/GM Center: `/game/admin`, `views/game-admin.php`, `public/js/admin-panel.js`, `public/css/admin-panel.css`, `/api/admin/gm-center`, `/api/admin/qa-seed-tools`.
 - Карта legacy -> новый слой: `src/Game/GameRoutes.php`.
 - Миграции: `database/migrations/*.sql`; новые изменения применять в живую БД и оставлять идемпотентными.
 
@@ -52,6 +52,7 @@
 - Battle IDs: `battle_id_sequence` резервирует уникальные положительные `battles.id` для PvE/PvP/Boss на старой схеме без `AUTO_INCREMENT`; duplicate positive ids считаются P1.
 - Battle Replay: `battle_replays`, `battle_replay_events`, `BattleReplayRepository`, `/api/battle/replay`, `/api/admin/battle-replays`; пишет snapshots, round logs, actions, random rolls и damage audit для QA/спорных боёв.
 - Admin/GM Center health: `/api/admin/gm-center`, `AdminGmCenterRepositoryTrait`, `/game/admin` dashboard; единый payload для health cards, active/stuck battles, market moderation, replay tools, background jobs, migration status, safe storage, moderation summary и unified logs.
+- QA Seed Tools: `AdminQaSeedRepositoryTrait`, `/api/admin/qa-seed-tools`, `/api/admin/qa-seed-tools/run`, блок в GM Center для `setup test accounts`, `give teams`, `give items`, `reset market`, `run smokes`; действия пишутся в `admin_audit_log` как `qa_seed.*`.
 - DB Integrity: `data_integrity_logs`, `IntegrityRepository`, `tools/db_integrity_smoke.php`. `--fix-safe` чинит только очевидно безопасное: `items_users.count<=0`, orphan held rows, finished active transformations, expired PvP requests, `battles.id<=0` и stale user battle flags.
 - Текущие integrity WARN: orphan legacy owners и исторические unfinished battles; P0/P1 после safe-fix нет.
 - Дампы и backup-файлы не коммитить: `storage/backups/` в `.gitignore`.
@@ -66,7 +67,7 @@
 - NPC + Locations: routes/map transitions/wild encounters/blocked routes/transport NPC/ship/flight smoke покрыты `tools/location_npc_transport_smoke.php`.
 - PvE/PvP battle: `/api/battle/pve/*`, `/api/battle/pvp/*`, `BattleEngineService`, `BattleRepository`; активный бой выбирается строго по флагу `pve/pvp` и `batl_tip`, чтобы PvE catch не попадал в PvP-row при legacy-дублях id.
 - Battle replay viewer: игроки открывают свой replay через `/api/battle/replay`; админы смотрят список и детали через вкладку `Повторы боёв` в GM Center.
-- GM Center dashboard: админы видят health/status rows, активные и зависшие бои, market moderation, replay summary, jobs/migrations/safe storage и последние логи на первой вкладке `/game/admin`; smoke `tools/admin_gm_center_smoke.php`.
+- GM Center dashboard: админы видят health/status rows, QA Seed Tools, активные и зависшие бои, market moderation, replay summary, jobs/migrations/safe storage и последние логи на первой вкладке `/game/admin`; smoke `tools/admin_gm_center_smoke.php`.
 - Battle transformations: Mega/Primal через `BattleTransformationCatalog`; формы боевые, не постоянные в `pok_user.basenum`.
 - Inventory/items: `/api/inventory/page`, `/battle`, `/equip`, `/unequip`, `/use-target`, `/open-gift`, `InventoryRepository`.
 - Held items metadata: `item_gameplay_metadata` is source of truth for `item_target_rules`; `equip_held` replacement returns old held item to inventory. Effects can be `implemented`, `visual_only`, `todo`.
@@ -157,8 +158,9 @@
 - `tools/admin_gm_center_smoke.php`
 - `tools/prepare_qa_teams.php`
 
+Последняя Phase 6 QA Seed Tools проверка: `tools/admin_gm_center_smoke.php` `23/23`; `/api/admin/qa-seed-tools` отдаёт состояние `Tacos/NIGA/Система`, команд, item stacks, QA market lots и последних `qa_seed.*` audit logs; `/run` умеет `setup_accounts`, `give_teams`, `give_items`, `reset_market`, `run_smokes`; NIGA получает `403`, POST без CSRF даёт `419`; прямой запуск `give_items/reset_market/run_smokes` OK, `reset_market` снял 8 QA-лотов и вернул 8 объектов без pending returns; browser QA `/game/admin` подтвердил рендер блока, кнопку `setup test accounts`, обновление `#qaSeedResult` и отсутствие horizontal overflow.
 Последняя Phase 4 NPC/Locations проверка: `tools/location_npc_transport_smoke.php` `24/24`, FPE `25/25`, Legacy Core `30/30`, HTTP `51/51`, migration status `69/69`, integrity `P0=0/P1=0/WARN=4`; покрыты routes, map transitions, blocked routes, wild encounter, NPC dialogs, ship travel и airplane boarding/early-exit block.
-Последняя Phase 6 Admin/GM проверка: `tools/admin_gm_center_smoke.php` `17/17`, HTTP `52/52`, integrity `P0=0/P1=0/WARN=4`; `/api/admin/gm-center` отдаёт health cards, active/stuck battles, market moderation, replay tools, jobs, migrations, safe storage, moderation summary и логи, NIGA получает `403`, CSRF-negative даёт `419`; browser QA `/game/admin` подтвердил GM rows, inspector detail, no console errors и отсутствие horizontal overflow на desktop/mobile.
+Последняя Phase 6 Admin/GM проверка: `tools/admin_gm_center_smoke.php` `23/23`, HTTP `52/52`, integrity `P0=0/P1=0/WARN=4`; `/api/admin/gm-center` отдаёт health cards, active/stuck battles, market moderation, replay tools, jobs, migrations, safe storage, moderation summary, QA Seed Tools и логи, NIGA получает `403`, CSRF-negative даёт `419`; browser QA `/game/admin` подтвердил GM rows, inspector detail, no console errors и отсутствие horizontal overflow на desktop/mobile.
 Последняя Phase 4 quests проверка: `tools/quests_minimum_smoke.php` `23/23`, FPE `25/25`, Legacy Core `30/30`, HTTP `51/51`, migration status `69/69`, integrity `P0=0/P1=0/WARN=4`; исправлен repeatable/cooldown state machine в `QuestRepository` и NPC-start для ежедневного Metapod-квеста.
 Последняя Phase 3 Economy Guard проверка: миграции `68/68`, Economy Guard `11/11`, Background Jobs `10/10`, Commission Hardening `36/36`, HTTP `51/51`, integrity `P0=0/P1=0/WARN=4`; добавлены `economy_guard_alerts`, background job `economy_guard`, admin API/GM вкладка и автообнаружение suspicious trades/massive money gain/transfer abuse/fake market prices.
 Последняя Phase 3 commission hardening проверка: миграции `67/67`, `tools/commission_hardening_smoke.php --iterations=600` `36/36`, Commission `24/24`, Background Jobs `9/9`, Reward Pipeline `13/13`, HTTP `51/51`, integrity `P0=0/P1=0/WARN=4`; добавлены freeze audit, object reserve ledger, stricter lot limits, risk review auto-flag и return.pending logs.

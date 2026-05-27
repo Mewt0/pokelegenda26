@@ -55,6 +55,20 @@ final class AdminApiController
         return $this->json(['ok' => true, 'gmCenter' => $this->admin->gmCenter()]);
     }
 
+    public function qaSeedTools(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+
+        return $this->json(['ok' => true, 'qaSeedTools' => $this->admin->qaSeedTools()]);
+    }
+
+    public function runQaSeedTool(Request $request): Response
+    {
+        return $this->mutate($request, fn (int $adminId) => $this->admin->qaSeedRun($adminId, $request->post));
+    }
+
     public function lookups(Request $request): Response
     {
         if (!$this->authorized()) {

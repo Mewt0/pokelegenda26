@@ -217,6 +217,34 @@
     `;
   }
 
+  function qaSeedSummaryHtml(qa) {
+    const accounts = Array.isArray(qa.accounts) ? qa.accounts : [];
+    const accountHtml = accounts.length ? accounts.map(account => `
+      <span class="${account.exists ? 'ok' : 'warn'}">${esc(account.login)} ${account.exists ? '#' + esc(account.id) : 'нет'}</span>
+    `).join('') : '<span class="warn">аккаунты не проверены</span>';
+    const activeTeam = qa.activeTeam || {};
+    const itemStacks = qa.itemStacks || {};
+    const market = qa.market || {};
+    return `
+      <div>
+        <b>Аккаунты</b>
+        <p>${accountHtml}</p>
+      </div>
+      <div>
+        <b>Команды</b>
+        <p>Tacos ${esc(activeTeam.Tacos || 0)} · NIGA ${esc(activeTeam.NIGA || 0)} · Система ${esc(activeTeam['Система'] || 0)}</p>
+      </div>
+      <div>
+        <b>Предметы</b>
+        <p>Tacos ${esc(itemStacks.Tacos || 0)} · NIGA ${esc(itemStacks.NIGA || 0)} · Система ${esc(itemStacks['Система'] || 0)}</p>
+      </div>
+      <div>
+        <b>QA рынок</b>
+        <p>active ${esc(market.activeQaLots || 0)} · sold ${esc(market.soldQaLots || 0)} · cancelled ${esc(market.cancelledQaLots || 0)}</p>
+      </div>
+    `;
+  }
+
   function unixToLocalInput(value) {
     const time = Number(value || 0);
     if (!time) return '';
@@ -259,6 +287,7 @@
         const market = gm.marketModeration || {};
         const replay = gm.replayTools || {};
         const moderation = gm.moderationPanel || {};
+        const qa = gm.qaSeedTools || {};
         const jobs = gm.jobs || {};
         const migrations = gm.migrations || {};
         const safe = gm.safeStorage || {};
@@ -267,6 +296,7 @@
           gmRow('market moderation', Number(market.riskOpen || 0) > 0 ? 'warn' : 'ok', `risk ${market.riskOpen || 0} / active lots ${market.activeLots || 0}`, `returns ${market.pendingReturns || 0}, locked ${market.lockedLots || 0}, expired ${market.expiredActiveLots || 0}`, 'commission', market),
           gmRow('battle replay', replay.ready ? 'ok' : 'warn', `active ${replay.active || 0} / finished ${replay.finished || 0}`, `events ${replay.events || 0}, last ${fmtTime(replay.lastUpdatedAt || 0, 'нет')}`, 'battle_replays', replay),
           gmRow('moderation', Number(moderation.activePunishments || 0) > 0 ? 'warn' : 'ok', `punishments ${moderation.activePunishments || 0}`, `banip ${moderation.activeBanIps || 0}`, 'moderation', moderation),
+          gmRow('qa seed tools', 'ok', `QA lots ${qa.market?.activeQaLots || 0}`, `accounts ${(qa.accounts || []).filter(item => item.exists).length}/3, item stacks ${Object.values(qa.itemStacks || {}).reduce((sum, value) => sum + Number(value || 0), 0)}`, 'dashboard', qa),
           gmRow('background jobs', Number(jobs.failed || 0) > 0 ? 'critical' : 'ok', `failed ${jobs.failed || 0} / running ${jobs.running || 0}`, `last ${fmtTime(jobs.lastRunAt || 0, 'нет')}`, 'settings', jobs),
           gmRow('migrations', Number(migrations.attentionTotal || 0) > 0 ? 'critical' : 'ok', `${migrations.applied || 0}/${migrations.total || 0}`, `pending ${migrations.pending || 0}, dirty ${migrations.dirty || 0}, failed ${migrations.failed || 0}`, 'settings', migrations),
           gmRow('safe storage', Number(safe.attentionTotal || 0) > 0 ? 'warn' : 'ok', `attention ${safe.attentionTotal || 0}`, `pending ${safe.pendingStorage || 0}, rollbacks ${safe.openRollbacks || 0}`, 'settings', safe),
@@ -1111,6 +1141,7 @@
       const gm = state.payload?.dashboard?.gmCenter || {};
       if (!row) {
         const cards = gm.health?.cards || [];
+        const qa = gm.qaSeedTools || {};
         danger.insertAdjacentHTML('beforeend', `
           <h3>GM Center</h3>
           <p class="muted">Единый экран контроля: здоровье API/БД, активные и зависшие бои, рынок, replay, фоновые jobs, safe storage и модерация.</p>
@@ -1136,9 +1167,25 @@
             <div><b>Рынок</b>risk ${esc(gm.marketModeration?.riskOpen || 0)} · returns ${esc(gm.marketModeration?.pendingReturns || 0)}</div>
             <div><b>Replay</b>${gm.replayTools?.ready ? 'готов' : 'нет таблиц'} · events ${esc(gm.replayTools?.events || 0)}</div>
           </div>
+          <h3>QA Seed Tools</h3>
+          <p class="muted">Быстрые кнопки для подготовки тестовой среды. Все действия требуют CSRF, пишутся в admin audit, а market reset трогает только QA-лоты Tacos/NIGA/Система.</p>
+          <div class="admin-qa-seed-grid" id="qaSeedSummary">
+            ${qaSeedSummaryHtml(qa)}
+          </div>
+          <div class="admin-inline-actions admin-quick-actions">
+            <button type="button" data-qa-seed-action="setup_accounts">setup test accounts</button>
+            <button type="button" data-qa-seed-action="give_teams">give teams</button>
+            <button type="button" data-qa-seed-action="give_items">give items</button>
+            <button type="button" data-qa-seed-action="reset_market">reset market</button>
+            <button type="button" data-qa-seed-action="run_smokes">run smokes</button>
+          </div>
+          <div id="qaSeedResult" class="admin-seed-result"></div>
         `);
         document.querySelectorAll('[data-gm-open]').forEach(button => {
           button.addEventListener('click', () => setTab(button.dataset.gmOpen));
+        });
+        document.querySelectorAll('[data-qa-seed-action]').forEach(button => {
+          button.addEventListener('click', () => runQaSeedTool(button.dataset.qaSeedAction || '', button));
         });
         return;
       }
@@ -1672,6 +1719,54 @@
   async function userBan(userId, mode) {
     const result = await send('/api/admin/users/ban', { user_id: userId, mode });
     setStatus(result.message || '', !result.ok);
+  }
+
+  async function runQaSeedTool(action, button) {
+    if (!action) return;
+    const labels = {
+      setup_accounts: 'готовим аккаунты',
+      give_teams: 'выдаём команды',
+      give_items: 'выдаём предметы',
+      reset_market: 'сбрасываем QA-рынок',
+      run_smokes: 'запускаем smokes'
+    };
+    const resultBox = $('#qaSeedResult');
+    const previous = button?.textContent || '';
+    if (button) {
+      button.disabled = true;
+      button.textContent = labels[action] || 'выполняем';
+    }
+    if (resultBox) {
+      resultBox.innerHTML = '<p class="muted">Выполняется: ' + esc(labels[action] || action) + '...</p>';
+    }
+    try {
+      const result = await send('/api/admin/qa-seed-tools/run', { action });
+      setStatus(result.message || '', !result.ok);
+      if (resultBox) {
+        const runs = Array.isArray(result.runs) ? result.runs : (result.script ? [result.script] : []);
+        resultBox.innerHTML = `
+          <p class="${result.ok ? 'admin-status' : 'admin-status is-bad'}">${esc(result.message || '')}</p>
+          ${result.summary ? `<details open><summary>Summary</summary><pre class="admin-json-preview">${esc(safeJson(result.summary))}</pre></details>` : ''}
+          ${runs.length ? `<details open><summary>Smoke/script output</summary>${runs.map(run => `
+            <p class="audit-line"><b>${esc(run.script || 'script')}</b> exit ${esc(run.exitCode ?? '')} · ${run.ok ? 'OK' : 'FAIL'}</p>
+            <pre class="admin-json-preview">${esc(run.output || '')}</pre>
+          `).join('')}</details>` : ''}
+        `;
+      }
+      if (result.qaSeedTools && $('#qaSeedSummary')) {
+        $('#qaSeedSummary').innerHTML = qaSeedSummaryHtml(result.qaSeedTools);
+      }
+    } catch (error) {
+      setStatus(String(error?.message || error || 'QA seed failed'), true);
+      if (resultBox) {
+        resultBox.innerHTML = `<p class="admin-status is-bad">${esc(error?.message || error || 'QA seed failed')}</p>`;
+      }
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = previous;
+      }
+    }
   }
 
   async function moderationAction(action, duration) {

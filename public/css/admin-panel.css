@@ -418,6 +418,51 @@ button:hover { border-color: #2f78dc; color: #0b63cf; }
   border-color: #b9dfc7;
   background: #f2fff6;
 }
+.admin-qa-seed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+.admin-qa-seed-grid > div {
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid #dbe7f5;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+.admin-qa-seed-grid b {
+  display: block;
+  color: #526b8e;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+.admin-qa-seed-grid p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 5px 0 0;
+}
+.admin-qa-seed-grid span {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 7px;
+  background: #eef6ff;
+  color: #244765;
+  font-size: 12px;
+  font-weight: 900;
+}
+.admin-qa-seed-grid span.ok {
+  background: #e9f9ef;
+  color: #17703a;
+}
+.admin-qa-seed-grid span.warn {
+  background: #fff4e1;
+  color: #9a5500;
+}
+.admin-seed-result {
+  margin-top: 8px;
+}
 .danger-btn {
   border-color: #e8b2b2;
   background: #fff5f5;

@@ -17,6 +17,7 @@ trait AdminGmCenterRepositoryTrait
         $migrations = $this->gmMigrationSummary();
         $replayTools = $this->gmReplayTools();
         $moderation = $this->gmModerationPanel();
+        $qaSeedTools = $this->qaSeedTools();
         $logs = $this->gmSystemLogs();
 
         $cards = [
@@ -28,6 +29,7 @@ trait AdminGmCenterRepositoryTrait
             $this->gmHealthCard('Safe storage', (int) $safeStorage['attentionTotal'], (int) $safeStorage['attentionTotal'] > 0 ? 'warn' : 'ok', 'Pending storage/open rollback'),
             $this->gmHealthCard('Background jobs', (int) $jobs['failed'], (int) $jobs['failed'] > 0 ? 'critical' : 'ok', 'Failed job runs'),
             $this->gmHealthCard('Migrations', (int) $migrations['attentionTotal'], (int) $migrations['attentionTotal'] > 0 ? 'critical' : 'ok', 'Pending/dirty/failed migrations'),
+            $this->gmHealthCard('QA seed tools', (int) ($qaSeedTools['market']['activeQaLots'] ?? 0), 'ok', 'Tacos/NIGA/Система fixtures and local smokes'),
         ];
 
         return [
@@ -41,6 +43,7 @@ trait AdminGmCenterRepositoryTrait
             'marketModeration' => $marketModeration,
             'replayTools' => $replayTools,
             'moderationPanel' => $moderation,
+            'qaSeedTools' => $qaSeedTools,
             'jobs' => $jobs,
             'migrations' => $migrations,
             'safeStorage' => $safeStorage,
