@@ -610,13 +610,26 @@ final class InventoryRepository
             ]);
         } else {
             $this->db->prepare(
-                'INSERT INTO attac_my_poke (id, pok_id, a_id, a_pp_min, a_pp_max)
-                 VALUES (:id, :pokemon, :move, :pp, :pp)'
+                'INSERT INTO attac_my_poke (
+                    id, pok_id,
+                    a_id, a_pp_min, a_pp_max,
+                    b_id, b_pp_min, b_pp_max,
+                    c_id, c_pp_min, c_pp_max,
+                    d_id, d_pp_min, d_pp_max
+                 )
+                 VALUES (
+                    :id, :pokemon,
+                    :move, :pp_min, :pp_max,
+                    0, 0, 0,
+                    0, 0, 0,
+                    0, 0, 0
+                 )'
             )->execute([
                 'id' => $this->nextAttacMyPokeId(),
                 'pokemon' => $pokemonId,
                 'move' => (int) ($move['id'] ?? 0),
-                'pp' => (int) ($move['pp'] ?? 0),
+                'pp_min' => (int) ($move['pp'] ?? 0),
+                'pp_max' => (int) ($move['pp'] ?? 0),
             ]);
         }
 
@@ -632,6 +645,10 @@ final class InventoryRepository
     {
         $existing = $this->findEquippedPokemonItem($pokemonId);
         if ($existing !== null) {
+            $currentExpiresAt = (string) ($existing['datetime'] ?? 'not');
+            if ($currentExpiresAt === 'not' || (ctype_digit($currentExpiresAt) && (int) $currentExpiresAt > time())) {
+                $this->addItem($userId, (int) $existing['id_items'], 1);
+            }
             $this->db->prepare('UPDATE items_poke SET id_items = :item, datetime = :time WHERE id_poke = :pokemon LIMIT 1')
                 ->execute(['item' => $itemId, 'time' => 'not', 'pokemon' => $pokemonId]);
             return;
