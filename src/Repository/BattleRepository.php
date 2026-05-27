@@ -886,14 +886,14 @@ final class BattleRepository
         ];
 
         foreach ($map as $field => $keys) {
-            $oldBase = max(1, (int) ($original[$keys['old']] ?? $original['base_' . $field] ?? 1));
-            $newBase = max(1, (int) ($form[$keys['new']] ?? $form['base_' . $field] ?? $oldBase));
+            $oldBase = max(1, (int) ($original['base_' . $field] ?? $original[$keys['old']] ?? 1));
+            $newBase = max(1, (int) ($form['base_' . $field] ?? $form[$keys['new']] ?? $oldBase));
             $current = max(1, (int) ($pokemon[$field] ?? 1));
             $pokemon[$field] = max(1, (int) round($current * ($newBase / $oldBase)));
         }
 
-        $oldHpBase = max(1, (int) ($original['HP'] ?? $original['base_hp'] ?? 1));
-        $newHpBase = max(1, (int) ($form['HP'] ?? $form['base_hp'] ?? $oldHpBase));
+        $oldHpBase = max(1, (int) ($original['base_hp'] ?? $original['HP'] ?? 1));
+        $newHpBase = max(1, (int) ($form['base_hp'] ?? $form['HP'] ?? $oldHpBase));
         if ($newHpBase !== $oldHpBase) {
             $oldMax = max(1, (int) ($pokemon['hp_max'] ?? 1));
             $newMax = max(1, (int) round($oldMax * ($newHpBase / $oldHpBase)));
