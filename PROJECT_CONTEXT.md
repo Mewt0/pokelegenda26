@@ -81,7 +81,7 @@
 - Notifications/mail: `/api/notifications`, `RewardRepository::notify()`, `MessageRepository::sendSystem()`, `Mailer`; SMTP задаётся через `.env`, smoke использует `MAIL_TRANSPORT=log`.
 - Transport: `/api/transport/*`, самолет/пароход/рейсы.
 - Bosses: `/api/bosses/start`, `/api/admin/bosses`, `BossRepository`.
-- Dex: `/api/dex/pokemon`, `/api/dex/attacks`, `DexRepository`.
+- Dex: `/api/dex/pokemon`, `/api/dex/pokemon/show`, `/api/dex/attacks`, `/api/dex/attack/show`, `DexRepository`, `public/js/dex-overlay.js`; battle forms показывают свои статы/способности/спрайты, но learnset/egg/hidden moves/ареалы наследуют от базового dex-id. Smoke: `tools/dex_attackdex_smoke.php`.
 - Chat/friends/messages/notifications: новые JSON API, legacy только источник данных там, где ещё не перенесено.
 
 ## Используемые Модели Данных
