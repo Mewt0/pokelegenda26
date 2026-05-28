@@ -190,6 +190,7 @@
     currentProfileOptions = { ...options };
     overlay.classList.add('is-open');
     overlay.setAttribute('aria-hidden', 'false');
+    resetScroll();
     renderLoading(options.login || options.user || options.id || '');
     loadProfile(options);
   }
@@ -200,6 +201,13 @@
     dragPointerId = null;
     overlay.classList.remove('is-open');
     overlay.setAttribute('aria-hidden', 'true');
+  }
+
+  function resetScroll() {
+    if (!overlay) return;
+    overlay.scrollTop = 0;
+    const body = overlay.querySelector('.trainer-profile-body');
+    if (body) body.scrollTop = 0;
   }
 
   async function loadProfile(options) {
@@ -224,6 +232,7 @@
         return;
       }
 
+      resetScroll();
       renderProfile(data.profile || {});
     } catch (error) {
       if (seq !== loadSeq) return;

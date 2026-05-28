@@ -973,9 +973,9 @@ final class InventoryRepository
             return ['ok' => false, 'message' => 'Сначала закончите бой или обмен.'];
         }
 
-        $pokemon = $this->findActivePokemon($userId, $pokemonId);
+        $pokemon = $this->findOwnedPokemonForHeldItem($userId, $pokemonId);
         if ($pokemon === null) {
-            return ['ok' => false, 'message' => 'Покемон не найден в активной команде.'];
+            return ['ok' => false, 'message' => 'Покемон не найден.'];
         }
 
         $current = $this->findEquippedPokemonItem($pokemonId);
@@ -986,7 +986,8 @@ final class InventoryRepository
         $this->db->beginTransaction();
         try {
             $currentExpiresAt = (string) ($current['datetime'] ?? 'not');
-            if ($currentExpiresAt === 'not' || (ctype_digit($currentExpiresAt) && (int) $currentExpiresAt > time())) {
+            $returnedToInventory = $currentExpiresAt === 'not' || (ctype_digit($currentExpiresAt) && (int) $currentExpiresAt > time());
+            if ($returnedToInventory) {
                 $this->addItem($userId, (int) $current['id_items'], 1);
             }
             $stmt = $this->db->prepare('DELETE FROM items_poke WHERE id_poke = :pokemon LIMIT 1');
@@ -999,7 +1000,17 @@ final class InventoryRepository
 
         return [
             'ok' => true,
-            'message' => 'Предмет снят и возвращён в инвентарь.',
+            'message' => $returnedToInventory
+                ? sprintf(
+                    '%s снят с %s и возвращён в инвентарь.',
+                    $this->itemName((int) $current['id_items']),
+                    strip_tags((string) ($pokemon['names'] ?? 'покемона'))
+                )
+                : sprintf(
+                    '%s снят с %s. Срок предмета уже истёк, поэтому в инвентарь он не возвращён.',
+                    $this->itemName((int) $current['id_items']),
+                    strip_tags((string) ($pokemon['names'] ?? 'покемона'))
+                ),
             'pokemon' => $this->listActivePokemonForUser($userId),
         ];
     }
@@ -1395,6 +1406,19 @@ final class InventoryRepository
                     hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv
                FROM pok_user
               WHERE id = :pokemon AND users = :user AND active = 1
+              LIMIT 1'
+        );
+        $stmt->execute(['pokemon' => $pokemonId, 'user' => $userId]);
+
+        return $stmt->fetch() ?: null;
+    }
+
+    private function findOwnedPokemonForHeldItem(int $userId, int $pokemonId): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, names, basenum, lvl, active
+               FROM pok_user
+              WHERE id = :pokemon AND users = :user
               LIMIT 1'
         );
         $stmt->execute(['pokemon' => $pokemonId, 'user' => $userId]);

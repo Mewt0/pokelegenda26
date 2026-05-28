@@ -1410,6 +1410,69 @@ final class BattleRepository
         return (int) ($stmt->fetchColumn() ?: 0);
     }
 
+    public function gymBadgeRuleForPveVictory(int $userId, array $enemy): ?array
+    {
+        if ($userId <= 0 || !$this->tableExists('gym_badge_battle_rules') || !$this->tableExists('gym_badges')) {
+            return null;
+        }
+
+        $locationId = 0;
+        $location = $this->db->prepare('SELECT buildmy FROM users WHERE id = :user LIMIT 1');
+        $location->execute(['user' => $userId]);
+        $locationId = (int) ($location->fetchColumn() ?: 0);
+
+        $enemyId = (int) ($enemy['id'] ?? 0);
+        $enemyBaseId = PokemonFormCatalog::displayBaseId((int) ($enemy['basenum'] ?? 0));
+        $enemyName = trim(strip_tags((string) ($enemy['names'] ?? '')));
+        $enemyLevel = max(1, (int) ($enemy['lvl'] ?? 1));
+
+        $stmt = $this->db->prepare(
+            'SELECT r.id, r.badge_key, r.location_id, r.enemy_base_id, r.enemy_pokemon_id,
+                    r.enemy_name_like, r.min_level, r.source_note,
+                    gb.id AS badge_id, gb.title AS badge_title, gb.leader_name
+               FROM gym_badge_battle_rules r
+         INNER JOIN gym_badges gb
+                 ON gb.badge_key COLLATE utf8mb4_unicode_ci = r.badge_key COLLATE utf8mb4_unicode_ci
+              WHERE r.enabled = 1
+                AND (r.location_id = 0 OR r.location_id = :location_id)
+                AND (r.enemy_base_id = 0 OR r.enemy_base_id = :enemy_base_id)
+                AND (r.enemy_pokemon_id = 0 OR r.enemy_pokemon_id = :enemy_pokemon_id)
+                AND (r.enemy_name_like = "" OR LOWER(:enemy_name) LIKE CONCAT("%", LOWER(r.enemy_name_like), "%"))
+                AND (r.min_level <= 0 OR r.min_level <= :enemy_level)
+              ORDER BY
+                (r.location_id <> 0) DESC,
+                (r.enemy_pokemon_id <> 0) DESC,
+                (r.enemy_base_id <> 0) DESC,
+                (r.enemy_name_like <> "") DESC,
+                r.min_level DESC,
+                r.id ASC
+              LIMIT 1'
+        );
+        $stmt->execute([
+            'location_id' => $locationId,
+            'enemy_base_id' => $enemyBaseId,
+            'enemy_pokemon_id' => $enemyId,
+            'enemy_name' => function_exists('mb_strtolower') ? mb_strtolower($enemyName) : strtolower($enemyName),
+            'enemy_level' => $enemyLevel,
+        ]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return null;
+        }
+
+        return [
+            'ruleId' => (int) $row['id'],
+            'badgeKey' => (string) $row['badge_key'],
+            'badgeId' => (int) $row['badge_id'],
+            'badgeTitle' => (string) $row['badge_title'],
+            'leader' => (string) ($row['leader_name'] ?? ''),
+            'locationId' => (int) ($row['location_id'] ?? 0),
+            'enemyBaseId' => (int) ($row['enemy_base_id'] ?? 0),
+            'enemyPokemonId' => (int) ($row['enemy_pokemon_id'] ?? 0),
+            'sourceNote' => (string) ($row['source_note'] ?? ''),
+        ];
+    }
+
     public function patchBattleEnemy(int $battleId, int $pokPveId): void
     {
         if ($battleId <= 0 || $pokPveId <= 0) {
@@ -2503,6 +2566,63 @@ final class BattleRepository
             'd_pp_min' => $slots['d']['pp'],
             'd_pp_max' => $slots['d']['pp'],
         ]);
+    }
+
+    public function acquirePveBattleActionLock(int $battleId, int $timeoutSeconds = 3): bool
+    {
+        if ($battleId <= 0) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare('SELECT GET_LOCK(:name, :timeout)');
+        $stmt->execute([
+            'name' => 'pokemon8_pve_battle_action_' . $battleId,
+            'timeout' => max(0, $timeoutSeconds),
+        ]);
+        return (int) ($stmt->fetchColumn() ?: 0) === 1;
+    }
+
+    public function releasePveBattleActionLock(int $battleId): void
+    {
+        if ($battleId <= 0) {
+            return;
+        }
+
+        $stmt = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
+        $stmt->execute(['name' => 'pokemon8_pve_battle_action_' . $battleId]);
+    }
+
+    public function claimPveBattleFinish(int $battleId, int $userId, int $winner): bool
+    {
+        if ($battleId <= 0 || $userId <= 0) {
+            return false;
+        }
+
+        $battleRow = $this->battleRowById($battleId);
+        $stmt = $this->db->prepare(
+            'UPDATE battles
+                SET pobeda = :winner
+              WHERE id = :id AND user_1 = :user AND batl_tip = "pve" AND pobeda = 0
+              LIMIT 1'
+        );
+        $stmt->execute(['winner' => $winner, 'id' => $battleId, 'user' => $userId]);
+        if ($stmt->rowCount() !== 1) {
+            return false;
+        }
+
+        $this->markBattleTransformationsReverted($battleId);
+        $this->db->prepare(
+            'UPDATE users SET pve = 0, battleid = :battle, atack_poke = :next_attack WHERE id = :id LIMIT 1'
+        )->execute([
+            'battle' => $battleId,
+            'next_attack' => time() + 30,
+            'id' => $userId,
+        ]);
+        if ($battleRow !== null) {
+            $battleRow['pobeda'] = $winner;
+        }
+        $this->replay?->markFinished($battleId, $winner, $battleRow ?? []);
+        return true;
     }
 
     public function finishBattle(int $battleId, int $userId, int $winner): void

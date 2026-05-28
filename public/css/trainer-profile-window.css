@@ -442,6 +442,7 @@
   display: grid;
   place-items: center;
   min-height: 0;
+  overflow: hidden;
 }
 
 .trainer-profile-avatar-zone::before,
@@ -594,6 +595,8 @@
   }
 
   .trainer-profile-body {
+    display: flex;
+    flex-direction: column;
     gap: 6px;
     padding: 5px;
   }
@@ -601,11 +604,26 @@
   .trainer-profile-side,
   .trainer-profile-center {
     padding: 0;
+    min-height: auto;
+    height: auto;
+    flex: 0 0 auto;
+  }
+
+  .trainer-profile-side {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    order: 1;
+  }
+
+  .trainer-profile-panel {
+    flex: 0 0 auto;
   }
 
   .trainer-profile-center {
-    min-height: 440px;
-    grid-template-rows: auto minmax(300px, 1fr);
+    order: 0;
+    min-height: 360px;
+    grid-template-rows: auto minmax(220px, 1fr);
   }
 
   .trainer-profile-namezone {
@@ -663,9 +681,27 @@
     right: 8px;
   }
 
+  .trainer-profile-avatar {
+    max-width: 76%;
+    max-height: 260px;
+  }
+
   .trainer-profile-panel h3 {
     min-height: 28px;
     font-size: 15px;
+  }
+
+  .trainer-profile-info {
+    grid-template-rows: auto auto auto;
+  }
+
+  .trainer-profile-bio {
+    max-height: 92px;
+    overflow: auto;
+  }
+
+  .trainer-profile-stats {
+    align-self: start;
   }
 
   .trainer-profile-clan-top,

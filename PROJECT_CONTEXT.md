@@ -21,7 +21,9 @@
 - Данные: `src/Repository/*`.
 - Игровая логика: `src/Game/*`.
 - Основной игровой shell: `/game`, `views/game-start.php`, `public/js/*`, `public/css/*`.
+- `/game` view больше не держит основной inline-runtime: игровая логика вынесена в `public/js/game-start-runtime.js`, PHP передаёт только JSON-конфиг `gameRuntimeConfig`; чатовые стили вынесены в `public/css/chat.css`.
 - Админка/GM Center: `/game/admin`, `views/game-admin.php`, `public/js/admin-panel.js`, `public/css/admin-panel.css`, `/api/admin/gm-center`, `/api/admin/qa-seed-tools`.
+- `AdminRepository` уже частично разнесён на traits: commission, GM Center, QA Seed Tools, events/tournaments/medals; следующие безопасные кандидаты - pokemon grant, moderation/users, legacy-map helpers.
 - Карта legacy -> новый слой: `src/Game/GameRoutes.php`.
 - Миграции: `database/migrations/*.sql`; новые изменения применять в живую БД и оставлять идемпотентными.
 
@@ -38,7 +40,7 @@
   - `tools/beta_data_audit.php --fix-safe` - только безопасные исправления: merge одинаковых item stacks, expire due commission/PvP.
   - `tools/background_jobs.php --status|--dry-run|--job=<name>` - ручной запуск фоновых задач;
   - `tools/db_integrity_smoke.php [--fix-safe]` - integrity/anti-dupe проверки.
-- Последний статус миграций: `73/73`, `pending=0`, `dirty=0`, `failed=0`.
+- Последний статус миграций: `74/74`, `pending=0`, `dirty=0`, `failed=0`.
 - Последний beta audit: `P0=0`, `P1=0`; `WARN` остаётся по историческим незавершённым rows в `battles`.
 - Комиссионная лавка резервирует покемонов/яйца через `commission.reserve_user_id`, сейчас это аккаунт `Система`, а не живой игрок `id=3`; дополнительно ведётся ledger `market_reserved_objects`.
 - Safe Storage: `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`, `SafeStorageRepository`, `tools/safe_storage_smoke.php`.
@@ -82,6 +84,7 @@
   - `CommissionMarketRepository` - текущий единый рынок item/pokemon/egg.
 - Commission admin: `/api/admin/commission/*`, `market_lots`, `market_logs`, `market_return_storage`, `market_deal_reviews`; отдельная вкладка `Economy Guard` показывает автоалерты экономики и даёт ручной review.
 - Trainer Card: `/api/profile/card`, модальное окно на текущей странице, social viewing/actions, held items и gym badges через reward-flow.
+- Trainer Card gym flow: `gym_badge_battle_rules` связывает реальный PvE gym-бой с `gym_badges`; `BattleEngineService` выдаёт значок через `RewardRepository::grantGymBadge(..., sourceType=gym_battle)` после победы, пишет battle log/replay action и не дублирует уже выданный badge.
 - Events/buffs: `/api/events`, `/api/events/active`, `GameEventRepository`.
 - Notifications/mail: `/api/notifications`, `RewardRepository::notify()`, `MessageRepository::sendSystem()`, `Mailer`; SMTP задаётся через `.env`, smoke использует `MAIL_TRANSPORT=log`.
 - Bug reports: `/api/bug-reports` принимает игровые отчёты с state/battle/log attachments; `/api/admin/bug-reports` и `/status` доступны только админам.
@@ -103,7 +106,7 @@
 - Eggs/breeding: `eggs`, `pokemon_breeding_rules`, `pokemon_breeding_requests`.
 - Markets: `market_lots`, `market_logs`, `market_return_storage`, `market_reserved_objects`, `market_deal_reviews`, `economy_guard_alerts`; legacy `auction_items`/`rinok_poke` только compat/import.
 - Safe storage: `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`.
-- Trainer Card rewards: `user_gym_badges`, medals/reward tables.
+- Trainer Card rewards: `user_gym_badges`, `gym_badge_battle_rules`, medals/reward tables.
 - Tournaments/medals: `admin_tournaments`, `admin_tournament_participants`, `admin_tournament_logs`, `admin_medals`, `admin_user_medals`.
 - Events/bosses/transport: current migration tables in `database/migrations`.
 - Background jobs: `background_job_runs`, `background_job_logs`.
@@ -121,7 +124,7 @@
 - `/game/quests` - overlay-журнал на `/game` плюс standalone fallback; список, поиск/фильтры, цели с progress bar, награды, tracked quest и mini-tracker.
 - `/game/eggs`, `/game/events`, `/game/market/pokemon` - новые страницы модулей.
 - `/game/tournaments` - игроковая страница турниров с регистрацией, взносом, ареной и наградами.
-- Trainer Card - модальное окно на `/game`, не отдельная legacy-страница; клики по профилю/друзьям открывают overlay, API отдаёт `social` и `badgeSummary`.
+- Trainer Card - модальное окно на `/game`, не отдельная legacy-страница; клики по профилю/друзьям открывают overlay, API отдаёт `social` и `badgeSummary`; mobile open/profile-switch сбрасывает внутренний scroll, чтобы окно не открывалось с середины карточки.
 
 ## Комиссионная Лавка: Финальная V1
 
@@ -170,7 +173,10 @@
 - `tools/open_test_regression.php` - sequential quick/full runner for open-test smoke matrix; runs mutating PvE/PvP/breeding checks in order, not in parallel.
 - `tools/prepare_qa_teams.php`
 
+Последняя Phase 7 / Release Candidate проверка: 2026-05-28 heartbeat `phase-7-full-manual-regression`, ветка `codex/beta-foundation`. `tools/open_test_regression.php --profile=quick --login=Tacos --password=...` прошёл `20/20`; targeted PvE: `pve_reward_idempotency_smoke.php` `9/9`, `battle_transformation_stats_smoke.php` OK, HTTP catch `56/56`, HTTP finish `58/58`; PvP: `pvp_qa_smoke.php` `126/126`, `battle_replay_smoke.php` `6/6`; economy/content/admin: commission `24/24`, hardening `36/36` на 120 итераций, breeding `55/55`, quests `29/29`, tournament `33/33`, Dex `27/27`, locations/NPC/transport `24/24`, Admin/GM `26/26`. Browser QA `/game`: главный экран без horizontal overflow, `Лавка` открывает overlay, категории без `Зелья/Ягоды`, `Мои лоты` переключается, `Квесты` открывают новый журнал overlay. Final smoke: `tools/open_test_regression.php --profile=full --login=Tacos --password=...` прошёл `24/24`, `failed=0`, `skipped=0`; миграции `74/74`, integrity `P0=0/P1=0/WARN=4`. Known issues без RC-blocker: WARN по старым orphan `items_users`/`pok_user`/`eggs` и 208 unfinished legacy battle rows; отдельный headless mobile Playwright-прогон не выполнен из-за отсутствующего локального `playwright-core`, но browser DOM QA desktop/current viewport зелёный.
 Последняя Open Test Regression проверка: `tools/open_test_regression.php --profile=full --password=...` прошёл `24/24` блоков, `failed=0`, `skipped=0`; миграции `73/73`, integrity `P0=0/P1=0/WARN=4`, PvE catch `58/58`, PvE finish `59/59`, breeding `55/55`, PvP Tacos/NIGA `126/126`. Во время прогона исправлены race-safety хвосты: commission notifications и reward/items smoke больше не считают `MAX(id)+1` для auto-increment таблиц, а админская legacy-карта теперь скрыта вне вкладки `Legacy-карта`. Отчёт: `OPEN_TEST_REGRESSION_2026-05-27.md`; screenshots в `tmp/open-test-*.png` локальные и не считаются продуктом.
+Последняя Trainer Card/social проверка: миграции `74/74`, `tools/trainer_card_gym_badge_flow_smoke.php` `8/8`, HTTP smoke `52/52`; browser QA `/game` mobile-width подтвердил: профиль Tacos открывается overlay без URL-перехода, клик по другу `NIGA` открывает `UID: 29` на текущей странице, `game.php` iframe/legacy popup отсутствуют, horizontal overflow и overlap секций отсутствуют.
+Последняя декомпозиция крупных файлов: `views/game-start.php` сокращён до view + JSON config, runtime вынесен в `public/js/game-start-runtime.js`, чатовые стили вынесены в `public/css/chat.css`, admin events/tournaments/medals вынесены в `AdminEventsTournamentRepositoryTrait`. Проверено lint/syntax, HTTP smoke `52/52`, Admin GM Center `26/26`, Trainer Card gym flow `8/8`, browser QA `/game` inventory overlay после split.
 Последняя Quest Journal UI проверка: миграции `73/73`, `tools/quests_minimum_smoke.php` `29/29`, `tools/fpe_quest_smoke.php` `25/25`; PHP lint `QuestRepository.php`, `QuestApiController.php`, `views/game-start.php`, `views/game-quests.php`, `views/components/quest-journal-panel.php`, `public/index.php`; JS syntax `public/js/quest-journal.js`. Browser QA: `/game` открывает квесты как overlay без перехода со страницы, `/game/quests` работает как standalone fallback, карточки/цели/награды/tracked quest/mini-tracker рендерятся, horizontal overflow на ширине `399px` отсутствует; актуальных console errors по quest UI нет.
 Последняя Tournament QA проверка: миграции `72/72`, `tools/tournament_qa_smoke.php --password=...` `33/33`; покрыты `/game/tournaments`, `/api/tournaments`, CSRF-negative, расписание/timezone payload, куратор, взнос, списание/возврат, дедлайн, лимит участников, запрет дубля, нехватка средств, вход/выход с арены через `buildmy`, одноразовая награда, медаль и `admin_tournament_logs`; browser QA подтвердил рендер карточки турнира, кнопку регистрации, дедлайн, куратора, арену и отсутствие пустых состояний.
 Последняя Phase 6 Bug Reporter проверка: миграции `71/71`, `tools/bug_reporter_smoke.php` `9/9`, `tools/admin_gm_center_smoke.php` `26/26`; browser QA `/game` подтвердил кнопку `Report bug`, открытие overlay, прикрепление state/battle id/client logs/server logs и отправку тестового report. Дополнительно исправлен mobile actionbar overlap: quick controls больше не перекрываются ссылкой `Лавка`.

@@ -11,7 +11,7 @@ $lots = is_array($lots ?? null) ? $lots : [];
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= View::e($module['title']) ?> - Pokemon 8.0</title>
-  <link rel="stylesheet" href="/public/css/market-items.css">
+  <link rel="stylesheet" href="/public/css/market-items.css?v=20260528-fix2">
 </head>
 <body>
   <main class="shop-page" data-csrf="<?= View::e($csrf) ?>">
@@ -130,6 +130,6 @@ $lots = is_array($lots ?? null) ? $lots : [];
       </footer>
     </section>
   </main>
-  <script src="/public/js/market-items.js"></script>
+  <script src="/public/js/market-items.js?v=20260528-fix2"></script>
 </body>
 </html>
