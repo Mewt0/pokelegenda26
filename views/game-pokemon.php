@@ -107,7 +107,7 @@ use Pokemon8\View\View;
       background: rgba(238, 244, 250, .82);
     }
     .team-list.is-detail .poke-tile {
-      height: 150px;
+      height: 142px;
     }
     .poke-tile.is-active { border-color: #5d8cc0; box-shadow: 0 0 0 2px rgba(72,132,209,.14) inset; }
     .poke-tile .ball { position: absolute; left: 6px; top: 9px; width: 23px; height: 23px; object-fit: contain; }
@@ -160,7 +160,7 @@ use Pokemon8\View\View;
       max-height: 72px;
     }
     .tile-lvl { margin-left: 5px; color: #071b30; font: 800 17px/1 Georgia, serif; }
-    .hpbar { height: 7px; margin: 3px 0 5px; border: 1px solid #aebccc; border-radius: 999px; background: #d5e0ea; overflow: hidden; }
+    .hpbar { height: 7px; margin: 3px 84px 5px 0; border: 1px solid #aebccc; border-radius: 999px; background: #d5e0ea; overflow: hidden; }
     .hpbar i { display: block; height: 100%; background: #0ac18f; }
     .tile-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .tile-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0b1726; font: 800 14px/1 Georgia, serif; text-transform: uppercase; }
@@ -321,7 +321,7 @@ use Pokemon8\View\View;
     .tile-status {
       position: absolute;
       right: 8px;
-      bottom: 28px;
+      bottom: 23px;
       padding: 2px 7px;
       border: 1px solid #a8b8c9;
       border-radius: 999px;
@@ -329,18 +329,20 @@ use Pokemon8\View\View;
       color: #47627f;
       font-size: 11px;
       font-weight: 800;
+      pointer-events: none;
     }
+    .team-list.is-detail .tile-status { bottom: 27px; }
     .team-section-nursery .tile-status { display: none; }
     .poke-tile.is-stored .tile-status { color: #87682f; border-color: #c9b486; background: #fff8df; }
     .detail-actions {
-      margin: 12px 0 0;
+      margin: 6px 0 8px;
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 6px;
     }
     .team-action {
-      min-height: 34px;
-      padding: 0 12px;
+      min-height: 30px;
+      padding: 0 10px;
       border: 1px solid #9fb0c0;
       border-radius: 5px;
       background: #edf5fc;
@@ -376,7 +378,7 @@ use Pokemon8\View\View;
     .detail-art img { max-width: 198px; max-height: 142px; object-fit: contain; }
     .move-list { min-width: 0; display: grid; gap: 5px; }
     .move-slot {
-      height: 50px;
+      height: 46px;
       display: grid;
       grid-template-columns: 42px minmax(0, 1fr);
       align-items: center;
@@ -431,16 +433,16 @@ use Pokemon8\View\View;
     .move-name { min-width: 0; padding-right: 28px; color: #aa1616; font: 800 14px/1 Georgia, serif; text-transform: uppercase; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .move-pp { position: absolute; right: 0; top: 0; color: #526173; font-weight: 700; }
     .move-hint { color: #526173; font-size: 11px; }
-    .detail-main { min-width: 0; padding: 0 2px 10px 0; }
-    .detail-title { margin: 0; color: #102544; font: 800 22px/1.04 Georgia, "Times New Roman", serif; text-transform: uppercase; overflow-wrap: anywhere; }
+    .detail-main { min-width: 0; padding: 0 2px 6px 0; }
+    .detail-title { margin: 0; color: #102544; font: 800 21px/1.04 Georgia, "Times New Roman", serif; text-transform: uppercase; overflow-wrap: anywhere; }
     .detail-title[role="button"] { cursor: pointer; }
     .detail-title[role="button"]:hover { color: #0d5ca8; }
-    .detail-sub { margin-top: 3px; color: #123965; font-size: 14px; overflow-wrap: anywhere; }
+    .detail-sub { margin-top: 2px; color: #123965; font-size: 13px; overflow-wrap: anywhere; }
     .badge {
       display: inline-flex;
       align-items: center;
       min-height: 22px;
-      margin-top: 4px;
+      margin-top: 3px;
       padding: 0 8px;
       border: 1px solid #9fb0c0;
       border-radius: 4px;
@@ -448,13 +450,13 @@ use Pokemon8\View\View;
       color: #183c62;
       font-weight: 700;
     }
-    .stats { max-width: 100%; margin-top: 10px; display: grid; gap: 4px; }
+    .stats { max-width: 100%; margin-top: 6px; display: grid; gap: 3px; }
     .vitamin-summary {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 6px;
-      margin-bottom: 4px;
+      gap: 5px;
+      margin-bottom: 3px;
       color: #31516f;
       font-size: 11px;
       font-weight: 800;
@@ -470,11 +472,11 @@ use Pokemon8\View\View;
       white-space: nowrap;
     }
     .vitamin-summary b { color: #0b8f58; }
-    .stat-row { display: grid; grid-template-columns: 132px 42px minmax(92px, 1fr) auto auto 24px; align-items: center; gap: 7px; color: #1f3855; }
+    .stat-row { display: grid; grid-template-columns: 112px 42px minmax(82px, 1fr) auto auto 22px; align-items: center; gap: 5px; color: #1f3855; }
     .stat-label { min-width: 0; display: flex; align-items: center; gap: 6px; }
     .stat-label span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .stat-value { text-align: right; color: #526173; font-weight: 700; }
-    .stat-track { height: 10px; border: 1px solid #aab8c6; border-radius: 99px; background: #edf3f9; overflow: hidden; }
+    .stat-track { height: 9px; border: 1px solid #aab8c6; border-radius: 99px; background: #edf3f9; overflow: hidden; }
     .stat-track i { display: block; height: 100%; background: #d0c96a; }
     .stat-row.hp .stat-track i { background: #14bf91; }
     .stat-row.is-trained { color: #102544; font-weight: 800; }
@@ -510,7 +512,7 @@ use Pokemon8\View\View;
     .stat-plus:disabled { opacity: .35; cursor: default; }
     .stat-ev-chip,
     .stat-vitamin-chip {
-      min-height: 20px;
+      min-height: 18px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -519,8 +521,8 @@ use Pokemon8\View\View;
       white-space: nowrap;
     }
     .stat-ev-chip {
-      min-width: 82px;
-      padding: 0 7px;
+      min-width: 76px;
+      padding: 0 6px;
       border: 1px solid #a9bed4;
       background: rgba(255,255,255,.62);
       color: #31516f;
@@ -542,18 +544,18 @@ use Pokemon8\View\View;
       color: #7b8793;
     }
     .ev-left { justify-self: end; color: #00a75f; font-weight: 900; }
-    .meta { margin-top: 18px; color: #0d5ca8; font-weight: 700; }
+    .meta { margin-top: 10px; color: #0d5ca8; font-weight: 700; }
     .training-box {
-      margin-top: 10px;
-      padding: 8px 10px;
+      margin-top: 6px;
+      padding: 7px 9px;
       border: 1px solid #b3c5d8;
       border-radius: 6px;
       background: rgba(255,255,255,.42);
     }
-    .training-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
+    .training-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:3px; }
     .training-box strong { display:block; color:#102544; }
     .training-box small { display:block; color:#526173; line-height: 1.25; }
-    .training-chances { margin-top:5px; display:flex; flex-wrap:wrap; gap:4px; }
+    .training-chances { margin-top:4px; display:flex; flex-wrap:wrap; gap:4px; }
     .training-chances span {
       min-height: 18px;
       display: inline-flex;
@@ -566,7 +568,7 @@ use Pokemon8\View\View;
       font-size: 10px;
       font-weight: 800;
     }
-    .training-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+    .training-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:5px; }
     .training-actions button {
       min-height: 26px;
       padding: 0 9px;
@@ -1035,9 +1037,9 @@ use Pokemon8\View\View;
         '<div class="detail-sub"></div>',
         '<span class="badge">Обычный характер</span>',
         '<div class="held-detail" hidden><img alt=""><span></span></div>',
+        '<div class="detail-actions"></div>',
         '<div class="stats"></div>',
         '<div class="training-box"></div>',
-        '<div class="detail-actions"></div>',
         '<div class="meta">☻ ВаДИлаа 2 дня назад <button type="button" class="starter">стартовый</button></div>',
         '</div>'
       ].join('');
@@ -1062,9 +1064,9 @@ use Pokemon8\View\View;
         '<div class="detail-sub"></div>',
         '<span class="badge">Обычный характер</span>',
         '<div class="held-detail" hidden><img alt=""><span></span></div>',
+        '<div class="detail-actions"></div>',
         '<div class="stats"></div>',
         '<div class="training-box"></div>',
-        '<div class="detail-actions"></div>',
         '<div class="meta">☻ ВадИлаа 2 дня назад <button type="button" class="starter">стартовый</button></div>',
         '</div>'
       ].join('');
