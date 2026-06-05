@@ -35,6 +35,8 @@ final class GameRoutes
         'diamond_shop' => '/game/diamond-shop',
         'rinok' => '/game/market/items',
         'commission' => '/game/commission',
+        'info_tur' => '/game/tournaments',
+        'medal' => '/game/tournaments',
         'clans' => '/game/clans',
         'pokerinok' => '/game/market/pokemon',
     ];
@@ -64,6 +66,7 @@ final class GameRoutes
         'diamond-shop' => ['title' => 'Алмазный магазин', 'status' => 'partial', 'legacy' => 'diamond_shop'],
         'market/items' => ['title' => 'Покемаркет', 'status' => 'partial', 'legacy' => 'rinok'],
         'commission' => ['title' => 'Комиссионная лавка', 'status' => 'partial', 'legacy' => 'rinok/pokerinok'],
+        'tournaments' => ['title' => 'Турниры', 'status' => 'partial', 'legacy' => 'info_tur/medal'],
         'clans' => ['title' => 'Кланы', 'status' => 'todo', 'legacy' => 'clans'],
         'market/pokemon' => ['title' => 'Рынок покемонов', 'status' => 'done', 'legacy' => 'pokerinok'],
     ];

@@ -333,7 +333,7 @@ final class PokemonMarketRepository
 
     private function withMarketLock(callable $callback): void
     {
-        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 15)');
         $lock->execute(['name' => 'pokemon8_seq_rinok_poke_id']);
         if ((int) ($lock->fetchColumn() ?: 0) !== 1) {
             throw new \RuntimeException('Unable to acquire rinok_poke lock.');

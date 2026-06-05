@@ -11,7 +11,7 @@ $commissionRootId = 'commissionPage';
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Комиссионная лавка - Pokemon 8.0</title>
   <link rel="stylesheet" href="/public/css/game-shell.css">
-  <link rel="stylesheet" href="/public/css/commission-market.css?v=20260527-my-lots">
+  <link rel="stylesheet" href="/public/css/commission-market.css?v=20260603-layout-fix">
 </head>
 <body>
   <?php require APP_ROOT . '/views/components/commission-market-panel.php'; ?>

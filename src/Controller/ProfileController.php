@@ -75,6 +75,32 @@ final class ProfileController
         }
     }
 
+    public function settings(Request $request): Response
+    {
+        $userId = (int) $this->session->get('id', 0);
+        if ($userId <= 0) {
+            return $this->json(['ok' => false, 'error' => 'auth', 'message' => 'Нужно войти в игру.'], 401);
+        }
+
+        return $this->json([
+            'ok' => true,
+            'settings' => $this->profiles->settingsForUser($userId),
+        ]);
+    }
+
+    public function saveSettings(Request $request): Response
+    {
+        $userId = (int) $this->session->get('id', 0);
+        if ($userId <= 0) {
+            return $this->json(['ok' => false, 'error' => 'auth', 'message' => 'Нужно войти в игру.'], 401);
+        }
+        if (!$this->csrf->validate($request->input('_csrf'))) {
+            return $this->json(['ok' => false, 'error' => 'csrf', 'message' => 'Сессия устарела. Обновите страницу.'], 419);
+        }
+
+        return $this->json($this->profiles->saveSettings($userId, $request->post));
+    }
+
     private function resolveProfileId(Request $request, int $viewerId): int
     {
         $profileLogin = $request->input('user');

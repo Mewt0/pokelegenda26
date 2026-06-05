@@ -9,8 +9,9 @@ use Throwable;
 final class CommissionMarketRepository
 {
     private const COIN_ITEM_ID = 1;
-    private const RESERVE_USER_ID = 3;
+    private const FALLBACK_RESERVE_USER_ID = 3;
     private const SYSTEM_LOGIN = 'Система';
+    private ?int $reserveUserId = null;
 
     private const CATEGORY_LABELS = [
         'all' => 'Все',
@@ -27,7 +28,11 @@ final class CommissionMarketRepository
         'other' => 'Прочие предметы',
     ];
 
-    public function __construct(private PDO $db, private InventoryRepository $inventory)
+    public function __construct(
+        private PDO $db,
+        private InventoryRepository $inventory,
+        private ?SafeStorageRepository $safeStorage = null
+    )
     {
     }
 
@@ -172,6 +177,9 @@ final class CommissionMarketRepository
         if ($pricePerUnit < $settings['min_price'] || $pricePerUnit > $settings['max_price']) {
             return ['ok' => false, 'message' => 'Цена выходит за разрешённый диапазон.'];
         }
+        if ($quantity > $settings['max_quantity_per_lot']) {
+            return ['ok' => false, 'message' => 'Количество в одном лоте превышает лимит лавки.'];
+        }
         if ($durationHours < $settings['min_hours'] || $durationHours > $settings['max_hours']) {
             return ['ok' => false, 'message' => 'Срок размещения выходит за настройки лавки.'];
         }
@@ -183,6 +191,9 @@ final class CommissionMarketRepository
         $now = time();
         $expiresAt = $now + ($durationHours * 3600);
         $total = $pricePerUnit * $quantity;
+        if ($total > $settings['max_total_price']) {
+            return ['ok' => false, 'message' => 'Общая сумма лота превышает лимит лавки.'];
+        }
 
         $startedTransaction = !$this->db->inTransaction();
         if ($startedTransaction) {
@@ -229,6 +240,7 @@ final class CommissionMarketRepository
                 'private_buyer' => $privateBuyerId,
             ]);
             $lotId = (int) $this->db->lastInsertId();
+            $this->reserveObjectLock($lotId, $userId, $type, $objectId, $expiresAt);
             $this->log('create', $userId, $lotId, ['type' => $type, 'object_id' => $objectId, 'quantity' => $quantity, 'total' => $total]);
             $risk = $this->dealRisk([
                 'object_type' => $type,
@@ -239,14 +251,12 @@ final class CommissionMarketRepository
                 'price_per_unit' => $pricePerUnit,
                 'total_price' => $total,
             ]);
-            if ($risk['is_risky']) {
-                $this->log('risk.flagged', $userId, $lotId, $risk + [
-                    'seller_id' => $userId,
-                    'buyer_id' => 0,
-                    'total' => $total,
-                    'commission' => 0,
-                ]);
-            }
+            $this->flagSuspiciousLot($lotId, $userId, $risk + [
+                'seller_id' => $userId,
+                'buyer_id' => 0,
+                'total' => $total,
+                'commission' => 0,
+            ]);
             $this->notify($userId, 'Лот выставлен', sprintf('Ваш лот "%s" выставлен в комиссионной лавке.', (string) $prepared['name']), ['lot_id' => $lotId]);
             if ($startedTransaction) {
                 $this->db->commit();
@@ -304,6 +314,7 @@ final class CommissionMarketRepository
             }
 
             $total = max(0, (int) ($lot['total_price'] ?? 0));
+            $this->freezeLockedLot($lot, $buyerId, 'buy');
             if (!$this->inventory->removeItem($buyerId, self::COIN_ITEM_ID, $total)) {
                 if ($startedTransaction) {
                     $this->db->rollBack();
@@ -325,16 +336,14 @@ final class CommissionMarketRepository
             )->execute(['time' => time(), 'buyer' => $buyerId, 'commission' => $commission, 'id' => $lotId]);
 
             $this->syncLegacyAfterFinalStatus($lot);
+            $this->releaseObjectLock($lot);
             $this->log('buy', $buyerId, $lotId, ['seller_id' => $sellerId, 'total' => $total, 'commission' => $commission]);
-            $risk = $this->dealRisk($lot);
-            if ($risk['is_risky'] && !$this->riskLogExists($lotId)) {
-                $this->log('risk.flagged', $buyerId, $lotId, $risk + [
-                    'seller_id' => $sellerId,
-                    'buyer_id' => $buyerId,
-                    'total' => $total,
-                    'commission' => $commission,
-                ]);
-            }
+            $this->flagSuspiciousLot($lotId, $buyerId, $this->dealRisk($lot) + [
+                'seller_id' => $sellerId,
+                'buyer_id' => $buyerId,
+                'total' => $total,
+                'commission' => $commission,
+            ]);
             $this->notify($buyerId, 'Покупка завершена', sprintf('Вы купили "%s".', (string) ($lot['object_name'] ?? 'лот')), ['lot_id' => $lotId]);
             $this->notify($sellerId, 'Лот продан', sprintf('Ваш лот "%s" продан за %s монет.', (string) ($lot['object_name'] ?? 'лот'), number_format($sellerIncome, 0, ',', ' ')), ['lot_id' => $lotId]);
             if ($startedTransaction) {
@@ -366,9 +375,11 @@ final class CommissionMarketRepository
                 }
                 return ['ok' => false, 'message' => 'Активный лот не найден.'];
             }
+            $this->freezeLockedLot($lot, $userId, 'cancel');
             $this->returnLotToSeller($lot, 'cancelled');
             $this->db->prepare('UPDATE market_lots SET status = "cancelled" WHERE id = :id LIMIT 1')->execute(['id' => $lotId]);
             $this->syncLegacyAfterFinalStatus($lot);
+            $this->releaseObjectLock($lot);
             $this->log('cancel', $userId, $lotId, []);
             $this->notify($userId, 'Лот снят', sprintf('Лот "%s" снят с продажи.', (string) ($lot['object_name'] ?? 'лот')), ['lot_id' => $lotId]);
             if ($startedTransaction) {
@@ -399,6 +410,13 @@ final class CommissionMarketRepository
             'commission.min_hours',
             'commission.max_hours',
             'commission.max_active_lots',
+            'commission.max_quantity_per_lot',
+            'commission.max_total_price',
+            'commission.freeze_timeout_seconds',
+            'commission.risk_total_price',
+            'commission.risk_unit_price',
+            'commission.risk_easy_item_total',
+            'commission.risk_easy_item_unit',
             'commission.allow_pokemon',
             'commission.allow_eggs',
             'commission.allow_currency',
@@ -488,7 +506,7 @@ final class CommissionMarketRepository
         }
 
         $this->db->prepare('UPDATE pok_user SET users = :reserve, active = 0, startepoke = 0 WHERE id = :pokemon AND users = :user LIMIT 1')
-            ->execute(['reserve' => self::RESERVE_USER_ID, 'pokemon' => $pokemonId, 'user' => $userId]);
+            ->execute(['reserve' => $this->reserveUserId(), 'pokemon' => $pokemonId, 'user' => $userId]);
 
         $baseId = (int) ($pokemon['basenum'] ?? 0);
         $name = strip_tags((string) ($pokemon['names'] ?? $this->cleanBaseName((string) ($pokemon['base_title'] ?? ''), $baseId)));
@@ -520,7 +538,7 @@ final class CommissionMarketRepository
             return ['ok' => false, 'message' => 'Яйцо не найдено.'];
         }
         $this->db->prepare('UPDATE eggs SET users_egg = :reserve WHERE id_egg = :egg AND users_egg = :user LIMIT 1')
-            ->execute(['reserve' => self::RESERVE_USER_ID, 'egg' => $eggId, 'user' => $userId]);
+            ->execute(['reserve' => $this->reserveUserId(), 'egg' => $eggId, 'user' => $userId]);
         $baseId = (int) ($egg['base_id_egg'] ?? 0);
         $name = 'Яйцо #' . $baseId . ' ' . $this->cleanBaseName((string) ($egg['base_title'] ?? ''), $baseId);
         return [
@@ -544,7 +562,7 @@ final class CommissionMarketRepository
         if ($type === 'pokemon') {
             $active = $this->activePokemonCount($buyerId) < 6 ? 1 : 0;
             $stmt = $this->db->prepare('UPDATE pok_user SET users = :buyer, active = :active, startepoke = 0 WHERE id = :pokemon AND users = :reserve LIMIT 1');
-            $stmt->execute(['buyer' => $buyerId, 'active' => $active, 'pokemon' => $objectId, 'reserve' => self::RESERVE_USER_ID]);
+            $stmt->execute(['buyer' => $buyerId, 'active' => $active, 'pokemon' => $objectId, 'reserve' => $this->reserveUserId()]);
             if ($stmt->rowCount() !== 1) {
                 throw new \RuntimeException('Покемон в резерве не найден.');
             }
@@ -552,7 +570,7 @@ final class CommissionMarketRepository
         }
         if ($type === 'egg') {
             $stmt = $this->db->prepare('UPDATE eggs SET users_egg = :buyer WHERE id_egg = :egg AND users_egg = :reserve LIMIT 1');
-            $stmt->execute(['buyer' => $buyerId, 'egg' => $objectId, 'reserve' => self::RESERVE_USER_ID]);
+            $stmt->execute(['buyer' => $buyerId, 'egg' => $objectId, 'reserve' => $this->reserveUserId()]);
             if ($stmt->rowCount() !== 1) {
                 throw new \RuntimeException('Яйцо в резерве не найдено.');
             }
@@ -572,13 +590,13 @@ final class CommissionMarketRepository
             } elseif ($type === 'pokemon') {
                 $active = $this->activePokemonCount($sellerId) < 6 ? 1 : 0;
                 $stmt = $this->db->prepare('UPDATE pok_user SET users = :seller, active = :active, startepoke = 0 WHERE id = :pokemon AND users = :reserve LIMIT 1');
-                $stmt->execute(['seller' => $sellerId, 'active' => $active, 'pokemon' => $objectId, 'reserve' => self::RESERVE_USER_ID]);
+                $stmt->execute(['seller' => $sellerId, 'active' => $active, 'pokemon' => $objectId, 'reserve' => $this->reserveUserId()]);
                 if ($stmt->rowCount() !== 1) {
                     throw new \RuntimeException('Покемон в резерве не найден.');
                 }
             } elseif ($type === 'egg') {
                 $stmt = $this->db->prepare('UPDATE eggs SET users_egg = :seller WHERE id_egg = :egg AND users_egg = :reserve LIMIT 1');
-                $stmt->execute(['seller' => $sellerId, 'egg' => $objectId, 'reserve' => self::RESERVE_USER_ID]);
+                $stmt->execute(['seller' => $sellerId, 'egg' => $objectId, 'reserve' => $this->reserveUserId()]);
                 if ($stmt->rowCount() !== 1) {
                     throw new \RuntimeException('Яйцо в резерве не найдено.');
                 }
@@ -590,8 +608,26 @@ final class CommissionMarketRepository
 
     private function expireDueLots(): void
     {
-        $stmt = $this->db->prepare('SELECT * FROM market_lots WHERE status = "active" AND expires_at <= :time ORDER BY expires_at ASC LIMIT 50');
+        $this->expireDueLotsJob(50, false);
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    public function expireDueLotsJob(int $limit = 50, bool $dryRun = false): array
+    {
+        $limit = max(1, min(500, $limit));
+        $dueStmt = $this->db->prepare('SELECT COUNT(*) FROM market_lots WHERE status = "active" AND expires_at <= :time');
+        $dueStmt->execute(['time' => time()]);
+        $due = (int) ($dueStmt->fetchColumn() ?: 0);
+        if ($dryRun || $due === 0) {
+            return ['due' => $due, 'expired' => 0, 'failed' => 0, 'dryRun' => $dryRun];
+        }
+
+        $stmt = $this->db->prepare('SELECT * FROM market_lots WHERE status = "active" AND expires_at <= :time ORDER BY expires_at ASC LIMIT ' . $limit);
         $stmt->execute(['time' => time()]);
+        $expired = 0;
+        $failed = 0;
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $lot) {
             $this->db->beginTransaction();
             try {
@@ -600,21 +636,27 @@ final class CommissionMarketRepository
                 $locked = $lock->fetch(PDO::FETCH_ASSOC);
                 if ($locked && (int) ($locked['expires_at'] ?? 0) <= time()) {
                     $this->expireLockedLot($locked, 0);
+                    $expired++;
                 }
                 $this->db->commit();
             } catch (Throwable) {
+                $failed++;
                 if ($this->db->inTransaction()) {
                     $this->db->rollBack();
                 }
             }
         }
+
+        return ['due' => $due, 'expired' => $expired, 'failed' => $failed, 'dryRun' => false];
     }
 
     private function expireLockedLot(array $lot, int $actorId): void
     {
+        $this->freezeLockedLot($lot, $actorId, 'expire');
         $this->returnLotToSeller($lot, 'expired');
         $this->db->prepare('UPDATE market_lots SET status = "expired" WHERE id = :id LIMIT 1')->execute(['id' => (int) $lot['id']]);
         $this->syncLegacyAfterFinalStatus($lot);
+        $this->releaseObjectLock($lot);
         $this->log('expire', $actorId, (int) $lot['id'], []);
         $this->notify((int) $lot['seller_id'], 'Срок лота истёк', sprintf('Лот "%s" возвращён.', (string) ($lot['object_name'] ?? 'лот')), ['lot_id' => (int) $lot['id']]);
     }
@@ -1016,6 +1058,10 @@ final class CommissionMarketRepository
             'legacy_type' => $row['legacy_source_type'],
             'legacy_id' => $row['legacy_source_id'],
         ]);
+        if ($stmt->rowCount() > 0) {
+            $lotId = (int) $this->db->lastInsertId();
+            $this->reserveObjectLock($lotId, (int) $row['seller_id'], (string) $row['object_type'], (int) $row['object_id'], (int) $row['expires_at'], false);
+        }
     }
 
     private function legacyExists(string $type, int $id): bool
@@ -1050,6 +1096,13 @@ final class CommissionMarketRepository
             'min_hours' => 24,
             'max_hours' => 72,
             'max_active_lots' => 20,
+            'max_quantity_per_lot' => 9999,
+            'max_total_price' => 999999999,
+            'freeze_timeout_seconds' => 300,
+            'risk_total_price' => 50000000,
+            'risk_unit_price' => 10000000,
+            'risk_easy_item_total' => 1000000,
+            'risk_easy_item_unit' => 500000,
             'allow_pokemon' => true,
             'allow_eggs' => true,
             'allow_currency' => false,
@@ -1137,10 +1190,9 @@ final class CommissionMarketRepository
         $message = $this->messageWithActor($message);
 
         $this->db->prepare(
-            'INSERT INTO game_notifications (id, user_id, title, message, variant, payload_json, source, created_at, read_at)
-             VALUES (:id, :user, :title, :message, "info", :payload, "Система", :time, 0)'
+            'INSERT INTO game_notifications (user_id, title, message, variant, payload_json, source, created_at, read_at)
+             VALUES (:user, :title, :message, "info", :payload, "Система", :time, 0)'
         )->execute([
-            'id' => $this->nextTableId('game_notifications', 'id'),
             'user' => $userId,
             'title' => $title,
             'message' => $message,
@@ -1168,8 +1220,34 @@ final class CommissionMarketRepository
         return (int) ($stmt->fetchColumn() ?: 0);
     }
 
+    private function reserveUserId(): int
+    {
+        if ($this->reserveUserId !== null) {
+            return $this->reserveUserId;
+        }
+
+        $id = 0;
+        try {
+            $stmt = $this->db->prepare('SELECT value FROM site_settings WHERE name = "commission.reserve_user_id" LIMIT 1');
+            $stmt->execute();
+            $id = (int) ($stmt->fetchColumn() ?: 0);
+        } catch (Throwable) {
+            $id = 0;
+        }
+        if ($id <= 0) {
+            $id = $this->systemUserId();
+        }
+        if ($id <= 0) {
+            $id = self::FALLBACK_RESERVE_USER_ID;
+        }
+
+        $this->reserveUserId = $id;
+        return $id;
+    }
+
     private function dealRisk(array $lot): array
     {
+        $settings = $this->settings();
         $flags = [];
         $score = 0;
         $objectType = (string) ($lot['object_type'] ?? '');
@@ -1178,18 +1256,22 @@ final class CommissionMarketRepository
         $quantity = max(1, (int) ($lot['quantity'] ?? 1));
         $unit = max(0, (int) ($lot['price_per_unit'] ?? 0));
         $total = max(0, (int) ($lot['total_price'] ?? ($unit * $quantity)));
+        $riskTotal = max(1, (int) ($settings['risk_total_price'] ?? 50000000));
+        $riskUnit = max(1, (int) ($settings['risk_unit_price'] ?? 10000000));
+        $easyTotal = max(1, (int) ($settings['risk_easy_item_total'] ?? 1000000));
+        $easyUnit = max(1, (int) ($settings['risk_easy_item_unit'] ?? 500000));
 
-        if ($total >= 50_000_000) {
-            $flags[] = 'Сумма сделки 50 млн+';
+        if ($total >= $riskTotal) {
+            $flags[] = 'Сумма сделки выше риск-порога';
             $score += 60;
         }
-        if ($unit >= 10_000_000) {
-            $flags[] = 'Цена за штуку 10 млн+';
+        if ($unit >= $riskUnit) {
+            $flags[] = 'Цена за штуку выше риск-порога';
             $score += 35;
         }
         $isEasyItem = $objectType === 'item'
             && ($this->isPokeballName($name) || in_array((int) ($lot['object_id'] ?? 0), [3, 25, 90004, 90005], true));
-        if ($isEasyItem && ($total >= 1_000_000 || $unit >= 500_000)) {
+        if ($isEasyItem && ($total >= $easyTotal || $unit >= $easyUnit)) {
             $flags[] = 'Легкодоступный предмет выставлен/куплен слишком дорого';
             $score += 55;
         }
@@ -1215,6 +1297,111 @@ final class CommissionMarketRepository
         return (bool) preg_match('/поке.?бол|мастер.?бол|ультра.?бол|премиум.?бол|грит.?бол|great.?ball|ultra.?ball|master.?ball|ball|шар/ui', $name);
     }
 
+    private function freezeLockedLot(array $lot, int $actorId, string $reason): string
+    {
+        $lotId = (int) ($lot['id'] ?? 0);
+        if ($lotId <= 0) {
+            return '';
+        }
+        try {
+            $token = bin2hex(random_bytes(16));
+        } catch (Throwable) {
+            $token = sha1((string) $lotId . ':' . $actorId . ':' . $reason . ':' . microtime(true));
+        }
+        $reason = mb_substr(preg_replace('/[^a-z0-9_.-]/i', '', $reason) ?: 'operation', 0, 32);
+        $this->db->prepare(
+            'UPDATE market_lots
+                SET locked_by = :actor, locked_at = :time, lock_reason = :reason, lock_token = :token
+              WHERE id = :id LIMIT 1'
+        )->execute([
+            'actor' => $actorId,
+            'time' => time(),
+            'reason' => $reason,
+            'token' => $token,
+            'id' => $lotId,
+        ]);
+        $this->log('lot.freeze', $actorId, $lotId, ['reason' => $reason, 'token' => $token]);
+        return $token;
+    }
+
+    private function reserveObjectLock(int $lotId, int $sellerId, string $type, int $objectId, int $expiresAt, bool $strict = true): void
+    {
+        if (!in_array($type, ['pokemon', 'egg'], true) || $lotId <= 0 || $objectId <= 0 || !$this->tableExists('market_reserved_objects')) {
+            return;
+        }
+        try {
+            $this->db->prepare(
+                'INSERT INTO market_reserved_objects (lot_id, seller_id, object_type, object_id, expires_at, created_at)
+                 VALUES (:lot, :seller, :type, :object, :expires, :time)'
+            )->execute([
+                'lot' => $lotId,
+                'seller' => $sellerId,
+                'type' => $type,
+                'object' => $objectId,
+                'expires' => $expiresAt,
+                'time' => time(),
+            ]);
+            $this->log('lot.reserve', $sellerId, $lotId, ['type' => $type, 'object_id' => $objectId, 'expires_at' => $expiresAt]);
+        } catch (Throwable $e) {
+            if ($strict) {
+                throw new \RuntimeException('Объект уже зарезервирован в другом лоте.');
+            }
+            $this->log('lot.reserve.conflict', $sellerId, $lotId, ['type' => $type, 'object_id' => $objectId, 'error' => $e->getMessage()]);
+        }
+    }
+
+    private function releaseObjectLock(array $lot): void
+    {
+        $type = (string) ($lot['object_type'] ?? '');
+        $objectId = (int) ($lot['object_id'] ?? 0);
+        $lotId = (int) ($lot['id'] ?? 0);
+        if (!in_array($type, ['pokemon', 'egg'], true) || $lotId <= 0 || $objectId <= 0 || !$this->tableExists('market_reserved_objects')) {
+            return;
+        }
+        $stmt = $this->db->prepare(
+            'DELETE FROM market_reserved_objects
+              WHERE lot_id = :lot OR (object_type = :type AND object_id = :object)'
+        );
+        $stmt->execute(['lot' => $lotId, 'type' => $type, 'object' => $objectId]);
+        if ($stmt->rowCount() > 0) {
+            $this->log('lot.reserve.release', 0, $lotId, ['type' => $type, 'object_id' => $objectId]);
+        }
+    }
+
+    private function flagSuspiciousLot(int $lotId, int $actorId, array $risk): void
+    {
+        if (empty($risk['is_risky'])) {
+            return;
+        }
+        if (!$this->riskLogExists($lotId)) {
+            $this->log('risk.flagged', $actorId, $lotId, $risk);
+        }
+        $this->upsertRiskReview($lotId, $risk);
+    }
+
+    private function upsertRiskReview(int $lotId, array $risk): void
+    {
+        if ($lotId <= 0 || !$this->tableExists('market_deal_reviews')) {
+            return;
+        }
+        $now = time();
+        $this->db->prepare(
+            'INSERT INTO market_deal_reviews (lot_id, status, risk_score, risk_flags_json, reviewed_by, reviewed_at, note, created_at, updated_at)
+             VALUES (:lot, "flagged", :score, :flags, 0, 0, "", :created, :updated)
+             ON DUPLICATE KEY UPDATE
+                 status = IF(status = "approved", status, VALUES(status)),
+                 risk_score = IF(status = "approved", risk_score, VALUES(risk_score)),
+                 risk_flags_json = IF(status = "approved", risk_flags_json, VALUES(risk_flags_json)),
+                 updated_at = IF(status = "approved", updated_at, VALUES(updated_at))'
+        )->execute([
+            'lot' => $lotId,
+            'score' => (int) ($risk['risk_score'] ?? 0),
+            'flags' => $this->jsonEncode($risk['risk_flags'] ?? []),
+            'created' => $now,
+            'updated' => $now,
+        ]);
+    }
+
     private function riskLogExists(int $lotId): bool
     {
         $stmt = $this->db->prepare('SELECT 1 FROM market_logs WHERE lot_id = :lot AND action = "risk.flagged" LIMIT 1');
@@ -1238,6 +1425,20 @@ final class CommissionMarketRepository
 
     private function storeReturn(int $userId, int $lotId, string $type, int $objectId, int $quantity, string $reason, string $error): void
     {
+        $this->safeStorage()?->storeObject($userId, $type, $objectId, max(1, $quantity), 'commission', $lotId, [
+            'lot_id' => $lotId,
+            'reason' => $reason,
+        ], $reason, $error);
+
+        $this->log('return.pending', 0, $lotId, [
+            'user_id' => $userId,
+            'type' => $type,
+            'object_id' => $objectId,
+            'quantity' => max(1, $quantity),
+            'reason' => $reason,
+            'error' => $error,
+        ]);
+
         $this->db->prepare(
             'INSERT INTO market_return_storage (user_id, lot_id, object_type, object_id, quantity, payload_json, status, created_at, resolved_at)
              VALUES (:user, :lot, :type, :object, :qty, :payload, "pending", :time, 0)'
@@ -1252,12 +1453,32 @@ final class CommissionMarketRepository
         ]);
     }
 
-    private function nextTableId(string $table, string $column): int
+    private function safeStorage(): ?SafeStorageRepository
     {
-        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table) || !preg_match('/^[a-zA-Z0-9_]+$/', $column)) {
-            return 1;
+        if ($this->safeStorage !== null) {
+            return $this->safeStorage;
         }
-        return (int) ($this->db->query('SELECT COALESCE(MAX(`' . $column . '`), 0) + 1 FROM `' . $table . '`')->fetchColumn() ?: 1);
+        try {
+            $this->safeStorage = new SafeStorageRepository($this->db);
+        } catch (Throwable) {
+            return null;
+        }
+        return $this->safeStorage;
+    }
+
+    private function tableExists(string $table): bool
+    {
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $table)) {
+            return false;
+        }
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*)
+               FROM INFORMATION_SCHEMA.TABLES
+              WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = :table'
+        );
+        $stmt->execute(['table' => $table]);
+        return (int) ($stmt->fetchColumn() ?: 0) > 0;
     }
 
     private function cleanItemName(array $row): string

@@ -9,7 +9,8 @@
     selected: null,
     page: 1,
     pagination: null,
-    filters: {}
+    filters: {},
+    payload: null
   };
 
   const $ = selector => document.querySelector(selector);
@@ -120,6 +121,32 @@
     return time > 0 ? new Date(time * 1000).toLocaleString('ru-RU') : fallback;
   }
 
+  function fmtDuration(seconds) {
+    let value = Math.max(0, Number(seconds || 0));
+    const days = Math.floor(value / 86400);
+    value -= days * 86400;
+    const hours = Math.floor(value / 3600);
+    value -= hours * 3600;
+    const minutes = Math.floor(value / 60);
+    if (days > 0) return `${days}д ${hours}ч`;
+    if (hours > 0) return `${hours}ч ${minutes}м`;
+    return `${minutes}м`;
+  }
+
+  function gmStatusLabel(status) {
+    return {
+      ok: 'OK',
+      warn: 'Внимание',
+      critical: 'Критично',
+      active: 'Активно',
+      info: 'Info'
+    }[String(status || '')] || status || '';
+  }
+
+  function gmRow(area, status, metric, details, target, raw = {}) {
+    return { area, status, metric, details, target, raw };
+  }
+
   function objectLabel(row) {
     const type = row.object_type ? `${row.object_type} ` : '';
     const id = row.object_id ? `#${row.object_id} ` : '';
@@ -190,6 +217,34 @@
     `;
   }
 
+  function qaSeedSummaryHtml(qa) {
+    const accounts = Array.isArray(qa.accounts) ? qa.accounts : [];
+    const accountHtml = accounts.length ? accounts.map(account => `
+      <span class="${account.exists ? 'ok' : 'warn'}">${esc(account.login)} ${account.exists ? '#' + esc(account.id) : 'нет'}</span>
+    `).join('') : '<span class="warn">аккаунты не проверены</span>';
+    const activeTeam = qa.activeTeam || {};
+    const itemStacks = qa.itemStacks || {};
+    const market = qa.market || {};
+    return `
+      <div>
+        <b>Аккаунты</b>
+        <p>${accountHtml}</p>
+      </div>
+      <div>
+        <b>Команды</b>
+        <p>Tacos ${esc(activeTeam.Tacos || 0)} · NIGA ${esc(activeTeam.NIGA || 0)} · Система ${esc(activeTeam['Система'] || 0)}</p>
+      </div>
+      <div>
+        <b>Предметы</b>
+        <p>Tacos ${esc(itemStacks.Tacos || 0)} · NIGA ${esc(itemStacks.NIGA || 0)} · Система ${esc(itemStacks['Система'] || 0)}</p>
+      </div>
+      <div>
+        <b>QA рынок</b>
+        <p>active ${esc(market.activeQaLots || 0)} · sold ${esc(market.soldQaLots || 0)} · cancelled ${esc(market.cancelledQaLots || 0)}</p>
+      </div>
+    `;
+  }
+
   function unixToLocalInput(value) {
     const time = Number(value || 0);
     if (!time) return '';
@@ -218,39 +273,59 @@
   const modules = {
     dashboard: {
       title: 'Дашборд',
-      subtitle: 'Онлайн, последние бои, аудит и системные показатели.',
+      subtitle: 'GM Center: здоровье проекта, активные/зависшие бои, рынок, replay, логи и модерация.',
       endpoint: '/api/admin/dashboard',
       dataKey: 'dashboard',
       create: false,
-      columns: ['Блок', 'Значение', 'Детали'],
+      columns: ['Блок', 'Статус', 'Показатель', 'Детали'],
       rows: data => {
+        const gm = data.gmCenter || {};
         const overview = data.overview || {};
         const online = data.onlineUsers || [];
         const audit = data.recentAudit || [];
         const activeEvents = data.activeEvents || [];
+        const market = gm.marketModeration || {};
+        const replay = gm.replayTools || {};
+        const moderation = gm.moderationPanel || {};
+        const qa = gm.qaSeedTools || {};
+        const jobs = gm.jobs || {};
+        const migrations = gm.migrations || {};
+        const safe = gm.safeStorage || {};
+        const bugs = gm.bugReports || {};
         return [
-          ...Object.keys(overview).map(key => ({ block: key, value: overview[key], details: 'count' })),
-          ...activeEvents.map(event => ({
-            block: 'active event',
-            value: `${event.title} x${Number(event.multiplier || 1).toFixed(2)}`,
-            details: `${event.boost_label || event.boost_key} · ${event.scope_label || event.scope}`
-          })),
-          ...(data.recentMarketLogs || []).slice(0, 8).map(row => ({
-            block: 'market',
-            value: `${row.action || ''} · lot #${row.lot_id || row.id || 0}`,
-            details: `${row.object_name || ''} · ${fmtMoney(row.total_price || 0)}`
-          })),
-          ...(data.recentErrors || []).slice(0, 5).map(row => ({
-            block: 'error log',
-            value: 'PHP/API',
-            details: row.line || ''
-          })),
-          ...online.map(user => ({ block: 'online', value: '#' + user.id + ' ' + user.login, details: 'loc ' + user.buildmy + ', battle ' + user.battleid })),
-          ...audit.slice(0, 8).map(row => ({ block: 'audit', value: row.action, details: '#' + row.entity_id + ' ' + (row.admin_login || row.admin_id) }))
+          ...(gm.health?.cards || []).map(card => gmRow('health', card.status, `${card.label}: ${card.value}`, card.details, 'dashboard', card)),
+          gmRow('market moderation', Number(market.riskOpen || 0) > 0 ? 'warn' : 'ok', `risk ${market.riskOpen || 0} / active lots ${market.activeLots || 0}`, `returns ${market.pendingReturns || 0}, locked ${market.lockedLots || 0}, expired ${market.expiredActiveLots || 0}`, 'commission', market),
+          gmRow('battle replay', replay.ready ? 'ok' : 'warn', `active ${replay.active || 0} / finished ${replay.finished || 0}`, `events ${replay.events || 0}, last ${fmtTime(replay.lastUpdatedAt || 0, 'нет')}`, 'battle_replays', replay),
+          gmRow('bug reports', Number(bugs.criticalOpen || 0) > 0 ? 'critical' : (Number(bugs.open || 0) > 0 ? 'warn' : 'ok'), `open ${bugs.open || 0} / today ${bugs.today || 0}`, `critical ${bugs.criticalOpen || 0}, battle ${bugs.withBattle || 0}, last ${fmtTime(bugs.lastCreatedAt || 0, 'нет')}`, 'bug_reports', bugs),
+          gmRow('moderation', Number(moderation.activePunishments || 0) > 0 ? 'warn' : 'ok', `punishments ${moderation.activePunishments || 0}`, `banip ${moderation.activeBanIps || 0}`, 'moderation', moderation),
+          gmRow('qa seed tools', 'ok', `QA lots ${qa.market?.activeQaLots || 0}`, `accounts ${(qa.accounts || []).filter(item => item.exists).length}/3, item stacks ${Object.values(qa.itemStacks || {}).reduce((sum, value) => sum + Number(value || 0), 0)}`, 'dashboard', qa),
+          gmRow('background jobs', Number(jobs.failed || 0) > 0 ? 'critical' : 'ok', `failed ${jobs.failed || 0} / running ${jobs.running || 0}`, `last ${fmtTime(jobs.lastRunAt || 0, 'нет')}`, 'settings', jobs),
+          gmRow('migrations', Number(migrations.attentionTotal || 0) > 0 ? 'critical' : 'ok', `${migrations.applied || 0}/${migrations.total || 0}`, `pending ${migrations.pending || 0}, dirty ${migrations.dirty || 0}, failed ${migrations.failed || 0}`, 'settings', migrations),
+          gmRow('safe storage', Number(safe.attentionTotal || 0) > 0 ? 'warn' : 'ok', `attention ${safe.attentionTotal || 0}`, `pending ${safe.pendingStorage || 0}, rollbacks ${safe.openRollbacks || 0}`, 'settings', safe),
+          ...(gm.stuckBattles || []).map(row => gmRow('stuck battle', 'warn', `#${row.id} ${row.type} round ${row.round}`, `${row.user1?.login || '#' + row.user1?.id} vs ${row.user2?.login || (row.user2?.id ? '#' + row.user2.id : 'wild')} · age ${fmtDuration(row.ageSeconds)}`, 'battle_replays', row)),
+          ...(gm.activeBattles || []).slice(0, 12).map(row => gmRow('active battle', row.stuck ? 'warn' : 'active', `#${row.id} ${row.type} round ${row.round}`, `${row.user1?.login || '#' + row.user1?.id} vs ${row.user2?.login || (row.user2?.id ? '#' + row.user2.id : 'wild')} · age ${fmtDuration(row.ageSeconds)}`, 'battle_replays', row)),
+          ...(bugs.recent || []).slice(0, 8).map(row => gmRow('bug report', row.status === 'open' || row.status === 'investigating' ? (row.severity === 'critical' ? 'critical' : 'warn') : 'info', `#${row.id} ${row.title || ''}`, `${row.user_login || '#' + row.user_id} · battle ${row.battle_id || '-'} · ${fmtTime(row.created_at || 0)}`, 'bug_reports', row)),
+          ...activeEvents.map(event => gmRow('active event', 'active', `${event.title} x${Number(event.multiplier || 1).toFixed(2)}`, `${event.boost_label || event.boost_key} · ${event.scope_label || event.scope}`, 'events', event)),
+          ...(data.recentMarketLogs || []).slice(0, 8).map(row => gmRow('market log', row.risk?.is_risky && !row.risk?.reviewed ? 'warn' : 'info', `${row.action || ''} · lot #${row.lot_id || row.id || 0}`, `${row.object_name || ''} · ${fmtMoney(row.total_price || 0)}`, 'commission', row)),
+          ...(data.recentErrors || []).slice(0, 5).map(row => gmRow('error log', 'warn', 'PHP/API', row.line || '', 'dashboard', row)),
+          ...online.map(user => gmRow('online', 'active', '#' + user.id + ' ' + user.login, 'loc ' + user.buildmy + ', battle ' + user.battleid, 'users', user)),
+          ...audit.slice(0, 8).map(row => gmRow('audit', 'info', row.action, '#' + row.entity_id + ' ' + (row.admin_login || row.admin_id), 'settings', row)),
+          ...Object.keys(overview).map(key => gmRow('overview', 'info', key, overview[key], 'dashboard', { key, value: overview[key] }))
         ];
       },
-      cells: row => [row.block, row.value, row.details],
-      fields: []
+      cells: row => [row.area, gmStatusLabel(row.status), row.metric, row.details],
+      rowClass: row => row.status === 'critical' || row.status === 'warn' ? 'is-risk' : (row.status === 'ok' ? 'is-reviewed' : ''),
+      fields: [],
+      extra: 'gmCenterTools'
+    },
+    content_wizard: {
+      title: 'Мастер контента',
+      subtitle: 'Простое создание и подключение контента без охоты по таблицам, папкам и legacy-файлам.',
+      endpoint: null,
+      create: false,
+      columns: [],
+      fields: [],
+      extra: 'contentWizard'
     },
     users: {
       title: 'Пользователи',
@@ -618,15 +693,18 @@
         ['status', 'Статус', 'select:draft,registration,active,finished,cancelled'],
         ['starts_at', 'Старт UNIX или дата', 'text'],
         ['ends_at', 'Финиш UNIX или дата', 'text'],
+        ['registration_deadline_at', 'Дедлайн регистрации UNIX или дата', 'text'],
         ['entry_fee_item_id', 'Предмет взноса', 'number'],
         ['entry_fee_amount', 'Размер взноса', 'number'],
         ['location_id', 'Локация/арена', 'number'],
+        ['arena_exit_location_id', 'Локация выхода с арены', 'number'],
         ['curator_user_id', 'Куратор user_id', 'number'],
         ['min_level', 'Мин. уровень', 'number'],
         ['max_level', 'Макс. уровень', 'number'],
         ['max_participants', 'Макс. участников', 'number'],
         ['rules', 'Правила', 'textarea'],
-        ['reward_note', 'Награды', 'textarea']
+        ['reward_note', 'Текст наград', 'textarea'],
+        ['reward_json', 'Reward JSON, например {"items":{"1":1000}}', 'textarea']
       ],
       extra: 'tournamentTools'
     },
@@ -730,6 +808,101 @@
       ],
       extra: 'commissionTools'
     },
+    economy_guard: {
+      title: 'Economy Guard',
+      subtitle: 'Автообнаружение подозрительных сделок, резкого прироста монет, трансферов и фейковых цен.',
+      endpoint: '/api/admin/economy-guard/alerts',
+      dataKey: 'alerts',
+      paginated: true,
+      perPage: 80,
+      create: false,
+      columns: ['Статус', 'Риск', 'Тип', 'Игрок', 'Связанный', 'Сумма', 'Объект', 'Описание', 'Обновлён'],
+      cells: row => [
+        row.status || '',
+        `${row.severity || ''} · ${row.score || 0}`,
+        row.alert_type || '',
+        row.user_login || (row.user_id ? '#' + row.user_id : ''),
+        row.related_user_login || (row.related_user_id ? '#' + row.related_user_id : ''),
+        fmtMoney(row.amount || 0),
+        `${row.entity_type || ''} ${row.entity_id ? '#' + row.entity_id : ''}`.trim(),
+        row.title || '',
+        fmtTime(row.last_seen_at || 0)
+      ],
+      rowClass: row => {
+        if (row.status === 'reviewed' || row.status === 'ignored') return 'is-reviewed';
+        return row.severity === 'critical' || Number(row.score || 0) >= 80 ? 'is-risk' : '';
+      },
+      fields: [],
+      filterFields: [
+        ['status', 'Статус', 'select:=любой,open=open,reviewed=reviewed,ignored=ignored'],
+        ['type', 'Тип', 'select:=любой,suspicious_trade=suspicious_trade,massive_money_gain=massive_money_gain,transfer_abuse=transfer_abuse,fake_market_price=fake_market_price'],
+        ['severity', 'Риск', 'select:=любой,critical=critical,warn=warn,info=info'],
+        ['user_id', 'User ID', 'number']
+      ],
+      extra: 'economyGuardTools'
+    },
+    battle_replays: {
+      title: 'Повторы боёв',
+      subtitle: 'Снимки боя, логи раундов, random rolls, damage audit и просмотр спорных PvE/PvP ситуаций.',
+      endpoint: '/api/admin/battle-replays',
+      dataKey: 'replays',
+      paginated: true,
+      perPage: 80,
+      create: false,
+      columns: ['Battle', 'Тип', 'Статус', 'Раундов', 'Игроки', 'Победитель', 'Events', 'Damage', 'Rolls', 'Обновлён'],
+      cells: row => [
+        '#' + (row.battle_id || ''),
+        row.battle_type || '',
+        row.status || '',
+        row.rounds || 0,
+        `${row.user_1_login || ('#' + (row.user_1 || 0))} / ${row.user_2_login || (row.user_2 ? '#' + row.user_2 : 'wild')}`,
+        row.winner_id || '',
+        row.event_count || 0,
+        row.damage_count || 0,
+        row.roll_count || 0,
+        fmtTime(row.updated_at || 0)
+      ],
+      fields: [],
+      filterFields: [
+        ['q', 'Battle ID / игрок / тип', 'text']
+      ],
+      extra: 'battleReplayTools'
+    },
+    bug_reports: {
+      title: 'Bug Reports',
+      subtitle: 'Репорты из игры со снимком состояния, battle id, клиентскими событиями и хвостом серверных логов.',
+      endpoint: '/api/admin/bug-reports',
+      dataKey: 'reports',
+      paginated: true,
+      perPage: 80,
+      create: false,
+      columns: ['ID', 'Статус', 'Тип', 'Игрок', 'Battle', 'Локация', 'Заголовок', 'URL', 'Создан'],
+      cells: row => [
+        '#' + (row.id || ''),
+        row.status || '',
+        row.severity || '',
+        row.reporter_login || row.user_login || ('#' + (row.user_id || 0)),
+        row.battle_id ? '#' + row.battle_id : '',
+        row.location_id || '',
+        row.title || '',
+        row.route || row.page_url || '',
+        row.created_at_text || fmtTime(row.created_at || 0)
+      ],
+      rowClass: row => {
+        if (row.status === 'fixed' || row.status === 'closed' || row.status === 'duplicate') return 'is-reviewed';
+        return row.severity === 'critical' ? 'is-risk' : '';
+      },
+      fields: [],
+      filterFields: [
+        ['status', 'Статус', 'select:=любой,open=open,investigating=investigating,fixed=fixed,closed=closed,duplicate=duplicate'],
+        ['severity', 'Тип', 'select:=любой,critical=critical,bug=bug,visual=visual,balance=balance,ux=ux,other=other'],
+        ['user', 'Игрок', 'text'],
+        ['battle_id', 'Battle ID', 'number'],
+        ['date_from', 'С даты', 'date'],
+        ['date_to', 'По дату', 'date']
+      ],
+      extra: 'bugReportTools'
+    },
     settings: {
       title: 'Система',
       subtitle: 'Техработы, аудит и системные флаги.',
@@ -803,6 +976,13 @@
     $('#adminCreate').hidden = config.create === false || !config.save;
     $('#adminSearchInput').value = '';
     $('#adminLegacy').hidden = true;
+    const customWorkspace = $('#adminCustomWorkspace');
+    const tableWrap = $('#adminTableWrap');
+    if (customWorkspace) {
+      customWorkspace.hidden = true;
+      customWorkspace.innerHTML = '';
+    }
+    if (tableWrap) tableWrap.hidden = false;
     $('#adminTable').hidden = false;
     renderFilterbar(config);
     renderPager(null);
@@ -823,6 +1003,7 @@
       state.pagination = null;
       renderTable(config, []);
       renderPager(null);
+      buildForm(config, null);
       setStatus('');
       return;
     }
@@ -844,6 +1025,7 @@
       return;
     }
 
+    state.payload = data;
     state.pagination = data.pagination || null;
     state.rows = rowsFor(config, data);
     renderStats(data.dashboard && data.dashboard.overview ? data.dashboard.overview : null);
@@ -973,6 +1155,7 @@
 
     if (!config.fields.length) {
       form.innerHTML = '<p class="muted">В этом разделе нет формы редактирования.</p>';
+      form.onsubmit = null;
     } else {
       form.innerHTML = config.fields.map(field => inputHtml(field, row)).join('') + (config.save ? '<button type="submit">Сохранить</button>' : '');
       form.onsubmit = async event => {
@@ -1013,6 +1196,114 @@
 
   function buildExtra(config, row) {
     const danger = $('#adminDanger');
+    if (config.extra === 'contentWizard') {
+      const customWorkspace = $('#adminCustomWorkspace');
+      const tableWrap = $('#adminTableWrap');
+      if (tableWrap) tableWrap.hidden = true;
+      if (customWorkspace) customWorkspace.hidden = false;
+      if (window.PokemonAdminContentWizard && typeof window.PokemonAdminContentWizard.render === 'function') {
+        window.PokemonAdminContentWizard.render({
+          root: customWorkspace,
+          inspector: danger,
+          send,
+          setStatus,
+          openTab: setTab,
+          lookupId
+        });
+      } else if (customWorkspace) {
+        customWorkspace.innerHTML = '<p class="muted">Модуль мастера контента не загрузился. Проверь public/js/admin-content-wizard.js.</p>';
+      }
+      return;
+    }
+
+    if (config.extra === 'gmCenterTools') {
+      const gm = state.payload?.dashboard?.gmCenter || {};
+      if (!row) {
+        const cards = gm.health?.cards || [];
+        const qa = gm.qaSeedTools || {};
+        danger.insertAdjacentHTML('beforeend', `
+          <h3>GM Center</h3>
+          <p class="muted">Единый экран контроля: здоровье API/БД, активные и зависшие бои, рынок, replay, фоновые jobs, safe storage и модерация.</p>
+          <div class="admin-gm-cards">
+            ${cards.map(card => `
+              <button type="button" class="admin-gm-card ${esc(card.status || '')}" data-gm-target="dashboard">
+                <span>${esc(card.label)}</span>
+                <b>${esc(card.value)}</b>
+                <small>${esc(gmStatusLabel(card.status))}</small>
+              </button>
+            `).join('')}
+          </div>
+          <div class="admin-inline-actions">
+            <button type="button" data-gm-open="commission">Комиссионка</button>
+            <button type="button" data-gm-open="economy_guard">Economy Guard</button>
+            <button type="button" data-gm-open="battle_replays">Повторы боёв</button>
+            <button type="button" data-gm-open="bug_reports">Bug Reports</button>
+            <button type="button" data-gm-open="moderation">Модерация</button>
+            <button type="button" data-gm-open="settings">Система</button>
+          </div>
+          <div class="admin-detail-grid">
+            <div><b>Health</b>${esc(gmStatusLabel(gm.health?.status || 'ok'))} · generated ${esc(fmtTime(gm.generatedAt || 0, 'now'))}</div>
+            <div><b>Бои</b>active ${(gm.activeBattles || []).length} · stuck ${(gm.stuckBattles || []).length}</div>
+            <div><b>Рынок</b>risk ${esc(gm.marketModeration?.riskOpen || 0)} · returns ${esc(gm.marketModeration?.pendingReturns || 0)}</div>
+            <div><b>Replay</b>${gm.replayTools?.ready ? 'готов' : 'нет таблиц'} · events ${esc(gm.replayTools?.events || 0)}</div>
+            <div><b>Bug reports</b>open ${esc(gm.bugReports?.open || 0)} · critical ${esc(gm.bugReports?.criticalOpen || 0)}</div>
+          </div>
+          <h3>QA Seed Tools</h3>
+          <p class="muted">Быстрые кнопки для подготовки тестовой среды. Все действия требуют CSRF, пишутся в admin audit, а market reset трогает только QA-лоты Tacos/NIGA/Система.</p>
+          <div class="admin-qa-seed-grid" id="qaSeedSummary">
+            ${qaSeedSummaryHtml(qa)}
+          </div>
+          <div class="admin-inline-actions admin-quick-actions">
+            <button type="button" data-qa-seed-action="setup_accounts">setup test accounts</button>
+            <button type="button" data-qa-seed-action="give_teams">give teams</button>
+            <button type="button" data-qa-seed-action="give_items">give items</button>
+            <button type="button" data-qa-seed-action="reset_market">reset market</button>
+            <button type="button" data-qa-seed-action="run_smokes">run smokes</button>
+          </div>
+          <div id="qaSeedResult" class="admin-seed-result"></div>
+        `);
+        document.querySelectorAll('[data-gm-open]').forEach(button => {
+          button.addEventListener('click', () => setTab(button.dataset.gmOpen));
+        });
+        document.querySelectorAll('[data-qa-seed-action]').forEach(button => {
+          button.addEventListener('click', () => runQaSeedTool(button.dataset.qaSeedAction || '', button));
+        });
+        return;
+      }
+
+      danger.insertAdjacentHTML('beforeend', `
+        <h3>GM деталь</h3>
+        <div class="admin-detail-grid">
+          <div><b>Блок</b>${esc(row.area || '')}</div>
+          <div><b>Статус</b>${esc(gmStatusLabel(row.status))}</div>
+          <div><b>Показатель</b>${esc(row.metric || '')}</div>
+          <div><b>Детали</b>${esc(row.details || '')}</div>
+        </div>
+        <div class="admin-inline-actions">
+          ${row.target && row.target !== 'dashboard' ? `<button type="button" id="gmOpenTarget">Открыть раздел</button>` : ''}
+          ${row.area && String(row.area).includes('battle') && row.raw?.id ? '<button type="button" id="gmFindReplay">Найти replay боя</button>' : ''}
+          ${row.area === 'market log' || row.area === 'market moderation' ? '<button type="button" id="gmOpenRisk">Риск-сделки</button>' : ''}
+        </div>
+        <details class="admin-json-details">
+          <summary>Raw data</summary>
+          <pre class="admin-json-preview">${esc(safeJson(row.raw || row))}</pre>
+        </details>
+      `);
+      $('#gmOpenTarget')?.addEventListener('click', () => setTab(row.target));
+      $('#gmFindReplay')?.addEventListener('click', () => {
+        setTab('battle_replays');
+        state.filters = { q: String(row.raw?.id || '') };
+        renderFilterbar(modules.battle_replays);
+        reloadCurrent();
+      });
+      $('#gmOpenRisk')?.addEventListener('click', () => {
+        setTab('commission');
+        state.filters = { risky: '1', sort: 'price_desc' };
+        renderFilterbar(modules.commission);
+        reloadCurrent();
+      });
+    }
+
     if (config.extra === 'userTools' && row) {
       danger.insertAdjacentHTML('beforeend', `
         <h3>Инструменты игрока</h3>
@@ -1384,6 +1675,193 @@
       $('#commissionApproveRisk')?.addEventListener('click', () => approveCommissionRisk(row));
     }
 
+    if (config.extra === 'economyGuardTools') {
+      if (!row) {
+        danger.insertAdjacentHTML('beforeend', `
+          <h3>Economy Guard</h3>
+          <p class="muted">Сканирует лавку, reward pipeline и балансы: подозрительные цены, трансферы между игроками и резкий рост монет.</p>
+          <div class="admin-inline-actions">
+            <button type="button" id="economyGuardDryRun">Dry-run scan</button>
+            <button type="button" id="economyGuardRun">Запустить scan</button>
+            <button type="button" id="economyGuardOpenOnly">Только open</button>
+            <button type="button" id="economyGuardCritical">Критичные</button>
+          </div>
+        `);
+        $('#economyGuardDryRun')?.addEventListener('click', () => runEconomyGuardScan(true));
+        $('#economyGuardRun')?.addEventListener('click', () => runEconomyGuardScan(false));
+        $('#economyGuardOpenOnly')?.addEventListener('click', () => {
+          state.filters = { status: 'open' };
+          renderFilterbar(modules.economy_guard);
+          reloadCurrent();
+        });
+        $('#economyGuardCritical')?.addEventListener('click', () => {
+          state.filters = { status: 'open', severity: 'critical' };
+          renderFilterbar(modules.economy_guard);
+          reloadCurrent();
+        });
+        return;
+      }
+
+      const details = row.details || {};
+      danger.insertAdjacentHTML('beforeend', `
+        <h3>Economy Alert</h3>
+        <span class="admin-risk-badge ${row.status === 'reviewed' || row.status === 'ignored' ? 'is-ok' : ''}">
+          ${esc(row.severity || '')} · score ${esc(row.score || 0)} · ${esc(row.status || '')}
+        </span>
+        <div class="admin-detail-grid">
+          <div><b>Alert</b>#${esc(row.id)} · ${esc(row.alert_type || '')}</div>
+          <div><b>Игрок</b>${esc(row.user_login || ('#' + (row.user_id || 0)))}</div>
+          <div><b>Связанный</b>${esc(row.related_user_login || (row.related_user_id ? '#' + row.related_user_id : 'нет'))}</div>
+          <div><b>Сумма</b>${esc(fmtMoney(row.amount || 0))}</div>
+          <div><b>Объект</b>${esc(row.entity_type || '')} ${row.entity_id ? '#' + esc(row.entity_id) : ''}</div>
+          <div><b>Первый раз</b>${esc(fmtTime(row.first_seen_at || 0))}</div>
+          <div><b>Последний раз</b>${esc(fmtTime(row.last_seen_at || 0))}</div>
+          <div><b>Заметка</b>${esc(row.note || '')}</div>
+        </div>
+        <p class="audit-line">${esc(row.title || '')}</p>
+        <details class="admin-json-details" open>
+          <summary>Детали проверки</summary>
+          <pre class="admin-json-preview">${esc(safeJson(details))}</pre>
+        </details>
+        <div class="admin-inline-actions">
+          <button type="button" id="economyGuardReviewOk">Проверено, норма</button>
+          <button type="button" id="economyGuardIgnore">Игнорировать</button>
+          <button type="button" id="economyGuardReopen">Вернуть в open</button>
+          <button type="button" id="economyGuardUserFilter">Все алерты игрока</button>
+        </div>
+      `);
+      $('#economyGuardReviewOk')?.addEventListener('click', () => reviewEconomyGuardAlert(row, 'reviewed'));
+      $('#economyGuardIgnore')?.addEventListener('click', () => reviewEconomyGuardAlert(row, 'ignored'));
+      $('#economyGuardReopen')?.addEventListener('click', () => reviewEconomyGuardAlert(row, 'open'));
+      $('#economyGuardUserFilter')?.addEventListener('click', () => {
+        state.filters = { user_id: String(row.user_id || '') };
+        renderFilterbar(modules.economy_guard);
+        reloadCurrent();
+      });
+    }
+
+    if (config.extra === 'battleReplayTools') {
+      if (!row) {
+        danger.insertAdjacentHTML('beforeend', `
+          <h3>Battle Replay</h3>
+          <p class="muted">Выберите бой в таблице. В инспекторе появятся снимки состояния, логи раундов, броски рандома и damage audit.</p>
+        `);
+        return;
+      }
+      danger.insertAdjacentHTML('beforeend', `
+        <h3>Replay #${esc(row.battle_id || '')}</h3>
+        <p class="audit-line">
+          <b>${esc(row.battle_type || '')}</b> · ${esc(row.status || '')} · раундов ${esc(row.rounds || 0)}<br>
+          <small>${esc(row.user_1_login || ('#' + (row.user_1 || 0)))} vs ${esc(row.user_2_login || (row.user_2 ? '#' + row.user_2 : 'wild'))}</small>
+        </p>
+        <div class="admin-inline-actions">
+          <button type="button" id="battleReplayLoad">Открыть replay</button>
+          <button type="button" id="battleReplayFilter">Найти этот бой</button>
+        </div>
+        <div id="battleReplayBox"></div>
+      `);
+      $('#battleReplayLoad')?.addEventListener('click', () => loadAdminBattleReplay(row));
+      $('#battleReplayFilter')?.addEventListener('click', () => {
+        state.filters = { q: String(row.battle_id || '') };
+        renderFilterbar(modules.battle_replays);
+        reloadCurrent();
+      });
+    }
+
+    if (config.extra === 'bugReportTools') {
+      if (!row) {
+        const dash = state.payload?.dashboard || {};
+        danger.insertAdjacentHTML('beforeend', `
+          <h3>Bug Reporter</h3>
+          <p class="muted">Игрок отправляет репорт прямо из /game. В отчёт попадают state, battle id, клиентские события и хвост server log.</p>
+          <div class="admin-detail-grid">
+            <div><b>Open</b>${esc(dash.open || 0)} · today ${esc(dash.today || 0)}</div>
+            <div><b>Critical</b>${esc(dash.criticalOpen || 0)} · with battle ${esc(dash.withBattle || 0)}</div>
+            <div><b>Last</b>${esc(fmtTime(dash.lastCreatedAt || 0, 'нет'))}</div>
+          </div>
+          <div class="admin-inline-actions">
+            <button type="button" data-bug-filter="open">Только open</button>
+            <button type="button" data-bug-filter="critical">Критичные</button>
+            <button type="button" data-bug-filter="battle">С battle id</button>
+          </div>
+        `);
+        document.querySelector('[data-bug-filter="open"]')?.addEventListener('click', () => {
+          state.filters = { status: 'open' };
+          renderFilterbar(modules.bug_reports);
+          reloadCurrent();
+        });
+        document.querySelector('[data-bug-filter="critical"]')?.addEventListener('click', () => {
+          state.filters = { severity: 'critical' };
+          renderFilterbar(modules.bug_reports);
+          reloadCurrent();
+        });
+        document.querySelector('[data-bug-filter="battle"]')?.addEventListener('click', () => {
+          setStatus('Введите battle id в фильтр или выберите строку с battle id.');
+        });
+        return;
+      }
+
+      const clientLogRows = Array.isArray(row.client_logs)
+        ? row.client_logs
+        : (Array.isArray(row.client_logs?.items) ? row.client_logs.items : []);
+      const serverLines = Array.isArray(row.server_logs?.lines) ? row.server_logs.lines : [];
+      danger.insertAdjacentHTML('beforeend', `
+        <h3>Bug report #${esc(row.id || '')}</h3>
+        <span class="admin-risk-badge ${row.status === 'fixed' || row.status === 'closed' || row.status === 'duplicate' ? 'is-ok' : ''}">
+          ${esc(row.severity || '')} · ${esc(row.status || '')}
+        </span>
+        <div class="admin-detail-grid">
+          <div><b>Игрок</b>${esc(row.reporter_login || row.user_login || ('#' + (row.user_id || 0)))}</div>
+          <div><b>Battle</b>${row.battle_id ? '#' + esc(row.battle_id) + ' · ' + esc(row.battle_type || '') : 'нет'}</div>
+          <div><b>Локация</b>${esc(row.location_id || '')}</div>
+          <div><b>Маршрут</b>${esc(row.route || row.page_url || '')}</div>
+          <div><b>Создан</b>${esc(row.created_at_text || '')}</div>
+          <div><b>Обновлён</b>${esc(row.updated_at_text || '')}</div>
+        </div>
+        <p class="audit-line"><b>${esc(row.title || '')}</b><br>${esc(row.description || '')}</p>
+        <div class="admin-inline-actions">
+          <button type="button" data-bug-status="investigating">В работу</button>
+          <button type="button" data-bug-status="fixed">Fixed</button>
+          <button type="button" data-bug-status="closed">Закрыть</button>
+          <button type="button" data-bug-status="duplicate">Дубль</button>
+          ${row.battle_id ? '<button type="button" id="bugOpenReplay">Открыть replay</button>' : ''}
+          <button type="button" id="bugOpenUser">Открыть игрока</button>
+        </div>
+        <h3>Client logs</h3>
+        ${clientLogRows.length ? `<div class="bug-log-list">${clientLogRows.slice(-24).map(log => `<p class="audit-line"><b>${esc(log.level || log.type || 'log')}</b> ${esc(log.message || '')}<br><small>${esc(log.time || '')} ${esc(log.context ? safeJson(log.context) : '')}</small></p>`).join('')}</div>` : '<p class="muted">Клиентских логов нет.</p>'}
+        <details class="admin-json-details" open>
+          <summary>Game state</summary>
+          <pre class="admin-json-preview">${esc(safeJson(row.game_state || {}))}</pre>
+        </details>
+        <details class="admin-json-details">
+          <summary>Battle state</summary>
+          <pre class="admin-json-preview">${esc(safeJson(row.battle_state || {}))}</pre>
+        </details>
+        <details class="admin-json-details">
+          <summary>Server/User state</summary>
+          <pre class="admin-json-preview">${esc(safeJson(row.user_state || {}))}</pre>
+        </details>
+        <details class="admin-json-details">
+          <summary>Server log tail (${esc(serverLines.length)})</summary>
+          <pre class="admin-json-preview">${esc(serverLines.join('\n'))}</pre>
+        </details>
+      `);
+      document.querySelectorAll('[data-bug-status]').forEach(button => {
+        button.addEventListener('click', () => updateBugReportStatus(row, button.dataset.bugStatus || 'open'));
+      });
+      $('#bugOpenReplay')?.addEventListener('click', () => {
+        setTab('battle_replays');
+        state.filters = { q: String(row.battle_id || '') };
+        renderFilterbar(modules.battle_replays);
+        reloadCurrent();
+      });
+      $('#bugOpenUser')?.addEventListener('click', () => {
+        setTab('users');
+        $('#adminSearchInput').value = row.reporter_login || row.user_login || String(row.user_id || '');
+        reloadCurrent();
+      });
+    }
+
     if (config.extra === 'legacyActions' && row) {
       danger.insertAdjacentHTML('beforeend', `
         <h3>Legacy-раздел</h3>
@@ -1416,6 +1894,54 @@
   async function userBan(userId, mode) {
     const result = await send('/api/admin/users/ban', { user_id: userId, mode });
     setStatus(result.message || '', !result.ok);
+  }
+
+  async function runQaSeedTool(action, button) {
+    if (!action) return;
+    const labels = {
+      setup_accounts: 'готовим аккаунты',
+      give_teams: 'выдаём команды',
+      give_items: 'выдаём предметы',
+      reset_market: 'сбрасываем QA-рынок',
+      run_smokes: 'запускаем smokes'
+    };
+    const resultBox = $('#qaSeedResult');
+    const previous = button?.textContent || '';
+    if (button) {
+      button.disabled = true;
+      button.textContent = labels[action] || 'выполняем';
+    }
+    if (resultBox) {
+      resultBox.innerHTML = '<p class="muted">Выполняется: ' + esc(labels[action] || action) + '...</p>';
+    }
+    try {
+      const result = await send('/api/admin/qa-seed-tools/run', { action });
+      setStatus(result.message || '', !result.ok);
+      if (resultBox) {
+        const runs = Array.isArray(result.runs) ? result.runs : (result.script ? [result.script] : []);
+        resultBox.innerHTML = `
+          <p class="${result.ok ? 'admin-status' : 'admin-status is-bad'}">${esc(result.message || '')}</p>
+          ${result.summary ? `<details open><summary>Summary</summary><pre class="admin-json-preview">${esc(safeJson(result.summary))}</pre></details>` : ''}
+          ${runs.length ? `<details open><summary>Smoke/script output</summary>${runs.map(run => `
+            <p class="audit-line"><b>${esc(run.script || 'script')}</b> exit ${esc(run.exitCode ?? '')} · ${run.ok ? 'OK' : 'FAIL'}</p>
+            <pre class="admin-json-preview">${esc(run.output || '')}</pre>
+          `).join('')}</details>` : ''}
+        `;
+      }
+      if (result.qaSeedTools && $('#qaSeedSummary')) {
+        $('#qaSeedSummary').innerHTML = qaSeedSummaryHtml(result.qaSeedTools);
+      }
+    } catch (error) {
+      setStatus(String(error?.message || error || 'QA seed failed'), true);
+      if (resultBox) {
+        resultBox.innerHTML = `<p class="admin-status is-bad">${esc(error?.message || error || 'QA seed failed')}</p>`;
+      }
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = previous;
+      }
+    }
   }
 
   async function moderationAction(action, duration) {
@@ -1571,10 +2097,87 @@
     `;
   }
 
+  async function loadAdminBattleReplay(row) {
+    const box = $('#battleReplayBox');
+    if (!box) return;
+    box.innerHTML = '<p class="muted">Загружаем replay...</p>';
+    const result = await request('/api/admin/battle-replays/view?battle_id=' + encodeURIComponent(row.battle_id || 0));
+    if (!result.ok) {
+      box.innerHTML = `<p class="admin-status is-bad">${esc(result.message || 'Replay недоступен.')}</p>`;
+      return;
+    }
+    const replay = result.replay || {};
+    const summary = replay.summary || {};
+    const rounds = Array.isArray(replay.rounds) ? replay.rounds : [];
+    const byType = summary.byType || {};
+    box.innerHTML = `
+      <h3>Сводка</h3>
+      <p class="audit-line">
+        events ${esc(summary.events || 0)} · snapshots ${esc(byType.snapshot || 0)} · logs ${esc(byType.round_log || 0)} · rolls ${esc(byType.random_roll || 0)} · damage ${esc(byType.damage || 0)}
+      </p>
+      <h3>Раунды</h3>
+      ${rounds.length ? rounds.map(round => {
+        const logs = (round.logs || []).slice(-5).map(item => `<li>${esc(item)}</li>`).join('');
+        const damage = (round.damage || []).slice(-5).map(item => `<li>${esc(item.move_name || item.moveName || 'damage')}: ${esc(item.damage || 0)} HP (${esc(item.actor_key || '')} -> ${esc(item.target_key || '')})</li>`).join('');
+        const rolls = (round.randomRolls || []).slice(-6).map(item => `<li>${esc(item.label || 'roll')}: ${esc(item.roll)} / ${esc(item.threshold ?? '-')} ${item.success === true ? 'OK' : (item.success === false ? 'FAIL' : '')}</li>`).join('');
+        return `
+          <details class="admin-replay-round">
+            <summary>Раунд ${esc(round.round)} · logs ${(round.logs || []).length} · rolls ${(round.randomRolls || []).length} · damage ${(round.damage || []).length}</summary>
+            ${logs ? `<b>Логи</b><ul>${logs}</ul>` : ''}
+            ${damage ? `<b>Урон</b><ul>${damage}</ul>` : ''}
+            ${rolls ? `<b>Random</b><ul>${rolls}</ul>` : ''}
+          </details>
+        `;
+      }).join('') : '<p class="muted">Событий пока нет.</p>'}
+      <details>
+        <summary>Raw replay JSON</summary>
+        <pre>${esc(JSON.stringify(replay, null, 2))}</pre>
+      </details>
+    `;
+  }
+
+  async function updateBugReportStatus(row, status) {
+    const note = status === 'fixed'
+      ? 'Проверено вручную: баг исправлен.'
+      : (status === 'closed' ? 'Закрыто вручную.' : (status === 'duplicate' ? 'Дубль другого репорта.' : 'Взято в работу.'));
+    const result = await send('/api/admin/bug-reports/status', {
+      report_id: row.id,
+      status,
+      note
+    });
+    setStatus(result.message || '', !result.ok);
+    if (result.ok) reloadCurrent();
+  }
+
   async function approveCommissionRisk(row) {
     const result = await send('/api/admin/commission/risk-review', {
       lot_id: row.lot_id || row.id,
       note: 'Проверено вручную: сделка нормальная.'
+    });
+    setStatus(result.message || '', !result.ok);
+    if (result.ok) reloadCurrent();
+  }
+
+  async function runEconomyGuardScan(dryRun) {
+    const result = await send('/api/admin/economy-guard/scan', {
+      dry_run: dryRun ? '1' : '0',
+      limit: '300'
+    });
+    const summary = result.summary || {};
+    const checks = summary.checks || {};
+    const checkText = Object.keys(checks).map(key => `${key}: ${checks[key]}`).join(', ');
+    setStatus(result.ok ? `Economy Guard ${dryRun ? 'dry-run' : 'scan'}: created ${summary.created || 0}, updated ${summary.updated || 0}. ${checkText}` : (result.message || 'Scan failed.'), !result.ok);
+    if (result.ok && !dryRun) reloadCurrent();
+  }
+
+  async function reviewEconomyGuardAlert(row, status) {
+    const note = status === 'reviewed'
+      ? 'Проверено вручную: алерт нормальный.'
+      : (status === 'ignored' ? 'Игнорировать в текущем виде.' : 'Возвращено в open.');
+    const result = await send('/api/admin/economy-guard/review', {
+      alert_id: row.id,
+      status,
+      note
     });
     setStatus(result.message || '', !result.ok);
     if (result.ok) reloadCurrent();

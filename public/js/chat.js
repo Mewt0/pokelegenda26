@@ -385,6 +385,10 @@
         }
 
         if (action === 'mail') {
+            if (window.GameMailOverlay && typeof window.GameMailOverlay.open === 'function') {
+                window.GameMailOverlay.open({ recipient: id > 0 ? String(id) : name });
+                return;
+            }
             if (id > 0) {
                 window.location.href = `/game/messages?to=${encodeURIComponent(id)}`;
             } else {

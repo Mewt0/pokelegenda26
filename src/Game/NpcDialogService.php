@@ -12,6 +12,8 @@ use Pokemon8\Repository\RewardRepository;
 
 final class NpcDialogService
 {
+    use NpcDialogEventTrait;
+
     private const STARTERS = [
         1 => 'Bulbasaur',
         4 => 'Charmander',
@@ -157,6 +159,18 @@ final class NpcDialogService
             return $this->turnInCarolQuest($userId);
         }
 
+        if ($action === 'quest_old_woman_turnin') {
+            return $this->turnInOldWomanQuest($userId);
+        }
+
+        if ($action === 'quest_airen_complete') {
+            return $this->completeAirenQuest($userId);
+        }
+
+        if (str_starts_with($action, 'hippodrome_register:')) {
+            return $this->hippodromeRegisterAction($userId, $action);
+        }
+
         if ($action === 'quest_research_start') {
             $this->quests->createOrUpdate($userId, 5, 10, 0);
             return $this->dialog('Исследователь', 'Я отметил задание. Нужны десять Horsea 40 уровня с маячками. Возвращайся, когда данные будут собраны.', [
@@ -169,7 +183,13 @@ final class NpcDialogService
         }
 
         if ($action === 'quest_metapod_start') {
-            $this->quests->createOrUpdate($userId, 6, 10, 0);
+            $started = $this->quests->startFromDefinition($userId, 6);
+            if (($started['ok'] ?? false) !== true) {
+                return $this->dialog('Исследователь', (string) ($started['message'] ?? 'Ежедневная задача сейчас недоступна.'), [
+                    ['label' => 'Уйти', 'close' => true],
+                ]);
+            }
+
             return $this->dialog('Исследователь', 'Ежедневная задача принята: принеси пять Metapod 9 уровня.', [
                 ['label' => 'Пойду искать', 'close' => true],
             ]);
@@ -385,6 +405,30 @@ final class NpcDialogService
             return $this->strangeSpike($userId, $step);
         }
 
+        if ($locationId === 11 && $questNpcId === 1) {
+            return $this->artistAmira($userId, $step);
+        }
+
+        if ($locationId === 11 && $questNpcId === 2) {
+            return $this->airen($userId, $step);
+        }
+
+        if ($locationId === 7 && $questNpcId === 1) {
+            return $this->oldWoman($userId, $step);
+        }
+
+        if ($locationId === 13 && $questNpcId === 1) {
+            return $this->articuno($userId, $step);
+        }
+
+        if ($locationId === 18 && $questNpcId === 1) {
+            return $this->hippodromeGaren($userId, $step);
+        }
+
+        if ($locationId === 43 && in_array($questNpcId, [1, 2, 3, 4], true)) {
+            return $this->eventHallNpc($questNpcId);
+        }
+
         if ($locationId === 5 && $questNpcId === 4) {
             return $this->circusSteve($userId);
         }
@@ -448,14 +492,256 @@ final class NpcDialogService
         ]);
     }
 
+    private function artistAmira(int $userId, int $step): array
+    {
+        $quest = $this->quests->findForUser($userId, 2);
+        if ($quest !== null && (int) ($quest['gotov'] ?? 0) === 1) {
+            return $this->dialog('Художница Амира', 'Озеро снова спокойно. Я все еще пишу его по ночам, но теперь в отражении воды нет тревоги.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ($quest !== null && (int) ($quest['process'] ?? 0) >= 5 && $step <= 1) {
+            return $this->dialog('Художница Амира', 'Я уже рассказала тебе главное: Айрен появляется у озера ночью и долго смотрит в свое отражение. Если хочешь понять эту историю, поговори с ним осторожно.', [
+                ['label' => 'Найти Айрена', 'params' => ['quest_npc' => '2', 'do' => '1']],
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ($step === 2) {
+            return $this->dialog(
+                'Художница Амира',
+                'Айрен? Да, я видела его не раз. Каждую ночь он приходит к воде и смотрит в отражение так, будто ищет там не лицо, а потерянную душу. Однажды его глаза вспыхнули холодным голубым светом, и я услышала странное шипение вместо человеческого голоса.',
+                [
+                    ['label' => 'Он приходит каждую ночь?', 'params' => ['quest_npc' => '1', 'do' => '3']],
+                    ['label' => 'Спасибо, я пойду', 'close' => true],
+                ]
+            );
+        }
+
+        if ($step === 3) {
+            return $this->dialog(
+                'Художница Амира',
+                'В полнолуние лунная дорожка ложится прямо на середину озера. В такие ночи Айрен особенно заметен: вокруг него мерцает аура, похожая на крылья Артикуно. Будь осторожен. Это не просто слух, а чья-то беда.',
+                [
+                    ['label' => 'Записать рассказ', 'action' => 'quest_update:2:5:0'],
+                    ['label' => 'К Айрену', 'params' => ['quest_npc' => '2', 'do' => '1']],
+                    ['label' => 'Уйти', 'close' => true],
+                ]
+            );
+        }
+
+        if ($step === 4) {
+            return $this->dialog('Художница Амира', 'Красиво, правда? Это озеро кажется небольшим, но ночью оно отражает небо целиком. Иногда именно маленькие места прячут самые большие истории.', [
+                ['label' => 'Спросить про Айрена', 'params' => ['quest_npc' => '1', 'do' => '2']],
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        return $this->dialog('Художница Амира', 'Тише... У озера звук разносится далеко. Я пишу воду и стараюсь не спугнуть то, что приходит сюда по ночам.', [
+            ['label' => 'Спросить про Айрена', 'params' => ['quest_npc' => '1', 'do' => '2']],
+            ['label' => 'Полюбоваться озером', 'params' => ['quest_npc' => '1', 'do' => '4']],
+            ['label' => 'Уйти', 'close' => true],
+        ]);
+    }
+
+    private function airen(int $userId, int $step): array
+    {
+        $quest = $this->quests->findForUser($userId, 2);
+        $process = (int) ($quest['process'] ?? 0);
+        if ($quest !== null && (int) ($quest['gotov'] ?? 0) === 1) {
+            return $this->dialog('Айрен', 'Холодная рябь на воде постепенно исчезает. История Айрена уже завершена, а озеро хранит ее как тихую легенду.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ($process >= 7 && $step <= 1) {
+            return $this->dialog('Айрен', 'Ты нашел след Артикуно на скалах. Этого достаточно, чтобы озеро снова открыло память. Спасибо, тренер: теперь я знаю, где искать тело легенды и как вернуть наши души на места.', [
+                ['label' => 'Завершить историю', 'action' => 'quest_airen_complete'],
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ($step === 2) {
+            return $this->dialog('Айрен', 'Что тебе нужно, человек? Говори тише. Это место и так помнит слишком много чужих голосов.', [
+                ['label' => 'Я хочу помочь', 'params' => ['quest_npc' => '2', 'do' => '3']],
+                ['label' => 'Отступить', 'close' => true],
+            ]);
+        }
+
+        if ($step === 3) {
+            return $this->dialog(
+                'Айрен',
+                'Помочь? Мое тело далеко, а в нем чужая душа. Я вижу его только в отражениях и слышу, как моя сила делает то, чего я не выбирал.',
+                [
+                    ['label' => 'Как это произошло?', 'params' => ['quest_npc' => '2', 'do' => '4']],
+                    ['label' => 'Уйти', 'close' => true],
+                ]
+            );
+        }
+
+        if ($step === 4) {
+            return $this->dialog(
+                'Айрен',
+                'Здесь столкнулись две ауры. Человек и легенда коснулись одной и той же силы, и озеро стало зеркалом между ними. Если встретишь Артикуно в моем теле, не подходи бездумно: он напуган и может ударить первым.',
+                [
+                    ['label' => 'Как вернуть все назад?', 'params' => ['quest_npc' => '2', 'do' => '5']],
+                    ['label' => 'Уйти', 'close' => true],
+                ]
+            );
+        }
+
+        if ($step === 5) {
+            return $this->dialog(
+                'Айрен',
+                'Приведи его сюда, к воде, в полночь. Тогда отражение снова станет дверью, и я попробую вернуть души на свои места. Это опасно, но другого пути я не знаю.',
+                [
+                    ['label' => 'Я запомню', 'action' => 'quest_update:2:6:0'],
+                    ['label' => 'Спросить Амиру', 'params' => ['quest_npc' => '1', 'do' => '1']],
+                    ['label' => 'Уйти', 'close' => true],
+                ]
+            );
+        }
+
+        return $this->dialog(
+            'Айрен',
+            'На противоположном берегу стоит невысокий парень. Лунный свет цепляется за его силуэт, а вокруг плеч едва заметно мерцает голубая аура.',
+            [
+                ['label' => 'Подойти осторожно', 'params' => ['quest_npc' => '2', 'do' => '2']],
+                ['label' => 'Не тревожить', 'close' => true],
+            ]
+        );
+    }
+
+    private function oldWoman(int $userId, int $step): array
+    {
+        $quest = $this->quests->findForUser($userId, 2);
+        $process = (int) ($quest['process'] ?? 0);
+
+        if ($quest !== null && (int) ($quest['gotov'] ?? 0) === 1) {
+            return $this->dialog('Старая женщина', 'История Айрена уже вышла из тени. Не ходи в этот лес просто ради любопытства.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ($process >= 4) {
+            return $this->dialog('Старая женщина', 'Я сказала всё, что знала: искать нужно не только Айрена, но и самого Артикуно. Дальше дорога твоя.', [
+                ['label' => 'К озеру', 'params' => ['quest_npc' => '1', 'do' => '1']],
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ($process >= 3) {
+            $ids = $this->findActivePokemonBatch($userId, 48, 25, 3, 9);
+
+            return $this->dialog(
+                'Старая женщина',
+                'Вернулся? Для рассказа об Айрене мне нужны три Venonat 25+ уровня с нахальным характером. Я вижу подходящих: ' . count($ids) . '/3.',
+                [
+                    ['label' => 'Сдать Venonat', 'action' => 'quest_old_woman_turnin', 'disabled' => count($ids) < 3],
+                    ['label' => 'Уйти', 'close' => true],
+                ]
+            );
+        }
+
+        if ($step === 2) {
+            return $this->dialog('Старая женщина', 'Еще один наивный тренер... Никто из вас не понимает, что творится в этом лесу. Только бы Айрен не увидел тебя первым.', [
+                ['label' => 'Кто такой Айрен?', 'params' => ['quest_npc' => '1', 'do' => '3']],
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ($step === 3) {
+            return $this->dialog('Старая женщина', 'Говорят, он похож на человека с крыльями, хвостом и голубым сиянием. Но это не сказка для детей, а след легенды, которая поменялась с человеком местами.', [
+                ['label' => 'Что мне сделать?', 'params' => ['quest_npc' => '1', 'do' => '4']],
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ($step === 4) {
+            return $this->dialog('Старая женщина', 'Принеси три Venonat 25+ уровня с нахальным характером. Тогда расскажу больше. Пустые слова в этом лесу ничего не стоят.', [
+                ['label' => 'Записать поручение', 'action' => 'quest_update:2:3:0'],
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        return $this->dialog('Старая женщина', 'Что ты тут делаешь? Сюда опасно заходить. Тёмный лес не любит шумных гостей.', [
+            ['label' => 'Спросить про слухи', 'params' => ['quest_npc' => '1', 'do' => '2']],
+            ['label' => 'Уйти', 'close' => true],
+        ]);
+    }
+
+    private function articuno(int $userId, int $step): array
+    {
+        $quest = $this->quests->findForUser($userId, 2);
+        $process = (int) ($quest['process'] ?? 0);
+
+        if ($quest !== null && (int) ($quest['gotov'] ?? 0) === 1) {
+            return $this->dialog('#144 Articuno', 'Высокие скалы пусты. Легенда уже покинула это место, оставив после себя только холодный ветер.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ($step === 2) {
+            $nextProcess = max($process, 7);
+
+            return $this->dialog(
+                '#144 Articuno',
+                'Ты отметил место встречи в журнале. Для полноценной сцены поимки нужен новый безопасный legendary encounter через PvE API; старый прямой спавн боя больше не запускается.',
+                [
+                    ['label' => 'Записать в журнал', 'action' => 'quest_update:2:' . $nextProcess . ':0'],
+                    ['label' => 'Уйти', 'close' => true],
+                ]
+            );
+        }
+
+        if ($process < 6) {
+            return $this->dialog('#144 Articuno', 'С вершины скалы тянет ледяным ветром. Кажется, здесь бывает легендарный покемон, но пока ты не знаешь, зачем искать его.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        return $this->dialog(
+            '#144 Articuno',
+            'Огромная голубая птица сидит на высокой скале и смотрит вдаль. Простым покеболом такую легенду не удержать; если история Айрена правдива, тебе понадобится особый способ привести Артикуно к озеру.',
+            [
+                ['label' => 'Не тревожить пока', 'params' => ['quest_npc' => '1', 'do' => '2']],
+                ['label' => 'Уйти', 'close' => true],
+            ]
+        );
+    }
+
     private function strangeSpike(int $userId, int $step): array
     {
         $quest = $this->quests->findForUser($userId, 2);
         if ($quest !== null) {
-            return $this->dialog('Странный Спайк', 'Я уже рассказал тебе всё, что видел на рассвете. Если узнаешь что-то новое, возвращайся.', [
-                ['label' => 'Крафт камней', 'params' => ['quest_npc' => '3', 'do' => '3']],
-                ['label' => 'Уйти', 'close' => true],
-            ]);
+            $process = (int) ($quest['process'] ?? 0);
+            if ((int) ($quest['gotov'] ?? 0) === 1) {
+                return $this->dialog('Странный Спайк', 'История Айрена теперь звучит иначе. Я рад, что ты не оставил этот след без внимания.', [
+                    ['label' => 'Крафт камней', 'params' => ['quest_npc' => '3', 'do' => '3']],
+                    ['label' => 'Уйти', 'close' => true],
+                ]);
+            }
+
+            $hint = 'Я уже рассказал тебе всё, что видел на рассвете.';
+            $choices = [['label' => 'Крафт камней', 'params' => ['quest_npc' => '3', 'do' => '3']]];
+            if ($process < 3) {
+                $hint = 'Если хочешь проверить слухи, начни с Тёмного леса. Там есть старая женщина, которая знает такие истории лучше всех.';
+                $choices[] = ['label' => 'Идти в Тёмный лес', 'close' => true];
+            } elseif ($process < 4) {
+                $hint = 'Старуха не станет говорить просто так. Ей нужны три Venonat 25+ уровня с нахальным характером.';
+            } elseif ($process < 5) {
+                $hint = 'Теперь дорога ведёт к озеру. Художница Амира видела Айрена в полнолуние.';
+            } elseif ($process < 6) {
+                $hint = 'Поговори с Айреном у озера. Только без резких движений, ладно?';
+            } elseif ($process < 7) {
+                $hint = 'Айрен сказал искать Articuno. Скалы за Дорогой 3 — лучшее место для такого следа.';
+            } else {
+                $hint = 'Ты нашёл след легенды. Вернись к Айрену у озера и закрой эту историю.';
+            }
+            $choices[] = ['label' => 'Уйти', 'close' => true];
+
+            return $this->dialog('Странный Спайк', $hint, $choices);
         }
 
         $text = $step >= 4
@@ -587,7 +873,8 @@ final class NpcDialogService
             ]);
         }
 
-        return $this->dialog($title !== '' ? $title : 'Куратор', 'Я слежу за правилами этой зоны. Турниры и официальные бои будут запускаться через новый PvP/ивент-модуль.', [
+        return $this->dialog($title !== '' ? $title : 'Куратор', 'Я слежу за правилами этой зоны. Турниры и официальные бои теперь открываются через новый турнирный модуль.', [
+            ['label' => 'Открыть турниры', 'route' => '/game/tournaments'],
             ['label' => 'Правила боев', 'action' => 'curator_rules'],
             ['label' => 'Уйти', 'close' => true],
         ]);
@@ -717,8 +1004,9 @@ final class NpcDialogService
         $this->grantRewardItems($userId, [10 => 3, 1 => 5000], 'Квест: Первый покемон');
         $this->quests->updateState($userId, 1, 10, 1);
         $this->addQuestRank($userId, 1);
+        $this->quests->startIfAvailable($userId, 101, 1);
 
-        return $this->dialog('Профессор Оук', 'Готово. Стартовый покемон зарегистрирован, а в инвентарь добавлены покеболы и 5000 монет.', [
+        return $this->dialog('Профессор Оук', 'Готово. Стартовый покемон зарегистрирован, а в инвентарь добавлены покеболы и 5000 монет. Следующий шаг: выйди на Дорогу 1 и проведи первый бой.', [
             ['label' => 'Спасибо', 'close' => true],
         ]);
     }
@@ -778,6 +1066,55 @@ final class NpcDialogService
         ]);
     }
 
+    private function turnInOldWomanQuest(int $userId): array
+    {
+        $ids = $this->findActivePokemonBatch($userId, 48, 25, 3, 9);
+        if (count($ids) < 3) {
+            return $this->dialog('Старая женщина', 'Нет. Мне нужны именно три Venonat 25+ уровня с нахальным характером. Возвращайся, когда подготовишь их.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ($this->activePokemonCount($userId) <= 3) {
+            return $this->dialog('Старая женщина', 'Если я заберу этих Venonat, у тебя не останется боевой команды. Оставь с собой хотя бы ещё одного покемона.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        $this->deleteQuestPokemon($userId, $ids);
+        $this->quests->createOrUpdate($userId, 2, 4, 0);
+        $this->addQuestRank($userId, 1);
+
+        return $this->dialog('Старая женщина', 'Так-то лучше. Слушай внимательно: Айрен связан с Артикуно. Ищи не только странного парня, но и тело легенды. Эта история началась не в лесу, а у воды.', [
+            ['label' => 'К озеру', 'params' => ['quest_npc' => '1', 'do' => '1']],
+            ['label' => 'Уйти', 'close' => true],
+        ]);
+    }
+
+    private function completeAirenQuest(int $userId): array
+    {
+        $quest = $this->quests->findForUser($userId, 2);
+        if ($quest === null || (int) ($quest['process'] ?? 0) < 7) {
+            return $this->dialog('Айрен', 'Сначала найди след Артикуно на скалах. Без этого озеро не откроет обратный путь.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ((int) ($quest['gotov'] ?? 0) === 1) {
+            return $this->dialog('Айрен', 'Эта история уже завершена. Спасибо, что помог.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        $this->grantRewardItems($userId, [1 => 15000, 44 => 1], 'Квест: Рассказ Спайка');
+        $this->quests->updateState($userId, 2, 20, 1);
+        $this->addQuestRank($userId, 3);
+
+        return $this->dialog('Айрен', 'Лунная дорожка на озере вспыхивает и гаснет. История Айрена записана в журнал как завершённая. Награда: 15 000 монет, Лунный камень и +3 к рейтингу квестов.', [
+            ['label' => 'Спасибо', 'close' => true],
+        ]);
+    }
+
     private function turnInResearchQuest(int $userId): array
     {
         $ids = $this->findActivePokemonBatch($userId, 116, 40, 10);
@@ -802,6 +1139,12 @@ final class NpcDialogService
         $daily = $this->quests->findForUser($userId, 6);
         if ($daily !== null && (int) ($daily['time'] ?? 0) > time()) {
             return $this->dialog('Исследователь', 'Сегодня награда уже получена.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+        if ($daily === null || (int) ($daily['process'] ?? 0) < 10 || (int) ($daily['gotov'] ?? 0) === 1) {
+            return $this->dialog('Исследователь', 'Сначала возьми ежедневное задание.', [
+                ['label' => 'Взять задание', 'action' => 'quest_metapod_start'],
                 ['label' => 'Уйти', 'close' => true],
             ]);
         }
@@ -907,20 +1250,34 @@ final class NpcDialogService
         return (int) ($stmt->fetchColumn() ?: 0);
     }
 
-    private function findActivePokemonBatch(int $userId, int $baseId, int $level, int $limit): array
+    private function findActivePokemonBatch(int $userId, int $baseId, int $level, int $limit, int $natureId = 0): array
     {
-        $stmt = $this->db->prepare(
-            'SELECT id FROM pok_user
-              WHERE users = :user AND active = 1 AND basenum = :base AND lvl >= :level
-              ORDER BY lvl ASC, id ASC LIMIT :limit'
-        );
+        $sql = 'SELECT id FROM pok_user
+              WHERE users = :user AND active = 1 AND basenum = :base AND lvl >= :level';
+        if ($natureId > 0) {
+            $sql .= ' AND har = :nature';
+        }
+        $sql .= ' ORDER BY lvl ASC, id ASC LIMIT :limit';
+
+        $stmt = $this->db->prepare($sql);
         $stmt->bindValue(':user', $userId, PDO::PARAM_INT);
         $stmt->bindValue(':base', $baseId, PDO::PARAM_INT);
         $stmt->bindValue(':level', $level, PDO::PARAM_INT);
+        if ($natureId > 0) {
+            $stmt->bindValue(':nature', $natureId, PDO::PARAM_INT);
+        }
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
 
         return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    }
+
+    private function activePokemonCount(int $userId): int
+    {
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM pok_user WHERE users = :user AND active = 1');
+        $stmt->execute(['user' => $userId]);
+
+        return (int) $stmt->fetchColumn();
     }
 
     private function deleteQuestPokemon(int $userId, array $pokemonIds): void
@@ -983,7 +1340,7 @@ final class NpcDialogService
                  hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv, tips, startone, startepoke,
                  reproduction, happy, datemay, usersone, sprz, item, ability_key)
              VALUES
-                (:id, :users, :base, :name, 1, 0, :lvl, 1, 16, :hp, :hp, 0, 100,
+                (:id, :users, :base, :name, 1, 0, :lvl, 1, 16, :hp_my, :hp_max, 0, 100,
                  :atk, :def, :satk, :sdef, :speed, 0, 0, 0, 0, 0, 0,
                  1, 1, 1, 1, 1, 1, "normal", :startone, :starter,
                  0, 0, NOW(), :usersone, 0, 0, :ability)'
@@ -994,7 +1351,8 @@ final class NpcDialogService
             'base' => $baseId,
             'name' => $name,
             'lvl' => $level,
-            'hp' => $stats['hp'],
+            'hp_my' => $stats['hp'],
+            'hp_max' => $stats['hp'],
             'atk' => $stats['atk'],
             'def' => $stats['def'],
             'satk' => $stats['satk'],
@@ -1031,18 +1389,22 @@ final class NpcDialogService
             'INSERT INTO attac_my_poke
                 (id, pok_id, a_id, a_pp_min, a_pp_max, b_id, b_pp_min, b_pp_max, c_id, c_pp_min, c_pp_max, d_id, d_pp_min, d_pp_max)
              VALUES
-                (:id, :pokemon, :a_id, :a_pp, :a_pp, :b_id, :b_pp, :b_pp, :c_id, :c_pp, :c_pp, :d_id, :d_pp, :d_pp)'
+                (:id, :pokemon, :a_id, :a_pp_min, :a_pp_max, :b_id, :b_pp_min, :b_pp_max, :c_id, :c_pp_min, :c_pp_max, :d_id, :d_pp_min, :d_pp_max)'
         )->execute([
             'id' => $this->nextTableId('attac_my_poke', 'id'),
             'pokemon' => $pokemonId,
             'a_id' => $slots[0]['id'],
-            'a_pp' => $slots[0]['pp'],
+            'a_pp_min' => $slots[0]['pp'],
+            'a_pp_max' => $slots[0]['pp'],
             'b_id' => $slots[1]['id'],
-            'b_pp' => $slots[1]['pp'],
+            'b_pp_min' => $slots[1]['pp'],
+            'b_pp_max' => $slots[1]['pp'],
             'c_id' => $slots[2]['id'],
-            'c_pp' => $slots[2]['pp'],
+            'c_pp_min' => $slots[2]['pp'],
+            'c_pp_max' => $slots[2]['pp'],
             'd_id' => $slots[3]['id'],
-            'd_pp' => $slots[3]['pp'],
+            'd_pp_min' => $slots[3]['pp'],
+            'd_pp_max' => $slots[3]['pp'],
         ]);
     }
 
@@ -1182,6 +1544,9 @@ final class NpcDialogService
         }
         if ($locationId === 11 && $questNpcId === 1) {
             return 'Художница Амира';
+        }
+        if ($locationId === 11 && $questNpcId === 2) {
+            return 'Айрен';
         }
         if ($locationId === 13 && $questNpcId === 1) {
             return '#144 Articuno';

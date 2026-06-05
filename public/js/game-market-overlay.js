@@ -164,6 +164,9 @@
       const visible = value === '' || (card.dataset.search || '').includes(value);
       card.classList.toggle('is-hidden', !visible);
     });
+    if (selected && selected.classList.contains('is-hidden')) {
+      clearCart();
+    }
     pages[activeTab] = 0;
     applyPage();
   }
@@ -191,6 +194,14 @@
     if (nextButton) nextButton.disabled = pages[activeTab] >= maxPage;
     if (pageInfo) pageInfo.textContent = `${pages[activeTab] + 1}/${maxPage + 1}`;
     if (slotsCount) slotsCount.textContent = String(cards.length);
+    const empty = root.querySelector(`[data-market-empty="${activeTab}"]`);
+    if (empty) {
+      const value = (search?.value || '').trim();
+      empty.textContent = cards.length > 0
+        ? ''
+        : (value !== '' ? 'По такому запросу ничего не найдено.' : (activeTab === 'lots' ? 'В твоём регионе нет активных лотов игроков.' : 'В магазине пока нет активных товаров.'));
+      empty.hidden = cards.length > 0;
+    }
   }
 
   function clearCart() {

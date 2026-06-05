@@ -15,6 +15,7 @@ use Pokemon8\Repository\PokemonMarketRepository;
 use Pokemon8\Repository\QuestRepository;
 use Pokemon8\Repository\TrainingRepository;
 use Pokemon8\Repository\TransportRepository;
+use Pokemon8\Repository\TournamentRepository;
 use Pokemon8\Security\Csrf;
 use Pokemon8\Security\Session;
 use Pokemon8\View\View;
@@ -32,6 +33,7 @@ final class GameModuleController
         private ?PokemonMarketRepository $pokemonMarket = null,
         private ?QuestRepository $quests = null,
         private ?CommissionMarketRepository $commission = null,
+        private ?TournamentRepository $tournaments = null,
     ) {
     }
 
@@ -83,6 +85,17 @@ final class GameModuleController
                 'slug' => $slug,
                 'csrf' => $this->csrf->token(),
                 'events' => $this->events->dashboardForUser($userId),
+                'modules' => GameRoutes::MODULES,
+            ]));
+        }
+
+        if ($slug === 'tournaments' && $this->tournaments !== null) {
+            $userId = (int) $this->session->get('id');
+            return new Response(View::render('game-tournaments', [
+                'module' => $module,
+                'slug' => $slug,
+                'csrf' => $this->csrf->token(),
+                'tournaments' => $this->tournaments->dashboardForUser($userId),
                 'modules' => GameRoutes::MODULES,
             ]));
         }

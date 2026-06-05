@@ -327,7 +327,9 @@ final class PokemonRepository
     private function listPokemonByActive(int $userId, int $active, int $limit): array
     {
         $stmt = $this->db->prepare(
-            'SELECT pu.id, pu.names, pu.basenum, pu.lvl, pu.hp_my, pu.hp_max, pu.startepoke,
+            'SELECT pu.id, pu.names, pu.basenum, pu.lvl, pu.hp_my, pu.hp_max, pu.happy, pu.startepoke,
+                    pu.atk, pu.def, pu.satk, pu.sdef, pu.speed,
+                    pu.hp_ev, pu.atk_ev, pu.def_ev, pu.satk_ev, pu.sdef_ev, pu.speed_ev,
                     pu.training_stage, pu.training_stat, pu.training_named_effect, pu.training_tamed,
                     COALESCE(ip.id_items, pu.item, 0) AS held_item_id,
                     held.name AS held_item_name,
@@ -346,6 +348,24 @@ final class PokemonRepository
 
         $rows = [];
         foreach ($stmt->fetchAll() as $row) {
+            $ev = [
+                'hp' => max(0, (int) ($row['hp_ev'] ?? 0)),
+                'atk' => max(0, (int) ($row['atk_ev'] ?? 0)),
+                'def' => max(0, (int) ($row['def_ev'] ?? 0)),
+                'speed' => max(0, (int) ($row['speed_ev'] ?? 0)),
+                'satk' => max(0, (int) ($row['satk_ev'] ?? 0)),
+                'sdef' => max(0, (int) ($row['sdef_ev'] ?? 0)),
+            ];
+            $evTotal = array_sum($ev);
+            $evMaxPerStat = 252;
+            $evMaxTotal = 510;
+            $evRemainingTotal = max(0, $evMaxTotal - $evTotal);
+            $vitaminStep = 10;
+            $vitaminByStat = [];
+            foreach ($ev as $statKey => $value) {
+                $vitaminByStat[$statKey] = intdiv(max(0, min($evMaxPerStat - $value, $evRemainingTotal)), $vitaminStep);
+            }
+
             $rows[] = [
                 'id' => (int) $row['id'],
                 'name' => strip_tags((string) $row['names']),
@@ -358,6 +378,26 @@ final class PokemonRepository
                 'level' => (int) $row['lvl'],
                 'hp' => (int) $row['hp_my'],
                 'hpMax' => (int) $row['hp_max'],
+                'happiness' => max(0, min(100, (int) ($row['happy'] ?? 0))),
+                'stats' => [
+                    'hp' => (int) $row['hp_max'],
+                    'atk' => (int) $row['atk'],
+                    'def' => (int) $row['def'],
+                    'speed' => (int) $row['speed'],
+                    'satk' => (int) $row['satk'],
+                    'sdef' => (int) $row['sdef'],
+                ],
+                'ev' => $ev + [
+                    'total' => $evTotal,
+                    'maxPerStat' => $evMaxPerStat,
+                    'maxTotal' => $evMaxTotal,
+                    'remainingTotal' => $evRemainingTotal,
+                ],
+                'vitaminCapacity' => [
+                    'step' => $vitaminStep,
+                    'remainingTotalUses' => intdiv($evRemainingTotal, $vitaminStep),
+                    'byStat' => $vitaminByStat,
+                ],
                 'active' => $active === 1,
                 'starter' => (int) $row['startepoke'] === 1,
                 'heldItem' => [

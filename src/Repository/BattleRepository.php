@@ -10,20 +10,29 @@ use PDO;
 final class BattleRepository
 {
     private PokemonEvolutionRepository $evolutions;
+    private ?BattleReplayRepository $replay = null;
 
     public function __construct(private PDO $db, ?PokemonEvolutionRepository $evolutions = null)
     {
         $this->evolutions = $evolutions ?? new PokemonEvolutionRepository($db);
     }
 
+    public function setBattleReplayRepository(?BattleReplayRepository $replay): void
+    {
+        $this->replay = $replay;
+    }
+
     public function findActivePveBattleIdForUser(int $userId): int
     {
         // Active fight: user.pve = 1. Finished-but-not-acked fight: pve = 0,
         // battleid still points to battles.pobeda != 0 so the client can show final log.
-        $stmt = $this->db->prepare('SELECT battleid, pve FROM users WHERE id = :id LIMIT 1');
+        $stmt = $this->db->prepare('SELECT battleid, pve, pvp FROM users WHERE id = :id LIMIT 1');
         $stmt->execute(['id' => $userId]);
         $user = $stmt->fetch();
         if (!$user) {
+            return 0;
+        }
+        if ((int) ($user['pvp'] ?? 0) === 1) {
             return 0;
         }
 
@@ -32,7 +41,11 @@ final class BattleRepository
             return 0;
         }
         if ((int) ($user['pve'] ?? 0) === 1) {
-            return $battleId;
+            $battle = $this->db->prepare(
+                'SELECT id FROM battles WHERE id = :id AND user_1 = :user AND batl_tip = "pve" AND pobeda = 0 LIMIT 1'
+            );
+            $battle->execute(['id' => $battleId, 'user' => $userId]);
+            return $battle->fetchColumn() !== false ? $battleId : 0;
         }
 
         $battle = $this->db->prepare(
@@ -56,10 +69,13 @@ final class BattleRepository
 
     public function findActivePvpBattleIdForUser(int $userId): int
     {
-        $stmt = $this->db->prepare('SELECT battleid, pvp FROM users WHERE id = :id LIMIT 1');
+        $stmt = $this->db->prepare('SELECT battleid, pve, pvp FROM users WHERE id = :id LIMIT 1');
         $stmt->execute(['id' => $userId]);
         $user = $stmt->fetch();
         if (!$user) {
+            return 0;
+        }
+        if ((int) ($user['pve'] ?? 0) === 1) {
             return 0;
         }
 
@@ -69,7 +85,11 @@ final class BattleRepository
         }
 
         if ((int) ($user['pvp'] ?? 0) === 1) {
-            return $battleId;
+            $battle = $this->db->prepare(
+                'SELECT id FROM battles WHERE id = :id AND (user_1 = :user_1 OR user_2 = :user_2) AND batl_tip = "pvp" AND pobeda = 0 LIMIT 1'
+            );
+            $battle->execute(['id' => $battleId, 'user_1' => $userId, 'user_2' => $userId]);
+            return $battle->fetchColumn() !== false ? $battleId : 0;
         }
 
         $battle = $this->db->prepare(
@@ -619,6 +639,9 @@ final class BattleRepository
         }
 
         $row['battle_pokemon'] = $battlePokemon;
+        if ($table === 'pok_user') {
+            $this->normalizePlayerBattleStats($row);
+        }
         $this->applyTrainingBonus($row);
         $battleId = $battleId > 0 ? $battleId : $this->findActiveBattleIdForBattlePokemon($battlePokemon);
         if ($battleId > 0) {
@@ -866,14 +889,14 @@ final class BattleRepository
         ];
 
         foreach ($map as $field => $keys) {
-            $oldBase = max(1, (int) ($original[$keys['old']] ?? $original['base_' . $field] ?? 1));
-            $newBase = max(1, (int) ($form[$keys['new']] ?? $form['base_' . $field] ?? $oldBase));
+            $oldBase = max(1, (int) ($original['base_' . $field] ?? $original[$keys['old']] ?? 1));
+            $newBase = max(1, (int) ($form['base_' . $field] ?? $form[$keys['new']] ?? $oldBase));
             $current = max(1, (int) ($pokemon[$field] ?? 1));
             $pokemon[$field] = max(1, (int) round($current * ($newBase / $oldBase)));
         }
 
-        $oldHpBase = max(1, (int) ($original['HP'] ?? $original['base_hp'] ?? 1));
-        $newHpBase = max(1, (int) ($form['HP'] ?? $form['base_hp'] ?? $oldHpBase));
+        $oldHpBase = max(1, (int) ($original['base_hp'] ?? $original['HP'] ?? 1));
+        $newHpBase = max(1, (int) ($form['base_hp'] ?? $form['HP'] ?? $oldHpBase));
         if ($newHpBase !== $oldHpBase) {
             $oldMax = max(1, (int) ($pokemon['hp_max'] ?? 1));
             $newMax = max(1, (int) round($oldMax * ($newHpBase / $oldHpBase)));
@@ -903,6 +926,46 @@ final class BattleRepository
         $base = max(1, (int) ($pokemon[$stat] ?? 0));
         $pokemon[$stat] = max(1, (int) floor($base * (1 + $bonus / 100)));
         $pokemon['training_bonus_percent'] = $bonus;
+    }
+
+    private function normalizePlayerBattleStats(array &$pokemon): void
+    {
+        $level = max(1, min(100, (int) ($pokemon['lvl'] ?? 1)));
+        $hpMax = max(1, (int) ($pokemon['hp_max'] ?? 1));
+        $hpCurrent = max(0, (int) ($pokemon['hp_my'] ?? $hpMax));
+        $fields = ['atk', 'def', 'satk', 'sdef', 'speed'];
+
+        $impossible = (int) ($pokemon['lvl'] ?? 1) !== $level || $hpCurrent > $hpMax || $hpMax > 1000;
+        foreach ($fields as $field) {
+            if ((int) ($pokemon[$field] ?? 0) > 1000) {
+                $impossible = true;
+                break;
+            }
+        }
+
+        if (!$impossible) {
+            $pokemon['hp_my'] = min($hpCurrent, $hpMax);
+            $pokemon['lvl'] = $level;
+            return;
+        }
+
+        $safe = $pokemon;
+        foreach (['hp', ...$fields] as $field) {
+            $safe[$field . '_iv'] = max(0, min(31, (int) ($safe[$field . '_iv'] ?? 1)));
+            $safe[$field . '_ev'] = max(0, min(252, (int) ($safe[$field . '_ev'] ?? 0)));
+        }
+
+        $stats = $this->calculateStats($safe, $level);
+        $oldMax = max(1, $hpMax);
+        $ratio = max(0.0, min(1.0, $hpCurrent / $oldMax));
+
+        $pokemon['lvl'] = $level;
+        $pokemon['hp_max'] = max(1, (int) ($stats['hp'] ?? $hpMax));
+        $pokemon['hp_my'] = max(0, min((int) $pokemon['hp_max'], (int) round((int) $pokemon['hp_max'] * $ratio)));
+        foreach ($fields as $field) {
+            $pokemon[$field] = max(1, (int) ($stats[$field] ?? $pokemon[$field] ?? 1));
+        }
+        $pokemon['stats_normalized_for_battle'] = true;
     }
 
     public function findUserBattlePokemonOptions(int $userId): array
@@ -1390,6 +1453,69 @@ final class BattleRepository
         return (int) ($stmt->fetchColumn() ?: 0);
     }
 
+    public function gymBadgeRuleForPveVictory(int $userId, array $enemy): ?array
+    {
+        if ($userId <= 0 || !$this->tableExists('gym_badge_battle_rules') || !$this->tableExists('gym_badges')) {
+            return null;
+        }
+
+        $locationId = 0;
+        $location = $this->db->prepare('SELECT buildmy FROM users WHERE id = :user LIMIT 1');
+        $location->execute(['user' => $userId]);
+        $locationId = (int) ($location->fetchColumn() ?: 0);
+
+        $enemyId = (int) ($enemy['id'] ?? 0);
+        $enemyBaseId = PokemonFormCatalog::displayBaseId((int) ($enemy['basenum'] ?? 0));
+        $enemyName = trim(strip_tags((string) ($enemy['names'] ?? '')));
+        $enemyLevel = max(1, (int) ($enemy['lvl'] ?? 1));
+
+        $stmt = $this->db->prepare(
+            'SELECT r.id, r.badge_key, r.location_id, r.enemy_base_id, r.enemy_pokemon_id,
+                    r.enemy_name_like, r.min_level, r.source_note,
+                    gb.id AS badge_id, gb.title AS badge_title, gb.leader_name
+               FROM gym_badge_battle_rules r
+         INNER JOIN gym_badges gb
+                 ON gb.badge_key COLLATE utf8mb4_unicode_ci = r.badge_key COLLATE utf8mb4_unicode_ci
+              WHERE r.enabled = 1
+                AND (r.location_id = 0 OR r.location_id = :location_id)
+                AND (r.enemy_base_id = 0 OR r.enemy_base_id = :enemy_base_id)
+                AND (r.enemy_pokemon_id = 0 OR r.enemy_pokemon_id = :enemy_pokemon_id)
+                AND (r.enemy_name_like = "" OR LOWER(:enemy_name) LIKE CONCAT("%", LOWER(r.enemy_name_like), "%"))
+                AND (r.min_level <= 0 OR r.min_level <= :enemy_level)
+              ORDER BY
+                (r.location_id <> 0) DESC,
+                (r.enemy_pokemon_id <> 0) DESC,
+                (r.enemy_base_id <> 0) DESC,
+                (r.enemy_name_like <> "") DESC,
+                r.min_level DESC,
+                r.id ASC
+              LIMIT 1'
+        );
+        $stmt->execute([
+            'location_id' => $locationId,
+            'enemy_base_id' => $enemyBaseId,
+            'enemy_pokemon_id' => $enemyId,
+            'enemy_name' => function_exists('mb_strtolower') ? mb_strtolower($enemyName) : strtolower($enemyName),
+            'enemy_level' => $enemyLevel,
+        ]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return null;
+        }
+
+        return [
+            'ruleId' => (int) $row['id'],
+            'badgeKey' => (string) $row['badge_key'],
+            'badgeId' => (int) $row['badge_id'],
+            'badgeTitle' => (string) $row['badge_title'],
+            'leader' => (string) ($row['leader_name'] ?? ''),
+            'locationId' => (int) ($row['location_id'] ?? 0),
+            'enemyBaseId' => (int) ($row['enemy_base_id'] ?? 0),
+            'enemyPokemonId' => (int) ($row['enemy_pokemon_id'] ?? 0),
+            'sourceNote' => (string) ($row['source_note'] ?? ''),
+        ];
+    }
+
     public function patchBattleEnemy(int $battleId, int $pokPveId): void
     {
         if ($battleId <= 0 || $pokPveId <= 0) {
@@ -1454,6 +1580,7 @@ final class BattleRepository
 
     public function insertBattleLog(int $battleId, int $round, string $message): void
     {
+        $logId = 0;
         try {
             $stmt = $this->db->prepare(
                 'INSERT INTO battle_log (battle_id, demage, raund) VALUES (:battle_id, :demage, :raund)'
@@ -1463,6 +1590,19 @@ final class BattleRepository
                 'demage' => $message,
                 'raund' => $round,
             ]);
+            $logId = (int) ($this->db->lastInsertId() ?: 0);
+            if ($logId <= 0) {
+                $lookup = $this->db->prepare(
+                    'SELECT id FROM battle_log WHERE battle_id = :battle_id AND raund = :raund AND demage = :demage ORDER BY id DESC LIMIT 1'
+                );
+                $lookup->execute([
+                    'battle_id' => $battleId,
+                    'raund' => $round,
+                    'demage' => $message,
+                ]);
+                $logId = (int) ($lookup->fetchColumn() ?: 0);
+            }
+            $this->replay?->recordRoundLog($battleId, $round, $message, $logId);
             return;
         } catch (\Throwable) {
             // Server DB keeps battle_log.id without AUTO_INCREMENT. Use safe fallback.
@@ -1478,6 +1618,7 @@ final class BattleRepository
             'demage' => $message,
             'raund' => $round,
         ]);
+        $this->replay?->recordRoundLog($battleId, $round, $message, $nextId);
     }
 
     public function getBattleLog(int $battleId, int $limit = 40): array
@@ -2124,7 +2265,7 @@ final class BattleRepository
 
     private function withItemsUsersLock(callable $callback): void
     {
-        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 15)');
         $lock->execute(['name' => 'pokemon8_seq_items_users_id']);
         if ((int) ($lock->fetchColumn() ?: 0) !== 1) {
             throw new \RuntimeException('Unable to acquire items_users lock.');
@@ -2470,13 +2611,74 @@ final class BattleRepository
         ]);
     }
 
+    public function acquirePveBattleActionLock(int $battleId, int $timeoutSeconds = 3): bool
+    {
+        if ($battleId <= 0) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare('SELECT GET_LOCK(:name, :timeout)');
+        $stmt->execute([
+            'name' => 'pokemon8_pve_battle_action_' . $battleId,
+            'timeout' => max(0, $timeoutSeconds),
+        ]);
+        return (int) ($stmt->fetchColumn() ?: 0) === 1;
+    }
+
+    public function releasePveBattleActionLock(int $battleId): void
+    {
+        if ($battleId <= 0) {
+            return;
+        }
+
+        $stmt = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
+        $stmt->execute(['name' => 'pokemon8_pve_battle_action_' . $battleId]);
+    }
+
+    public function claimPveBattleFinish(int $battleId, int $userId, int $winner): bool
+    {
+        if ($battleId <= 0 || $userId <= 0) {
+            return false;
+        }
+
+        $battleRow = $this->battleRowById($battleId);
+        $stmt = $this->db->prepare(
+            'UPDATE battles
+                SET pobeda = :winner
+              WHERE id = :id AND user_1 = :user AND batl_tip = "pve" AND pobeda = 0
+              LIMIT 1'
+        );
+        $stmt->execute(['winner' => $winner, 'id' => $battleId, 'user' => $userId]);
+        if ($stmt->rowCount() !== 1) {
+            return false;
+        }
+
+        $this->markBattleTransformationsReverted($battleId);
+        $this->db->prepare(
+            'UPDATE users SET pve = 0, battleid = :battle, atack_poke = :next_attack WHERE id = :id LIMIT 1'
+        )->execute([
+            'battle' => $battleId,
+            'next_attack' => time() + 30,
+            'id' => $userId,
+        ]);
+        if ($battleRow !== null) {
+            $battleRow['pobeda'] = $winner;
+        }
+        $this->replay?->markFinished($battleId, $winner, $battleRow ?? []);
+        return true;
+    }
+
     public function finishBattle(int $battleId, int $userId, int $winner): void
     {
+        $battleRow = $this->battleRowById($battleId);
         // Не удаляем бой/лог сразу: frontend должен успеть показать финальный экран.
         // Удаление делается только после /api/battle/pve/ack-end.
         $this->db->prepare(
-            'UPDATE battles SET pobeda = :winner WHERE id = :id LIMIT 1'
-        )->execute(['winner' => $winner, 'id' => $battleId]);
+            'UPDATE battles
+                SET pobeda = :winner
+              WHERE id = :id AND user_1 = :user AND batl_tip = "pve"
+              LIMIT 1'
+        )->execute(['winner' => $winner, 'id' => $battleId, 'user' => $userId]);
         $this->markBattleTransformationsReverted($battleId);
 
         $this->db->prepare(
@@ -2486,10 +2688,15 @@ final class BattleRepository
             'next_attack' => time() + 30,
             'id' => $userId,
         ]);
+        if ($battleRow !== null) {
+            $battleRow['pobeda'] = $winner;
+        }
+        $this->replay?->markFinished($battleId, $winner, $battleRow ?? []);
     }
 
     public function finishPvpBattle(int $battleId, int $winner): void
     {
+        $battleRow = $this->battleRowById($battleId);
         $this->db->prepare(
             'UPDATE battles SET pobeda = :winner WHERE id = :id AND batl_tip = "pvp" LIMIT 1'
         )->execute(['winner' => $winner, 'id' => $battleId]);
@@ -2500,6 +2707,21 @@ final class BattleRepository
                 SET pvp = 0, battleid = :set_battle
               WHERE battleid = :where_battle AND pvp = 1'
         )->execute(['set_battle' => $battleId, 'where_battle' => $battleId]);
+        if ($battleRow !== null) {
+            $battleRow['pobeda'] = $winner;
+        }
+        $this->replay?->markFinished($battleId, $winner, $battleRow ?? []);
+    }
+
+    private function battleRowById(int $battleId): ?array
+    {
+        if ($battleId <= 0) {
+            return null;
+        }
+        $stmt = $this->db->prepare('SELECT * FROM battles WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $battleId]);
+        $row = $stmt->fetch();
+        return is_array($row) ? $row : null;
     }
 
     public function acknowledgePvpBattleForUser(int $userId): void
@@ -3262,6 +3484,10 @@ final class BattleRepository
 
     private function nextTableId(string $table, string $column): int
     {
+        if ($table === 'battles' && $column === 'id') {
+            return $this->nextBattleId();
+        }
+
         $allowed = [
             'pok_user' => ['id'],
             'attac_my_poke' => ['id'],
@@ -3273,7 +3499,7 @@ final class BattleRepository
         }
 
         $lockName = sprintf('pokemon8_seq_%s_%s', $table, $column);
-        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 15)');
         $lock->execute(['name' => $lockName]);
 
         try {
@@ -3284,6 +3510,59 @@ final class BattleRepository
             $release = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
             $release->execute(['name' => $lockName]);
         }
+    }
+
+    private function nextBattleId(): int
+    {
+        $lockAcquired = false;
+        try {
+            if (!$this->tableExists('battle_id_sequence')) {
+                if ($this->db->inTransaction()) {
+                    throw new \RuntimeException('battle_id_sequence is not available inside transaction.');
+                }
+                $this->db->exec(
+                    'CREATE TABLE IF NOT EXISTS battle_id_sequence (
+                        id TINYINT NOT NULL PRIMARY KEY,
+                        next_id INT(11) NOT NULL
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+                );
+            }
+
+            $lockAcquired = ((int) ($this->db->query('SELECT GET_LOCK("pokemon8_seq_battles_id", 15)')->fetchColumn() ?: 0)) === 1;
+            $maxId = (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM battles')->fetchColumn() ?: 1);
+            $seed = max(time(), $maxId, 1);
+            $insert = $this->db->prepare(
+                'INSERT INTO battle_id_sequence (id, next_id)
+                 VALUES (1, :seed)
+                 ON DUPLICATE KEY UPDATE next_id = GREATEST(next_id, VALUES(next_id))'
+            );
+            $insert->execute(['seed' => $seed]);
+
+            $current = (int) ($this->db->query('SELECT next_id FROM battle_id_sequence WHERE id = 1')->fetchColumn() ?: 0);
+            $candidate = max($current, $seed, $maxId);
+            for ($attempt = 0; $attempt < 20; $attempt++) {
+                $exists = $this->db->prepare('SELECT 1 FROM battles WHERE id = :id LIMIT 1');
+                $exists->execute(['id' => $candidate]);
+                if ($exists->fetchColumn() === false) {
+                    $update = $this->db->prepare('UPDATE battle_id_sequence SET next_id = :next WHERE id = 1');
+                    $update->execute(['next' => $candidate + 1]);
+                    return $candidate;
+                }
+                $candidate++;
+            }
+        } catch (\Throwable) {
+            // fallback below
+        } finally {
+            if ($lockAcquired) {
+                try {
+                    $this->db->query('SELECT RELEASE_LOCK("pokemon8_seq_battles_id")');
+                } catch (\Throwable) {
+                    // no-op
+                }
+            }
+        }
+
+        return max(time(), (int) ($this->db->query('SELECT COALESCE(MAX(id), 0) + 1 FROM battles')->fetchColumn() ?: 1));
     }
 
     private function normalizeHazardKind(string $kind): string

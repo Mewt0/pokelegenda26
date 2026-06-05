@@ -193,9 +193,57 @@ use Pokemon8\View\View;
       background: rgba(255,255,255,.55);
       color: #314967;
       font-weight: 800;
+      cursor: pointer;
+      user-select: none;
+    }
+    .held-detail:hover,
+    .held-detail:focus-visible {
+      border-color: #6d9ed2;
+      background: rgba(255,255,255,.82);
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(65,132,214,.16);
     }
     .held-detail[hidden] { display: none; }
     .held-detail img { width: 22px; height: 22px; object-fit: contain; }
+    .held-confirm-pop {
+      position: fixed;
+      z-index: 80;
+      width: min(320px, calc(100vw - 18px));
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid #8da9c4;
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(246,251,255,.98), rgba(219,234,248,.98));
+      box-shadow: 0 14px 34px rgba(28,48,72,.22);
+      color: #183453;
+      font-weight: 800;
+    }
+    .held-confirm-pop strong { font-size: 14px; }
+    .held-confirm-pop p {
+      margin: 0;
+      color: #4d6682;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .held-confirm-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .held-confirm-actions button {
+      min-height: 30px;
+      border: 1px solid #8fa8c2;
+      border-radius: 6px;
+      background: rgba(255,255,255,.74);
+      color: #243d5c;
+      font-weight: 900;
+    }
+    .held-confirm-actions .confirm {
+      border-color: #62a674;
+      background: #65bf82;
+      color: #fff;
+    }
     .empty-tile {
       min-height: 72px;
       display: grid;
@@ -479,8 +527,29 @@ use Pokemon8\View\View;
       color: #183c62;
       font-weight: 700;
     }
-    .stats { max-width: 100%; margin-top: 10px; display: grid; gap: 3px; }
-    .stat-row { display: grid; grid-template-columns: 132px 38px minmax(92px, 1fr) 22px; align-items: center; gap: 7px; color: #1f3855; }
+    .stats { max-width: 100%; margin-top: 10px; display: grid; gap: 4px; }
+    .vitamin-summary {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+      color: #31516f;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .vitamin-summary span {
+      min-height: 20px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 7px;
+      border: 1px solid #b5c7da;
+      border-radius: 999px;
+      background: rgba(247,251,255,.75);
+      white-space: nowrap;
+    }
+    .vitamin-summary b { color: #0b8f58; }
+    .stat-row { display: grid; grid-template-columns: 132px 42px minmax(92px, 1fr) auto auto 24px; align-items: center; gap: 7px; color: #1f3855; }
     .stat-label { min-width: 0; display: flex; align-items: center; gap: 6px; }
     .stat-label span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .stat-value { text-align: right; color: #526173; font-weight: 700; }
@@ -516,6 +585,40 @@ use Pokemon8\View\View;
       background: transparent;
       color: #00b86b;
       font: 800 20px/1 Arial, sans-serif;
+    }
+    .stat-plus:disabled { opacity: .35; cursor: default; }
+    .stat-ev-chip,
+    .stat-vitamin-chip {
+      min-height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      font: 900 11px/1 Tahoma, Arial, sans-serif;
+      white-space: nowrap;
+    }
+    .stat-ev-chip {
+      min-width: 82px;
+      padding: 0 7px;
+      border: 1px solid #a9bed4;
+      background: rgba(255,255,255,.62);
+      color: #31516f;
+    }
+    .stat-ev-chip.is-full {
+      border-color: #a9d7bd;
+      background: #e4f8ed;
+      color: #0b8f58;
+    }
+    .stat-vitamin-chip {
+      min-width: 34px;
+      border: 1px solid #77a7d8;
+      background: #eef7ff;
+      color: #1d66a8;
+    }
+    .stat-vitamin-chip.is-empty {
+      border-color: #c1cbd5;
+      background: #edf1f5;
+      color: #7b8793;
     }
     .ev-left { justify-self: end; color: #00a75f; font-weight: 900; }
     .meta { margin-top: 18px; color: #0d5ca8; font-weight: 700; }
@@ -680,6 +783,7 @@ use Pokemon8\View\View;
       text-align: center;
     }
     .ev-pop strong { display: block; margin-bottom: 8px; }
+    .ev-pop-line { margin: 5px 0; color: #d8e2ef; font-size: 12px; text-align: left; }
     .ev-pop label { display: grid; grid-template-columns: 1fr 90px; align-items: center; gap: 8px; }
     .ev-pop input { min-width: 0; height: 28px; border: 1px solid #888; background: #4a4f56; color: #cad2dc; text-align: right; font: inherit; }
     .ev-pop button {
@@ -760,7 +864,7 @@ use Pokemon8\View\View;
     setupParentWindowDrag();
     document.getElementById('downloadBtn').addEventListener('click', () => setStatus('Экспорт карточки будет подключен позже.'));
     document.addEventListener('click', event => {
-      if (!event.target.closest('.learn-pop,.move-slot,.ev-pop,.stat-plus')) closePopups();
+      if (!event.target.closest('.learn-pop,.move-slot,.ev-pop,.stat-plus,.held-confirm-pop,.held-detail')) closePopups();
     });
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape') closePopups();
@@ -836,7 +940,6 @@ use Pokemon8\View\View;
           return;
         }
         team = payload.pokemon || [];
-        await loadBreedingState();
         if (!keepSelected) {
           detailOpen = false;
           selectedId = 0;
@@ -914,9 +1017,7 @@ use Pokemon8\View\View;
 
       if (!detailOpen) {
         list.className = 'team-list is-overview';
-        renderBreedingPanel();
         renderPokemonSection('Активная команда', activePokemon(), 'active', 'Команда пуста.');
-        renderPokemonSection('Питомник', nurseryPokemon(), 'nursery', 'Питомник пуст.');
         detail.innerHTML = '';
         detailId.textContent = '';
         return;
@@ -1447,38 +1548,83 @@ use Pokemon8\View\View;
       const hpMax = Number(poke.hpMax || 1);
       const training = poke.training || {};
       const trainedStat = String(training.stat || '');
+      const stats = poke.stats || {};
+      const ev = poke.ev || {};
+      const vitaminCapacity = poke.vitaminCapacity || {};
+      const vitaminByStat = vitaminCapacity.byStat || {};
+      const evMaxPerStat = Math.max(1, Number(ev.maxPerStat || 252));
+      const evMaxTotal = Math.max(1, Number(ev.maxTotal || 510));
+      const evTotal = Math.max(0, Number(ev.total || 0));
+      const evRemainingTotal = Math.max(0, Number(ev.remainingTotal || Math.max(0, evMaxTotal - evTotal)));
+      const vitaminUsesLeft = Math.max(0, Number(vitaminCapacity.remainingTotalUses || 0));
       const values = [
-        ['Счастье', 100, 100, false],
-        ['Здоровье', hp, hpMax, true],
-        ['Атака', Math.max(1, Math.round(level * 0.58)), 100, false],
-        ['Защита', Math.max(1, Math.round(level * 0.58)), 100, false],
-        ['Скорость', Math.max(1, Math.round(level * 0.55)), 100, false],
-        ['Спец.атака', Math.max(1, Math.round(level * 0.64)), 100, false],
-        ['Спец.защита', Math.max(1, Math.round(level * 0.64)), 100, false],
+        { label: 'Счастье', key: '', value: Number(poke.happiness ?? 100), max: 100, isHp: false, hasEv: false },
+        { label: 'Здоровье', key: 'hp', value: Number(stats.hp || hpMax || hp), max: Math.max(1, Number(stats.hp || hpMax || hp)), isHp: true, hasEv: true },
+        { label: 'Атака', key: 'atk', value: Number(stats.atk || Math.max(1, Math.round(level * 0.58))), max: 100, isHp: false, hasEv: true },
+        { label: 'Защита', key: 'def', value: Number(stats.def || Math.max(1, Math.round(level * 0.58))), max: 100, isHp: false, hasEv: true },
+        { label: 'Скорость', key: 'speed', value: Number(stats.speed || Math.max(1, Math.round(level * 0.55))), max: 100, isHp: false, hasEv: true },
+        { label: 'Спец.атака', key: 'satk', value: Number(stats.satk || Math.max(1, Math.round(level * 0.64))), max: 100, isHp: false, hasEv: true },
+        { label: 'Спец.защита', key: 'sdef', value: Number(stats.sdef || Math.max(1, Math.round(level * 0.64))), max: 100, isHp: false, hasEv: true },
       ];
       const box = detail.querySelector('.stats');
-      values.forEach(([label, value, max, isHp], index) => {
+      const summary = document.createElement('div');
+      summary.className = 'vitamin-summary';
+      summary.innerHTML = '<span>EV всего: <b></b></span><span>Можно влить ещё: <b></b></span><span>Доступно витаминов: <b></b></span>';
+      summary.querySelectorAll('b')[0].textContent = evTotal + '/' + evMaxTotal;
+      summary.querySelectorAll('b')[1].textContent = evRemainingTotal + ' EV';
+      summary.querySelectorAll('b')[2].textContent = '×' + vitaminUsesLeft;
+      box.appendChild(summary);
+      values.forEach(item => {
+        const label = item.label;
+        const value = item.value;
+        const max = item.max;
+        const isHp = item.isHp;
+        const evValue = item.hasEv ? Math.max(0, Number(ev[item.key] || 0)) : 0;
+        const evRemaining = item.hasEv ? Math.max(0, Math.min(evMaxPerStat - evValue, evRemainingTotal)) : 0;
+        const statVitaminLeft = item.hasEv ? Math.max(0, Number(vitaminByStat[item.key] || Math.floor(evRemaining / Math.max(1, Number(vitaminCapacity.step || 10))))) : 0;
         const isTrained = trainedStat !== '' && trainingStatKey(label) === trainedStat && Number(training.stage || 0) > 0;
         const row = document.createElement('div');
         row.className = 'stat-row' + (isHp ? ' hp' : '') + (isTrained ? ' is-trained' : '');
-        row.innerHTML = '<span class="stat-label"><span></span></span><b class="stat-value"></b><span class="stat-track"><i></i></span><button type="button" class="stat-plus">+</button>';
+        row.innerHTML = '<span class="stat-label"><span></span></span><b class="stat-value"></b><span class="stat-track"><i></i></span><span class="stat-ev-chip"></span><button type="button" class="stat-plus">+</button>';
         row.querySelector('.stat-label span').textContent = label;
         if (isTrained) {
           row.querySelector('.stat-label').insertAdjacentHTML('beforeend', trainingMarkHtml(training));
         }
         row.querySelector('.stat-value').textContent = label === 'Счастье' ? '' : value;
-        row.querySelector('i').style.width = Math.max(0, Math.min(100, value / Math.max(1, max) * 100)) + '%';
-        row.querySelector('.stat-plus').addEventListener('click', event => {
-          event.stopPropagation();
-          showEvPopup(row.querySelector('.stat-plus'), label);
-        });
-        box.appendChild(row);
-        if (index === values.length - 1) {
-          const ev = document.createElement('b');
-          ev.className = 'ev-left';
-          ev.textContent = '18';
-          box.appendChild(ev);
+        row.querySelector('i').style.width = Math.max(0, Math.min(100, isHp ? (hp / Math.max(1, hpMax) * 100) : (value / Math.max(1, max) * 100))) + '%';
+        const evChip = row.querySelector('.stat-ev-chip');
+        const plusButton = row.querySelector('.stat-plus');
+        if (item.hasEv) {
+          evChip.textContent = 'EV ' + evValue + '/' + evMaxPerStat;
+          evChip.title = 'Можно влить ещё: ' + evRemaining + ' EV';
+          evChip.classList.toggle('is-full', evRemaining <= 0);
+          const vitaminChip = document.createElement('span');
+          vitaminChip.className = 'stat-vitamin-chip' + (statVitaminLeft <= 0 ? ' is-empty' : '');
+          vitaminChip.textContent = '×' + statVitaminLeft;
+          vitaminChip.title = 'Можно влить ещё витаминов в этот стат: ' + statVitaminLeft;
+          plusButton.title = 'EV: ' + evValue + '/' + evMaxPerStat + '. Можно влить ещё: ' + evRemaining + ' EV. Витаминов: ×' + statVitaminLeft;
+          plusButton.setAttribute('aria-label', plusButton.title);
+          plusButton.before(vitaminChip);
+          plusButton.addEventListener('click', event => {
+            event.stopPropagation();
+            showEvPopup(row.querySelector('.stat-plus'), {
+              label,
+              ev: evValue,
+              evMax: evMaxPerStat,
+              remainingEv: evRemaining,
+              vitamins: statVitaminLeft,
+              totalEv: evTotal,
+              totalMax: evMaxTotal,
+              totalRemaining: evRemainingTotal,
+            });
+          });
+        } else {
+          evChip.textContent = '';
+          evChip.style.visibility = 'hidden';
+          plusButton.disabled = true;
+          plusButton.textContent = '';
         }
+        box.appendChild(row);
       });
     }
 
@@ -1546,14 +1692,18 @@ use Pokemon8\View\View;
       return row;
     }
 
-    function showEvPopup(anchor, label) {
+    function showEvPopup(anchor, info) {
       closePopups();
+      const data = info || {};
       const pop = document.createElement('div');
       pop.className = 'ev-pop';
-      pop.innerHTML = '<strong></strong><label><span>Увеличить EV на:</span><input type="number" min="1" max="18" value="1"></label><button type="button">Добавить</button>';
-      pop.querySelector('strong').textContent = label;
+      pop.innerHTML = '<strong></strong><div class="ev-pop-line"></div><div class="ev-pop-line"></div><div class="ev-pop-line"></div><button type="button">Понятно</button>';
+      pop.querySelector('strong').textContent = data.label || 'EV';
+      const lines = pop.querySelectorAll('.ev-pop-line');
+      lines[0].textContent = 'EV: ' + Number(data.ev || 0) + '/' + Number(data.evMax || 252);
+      lines[1].textContent = 'Можно влить ещё: ' + Number(data.remainingEv || 0) + ' EV';
+      lines[2].textContent = 'Осталось витаминов: ×' + Number(data.vitamins || 0) + ' · общий лимит ' + Number(data.totalEv || 0) + '/' + Number(data.totalMax || 510);
       pop.querySelector('button').addEventListener('click', () => {
-        setStatus('Прокачка EV будет подключена к серверу отдельно.');
         closePopups();
       });
       document.body.appendChild(pop);
@@ -1576,7 +1726,7 @@ use Pokemon8\View\View;
     }
 
     function closePopups() {
-      document.querySelectorAll('.learn-pop,.ev-pop').forEach(node => node.remove());
+      document.querySelectorAll('.learn-pop,.ev-pop,.held-confirm-pop').forEach(node => node.remove());
       activeLearn = null;
     }
 
@@ -1678,7 +1828,8 @@ use Pokemon8\View\View;
     }
 
     function selectedPokemon() {
-      return team.find(poke => Number(poke.id) === Number(selectedId)) || team[0] || null;
+      const active = activePokemon();
+      return active.find(poke => Number(poke.id) === Number(selectedId)) || active[0] || null;
     }
 
     function displayName(poke) {
@@ -1721,12 +1872,77 @@ use Pokemon8\View\View;
       const item = heldItem(poke);
       if (!item) {
         box.hidden = true;
+        box.onclick = null;
+        box.onkeydown = null;
+        box.removeAttribute('role');
+        box.removeAttribute('tabindex');
         return;
       }
       box.hidden = false;
       setHeldIcon(box.querySelector('img'), item.id);
       box.querySelector('span').textContent = 'Держит: ' + (item.name || ('Item #' + Number(item.id || 0)));
-      box.title = item.title || item.name || '';
+      box.title = 'Нажми, чтобы снять предмет. ' + (item.title || item.name || '');
+      box.setAttribute('role', 'button');
+      box.tabIndex = 0;
+      box.onclick = event => {
+        event.stopPropagation();
+        showHeldUnequipConfirm(box, poke, item);
+      };
+      box.onkeydown = event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          event.stopPropagation();
+          showHeldUnequipConfirm(box, poke, item);
+        }
+      };
+    }
+
+    function showHeldUnequipConfirm(anchor, poke, item) {
+      closePopups();
+      const pop = document.createElement('div');
+      pop.className = 'held-confirm-pop';
+      pop.innerHTML = [
+        '<strong>Снять предмет?</strong>',
+        '<p></p>',
+        '<div class="held-confirm-actions">',
+          '<button type="button" class="confirm" data-held-confirm>Да</button>',
+          '<button type="button" data-held-cancel>Нет</button>',
+        '</div>'
+      ].join('');
+      pop.querySelector('p').textContent = 'Снять "' + (item.name || ('Item #' + Number(item.id || 0))) + '" с ' + displayName(poke) + ' и вернуть в инвентарь?';
+      pop.querySelector('[data-held-confirm]').addEventListener('click', event => {
+        event.stopPropagation();
+        unequipHeldItem(Number(poke.id || 0));
+      });
+      pop.querySelector('[data-held-cancel]').addEventListener('click', event => {
+        event.stopPropagation();
+        closePopups();
+      });
+      document.body.appendChild(pop);
+      placePopup(pop, anchor, 8);
+    }
+
+    async function unequipHeldItem(pokemonId) {
+      const body = new URLSearchParams();
+      body.set('_csrf', csrf);
+      body.set('pokemon_id', String(pokemonId));
+      try {
+        setStatus('Снимаем предмет...');
+        const response = await fetch('/api/inventory/unequip', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', 'Accept': 'application/json' },
+          body
+        });
+        const payload = await response.json();
+        setStatus(payload && payload.message ? payload.message : 'Готово', !(payload && payload.ok));
+        closePopups();
+        if (payload && payload.ok) {
+          await load(true);
+        }
+      } catch (error) {
+        setStatus('Предмет не снят.', true);
+      }
     }
 
     function hpPercent(poke) {

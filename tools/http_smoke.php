@@ -125,26 +125,35 @@ try {
     assertTrue(
         $results,
         'profile.card.shape',
-        isset($profile['user'], $profile['uid'], $profile['avatar'], $profile['rank'], $profile['clan'], $profile['party'], $profile['activeTeam'], $profile['gifts'], $profile['gymBadges'], $profile['badges'])
+        isset($profile['user'], $profile['uid'], $profile['avatar'], $profile['rank'], $profile['clan'], $profile['party'], $profile['activeTeam'], $profile['gifts'], $profile['gymBadges'], $profile['badges'], $profile['badgeSummary'], $profile['friends'], $profile['social'])
             && is_array($profile['party'])
             && is_array($profile['activeTeam'])
             && is_array($profile['gifts'])
             && is_array($profile['gymBadges'])
-            && is_array($profile['badges']),
+            && is_array($profile['badges'])
+            && is_array($profile['badgeSummary'])
+            && is_array($profile['friends'])
+            && is_array($profile['social']),
         'uid=' . (int) ($profile['uid'] ?? 0) . ', party=' . count($profile['party'] ?? []) . ', badges=' . count($profile['gymBadges'] ?? [])
     );
-    $partyHeldShape = true;
+    assertTrue(
+        $results,
+        'profile.card.social_self',
+        ($profile['social']['status'] ?? '') === 'self' && ($profile['viewerOwnsProfile'] ?? false) === true,
+        'status=' . (string) ($profile['social']['status'] ?? 'missing')
+    );
+    $partyHeldHidden = true;
     foreach (($profile['party'] ?? []) as $pokemon) {
-        if (!isset($pokemon['heldItem']) || !is_array($pokemon['heldItem'])) {
-            $partyHeldShape = false;
+        if (array_key_exists('heldItem', $pokemon)) {
+            $partyHeldHidden = false;
             break;
         }
     }
     assertTrue(
         $results,
-        'profile.card.held_items',
-        $partyHeldShape,
-        'party heldItem objects=' . count($profile['party'] ?? [])
+        'profile.card.held_items_hidden',
+        $partyHeldHidden,
+        'party=' . count($profile['party'] ?? [])
     );
 
     [$history] = jsonCheck($client, $results, 'battle.history', 'GET', '/api/battle/history');

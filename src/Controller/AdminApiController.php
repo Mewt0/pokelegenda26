@@ -6,7 +6,10 @@ namespace Pokemon8\Controller;
 use Pokemon8\Http\Request;
 use Pokemon8\Http\Response;
 use Pokemon8\Repository\AdminRepository;
+use Pokemon8\Repository\BattleReplayRepository;
 use Pokemon8\Repository\BossRepository;
+use Pokemon8\Repository\BugReportRepository;
+use Pokemon8\Repository\EconomyGuardRepository;
 use Pokemon8\Security\Csrf;
 use Pokemon8\Security\Session;
 
@@ -17,6 +20,9 @@ final class AdminApiController
         private Csrf $csrf,
         private AdminRepository $admin,
         private ?BossRepository $bosses = null,
+        private ?BattleReplayRepository $replays = null,
+        private ?EconomyGuardRepository $economyGuard = null,
+        private ?BugReportRepository $bugReports = null,
     ) {
     }
 
@@ -40,6 +46,29 @@ final class AdminApiController
         }
 
         return $this->json(['ok' => true, 'dashboard' => $this->admin->dashboard()]);
+    }
+
+    public function gmCenter(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+
+        return $this->json(['ok' => true, 'gmCenter' => $this->admin->gmCenter()]);
+    }
+
+    public function qaSeedTools(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+
+        return $this->json(['ok' => true, 'qaSeedTools' => $this->admin->qaSeedTools()]);
+    }
+
+    public function runQaSeedTool(Request $request): Response
+    {
+        return $this->mutate($request, fn (int $adminId) => $this->admin->qaSeedRun($adminId, $request->post));
     }
 
     public function lookups(Request $request): Response
@@ -587,6 +616,135 @@ final class AdminApiController
         return $this->mutate($request, fn (int $adminId) => $this->admin->reviewCommissionRisk($adminId, $request->post));
     }
 
+    public function economyGuardAlerts(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+        if ($this->economyGuard === null) {
+            return $this->json(['ok' => false, 'error' => 'economy_guard_unavailable'], 503);
+        }
+
+        [$page, $perPage, $offset] = $this->pageParams($request, 80);
+        $result = $this->economyGuard->alerts([
+            'q' => $request->input('q'),
+            'status' => $request->input('status'),
+            'type' => $request->input('type'),
+            'severity' => $request->input('severity'),
+            'user_id' => (int) $request->input('user_id', '0'),
+        ], $perPage, $offset);
+
+        return $this->json([
+            'ok' => true,
+            'alerts' => $result['rows'],
+            'rows' => $result['rows'],
+            'pagination' => $this->pagination($page, $perPage, (int) $result['total']),
+        ]);
+    }
+
+    public function economyGuardScan(Request $request): Response
+    {
+        return $this->mutate($request, function (int $adminId) use ($request): array {
+            if ($this->economyGuard === null) {
+                return ['ok' => false, 'message' => 'Economy Guard unavailable.'];
+            }
+            $dryRun = (string) ($request->post['dry_run'] ?? '0') === '1';
+            $limit = max(10, min(1000, (int) ($request->post['limit'] ?? 200)));
+            return ['ok' => true, 'summary' => $this->economyGuard->scan($dryRun, $limit)];
+        });
+    }
+
+    public function economyGuardReview(Request $request): Response
+    {
+        return $this->mutate($request, function (int $adminId) use ($request): array {
+            if ($this->economyGuard === null) {
+                return ['ok' => false, 'message' => 'Economy Guard unavailable.'];
+            }
+            return $this->economyGuard->review(
+                $adminId,
+                (int) ($request->post['alert_id'] ?? 0),
+                (string) ($request->post['status'] ?? 'reviewed'),
+                (string) ($request->post['note'] ?? '')
+            );
+        });
+    }
+
+    public function battleReplays(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+        if ($this->replays === null) {
+            return $this->json([
+                'ok' => true,
+                'rows' => [],
+                'replays' => [],
+                'pagination' => $this->pagination(1, 80, 0),
+                'dashboard' => ['installed' => false],
+            ]);
+        }
+
+        [$page, $perPage, $offset] = $this->pageParams($request, 80);
+        $result = $this->replays->adminList($request->input('q'), $perPage, $offset);
+        return $this->json([
+            'ok' => true,
+            'rows' => $result['rows'],
+            'replays' => $result['rows'],
+            'pagination' => $this->pagination($page, $perPage, (int) $result['total']),
+            'dashboard' => $this->replays->adminDashboard(),
+        ]);
+    }
+
+    public function battleReplayView(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+        if ($this->replays === null) {
+            return $this->json(['ok' => false, 'message' => 'Battle Replay repository is not configured.'], 503);
+        }
+
+        $battleId = (int) $request->input('battle_id', '0');
+        $payload = $this->replays->replayForBattle($battleId, $this->authorizedAdminId(), true);
+        return $this->json($payload, !empty($payload['ok']) ? 200 : 404);
+    }
+
+    public function bugReports(Request $request): Response
+    {
+        if (!$this->authorized()) {
+            return $this->json(['ok' => false, 'error' => 'forbidden'], 403);
+        }
+        if ($this->bugReports === null) {
+            return $this->json([
+                'ok' => true,
+                'reports' => [],
+                'rows' => [],
+                'pagination' => $this->pagination(1, 80, 0),
+                'dashboard' => ['ready' => false],
+            ]);
+        }
+
+        [$page, $perPage, $offset] = $this->pageParams($request, 80);
+        $result = $this->bugReports->adminList($request->input('q'), $perPage, $offset, $this->bugReportFilters($request));
+        return $this->json([
+            'ok' => true,
+            'reports' => $result['rows'],
+            'rows' => $result['rows'],
+            'pagination' => $this->pagination($page, $perPage, (int) $result['total']),
+            'dashboard' => $this->bugReports->adminSummary(),
+        ]);
+    }
+
+    public function updateBugReportStatus(Request $request): Response
+    {
+        return $this->mutate($request, function (int $adminId) use ($request): array {
+            if ($this->bugReports === null) {
+                return ['ok' => false, 'message' => 'Bug Reporter repository is not configured.'];
+            }
+            return $this->bugReports->updateStatus($adminId, $request->post);
+        });
+    }
+
     public function settings(Request $request): Response
     {
         if (!$this->authorized()) {
@@ -649,6 +807,19 @@ final class AdminApiController
             'seller_id', 'buyer_id', 'object_id', 'lot_id', 'action', 'legacy', 'price_min', 'price_max',
             'system_only', 'risky', 'sort', 'q',
         ];
+        $filters = [];
+        foreach ($keys as $key) {
+            $value = $request->input($key);
+            if ($value !== '') {
+                $filters[$key] = $value;
+            }
+        }
+        return $filters;
+    }
+
+    private function bugReportFilters(Request $request): array
+    {
+        $keys = ['status', 'severity', 'user', 'battle_id', 'date_from', 'date_to', 'q'];
         $filters = [];
         foreach ($keys as $key) {
             $value = $request->input($key);

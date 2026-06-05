@@ -11,6 +11,7 @@ final class InventoryRepository
 {
     private PokemonEvolutionRepository $evolutions;
     private ?RewardRepository $rewards = null;
+    private ?SafeStorageRepository $safeStorage = null;
     private ?bool $itemGameplayMetadataAvailable = null;
 
     public function __construct(private PDO $db, ?PokemonEvolutionRepository $evolutions = null)
@@ -21,6 +22,11 @@ final class InventoryRepository
     public function setRewardRepository(RewardRepository $rewards): void
     {
         $this->rewards = $rewards;
+    }
+
+    public function setSafeStorageRepository(SafeStorageRepository $safeStorage): void
+    {
+        $this->safeStorage = $safeStorage;
     }
 
     public function countItem(int $userId, int $itemId): int
@@ -309,48 +315,63 @@ final class InventoryRepository
             return ['ok' => false, 'message' => 'Выберите подарок.'];
         }
 
-        $stmt = $this->db->prepare(
-            'SELECT iu.id, iu.item_id, iu.count, i.name
-               FROM items_users iu
-               INNER JOIN items i ON i.id = iu.item_id
-               INNER JOIN item_target_rules itr ON itr.item_id = iu.item_id AND itr.enabled = 1
-              WHERE iu.id = :id
-                AND iu.user_id = :user
-                AND iu.count > 0
-                AND (iu.dattimer = "not" OR (iu.dattimer REGEXP "^[0-9]+$" AND CAST(iu.dattimer AS UNSIGNED) > :time))
-                AND itr.target_type = "gift"
-                AND itr.effect_key = "open_gift"
-              LIMIT 1'
-        );
-        $stmt->execute(['id' => $itemUserId, 'user' => $userId, 'time' => time()]);
-        $gift = $stmt->fetch();
-        if (!$gift) {
-            return ['ok' => false, 'message' => 'Этот предмет нельзя открыть как подарок.'];
-        }
-
-        try {
-            $lootStmt = $this->db->prepare(
-                'SELECT reward_item_id, min_count, max_count, chance_bps, guaranteed
-                   FROM item_gift_loot
-                  WHERE gift_item_id = :gift AND enabled = 1
-               ORDER BY guaranteed DESC, sort_order ASC, reward_item_id ASC'
-            );
-            $lootStmt->execute(['gift' => (int) $gift['item_id']]);
-            $loot = $lootStmt->fetchAll();
-        } catch (\Throwable) {
-            return ['ok' => false, 'message' => 'Таблица подарков еще не применена в БД.'];
-        }
-
-        if (!is_array($loot) || $loot === []) {
-            return ['ok' => false, 'message' => 'У подарка пока нет таблицы наград. Предмет не списан.'];
-        }
-
         $granted = [];
+        $rewardItems = [];
+        $failureEntries = [];
+        $gift = null;
+        $operationKey = 'gift_open:' . $userId . ':' . $itemUserId;
         $startedTransaction = !$this->db->inTransaction();
         if ($startedTransaction) {
             $this->db->beginTransaction();
         }
         try {
+            $stmt = $this->db->prepare(
+                'SELECT iu.id, iu.item_id, iu.count, i.name
+                   FROM items_users iu
+                   INNER JOIN items i ON i.id = iu.item_id
+                   INNER JOIN item_target_rules itr ON itr.item_id = iu.item_id AND itr.enabled = 1
+                  WHERE iu.id = :id
+                    AND iu.user_id = :user
+                    AND iu.count > 0
+                    AND (iu.dattimer = "not" OR (iu.dattimer REGEXP "^[0-9]+$" AND CAST(iu.dattimer AS UNSIGNED) > :time))
+                    AND itr.target_type = "gift"
+                    AND itr.effect_key = "open_gift"
+                  LIMIT 1
+                  FOR UPDATE'
+            );
+            $stmt->execute(['id' => $itemUserId, 'user' => $userId, 'time' => time()]);
+            $gift = $stmt->fetch();
+            if (!$gift) {
+                if ($startedTransaction && $this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                return ['ok' => false, 'message' => 'Этот предмет нельзя открыть как подарок.'];
+            }
+            $operationKey = 'gift_open:' . $userId . ':' . $itemUserId . ':' . (int) $gift['item_id'];
+
+            try {
+                $lootStmt = $this->db->prepare(
+                    'SELECT reward_item_id, min_count, max_count, chance_bps, guaranteed
+                       FROM item_gift_loot
+                      WHERE gift_item_id = :gift AND enabled = 1
+                   ORDER BY guaranteed DESC, sort_order ASC, reward_item_id ASC'
+                );
+                $lootStmt->execute(['gift' => (int) $gift['item_id']]);
+                $loot = $lootStmt->fetchAll();
+            } catch (\Throwable) {
+                if ($startedTransaction && $this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                return ['ok' => false, 'message' => 'Таблица подарков еще не применена в БД.'];
+            }
+
+            if (!is_array($loot) || $loot === []) {
+                if ($startedTransaction && $this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                return ['ok' => false, 'message' => 'У подарка пока нет таблицы наград. Предмет не списан.'];
+            }
+
             foreach ($loot as $row) {
                 $guaranteed = (int) ($row['guaranteed'] ?? 0) === 1;
                 $chance = max(0, min(10000, (int) ($row['chance_bps'] ?? 0)));
@@ -366,35 +387,74 @@ final class InventoryRepository
                     continue;
                 }
 
-                $this->addItem($userId, $rewardItemId, $count);
-                $granted[] = ['item_id' => $rewardItemId, 'count' => $count, 'name' => $this->itemName($rewardItemId)];
+                $rewardItems[$rewardItemId] = ($rewardItems[$rewardItemId] ?? 0) + $count;
             }
 
-            if ($granted === []) {
+            if ($rewardItems === []) {
                 if ($startedTransaction && $this->db->inTransaction()) {
                     $this->db->rollBack();
                 }
                 return ['ok' => false, 'message' => 'Подарок ничего не выдал. Предмет не списан, проверь шансы loot table.'];
             }
 
-            $parts = array_map(
-                static fn (array $row): string => sprintf('%s x%d', (string) ($row['name'] ?? ('#' . $row['item_id'])), (int) $row['count']),
-                $granted
-            );
+            foreach ($rewardItems as $rewardItemId => $count) {
+                $name = $this->itemName((int) $rewardItemId);
+                $granted[] = ['item_id' => (int) $rewardItemId, 'count' => (int) $count, 'name' => $name];
+                $failureEntries[] = [
+                    'type' => 'item',
+                    'object_id' => (int) $rewardItemId,
+                    'quantity' => (int) $count,
+                    'title' => $name,
+                    'message' => sprintf('%s x%d', $name, (int) $count),
+                    'data' => ['item_id' => (int) $rewardItemId, 'count' => (int) $count],
+                ];
+            }
+
+            if ($this->rewards !== null) {
+                $this->rewards->grantPipeline($userId, ['items' => $rewardItems], 'gift_box', (int) $gift['item_id'], [
+                    'operation_key' => $operationKey,
+                    'allow_retry' => true,
+                    'throw_on_fail' => true,
+                    'title' => 'Подарок открыт',
+                    'variant' => 'reward',
+                    'gift_item_id' => (int) $gift['item_id'],
+                    'inventory_row_id' => (int) $gift['id'],
+                ]);
+            } else {
+                foreach ($rewardItems as $rewardItemId => $count) {
+                    $this->addItem($userId, (int) $rewardItemId, (int) $count);
+                }
+            }
 
             $this->decrementInventoryRowById($userId, $itemUserId, 1);
-            $this->rewards?->notify($userId, 'Подарок открыт', 'Получено: ' . implode(', ', $parts) . '.', 'reward', [
-                'gift_item_id' => (int) $gift['item_id'],
-                'inventory_row_id' => (int) $gift['id'],
-                'rewards' => $granted,
-            ]);
             if ($startedTransaction) {
                 $this->db->commit();
             }
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
             if ($startedTransaction && $this->db->inTransaction()) {
                 $this->db->rollBack();
             }
+            $this->rewards?->recordPipelineFailure(
+                $userId,
+                $operationKey,
+                'gift_box',
+                (int) ($gift['item_id'] ?? 0),
+                'Подарок открыт',
+                $failureEntries,
+                $e->getMessage()
+            );
+            $this->safeStorage?->recordRollback(
+                'gift_open_failed:' . $userId . ':' . $itemUserId . ':' . time(),
+                'inventory_gift_open',
+                $userId,
+                'inventory',
+                $itemUserId,
+                ['gift_item_user_id' => $itemUserId, 'gift_item_id' => (int) ($gift['item_id'] ?? 0)],
+                ['granted' => $granted],
+                ['gift_item_user_id' => $itemUserId, 'gift_spent' => false, 'granted_rolled_back' => true],
+                'failed',
+                $e->getMessage()
+            );
             return ['ok' => false, 'message' => 'Не удалось открыть подарок. Предмет не списан.'];
         }
 
@@ -592,13 +652,26 @@ final class InventoryRepository
             ]);
         } else {
             $this->db->prepare(
-                'INSERT INTO attac_my_poke (id, pok_id, a_id, a_pp_min, a_pp_max)
-                 VALUES (:id, :pokemon, :move, :pp, :pp)'
+                'INSERT INTO attac_my_poke (
+                    id, pok_id,
+                    a_id, a_pp_min, a_pp_max,
+                    b_id, b_pp_min, b_pp_max,
+                    c_id, c_pp_min, c_pp_max,
+                    d_id, d_pp_min, d_pp_max
+                 )
+                 VALUES (
+                    :id, :pokemon,
+                    :move, :pp_min, :pp_max,
+                    0, 0, 0,
+                    0, 0, 0,
+                    0, 0, 0
+                 )'
             )->execute([
                 'id' => $this->nextAttacMyPokeId(),
                 'pokemon' => $pokemonId,
                 'move' => (int) ($move['id'] ?? 0),
-                'pp' => (int) ($move['pp'] ?? 0),
+                'pp_min' => (int) ($move['pp'] ?? 0),
+                'pp_max' => (int) ($move['pp'] ?? 0),
             ]);
         }
 
@@ -614,6 +687,10 @@ final class InventoryRepository
     {
         $existing = $this->findEquippedPokemonItem($pokemonId);
         if ($existing !== null) {
+            $currentExpiresAt = (string) ($existing['datetime'] ?? 'not');
+            if ($currentExpiresAt === 'not' || (ctype_digit($currentExpiresAt) && (int) $currentExpiresAt > time())) {
+                $this->addItem($userId, (int) $existing['id_items'], 1);
+            }
             $this->db->prepare('UPDATE items_poke SET id_items = :item, datetime = :time WHERE id_poke = :pokemon LIMIT 1')
                 ->execute(['item' => $itemId, 'time' => 'not', 'pokemon' => $pokemonId]);
             return;
@@ -710,29 +787,36 @@ final class InventoryRepository
             return;
         }
 
-        $this->withItemsUsersLock(function () use ($userId, $itemId, $count): void {
-            $existing = $this->findRow($userId, $itemId);
-            if ($existing !== null) {
-                $stmt = $this->db->prepare('UPDATE items_users SET count = count + :count WHERE id = :id LIMIT 1');
-                $stmt->execute([
-                    'count' => $count,
-                    'id' => (int) $existing['id'],
-                ]);
-                return;
-            }
+        try {
+            $this->withItemsUsersLock(function () use ($userId, $itemId, $count): void {
+                $existing = $this->findRow($userId, $itemId);
+                if ($existing !== null) {
+                    $stmt = $this->db->prepare('UPDATE items_users SET count = count + :count WHERE id = :id LIMIT 1');
+                    $stmt->execute([
+                        'count' => $count,
+                        'id' => (int) $existing['id'],
+                    ]);
+                    return;
+                }
 
-            $stmt = $this->db->prepare(
-                'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers) VALUES (:id, :item, :user, :count, :dattimer, :timers)'
-            );
-            $stmt->execute([
-                'id' => $this->nextItemsUsersId(),
-                'item' => $itemId,
-                'user' => $userId,
-                'count' => $count,
-                'dattimer' => 'not',
-                'timers' => 'not',
-            ]);
-        });
+                $stmt = $this->db->prepare(
+                    'INSERT INTO items_users (id, item_id, user_id, count, dattimer, timers) VALUES (:id, :item, :user, :count, :dattimer, :timers)'
+                );
+                $stmt->execute([
+                    'id' => $this->nextItemsUsersId(),
+                    'item' => $itemId,
+                    'user' => $userId,
+                    'count' => $count,
+                    'dattimer' => 'not',
+                    'timers' => 'not',
+                ]);
+            });
+        } catch (\Throwable $e) {
+            $this->safeStorage?->storeItem($userId, $itemId, $count, 'inventory.addItem', '', [
+                'method' => 'InventoryRepository::addItem',
+            ], 'inventory_add_failed', $e->getMessage());
+            throw $e;
+        }
     }
 
     private function nextItemsUsersId(): int
@@ -742,7 +826,7 @@ final class InventoryRepository
 
     private function withItemsUsersLock(callable $callback): void
     {
-        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 15)');
         $lock->execute(['name' => 'pokemon8_seq_items_users_id']);
         if ((int) ($lock->fetchColumn() ?: 0) !== 1) {
             throw new \RuntimeException('Unable to acquire items_users lock.');
@@ -889,9 +973,9 @@ final class InventoryRepository
             return ['ok' => false, 'message' => 'Сначала закончите бой или обмен.'];
         }
 
-        $pokemon = $this->findActivePokemon($userId, $pokemonId);
+        $pokemon = $this->findOwnedPokemonForHeldItem($userId, $pokemonId);
         if ($pokemon === null) {
-            return ['ok' => false, 'message' => 'Покемон не найден в активной команде.'];
+            return ['ok' => false, 'message' => 'Покемон не найден.'];
         }
 
         $current = $this->findEquippedPokemonItem($pokemonId);
@@ -902,7 +986,8 @@ final class InventoryRepository
         $this->db->beginTransaction();
         try {
             $currentExpiresAt = (string) ($current['datetime'] ?? 'not');
-            if ($currentExpiresAt === 'not' || (ctype_digit($currentExpiresAt) && (int) $currentExpiresAt > time())) {
+            $returnedToInventory = $currentExpiresAt === 'not' || (ctype_digit($currentExpiresAt) && (int) $currentExpiresAt > time());
+            if ($returnedToInventory) {
                 $this->addItem($userId, (int) $current['id_items'], 1);
             }
             $stmt = $this->db->prepare('DELETE FROM items_poke WHERE id_poke = :pokemon LIMIT 1');
@@ -915,7 +1000,17 @@ final class InventoryRepository
 
         return [
             'ok' => true,
-            'message' => 'Предмет снят и возвращён в инвентарь.',
+            'message' => $returnedToInventory
+                ? sprintf(
+                    '%s снят с %s и возвращён в инвентарь.',
+                    $this->itemName((int) $current['id_items']),
+                    strip_tags((string) ($pokemon['names'] ?? 'покемона'))
+                )
+                : sprintf(
+                    '%s снят с %s. Срок предмета уже истёк, поэтому в инвентарь он не возвращён.',
+                    $this->itemName((int) $current['id_items']),
+                    strip_tags((string) ($pokemon['names'] ?? 'покемона'))
+                ),
             'pokemon' => $this->listActivePokemonForUser($userId),
         ];
     }
@@ -1311,6 +1406,19 @@ final class InventoryRepository
                     hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv
                FROM pok_user
               WHERE id = :pokemon AND users = :user AND active = 1
+              LIMIT 1'
+        );
+        $stmt->execute(['pokemon' => $pokemonId, 'user' => $userId]);
+
+        return $stmt->fetch() ?: null;
+    }
+
+    private function findOwnedPokemonForHeldItem(int $userId, int $pokemonId): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, names, basenum, lvl, active
+               FROM pok_user
+              WHERE id = :pokemon AND users = :user
               LIMIT 1'
         );
         $stmt->execute(['pokemon' => $pokemonId, 'user' => $userId]);

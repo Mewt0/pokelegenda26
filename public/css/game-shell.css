@@ -545,7 +545,7 @@ button {
   height: 74px;
   padding: 8px 12px;
   display: grid;
-  grid-template-columns: minmax(0, clamp(400px, 32vw, 640px)) minmax(0, 1fr) auto;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
   gap: 12px;
   align-items: center;
   overflow: visible;
@@ -564,8 +564,26 @@ button {
 .quick-controls,
 .main-menu {
   flex-wrap: nowrap;
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #b8c8e6 transparent;
+}
+
+.quick-controls::-webkit-scrollbar,
+.main-menu::-webkit-scrollbar {
+  height: 5px;
+}
+
+.quick-controls::-webkit-scrollbar-track,
+.main-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.quick-controls::-webkit-scrollbar-thumb,
+.main-menu::-webkit-scrollbar-thumb {
+  background: #b8c8e6;
+  border-radius: 999px;
 }
 
 .status-pill,
@@ -594,20 +612,25 @@ button {
   color: #0e65c9;
 }
 
+.status-pill.bug-report {
+  border-color: #ffd6a7;
+  color: #9a5a00;
+  background: #fff9ef;
+}
+
 .status-pill.mode {
   color: #2b7aa0;
 }
 
 .main-menu {
   justify-content: flex-start;
-  overflow-x: hidden;
   padding-bottom: 2px;
   gap: 6px;
 }
 
 .actionbar a {
-  width: 64px;
-  min-width: 64px;
+  width: 62px;
+  min-width: 62px;
   min-height: 56px;
   padding: 4px 5px;
   display: grid;
@@ -629,17 +652,153 @@ button {
 }
 
 .actionbar a img {
-  width: 27px;
-  height: 27px;
+  width: 26px;
+  height: 26px;
   display: block;
   object-fit: contain;
   margin-bottom: 2px;
   filter: drop-shadow(0 2px 4px rgba(63, 127, 255, .16));
 }
 
-.system-status {
+.bug-report-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 150000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(18, 31, 52, .42);
+  backdrop-filter: blur(3px);
+}
+
+.bug-report-overlay.is-open {
+  display: flex;
+}
+
+.bug-report-window {
+  width: min(520px, calc(100vw - 24px));
+  max-height: min(680px, calc(100vh - 24px));
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  overflow: auto;
+  background: rgba(255, 255, 255, .98);
+}
+
+.bug-report-window header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bug-report-window header strong {
+  display: block;
+  color: #172c4d;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.bug-report-window header p {
+  margin: 4px 0 0;
+  color: var(--ui-muted);
+  font-size: 13px;
+}
+
+.bug-report-window label {
+  display: grid;
+  gap: 5px;
+  color: #526987;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.bug-report-window input,
+.bug-report-window select,
+.bug-report-window textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid var(--ui-blue-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  color: var(--ui-text);
+  outline: none;
+}
+
+.bug-report-window textarea {
+  resize: vertical;
+}
+
+.bug-report-window input:focus,
+.bug-report-window select:focus,
+.bug-report-window textarea:focus {
+  border-color: var(--ui-blue);
+  box-shadow: 0 0 0 3px rgba(63, 127, 255, .13);
+}
+
+.bug-report-window header button,
+.bug-report-window footer button {
+  min-height: 38px;
+  border: 1px solid var(--ui-blue-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ui-text);
+  font-weight: 900;
+}
+
+.bug-report-window header button {
+  width: 38px;
+  flex: 0 0 auto;
+  font-size: 22px;
+}
+
+.bug-report-window footer {
+  display: flex;
   justify-content: flex-end;
-  padding-left: 18px;
+  gap: 8px;
+}
+
+.bug-report-window footer button:first-child {
+  background: linear-gradient(180deg, #5ea2ff, #3f7fff);
+  color: #fff;
+}
+
+.bug-report-attachments {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.bug-report-attachments div {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.bug-report-attachments b {
+  display: block;
+  color: #526b8e;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.bug-report-attachments span {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #294260;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.system-status {
+  position: relative;
+  justify-content: flex-end;
+  padding-left: 14px;
   border-left: 1px solid var(--ui-border);
   white-space: nowrap;
 }
@@ -674,6 +833,128 @@ button {
   box-shadow: none;
 }
 
+.game-tools-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.game-tools-dropdown {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 80;
+  width: 226px;
+  padding: 6px;
+  display: none;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: rgba(248, 253, 255, .98);
+  box-shadow: 0 16px 36px rgba(55, 94, 148, .22);
+}
+
+.game-tools-dropdown.is-open {
+  display: grid;
+  gap: 5px;
+}
+
+.game-tools-menu:hover .game-tools-dropdown,
+.game-tools-menu:focus-within .game-tools-dropdown {
+  display: grid;
+  gap: 5px;
+}
+
+.game-tools-dropdown button {
+  min-height: 34px;
+  width: 100%;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: #33425f;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: left;
+}
+
+.game-tools-toggle {
+  min-height: 46px;
+  width: 100%;
+  padding: 7px 9px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: #33425f;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: normal;
+  cursor: pointer;
+}
+
+.game-tools-toggle:hover,
+.game-tools-toggle:focus-within {
+  border-color: #bfd6fb;
+  background: #eef7ff;
+  color: #0e65c9;
+}
+
+.game-tools-toggle input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  accent-color: var(--ui-blue);
+}
+
+.game-tools-toggle span {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.game-tools-toggle b,
+.game-tools-toggle em {
+  display: block;
+  line-height: 1.15;
+}
+
+.game-tools-toggle em {
+  color: #65748f;
+  font-style: normal;
+  font-size: 11px;
+}
+
+.game-tools-status {
+  min-height: 16px;
+  padding: 0 9px 3px 35px;
+  color: #5c708e;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: normal;
+}
+
+.game-tools-dropdown button:hover,
+.game-tools-dropdown button:focus-visible {
+  border-color: #bfd6fb;
+  background: #eef7ff;
+  color: #0e65c9;
+}
+
+.game-tools-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #fff9ef;
+  color: #9a5a00;
+}
+
 .status {
   margin-left: 0;
   color: #71809c;
@@ -705,6 +986,111 @@ body::-webkit-scrollbar-thumb {
   border-radius: 999px;
 }
 
+.quest-guide-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 54px;
+  padding: 10px 14px;
+  border-color: #9cc5ff;
+  background: linear-gradient(135deg, rgba(239, 247, 255, .94), rgba(255, 255, 255, .9));
+  box-shadow: 0 12px 30px rgba(39, 108, 203, .14);
+}
+
+.quest-guide-banner[hidden] {
+  display: none !important;
+}
+
+.quest-guide-banner.is-target {
+  border-color: #7edba0;
+  background: linear-gradient(135deg, rgba(235, 255, 241, .95), rgba(255, 255, 255, .9));
+}
+
+.quest-guide-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.quest-guide-copy b {
+  color: #102544;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.quest-guide-copy span {
+  color: #51657f;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.quest-guide-banner button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid #a8c8ef;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .88);
+  color: #24568d;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.quest-guide-banner button:hover {
+  border-color: #2e7de9;
+  color: #0f5fc4;
+  box-shadow: 0 0 0 3px rgba(46, 125, 233, .13);
+}
+
+.quest-guide-target {
+  position: relative;
+  z-index: 4;
+  border-color: #2f82ff !important;
+  color: #0f4da8 !important;
+  box-shadow: 0 0 0 4px rgba(47, 130, 255, .18), 0 0 18px rgba(47, 130, 255, .35) !important;
+  animation: questGuidePulse 1.15s ease-in-out infinite;
+  overflow: visible !important;
+}
+
+.quest-guide-target::after {
+  content: attr(data-guide-label);
+  position: absolute;
+  right: 8px;
+  top: -13px;
+  z-index: 5;
+  min-width: 46px;
+  padding: 2px 8px;
+  border: 1px solid #2f82ff;
+  border-radius: 999px;
+  background: #fff;
+  color: #0f5fc4;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.25;
+  text-align: center;
+  pointer-events: none;
+}
+
+.quest-guide-npc-target::after {
+  border-color: #35ba69;
+  color: #178342;
+}
+
+.quest-guide-control-target::after {
+  border-color: #dfb52b;
+  color: #8b6200;
+}
+
+@keyframes questGuidePulse {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-2px) scale(1.035);
+  }
+}
+
 @media (max-width: 1320px) {
   .location.location-card {
     grid-template-columns: 420px minmax(0, 1fr);
@@ -719,7 +1105,7 @@ body::-webkit-scrollbar-thumb {
   }
 
   .actionbar.bottom-toolbar {
-    grid-template-columns: minmax(0, 390px) minmax(0, 1fr) auto;
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
   }
 
   .system-status {
@@ -821,6 +1207,22 @@ body::-webkit-scrollbar-thumb {
     min-height: 46px;
     padding: 6px 8px;
     grid-template-columns: 1fr;
+  }
+
+  .quest-guide-banner {
+    align-items: stretch;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .quest-guide-copy span {
+    font-size: 12px;
+  }
+
+  .quest-guide-banner button {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 12px;
   }
 
   .travel-line {
@@ -931,8 +1333,9 @@ body::-webkit-scrollbar-thumb {
   .actionbar.bottom-toolbar {
     grid-template-columns: 1fr;
     gap: 6px;
+    height: auto;
     min-height: 0;
-    max-height: 126px;
+    max-height: none;
     padding: 6px 8px;
   }
 
@@ -967,6 +1370,15 @@ body::-webkit-scrollbar-thumb {
     border-left: 0;
     padding-left: 0;
     font-size: 12px;
+  }
+
+  .bug-report-window {
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+  }
+
+  .bug-report-attachments {
+    grid-template-columns: 1fr;
   }
 
   .settings-btn {

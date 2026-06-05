@@ -12,6 +12,7 @@
   let offsetX = 0;
   let offsetY = 0;
   let loadSeq = 0;
+  let currentProfileOptions = {};
 
   function ensureDom() {
     if (overlay) return;
@@ -39,13 +40,22 @@
               '<h3>Награды</h3>',
               '<div class="trainer-profile-gym-title">Значки гим-лидеров</div>',
               '<div class="trainer-profile-gymbadges" data-trainer-gym-badges></div>',
+              '<div class="trainer-profile-count trainer-profile-badges-count"><span data-trainer-badges-count>0</span> значков</div>',
               '<div class="trainer-profile-awards" data-trainer-awards></div>',
               '<div class="trainer-profile-count"><span data-trainer-awards-count>0</span> наград</div>',
             '</section>',
             '<section class="trainer-profile-panel trainer-profile-info">',
               '<h3>Информация</h3>',
-              '<div class="trainer-profile-bio" data-trainer-info></div>',
-              '<div class="trainer-profile-stats" data-trainer-stats></div>',
+              '<div class="trainer-profile-info-content">',
+                '<div class="trainer-profile-info-section">',
+                  '<div class="trainer-profile-info-label">О себе</div>',
+                  '<div class="trainer-profile-bio" data-trainer-info></div>',
+                '</div>',
+                '<div class="trainer-profile-info-section">',
+                  '<div class="trainer-profile-info-label">Данные тренера</div>',
+                  '<div class="trainer-profile-stats" data-trainer-stats></div>',
+                '</div>',
+              '</div>',
             '</section>',
           '</aside>',
           '<main class="trainer-profile-center">',
@@ -54,7 +64,7 @@
               '<div class="trainer-profile-name-main">',
                 '<h2 data-trainer-name>...</h2>',
                 '<div class="trainer-profile-party" data-trainer-party></div>',
-                '<div class="trainer-profile-party-meter"><i data-trainer-party-meter style="width:0%"></i></div>',
+                '<div class="trainer-profile-social" data-trainer-social></div>',
               '</div>',
               '<div class="trainer-profile-hand is-right" aria-hidden="true">&#128075;</div>',
             '</section>',
@@ -146,6 +156,7 @@
     };
 
     head.addEventListener('pointerdown', event => {
+      if (event.target.closest('button')) return;
       beginDrag(event, event.pointerId);
       try { head.setPointerCapture(event.pointerId); } catch (e) {}
     });
@@ -184,8 +195,10 @@
 
   function open(options = {}) {
     ensureDom();
+    currentProfileOptions = { ...options };
     overlay.classList.add('is-open');
     overlay.setAttribute('aria-hidden', 'false');
+    resetScroll();
     renderLoading(options.login || options.user || options.id || '');
     loadProfile(options);
   }
@@ -196,6 +209,13 @@
     dragPointerId = null;
     overlay.classList.remove('is-open');
     overlay.setAttribute('aria-hidden', 'true');
+  }
+
+  function resetScroll() {
+    if (!overlay) return;
+    overlay.scrollTop = 0;
+    const body = overlay.querySelector('.trainer-profile-body');
+    if (body) body.scrollTop = 0;
   }
 
   async function loadProfile(options) {
@@ -220,6 +240,7 @@
         return;
       }
 
+      resetScroll();
       renderProfile(data.profile || {});
     } catch (error) {
       if (seq !== loadSeq) return;
@@ -249,6 +270,7 @@
   }
 
   function renderLoading(target) {
+    applyAppearance({});
     setText('[data-trainer-name]', target ? 'Загружаю: ' + target : 'Загружаю профиль...');
     setText('[data-trainer-info]', 'Получаю данные тренера.');
     setText('[data-trainer-clan-name]', '...');
@@ -265,20 +287,24 @@
     clearList('[data-trainer-awards]', '');
     clearList('[data-trainer-gifts]', '');
     clearList('[data-trainer-friends]', 'Загрузка...');
+    clearList('[data-trainer-social]', '');
     setText('[data-trainer-awards-count]', '0');
+    setText('[data-trainer-badges-count]', '0');
     setText('[data-trainer-gifts-count]', '0');
     setText('[data-trainer-friends-count]', '0');
-    qs('[data-trainer-party-meter]').style.width = '0%';
     qs('[data-trainer-stats]').innerHTML = '';
   }
 
   function renderError(message) {
+    applyAppearance({});
     setText('[data-trainer-name]', 'Профиль недоступен');
     clearList('[data-trainer-party]', '');
     clearList('[data-trainer-gym-badges]', '');
     clearList('[data-trainer-awards]', '');
     clearList('[data-trainer-gifts]', '');
     clearList('[data-trainer-friends]', '');
+    clearList('[data-trainer-social]', '');
+    setText('[data-trainer-badges-count]', '0');
     qs('[data-trainer-stats]').innerHTML = '<div class="trainer-profile-error"></div>';
     qs('.trainer-profile-error').textContent = message;
   }
@@ -294,7 +320,9 @@
       ? profile.gymBadges
       : (Array.isArray(profile.badges) ? profile.badges : []);
     const friends = Array.isArray(profile.friends) ? profile.friends : [];
+    const social = profile.social || {};
 
+    applyAppearance(profile.appearance || user.appearance || {});
     setText('[data-trainer-name]', '[' + Number(user.id || profile.uid || 0) + '] ' + (user.login || 'Тренер'));
     setText('[data-trainer-clan-name]', clan.name || 'Без клана');
     setText('[data-trainer-clan-points]', formatNumber(clan.points || 0));
@@ -308,15 +336,31 @@
     setImage('[data-trainer-avatar]', user.avatar || '/public/img/ui/menu-profile.png', '/public/img/ui/menu-profile.png');
     setImage('[data-trainer-rank-img]', user.rankImage || '/img/info/rang/0.png', '/img/info/rang/0.png');
 
-    renderParty(party);
+    renderParty(party, profile.privacy || {});
     renderGymBadges(gymBadges);
     renderPresentCells('[data-trainer-awards]', awards, 10);
     renderPresentCells('[data-trainer-gifts]', gifts, 10);
     renderFriends(friends);
+    renderSocialActions(user, social);
     renderStats(user, karma);
     setText('[data-trainer-awards-count]', awards.length);
+    setText('[data-trainer-badges-count]', gymBadges.length);
     setText('[data-trainer-gifts-count]', gifts.length);
     setText('[data-trainer-friends-count]', friends.length);
+  }
+
+  function applyAppearance(appearance) {
+    if (!win) return;
+    const backgrounds = ['classic', 'kanto', 'forest', 'ocean', 'arena'];
+    const frames = ['classic', 'blue', 'gold', 'shadow'];
+    const bg = backgrounds.includes(String(appearance.background || '').toLowerCase())
+      ? String(appearance.background).toLowerCase()
+      : 'classic';
+    const frame = frames.includes(String(appearance.frame || '').toLowerCase())
+      ? String(appearance.frame).toLowerCase()
+      : 'classic';
+    win.dataset.profileBackground = bg;
+    win.dataset.profileFrame = frame;
   }
 
   function renderStats(user, karma) {
@@ -325,10 +369,10 @@
       ['Рейтинг PVP', formatNumber(user.pvpRating || 0) + ' (' + (user.pvpTitle || 'Новичок') + ')'],
       ['Рейтинг PVE', formatNumber(user.pveRating || 0) + ' (' + (user.pveTitle || 'Искатель') + ')'],
       ['Игровой рейтинг', formatNumber(user.questRating || 0)],
-      ['Коллекция', [user.normalDex || 0, user.shinyDex || 0].join(' / ')],
+      ['Коллекция', 'обычные: ' + formatNumber(user.normalDex || 0) + ' / shiny: ' + formatNumber(user.shinyDex || 0)],
       ['Репутация', (karma.title || 'Нейтральная репутация') + ' ' + formatNumber(karma.score || 0)],
       ['Регистрация', user.registeredAt || 'нет данных'],
-      ['Проведено в игре', formatOnlineTime(user.lastOnline)],
+      ['Последняя активность', formatOnlineTime(user.lastOnline)],
     ];
 
     const box = qs('[data-trainer-stats]');
@@ -345,54 +389,40 @@
     });
   }
 
-  function renderParty(party) {
+  function renderParty(party, privacy = {}) {
     const box = qs('[data-trainer-party]');
     box.innerHTML = '';
+    if (privacy.partyHidden) {
+      const hidden = document.createElement('div');
+      hidden.className = 'trainer-profile-party-private';
+      hidden.textContent = 'Команда скрыта настройками тренера.';
+      box.appendChild(hidden);
+      return;
+    }
+
     const alive = party.slice(0, 6);
     for (let i = 0; i < 6; i++) {
       const pokemon = alive[i] || null;
       const slot = document.createElement('span');
-      slot.className = 'trainer-profile-party-slot';
+      slot.className = 'trainer-profile-party-slot' + (pokemon ? '' : ' is-empty');
       const image = document.createElement('img');
       image.className = 'trainer-profile-party-mon';
       image.alt = pokemon ? (pokemon.name || 'Покемон') : 'Пустой слот';
       image.title = pokemon ? (pokemon.name || 'Покемон') + ' Lv.' + Number(pokemon.level || 0) : 'Пустой слот';
-      image.src = pokemon ? pokemonSprite(pokemon) : '/public/img/ui/chatgpt-pokeball.png';
+      image.src = pokemon ? pokemonSprite(pokemon) : '/img/pokeball.png';
       image.onerror = () => {
         image.onerror = null;
-        image.src = '/public/img/ui/chatgpt-pokeball.png';
+        image.src = pokemon ? '/public/img/ui/chatgpt-pokeball.png' : '/img/pokeball.png';
       };
       slot.appendChild(image);
-      const item = pokemon ? heldItem(pokemon) : null;
-      if (item) {
-        const held = document.createElement('img');
-        held.className = 'trainer-profile-party-held';
-        held.alt = item.name || 'Предмет';
-        held.title = item.name || ('Item #' + Number(item.id || 0));
-        held.src = item.image || itemIconSrc(item.id);
-        held.onerror = () => {
-          held.onerror = () => { held.src = '/public/img/ui/menu-inventory.png'; };
-          held.src = '/img/items/' + Number(item.id || 0) + '.png';
-        };
-        slot.appendChild(held);
-      }
       box.appendChild(slot);
     }
-    qs('[data-trainer-party-meter]').style.width = Math.min(100, Math.round((alive.length / 6) * 100)) + '%';
-  }
-
-  function heldItem(pokemon) {
-    return pokemon && pokemon.heldItem && Number(pokemon.heldItem.id || 0) > 0 ? pokemon.heldItem : null;
-  }
-
-  function itemIconSrc(id) {
-    return '/public/img/items/' + Number(id || 0) + '.png';
   }
 
   function renderGymBadges(badges) {
     const box = qs('[data-trainer-gym-badges]');
     box.innerHTML = '';
-    const visible = badges.slice(0, 8);
+    const visible = badges.slice(0, 12);
     if (!visible.length) {
       const empty = document.createElement('span');
       empty.className = 'trainer-profile-gym-empty';
@@ -409,13 +439,11 @@
       image.alt = badge.title || 'Значок';
       const issuedAt = Number(badge.issuedAt || badge.awardedAt || 0);
       const source = badge.source || {};
+      const flavor = badge.description || badge.title || 'Значок гим-лидера';
       image.title = [
-        badge.title,
-        badge.leader ? 'Лидер: ' + badge.leader : '',
-        badge.location ? 'Локация: ' + badge.location : '',
+        flavor,
         issuedAt ? 'Получен: ' + formatOnlineTime(issuedAt) : '',
-        source.type ? 'Источник: ' + source.type + (source.id ? ' #' + Number(source.id) : '') : '',
-      ].filter(Boolean).join(' • ');
+      ].filter(Boolean).join(' ');
       image.onerror = () => {
         image.onerror = null;
         image.src = '/public/img/ui/menu-profile.png';
@@ -423,6 +451,122 @@
       cell.appendChild(image);
       box.appendChild(cell);
     });
+
+    if (badges.length > visible.length) {
+      const more = document.createElement('span');
+      more.className = 'trainer-profile-gym-badge trainer-profile-gym-more';
+      more.textContent = '+' + (badges.length - visible.length);
+      more.title = 'Ещё значков: ' + (badges.length - visible.length);
+      box.appendChild(more);
+    }
+  }
+
+  function renderSocialActions(user, social) {
+    const box = qs('[data-trainer-social]');
+    box.innerHTML = '';
+    const id = Number(user.id || social.profileId || 0);
+    const login = String(user.login || '').trim();
+    const status = String(social.status || (social.own ? 'self' : 'none'));
+    const own = Boolean(social.own || status === 'self');
+
+    const state = document.createElement('span');
+    state.className = 'trainer-profile-social-status';
+    state.textContent = own ? 'Мой профиль' : socialLabel(status);
+    box.appendChild(state);
+
+    if (own) {
+      box.appendChild(socialButton('⚙ Настройки', () => {
+        if (window.ProfileSettingsModal && typeof window.ProfileSettingsModal.open === 'function') {
+          window.ProfileSettingsModal.open({
+            onSaved: () => loadProfile(currentProfileOptions),
+          });
+        } else {
+          notify('Окно настроек ещё загружается.', 'error');
+        }
+      }, 'is-settings'));
+      return;
+    }
+    if (id <= 0) return;
+
+    if (social.canMessage !== false) {
+      const message = document.createElement('a');
+      message.className = 'trainer-profile-social-button';
+      message.href = '/game/messages?mail_to=' + encodeURIComponent(login || String(id));
+      message.textContent = 'Написать';
+      box.appendChild(message);
+    }
+
+    if (social.canAcceptFriend) {
+      box.appendChild(socialButton('Принять', () => runSocialAction('acceptFriend', id)));
+    } else if (social.canRemoveFriend) {
+      box.appendChild(socialButton('Убрать', () => runSocialAction('removeFriend', id)));
+    } else if (social.canRequestFriend) {
+      box.appendChild(socialButton('В друзья', () => runSocialAction('requestFriend', id)));
+    } else if (status === 'outgoing') {
+      const pending = document.createElement('button');
+      pending.type = 'button';
+      pending.className = 'trainer-profile-social-button is-disabled';
+      pending.disabled = true;
+      pending.textContent = 'Заявка отправлена';
+      box.appendChild(pending);
+    }
+
+    if (social.canBattle !== false) {
+      box.appendChild(socialButton('Предложить бой', () => runSocialAction('requestBattle', id)));
+    }
+    box.appendChild(socialButton('Разведение', () => runSocialAction('openBreeding', id, user)));
+    box.appendChild(socialButton('Обмен', () => runSocialAction('requestTrade', id, user)));
+  }
+
+  function socialButton(label, handler, extraClass = '') {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'trainer-profile-social-button' + (extraClass ? ' ' + extraClass : '');
+    button.textContent = label;
+    button.addEventListener('click', handler);
+    return button;
+  }
+
+  function socialLabel(status) {
+    if (status === 'friends') return 'Друзья';
+    if (status === 'incoming') return 'Входящая';
+    if (status === 'outgoing') return 'Заявка отправлена';
+    return 'Не в друзьях';
+  }
+
+  async function runSocialAction(method, id, user = null) {
+    const api = window.PokemonSocial || {};
+    if (!api || typeof api[method] !== 'function') {
+      notify('Социальные действия ещё загружаются.', 'error');
+      return;
+    }
+
+    try {
+      if (method === 'openBreeding' || method === 'requestTrade') {
+        await api[method]({
+          id,
+          login: user && user.login ? user.login : '',
+        });
+      } else {
+        await api[method](id);
+      }
+      if (method !== 'requestBattle') {
+        loadProfile(currentProfileOptions);
+      }
+    } catch (error) {
+      console.error('Trainer social action failed:', error);
+      notify('Не удалось выполнить действие.', 'error');
+    }
+  }
+
+  function notify(message, type) {
+    if (window.PokemonSocial && typeof window.PokemonSocial.notify === 'function') {
+      window.PokemonSocial.notify(message, type || 'info');
+      return;
+    }
+    if (type === 'error') {
+      console.warn(message);
+    }
   }
 
   function pokemonSprite(pokemon) {
@@ -526,7 +670,11 @@
     if (url.origin !== window.location.origin || url.pathname !== '/game/profile') return;
     const id = Number(url.searchParams.get('id') || 0);
     const login = String(url.searchParams.get('user') || url.searchParams.get('login') || '').trim();
-    if (id <= 0 && login === '') return;
+    if (id <= 0 && login === '') {
+      event.preventDefault();
+      open({});
+      return;
+    }
 
     event.preventDefault();
     open(id > 0 ? { id, login } : { login });

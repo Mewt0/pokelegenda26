@@ -154,6 +154,47 @@ final class MessageRepository
         ];
     }
 
+    public function sendSystem(int $recipientId, string $subject, string $text, array $context = []): array
+    {
+        $subject = trim(strip_tags($subject));
+        $text = trim(strip_tags($text));
+        if ($recipientId <= 0) {
+            return ['ok' => false, 'message' => 'Получатель не найден.'];
+        }
+        if ($subject === '') {
+            $subject = 'Системное сообщение';
+        }
+        if ($text === '') {
+            return ['ok' => false, 'message' => 'Текст системного сообщения пуст.'];
+        }
+
+        $senderId = $this->systemAccountId();
+        if ($senderId <= 0) {
+            $senderId = 0;
+        }
+
+        $id = $this->nextId('sends', 'id');
+        $stmt = $this->db->prepare(
+            'INSERT INTO sends (id, users, text, inputusers, tema, active, date)
+             VALUES (:id, :users, :text, :inputusers, :tema, 1, CURDATE())'
+        );
+        $stmt->execute([
+            'id' => $id,
+            'users' => $recipientId,
+            'text' => $text,
+            'inputusers' => $senderId,
+            'tema' => mb_substr($subject, 0, 120),
+        ]);
+
+        return [
+            'ok' => true,
+            'message' => 'Системное письмо отправлено.',
+            'id' => $id,
+            'sender_id' => $senderId,
+            'context' => $context,
+        ];
+    }
+
     public function markRead(int $userId, int $messageId): array
     {
         if ($userId <= 0 || $messageId <= 0) {
@@ -230,9 +271,9 @@ final class MessageRepository
             'INSERT INTO mail_message_state (message_id, user_id, folder, read_at, archived_at, deleted_at, created_at, updated_at)
              VALUES (:message, :user, :folder, :read_at, :archived_at, :deleted_at, :created_at, :updated_at)
              ON DUPLICATE KEY UPDATE
-                read_at = IF(:read_at_update > 0, :read_at_update, read_at),
-                archived_at = IF(:archived_at_update > 0, :archived_at_update, archived_at),
-                deleted_at = IF(:deleted_at_update > 0, :deleted_at_update, deleted_at),
+                read_at = IF(:read_at_update_check > 0, :read_at_update_value, read_at),
+                archived_at = IF(:archived_at_update_check > 0, :archived_at_update_value, archived_at),
+                deleted_at = IF(:deleted_at_update_check > 0, :deleted_at_update_value, deleted_at),
                 updated_at = :updated_at_update'
         );
         $stmt->execute([
@@ -244,9 +285,12 @@ final class MessageRepository
             'deleted_at' => $deletedAt,
             'created_at' => $now,
             'updated_at' => $now,
-            'read_at_update' => $readAt,
-            'archived_at_update' => $archivedAt,
-            'deleted_at_update' => $deletedAt,
+            'read_at_update_check' => $readAt,
+            'read_at_update_value' => $readAt,
+            'archived_at_update_check' => $archivedAt,
+            'archived_at_update_value' => $archivedAt,
+            'deleted_at_update_check' => $deletedAt,
+            'deleted_at_update_value' => $deletedAt,
             'updated_at_update' => $now,
         ]);
     }
@@ -264,6 +308,37 @@ final class MessageRepository
 
         $row = $stmt->fetch();
         return is_array($row) ? $row : [];
+    }
+
+    private function systemAccountId(): int
+    {
+        if ($this->tableExists('site_settings')) {
+            $stmt = $this->db->prepare('SELECT value FROM site_settings WHERE name = "system.account_id" LIMIT 1');
+            $stmt->execute();
+            $id = (int) ($stmt->fetchColumn() ?: 0);
+            if ($id > 0) {
+                return $id;
+            }
+        }
+
+        $stmt = $this->db->prepare('SELECT id FROM users WHERE login = "Система" ORDER BY id ASC LIMIT 1');
+        $stmt->execute();
+        return (int) ($stmt->fetchColumn() ?: 0);
+    }
+
+    private function tableExists(string $table): bool
+    {
+        static $cache = [];
+        if (isset($cache[$table])) {
+            return $cache[$table];
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table LIMIT 1'
+        );
+        $stmt->execute(['table' => $table]);
+        $cache[$table] = (bool) $stmt->fetchColumn();
+        return $cache[$table];
     }
 
     private function nextId(string $table, string $column): int

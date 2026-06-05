@@ -20,12 +20,15 @@ body {
 
 .shop-window {
   min-height: min(720px, calc(100vh - 36px));
+  max-height: calc(100vh - 36px);
   overflow: hidden;
   border: 2px solid rgba(72, 76, 82, .55);
   border-radius: 8px;
   background: rgba(196, 196, 196, .9);
   box-shadow: 0 20px 60px rgba(23, 34, 48, .3);
   backdrop-filter: blur(2px);
+  display: grid;
+  grid-template-rows: 40px auto minmax(0, 1fr) 40px;
 }
 
 .shop-titlebar {
@@ -114,20 +117,24 @@ body {
 .shop-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 256px;
-  min-height: 560px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .shop-catalog {
   position: relative;
   padding: 16px 16px 10px;
   border-right: 1px solid rgba(79, 83, 88, .35);
+  overflow: auto;
+  scrollbar-gutter: stable;
 }
 
 .shop-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(82px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
   gap: 28px 15px;
   align-items: end;
+  padding-bottom: 10px;
 }
 
 .shop-item {
@@ -216,8 +223,9 @@ body {
 }
 
 .shop-cart {
+  min-height: 0;
   display: grid;
-  grid-template-rows: 34px 1fr;
+  grid-template-rows: 38px minmax(0, 1fr);
   background: rgba(194, 194, 194, .7);
 }
 
@@ -249,6 +257,9 @@ body {
   display: grid;
   align-content: start;
   gap: 12px;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
 }
 
 .cart-art {
@@ -278,6 +289,13 @@ body {
   color: #555;
   font-size: 13px;
   font-weight: 700;
+}
+
+.cart-info p {
+  max-height: 190px;
+  overflow: auto;
+  padding-right: 4px;
+  line-height: 1.35;
 }
 
 .cart-count {

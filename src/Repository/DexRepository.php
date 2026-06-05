@@ -100,6 +100,7 @@ final class DexRepository
         }
 
         $data = $this->pokemonSummary($row);
+        $contentBaseId = PokemonFormCatalog::isForm($id) ? (int) $data['baseId'] : $id;
         $data['baseExp'] = (int)($row['Base'] ?? $row['base_exp'] ?? 0);
         $data['description'] = $this->pokemonDescription($id, (string)$data['name']);
         $data['info'] = [
@@ -108,13 +109,13 @@ final class DexRepository
         ];
         $data['ability'] = $this->abilityInfo($id, (string) ($row['ability_key'] ?? ''));
         $data['forms'] = $this->pokemonForms($id, (string) ($data['code'] ?? ''));
-        $data['evolutions'] = $this->evolutionChain($id);
-        $data['evolutionOptions'] = $this->evolutionOptions($id);
+        $data['evolutions'] = $this->evolutionChain($contentBaseId);
+        $data['evolutionOptions'] = $this->evolutionOptions($contentBaseId);
         $data['evolution'] = $this->evolutionTextFromChain($data['evolutions']);
-        $data['learnset'] = $this->pokemonLearnset($id);
-        $data['eggMoves'] = $this->pokemonEggMoves($id);
-        $data['hiddenMoves'] = $this->pokemonHiddenMoves($id);
-        $data['habitats'] = $this->pokemonHabitats($id);
+        $data['learnset'] = $this->pokemonLearnset($contentBaseId);
+        $data['eggMoves'] = $this->pokemonEggMoves($contentBaseId);
+        $data['hiddenMoves'] = $this->pokemonHiddenMoves($contentBaseId);
+        $data['habitats'] = $this->pokemonHabitats($contentBaseId);
 
         return $data;
     }

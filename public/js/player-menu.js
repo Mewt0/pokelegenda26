@@ -15,6 +15,11 @@
   pvpModal.hidden = true;
   document.body.appendChild(pvpModal);
 
+  const breedingModal = document.createElement('div');
+  breedingModal.className = 'player-breeding-modal';
+  breedingModal.hidden = true;
+  document.body.appendChild(breedingModal);
+
   let activeRow = null;
   let activeLogin = '';
   let activePlayerId = 0;
@@ -26,6 +31,8 @@
   let hoverProfileOpenedAt = 0;
   let knownIncomingRequests = new Set(loadSeenRequests());
   let knownIncomingPvpRequests = new Set(loadSeenPvpRequests());
+  let knownIncomingBreedingRequests = new Set(loadSeenBreedingRequests());
+  let activeBreedingState = null;
 
   const app = document.querySelector('.world');
   const csrf = app ? app.dataset.csrf : '';
@@ -33,23 +40,23 @@
 
   const text = {
     localPlayer: 'игрок на локации',
-    card: 'Тренеркарта',
-    dialog: 'Открыть диалог',
-    private: 'Написать в ЛС',
-    battle: 'Вызвать на бой',
-    forceBattle: 'Напасть по ордеру',
+    card: 'Информация',
+    dialog: 'Написать',
+    private: 'ЛС',
+    battle: 'Предложить бой',
+    forceBattle: 'Нападение',
     acceptBattle: 'Принять бой',
     battleSent: 'Вызов отправлен',
     battleActive: 'Игрок в бою',
     battleRestricted: 'Карма не позволяет',
-    trade: 'Предложить обмен',
-    friend: 'Добавить в друзья',
+    trade: 'Обмен',
+    friend: 'Дружить',
     acceptFriend: 'Принять заявку',
     requestSent: 'Заявка отправлена',
     removeFriend: 'Удалить из друзей',
     ignore: 'Добавить в чёрный список',
-    mail: 'Написать на почту',
-    breeding: 'Разведение',
+    mail: 'Почта',
+    breeding: 'Разведение покемонов',
   };
 
   function loadSeenRequests() {
@@ -83,6 +90,24 @@
   function saveSeenPvpRequests() {
     try {
       localStorage.setItem('pokemon_pvp_seen_requests', JSON.stringify([...knownIncomingPvpRequests].slice(-200)));
+    } catch (error) {
+      // Local storage can be disabled; notifications still work for this session.
+    }
+  }
+
+  function loadSeenBreedingRequests() {
+    try {
+      return JSON.parse(localStorage.getItem('pokemon_breeding_seen_requests') || '[]')
+        .map(id => Number(id))
+        .filter(Boolean);
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function saveSeenBreedingRequests() {
+    try {
+      localStorage.setItem('pokemon_breeding_seen_requests', JSON.stringify([...knownIncomingBreedingRequests].slice(-200)));
     } catch (error) {
       // Local storage can be disabled; notifications still work for this session.
     }
@@ -134,6 +159,19 @@
     activePvpPermission = null;
   }
 
+  function closeBreedingModal() {
+    breedingModal.hidden = true;
+    breedingModal.innerHTML = '';
+    activeBreedingState = null;
+    document.removeEventListener('keydown', closeBreedingOnEscape);
+  }
+
+  function closeBreedingOnEscape(event) {
+    if (event.key === 'Escape') {
+      closeBreedingModal();
+    }
+  }
+
   function clearHoverProfileTimer() {
     if (hoverProfileTimer) {
       window.clearTimeout(hoverProfileTimer);
@@ -147,6 +185,15 @@
       .replace(/"/g, '&quot;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
+  }
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   function menuButton(action, icon, label, disabled = false, title = '') {
@@ -183,12 +230,11 @@
 
     const message = permission && permission.message ? String(permission.message) : '';
     if (permission && permission.allowed === true) {
-      const label = permission.requiresWarrant ? text.forceBattle : 'Напасть принудительно';
+      const label = permission.requiresWarrant ? text.forceBattle : 'Нападение';
       return menuButton('battle-force', '&#9876;', label, false, message);
     }
 
-    const label = message.includes('нужен ордер') ? 'Нужен ордер' : 'Ордер недоступен';
-    return menuButton('battle-force-unavailable', '&#9888;', label, true, message || 'Принудительное нападение сейчас недоступно.');
+    return menuButton('battle-force-unavailable', '&#9888;', text.forceBattle, true, message || 'Принудительное нападение сейчас недоступно.');
   }
 
   function renderMenu() {
@@ -202,17 +248,16 @@
         '<div><b></b><small>' + text.localPlayer + '</small></div>',
       '</div>',
       menuButton('card', '&#9817;', text.card),
-      menuButton('breeding', '&#10084;', text.breeding),
       isSelf ? '' : menuButton('dialog', '&#9743;', text.dialog),
       isSelf ? '' : menuButton('private', '&#9998;', text.private),
+      isSelf ? '' : menuButton('mail', '&#9993;', text.mail),
       isSelf ? '' : '<hr>',
       isSelf ? '' : battleButtonForStatus(activePvpStatus),
-      isSelf ? '' : forceBattleButtonForStatus(activePvpStatus, activePvpPermission),
       isSelf ? '' : menuButton('trade', '&#8644;', text.trade),
+      isSelf ? '' : menuButton('breeding', '&#10084;', text.breeding),
+      isSelf ? '' : forceBattleButtonForStatus(activePvpStatus, activePvpPermission),
       isSelf ? '' : '<hr>',
       isSelf ? '' : friendButtonForStatus(activeFriendStatus),
-      isSelf ? '' : menuButton('ignore', '&#8856;', text.ignore),
-      isSelf ? '' : menuButton('mail', '&#9993;', text.mail),
     ].join('');
     menu.querySelector('b').textContent = activeLogin;
   }
@@ -334,6 +379,282 @@
     return true;
   }
 
+  async function loadBreedingState() {
+    const response = await fetch('/api/pokemon/breeding', {
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json' },
+    });
+    const data = await response.json();
+    if (!data || data.ok !== true) {
+      throw new Error(data && data.message ? data.message : 'Не удалось загрузить разведение.');
+    }
+    return data;
+  }
+
+  function sameLogin(left, right) {
+    return String(left || '').trim().toLowerCase() === String(right || '').trim().toLowerCase();
+  }
+
+  function incomingBreedingFrom(state, playerId, login) {
+    const incoming = Array.isArray(state && state.incoming) ? state.incoming : [];
+    return incoming.find(request => {
+      const requesterId = Number(request.requester_id || 0);
+      return requesterId === Number(playerId || 0) || sameLogin(request.requester_login, login);
+    }) || null;
+  }
+
+  function outgoingBreedingTo(state, playerId, login) {
+    const outgoing = Array.isArray(state && state.outgoing) ? state.outgoing : [];
+    return outgoing.find(request => {
+      const targetId = Number(request.target_user_id || 0);
+      return targetId === Number(playerId || 0) || sameLogin(request.target_login, login);
+    }) || null;
+  }
+
+  function breedingGenderLabel(pokemon) {
+    const sex = Number(pokemon && pokemon.sex || 0);
+    if (sex === 1) return '♂';
+    if (sex === 2) return '♀';
+    return '⚲';
+  }
+
+  function breedingPokemonName(pokemon) {
+    return String(pokemon && pokemon.name || pokemon && pokemon.label || 'Pokemon')
+      .replace(/^#?\d+\s*/u, '')
+      .replace(/\s+Lv\.\d+.*$/u, '')
+      .trim() || 'Pokemon';
+  }
+
+  function breedingCandidateStatus(pokemon, option) {
+    if (option) {
+      return option.compatible ? 'Совместим' : (option.reason || 'Не подходит');
+    }
+    if (pokemon && pokemon.paired) return 'Уже в спарке';
+    if (pokemon && pokemon.breedable) return 'Можно выбрать';
+    return 'Не подходит';
+  }
+
+  function breedingCandidateDisabled(pokemon, option) {
+    if (option) return !option.compatible;
+    return !(pokemon && pokemon.breedable) || Boolean(pokemon && pokemon.paired);
+  }
+
+  function renderBreedingOptions(state, incomingRequest) {
+    const candidates = Array.isArray(state && state.candidates) ? state.candidates : [];
+    const byId = new Map(candidates.map(pokemon => [Number(pokemon.id || pokemon.pokemon_id || 0), pokemon]));
+    const source = incomingRequest && Array.isArray(incomingRequest.candidate_options)
+      ? incomingRequest.candidate_options.map(option => {
+          const id = Number(option.pokemon_id || 0);
+          return {
+            option,
+            pokemon: byId.get(id) || {
+              id,
+              name: option.label || ('Pokemon #' + id),
+              level: 0,
+              sex: 0,
+              breedable: Boolean(option.compatible),
+            },
+          };
+        })
+      : candidates.map(pokemon => ({ pokemon, option: null }));
+
+    if (!source.length) {
+      return '<option value="">Нет доступных покемонов</option>';
+    }
+
+    return source.map(entry => {
+      const pokemon = entry.pokemon;
+      const option = entry.option;
+      const id = Number(pokemon.id || option && option.pokemon_id || 0);
+      const disabled = breedingCandidateDisabled(pokemon, option);
+      const status = breedingCandidateStatus(pokemon, option);
+      const label = [
+        breedingPokemonName(pokemon),
+        breedingGenderLabel(pokemon),
+        'Lv.' + Number(pokemon.level || 0),
+        status,
+      ].join(' · ');
+      return '<option value="' + id + '"' + (disabled ? ' disabled' : '') + '>' + escapeHtml(label) + '</option>';
+    }).join('');
+  }
+
+  function firstEnabledBreedingOption(select) {
+    return Array.from(select.options).find(option => !option.disabled && option.value);
+  }
+
+  function renderBreedingModal(player, state) {
+    const incoming = incomingBreedingFrom(state, player.id, player.login);
+    const outgoing = outgoingBreedingTo(state, player.id, player.login);
+    const mode = incoming ? 'accept' : 'request';
+    const intro = incoming
+      ? (player.login + ' предлагает разведение')
+      : ('Предложить разведение игроку ' + player.login);
+    const requesterPokemon = incoming && incoming.requester_pokemon
+      ? '<div class="breed-parent-line">' + escapeHtml(breedingPokemonName(incoming.requester_pokemon)) + ' ' + escapeHtml(breedingGenderLabel(incoming.requester_pokemon)) + ' Lv.' + Number(incoming.requester_pokemon.level || 0) + '</div>'
+      : '';
+
+    breedingModal.innerHTML = [
+      '<div class="player-breeding-dialog" role="dialog" aria-modal="true" aria-labelledby="playerBreedingTitle">',
+        '<header>',
+          '<b id="playerBreedingTitle">Разведение монстров</b>',
+          '<button type="button" data-breed-close aria-label="Закрыть">&times;</button>',
+        '</header>',
+        '<div class="player-breeding-body">',
+          '<div class="breed-request-line">',
+            '<span class="breed-info">i</span>',
+            '<span><b>' + escapeHtml(player.login) + '</b><small>' + escapeHtml(intro) + '</small></span>',
+          '</div>',
+          requesterPokemon,
+          outgoing ? '<div class="breed-pending-note">Заявка этому игроку уже отправлена. Дождитесь ответа.</div>' : '',
+          '<label class="breed-select-label" for="playerBreedingSelect">Выбрать пару</label>',
+          '<select id="playerBreedingSelect" data-breed-select' + (outgoing ? ' disabled' : '') + '>' + renderBreedingOptions(state, incoming) + '</select>',
+          '<div class="breed-status" data-breed-status>' + (outgoing ? 'Ожидается ответ игрока.' : 'Выберите покемона и отправьте заявку.') + '</div>',
+          '<footer>',
+            '<button type="button" class="breed-primary" data-breed-submit' + (outgoing ? ' disabled' : '') + '>' + (incoming ? 'Принять' : 'Отправить') + '</button>',
+            '<button type="button" class="breed-secondary" data-breed-close>Отмена</button>',
+          '</footer>',
+        '</div>',
+      '</div>',
+    ].join('');
+
+    activeBreedingState = {
+      player,
+      mode,
+      requestId: incoming ? Number(incoming.id || 0) : 0,
+    };
+
+    breedingModal.querySelectorAll('[data-breed-close]').forEach(button => {
+      button.addEventListener('click', closeBreedingModal);
+    });
+    const select = breedingModal.querySelector('[data-breed-select]');
+    const submit = breedingModal.querySelector('[data-breed-submit]');
+    const status = breedingModal.querySelector('[data-breed-status]');
+    const first = firstEnabledBreedingOption(select);
+    if (first) {
+      select.value = first.value;
+    } else if (!outgoing) {
+      submit.disabled = true;
+      status.textContent = incoming
+        ? 'Нет совместимых покемонов для ответа.'
+        : 'Нет покемонов, доступных для разведения.';
+    }
+
+    select.addEventListener('change', () => {
+      status.textContent = select.value ? 'Готово к отправке.' : 'Выберите покемона.';
+      submit.disabled = !select.value;
+    });
+    submit.addEventListener('click', submitBreedingModal);
+  }
+
+  async function openBreedingPopup(player) {
+    closeMenu();
+    breedingModal.hidden = false;
+    breedingModal.innerHTML = [
+      '<div class="player-breeding-dialog is-loading" role="dialog" aria-modal="true">',
+        '<header><b>Разведение монстров</b><button type="button" data-breed-close aria-label="Закрыть">&times;</button></header>',
+        '<div class="player-breeding-body"><div class="breed-loading">Загружаю покемонов...</div></div>',
+      '</div>',
+    ].join('');
+    breedingModal.querySelector('[data-breed-close]').addEventListener('click', closeBreedingModal);
+    document.addEventListener('keydown', closeBreedingOnEscape);
+
+    try {
+      const state = await loadBreedingState();
+      if (breedingModal.hidden) return;
+      renderBreedingModal(player, state);
+    } catch (error) {
+      console.error('Breeding state failed:', error);
+      breedingModal.innerHTML = [
+        '<div class="player-breeding-dialog" role="dialog" aria-modal="true">',
+          '<header><b>Разведение монстров</b><button type="button" data-breed-close aria-label="Закрыть">&times;</button></header>',
+          '<div class="player-breeding-body">',
+            '<div class="breed-error">Не удалось загрузить разведение.</div>',
+            '<footer><button type="button" class="breed-secondary" data-breed-close>Закрыть</button></footer>',
+          '</div>',
+        '</div>',
+      ].join('');
+      breedingModal.querySelectorAll('[data-breed-close]').forEach(button => {
+        button.addEventListener('click', closeBreedingModal);
+      });
+    }
+  }
+
+  async function submitBreedingModal() {
+    if (!activeBreedingState) return;
+    const select = breedingModal.querySelector('[data-breed-select]');
+    const submit = breedingModal.querySelector('[data-breed-submit]');
+    const status = breedingModal.querySelector('[data-breed-status]');
+    const pokemonId = Number(select && select.value || 0);
+    if (pokemonId <= 0) {
+      status.textContent = 'Выберите покемона.';
+      return;
+    }
+
+    submit.disabled = true;
+    status.textContent = 'Отправляю...';
+
+    try {
+      const body = new URLSearchParams();
+      body.set('_csrf', csrf);
+      body.set('pokemon_id', String(pokemonId));
+
+      const endpoint = activeBreedingState.mode === 'accept'
+        ? '/api/pokemon/breeding/respond'
+        : '/api/pokemon/breeding/request';
+      if (activeBreedingState.mode === 'accept') {
+        body.set('request_id', String(activeBreedingState.requestId));
+        body.set('action', 'accept');
+      } else {
+        body.set('target', String(activeBreedingState.player.id || activeBreedingState.player.login || ''));
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        },
+        body,
+      });
+      const data = await response.json();
+      const ok = Boolean(data && data.ok);
+      status.textContent = data.message || (ok ? 'Разведение успешно прошло.' : 'Разведение не удалось.');
+      notify(data.message || (ok ? 'Разведение успешно прошло.' : 'Разведение не удалось.'), ok ? 'success' : 'error');
+
+      if (ok) {
+        showBreedingSuccess(data, activeBreedingState.mode === 'accept' || Number(data.egg_id || 0) > 0);
+      } else {
+        submit.disabled = false;
+      }
+    } catch (error) {
+      console.error('Breeding submit failed:', error);
+      status.textContent = 'Ошибка сервера при разведении.';
+      notify('Ошибка сервера при разведении.', 'error');
+      submit.disabled = false;
+    }
+  }
+
+  function showBreedingSuccess(data, completedBreeding) {
+    const title = completedBreeding ? 'Разведение успешно прошло' : 'Заявка отправлена';
+    breedingModal.innerHTML = [
+      '<div class="player-breeding-dialog is-success" role="dialog" aria-modal="true">',
+        '<header><b>Разведение монстров</b><button type="button" data-breed-close aria-label="Закрыть">&times;</button></header>',
+        '<div class="player-breeding-body">',
+          '<div class="breed-success-card">',
+            '<span class="breeding-egg-mark" aria-hidden="true"></span>',
+            '<b>' + title + '</b>',
+            '<small>' + escapeHtml(data && data.message || (completedBreeding ? 'Яйцо создано и появится в разделе яиц.' : 'Игроку отправлено предложение разведения.')) + '</small>',
+          '</div>',
+          '<footer><button type="button" class="breed-primary" data-breed-close>Готово</button></footer>',
+        '</div>',
+      '</div>',
+    ].join('');
+    breedingModal.querySelectorAll('[data-breed-close]').forEach(button => {
+      button.addEventListener('click', closeBreedingModal);
+    });
+  }
+
   function scheduleHoverTrainerCard(row) {
     clearHoverProfileTimer();
     if (!row || currentUserId <= 0) return;
@@ -358,7 +679,6 @@
     const encoded = encodeURIComponent(login);
     const id = Number(menu.dataset.playerId || 0);
     if (action === 'mail') return '/game/messages?mail_to=' + encoded;
-    if (action === 'breeding') return '/game/pokemon?breed_with=' + encoded;
     if (action === 'card') return id > 0 ? '/game/profile?id=' + id : '/game/profile?user=' + encoded;
     return '';
   }
@@ -603,6 +923,24 @@
     }
   }
 
+  async function pollIncomingBreedingRequests() {
+    try {
+      const data = await loadBreedingState();
+      if (!Array.isArray(data.incoming)) return;
+
+      data.incoming.forEach(request => {
+        const id = Number(request.id || 0);
+        if (!id || knownIncomingBreedingRequests.has(id)) return;
+
+        knownIncomingBreedingRequests.add(id);
+        notify((request.requester_login || 'Игрок') + ' предлагает разведение покемонов.', 'friend');
+      });
+      saveSeenBreedingRequests();
+    } catch (error) {
+      // Silent: this endpoint polls often and should not annoy the player on transient errors.
+    }
+  }
+
   window.PokemonSocial = window.PokemonSocial || {};
   window.PokemonSocial.notify = notify;
   window.PokemonSocial.requestFriend = requestFriend;
@@ -610,6 +948,12 @@
   window.PokemonSocial.removeFriend = removeFriend;
   window.PokemonSocial.requestBattle = requestBattle;
   window.PokemonSocial.forceBattle = forceBattle;
+  window.PokemonSocial.openBreeding = openBreedingPopup;
+  window.PokemonSocial.requestTrade = function requestTrade(player) {
+    const login = player && player.login ? String(player.login) : 'игроком';
+    notify('Обмен с ' + login + ' ещё переносится в новый игровой слой.', 'info');
+    return Promise.resolve({ ok: false, message: 'Обмен ещё переносится.' });
+  };
 
   document.addEventListener('click', async event => {
     const actionButton = event.target.closest('[data-player-action]');
@@ -643,6 +987,11 @@
         return;
       }
 
+      if (action === 'breeding') {
+        await openBreedingPopup({ id: playerId, login: activeLogin });
+        return;
+      }
+
       const url = actionUrl(action, activeLogin);
       if (url) {
         window.location.href = url;
@@ -669,6 +1018,12 @@
 
     if (!event.target.closest('.player-context-menu')) {
       closeMenu();
+    }
+  });
+
+  breedingModal.addEventListener('click', event => {
+    if (event.target === breedingModal) {
+      closeBreedingModal();
     }
   });
 
@@ -705,6 +1060,8 @@
 
   pollIncomingRequests();
   pollIncomingPvpRequests();
+  pollIncomingBreedingRequests();
   window.setInterval(pollIncomingRequests, 10000);
   window.setInterval(pollIncomingPvpRequests, 10000);
+  window.setInterval(pollIncomingBreedingRequests, 15000);
 }());
