@@ -25,10 +25,11 @@ if ($json) {
 } else {
     $summary = $result['summary'];
     echo sprintf(
-        "DB integrity: p0=%d p1=%d warn=%d ok=%d fixed=%d%s\n",
+        "DB integrity: p0=%d p1=%d warn=%d accepted=%d ok=%d fixed=%d%s\n",
         (int) ($summary['p0'] ?? 0),
         (int) ($summary['p1'] ?? 0),
         (int) ($summary['warn'] ?? 0),
+        (int) ($summary['accepted'] ?? 0),
         (int) ($summary['ok'] ?? 0),
         (int) ($summary['fixed'] ?? 0),
         $fixSafe ? ' (fix-safe)' : ''
@@ -39,7 +40,7 @@ if ($json) {
         }
         echo sprintf(
             "- [%s] %s: %s count=%d fixed=%d\n",
-            strtoupper((string) ($check['severity'] ?? 'warn')),
+            (($check['status'] ?? '') === 'accepted' ? 'ACCEPTED ' : '') . strtoupper((string) ($check['severity'] ?? 'warn')),
             (string) ($check['key'] ?? ''),
             (string) ($check['description'] ?? ''),
             (int) ($check['count'] ?? 0),

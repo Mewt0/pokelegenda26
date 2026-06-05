@@ -178,7 +178,7 @@ function summarizeOutput(string $output): string
     if (is_array($decoded) && isset($decoded['summary']) && is_array($decoded['summary'])) {
         $summary = $decoded['summary'];
         $parts = [];
-        foreach (['p0', 'p1', 'warn', 'ok', 'fixed'] as $key) {
+        foreach (['p0', 'p1', 'warn', 'accepted', 'ok', 'fixed'] as $key) {
             if (array_key_exists($key, $summary)) {
                 $parts[] = strtoupper($key) . '=' . (int) $summary[$key];
             }

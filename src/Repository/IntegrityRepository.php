@@ -8,6 +8,11 @@ use Throwable;
 
 final class IntegrityRepository
 {
+    /**
+     * @var array<string,array<string,mixed>>
+     */
+    private array $acceptedWarnings = [];
+
     public function __construct(private PDO $db)
     {
     }
@@ -18,6 +23,7 @@ final class IntegrityRepository
     public function run(bool $fixSafe = false, string $runKey = ''): array
     {
         $runKey = $runKey !== '' ? $runKey : ('integrity_' . date('Ymd_His'));
+        $this->acceptedWarnings = $this->loadAcceptedWarnings();
         $checks = [];
 
         $this->check($checks, $runKey, 'items.non_positive_count', 'warn', 'items_users rows with count <= 0', 'SELECT COUNT(*) FROM items_users WHERE count <= 0', $fixSafe, function (): int {
@@ -132,12 +138,14 @@ final class IntegrityRepository
             $this->check($checks, $runKey, 'safe_storage.open_rollbacks', 'warn', 'open or failed rollback plans', 'SELECT COUNT(*) FROM safe_operation_rollbacks WHERE status IN ("open", "failed")', false);
         }
 
-        $summary = ['p0' => 0, 'p1' => 0, 'warn' => 0, 'ok' => 0, 'fixed' => 0];
+        $summary = ['p0' => 0, 'p1' => 0, 'warn' => 0, 'accepted' => 0, 'ok' => 0, 'fixed' => 0];
         foreach ($checks as $row) {
             $severity = (string) ($row['severity'] ?? 'warn');
             $status = (string) ($row['status'] ?? 'ok');
             if ($status === 'ok') {
                 $summary['ok']++;
+            } elseif ($status === 'accepted') {
+                $summary['accepted']++;
             } elseif (isset($summary[$severity])) {
                 $summary[$severity]++;
             } else {
@@ -190,8 +198,8 @@ final class IntegrityRepository
         }
 
         $status = $count > 0 ? 'found' : 'ok';
-        $this->log($runKey, $key, $severity, $status, $count, $fixed, ['description' => $description]);
-        $checks[] = [
+        $details = ['description' => $description];
+        $row = [
             'key' => $key,
             'severity' => $severity,
             'status' => $status,
@@ -199,6 +207,19 @@ final class IntegrityRepository
             'fixed' => $fixed,
             'description' => $description,
         ];
+        if ($status === 'found' && $severity === 'warn') {
+            $acceptance = $this->acceptedWarnings[$key] ?? null;
+            if (is_array($acceptance)) {
+                $status = 'accepted';
+                $details['accepted'] = true;
+                $details['acceptance'] = $acceptance;
+                $row['status'] = $status;
+                $row['accepted'] = true;
+                $row['acceptance'] = $acceptance;
+            }
+        }
+        $this->log($runKey, $key, $severity, $status, $count, $fixed, $details);
+        $checks[] = $row;
     }
 
     private function countSql(string $sql): int
@@ -299,6 +320,47 @@ final class IntegrityRepository
         }
 
         return $fixed;
+    }
+
+    /**
+     * @return array<string,array<string,mixed>>
+     */
+    private function loadAcceptedWarnings(): array
+    {
+        if (!$this->tableExists('data_integrity_acceptances')) {
+            return [];
+        }
+
+        try {
+            $stmt = $this->db->query(
+                'SELECT check_key, severity, status, reason, cleanup_policy, accepted_until, accepted_by, updated_at
+                   FROM data_integrity_acceptances
+                  WHERE severity = "warn"
+                    AND status IN ("accepted", "accepted_for_beta")
+                    AND (accepted_until = 0 OR accepted_until >= UNIX_TIMESTAMP())'
+            );
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable) {
+            return [];
+        }
+
+        $accepted = [];
+        foreach ($rows as $row) {
+            $key = (string) ($row['check_key'] ?? '');
+            if ($key === '') {
+                continue;
+            }
+            $accepted[$key] = [
+                'status' => (string) ($row['status'] ?? 'accepted'),
+                'reason' => (string) ($row['reason'] ?? ''),
+                'cleanup_policy' => (string) ($row['cleanup_policy'] ?? ''),
+                'accepted_until' => (int) ($row['accepted_until'] ?? 0),
+                'accepted_by' => (string) ($row['accepted_by'] ?? ''),
+                'updated_at' => (int) ($row['updated_at'] ?? 0),
+            ];
+        }
+
+        return $accepted;
     }
 
     /**

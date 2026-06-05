@@ -38,11 +38,13 @@
   - `tools/migration_status.php --baseline` - только для фиксации уже существующей живой базы;
   - `tools/migration_status.php --apply` - применить pending миграции;
   - `tools/beta_backup.php` - дамп БД в `storage/backups/`;
+  - `tools/beta_backup_verify.php` - проверка свежего beta dump на размер и ключевые таблицы;
   - `tools/beta_data_audit.php` - аудит P0/P1/WARN;
   - `tools/beta_data_audit.php --fix-safe` - только безопасные исправления: merge одинаковых item stacks, expire due commission/PvP.
   - `tools/background_jobs.php --status|--dry-run|--job=<name>` - ручной запуск фоновых задач;
   - `tools/db_integrity_smoke.php [--fix-safe]` - integrity/anti-dupe проверки.
-- Последний статус миграций: `78/78`, `pending=0`, `dirty=0`, `failed=0`.
+- Последний статус миграций: `79/79`, `pending=0`, `dirty=0`, `failed=0`.
+- Последний beta backup: `storage/backups/pokemonchic_beta_20260605_165616.sql`, `tools/beta_backup_verify.php` подтвердил `OK`, `7.9 MB`, `14/14` ключевых таблиц.
 - Последний beta audit: `P0=0`, `P1=0`; `WARN` остаётся по историческим незавершённым rows в `battles`.
 - Комиссионная лавка резервирует покемонов/яйца через `commission.reserve_user_id`, сейчас это аккаунт `Система`, а не живой игрок `id=3`; дополнительно ведётся ledger `market_reserved_objects`.
 - Safe Storage: `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`, `SafeStorageRepository`, `tools/safe_storage_smoke.php`.
@@ -59,7 +61,7 @@
 - QA Seed Tools: `AdminQaSeedRepositoryTrait`, `/api/admin/qa-seed-tools`, `/api/admin/qa-seed-tools/run`, блок в GM Center для `setup test accounts`, `give teams`, `give items`, `reset market`, `run smokes`; действия пишутся в `admin_audit_log` как `qa_seed.*`.
 - Bug Reporter: `bug_reports`, `bug_report_events`, `BugReportRepository`, `/api/bug-reports`, `/api/admin/bug-reports`, кнопка `Report bug` в `/game`; report прикладывает page/game state, battle id/battle snapshot, client logs и tail server logs. GM Center показывает open/critical reports, вкладка `Bug Reports` даёт фильтры, inspector и смену статуса.
 - DB Integrity: `data_integrity_logs`, `IntegrityRepository`, `tools/db_integrity_smoke.php`. `--fix-safe` чинит только очевидно безопасное: `items_users.count<=0`, orphan held rows, finished active transformations, expired PvP requests, `battles.id<=0`, stale user battle flags, `hp_my > hp_max` и реальные `pok_user` с невозможным level/stat через пересчёт по `poke_base + IV/EV + har`.
-- Текущий integrity smoke после safe-fix: `P0=0`, `P1=0`, `WARN=4` (`items.orphan_user=38`, `pokemon.invalid_owner=63`, `eggs.invalid_owner=1`, `battle.active_unfinished=208`).
+- Текущий integrity smoke после accepted-policy: `P0=0`, `P1=0`, `WARN=0`, `ACCEPTED=4`. Исторические rows `items.orphan_user=38`, `pokemon.invalid_owner=63`, `eggs.invalid_owner=1`, `battle.active_unfinished=208` зафиксированы в `data_integrity_acceptances` до отдельного cleanup-этапа, чтобы beta-gate ловил только новые реальные риски.
 - Дампы и backup-файлы не коммитить: `storage/backups/` в `.gitignore`.
 
 ## Основные Рабочие Системы
@@ -80,7 +82,7 @@
 - Inventory/items: `/api/inventory/page`, `/battle`, `/equip`, `/unequip`, `/use-target`, `/open-gift`, `InventoryRepository`.
 - Held items metadata: `item_gameplay_metadata` is source of truth for `item_target_rules`; `equip_held` replacement returns old held item to inventory. Effects can be `implemented`, `visual_only`, `todo`.
 - Gifts/rewards: `/api/inventory/open-gift` блокирует gift row через `FOR UPDATE`, считает loot table, начисляет награды через `RewardRepository::grantPipeline()` и списывает подарок только после успешного начисления.
-- Pokemon/team/daycare: `/game/pokemon`, `/api/pokemon/*`, active team отдельно от питомника.
+- Pokemon/team/daycare: `/game/pokemon`, `/api/pokemon/*`, active team отдельно от питомника; старая dead breeding-панель убрана из окна команды, breeding должен идти через player popup/invite-flow.
 - Breeding/eggs: `/api/pokemon/breeding/*`, `/api/eggs`, `BreedingRepository`, `EggRepository`.
 - Markets:
   - `ItemMarketRepository` - старый совместимый item market.
@@ -177,6 +179,7 @@
 - `tools/open_test_regression.php` - sequential quick/full runner for open-test smoke matrix; runs mutating PvE/PvP/breeding checks in order, not in parallel.
 - `tools/prepare_qa_teams.php`
 
+Последняя beta-gate проверка 2026-06-05: создан backup `storage/backups/pokemonchic_beta_20260605_165616.sql`, `tools/beta_backup_verify.php` подтвердил `OK` и `14/14` ключевых таблиц; миграции `79/79`; `tools/db_integrity_smoke.php --json` вернул `P0=0`, `P1=0`, `WARN=0`, `ACCEPTED=4`; `tools/open_test_regression.php --profile=quick --login=Tacos --password=...` прошёл `20/20`. Дополнительно проверено после удаления dead breeding UI из `/game/pokemon`: `inventory_held_items` `16/16`, `breeding_qa` `55/55`, `http_smoke` `52/52`; browser QA `/game/pokemon` desktop/direct route и mobile `390px` подтвердил, что `Разведение покемонов`/`Отправить заявку` больше не отображаются в команде, заголовок команды есть, console errors нет, horizontal overflow нет.
 Последняя Phase 7 / Release Candidate проверка: 2026-05-28 heartbeat `phase-7-full-manual-regression`, ветка `codex/beta-foundation`. `tools/open_test_regression.php --profile=quick --login=Tacos --password=...` прошёл `20/20`; targeted PvE: `pve_reward_idempotency_smoke.php` `9/9`, `battle_transformation_stats_smoke.php` OK, HTTP catch `56/56`, HTTP finish `58/58`; PvP: `pvp_qa_smoke.php` `126/126`, `battle_replay_smoke.php` `6/6`; economy/content/admin: commission `24/24`, hardening `36/36` на 120 итераций, breeding `55/55`, quests `29/29`, tournament `33/33`, Dex `27/27`, locations/NPC/transport `24/24`, Admin/GM `26/26`. Browser QA `/game`: главный экран без horizontal overflow, `Лавка` открывает overlay, категории без `Зелья/Ягоды`, `Мои лоты` переключается, `Квесты` открывают новый журнал overlay. Final smoke: `tools/open_test_regression.php --profile=full --login=Tacos --password=...` прошёл `24/24`, `failed=0`, `skipped=0`; миграции `74/74`, integrity `P0=0/P1=0/WARN=4`. Known issues без RC-blocker: WARN по старым orphan `items_users`/`pok_user`/`eggs` и 208 unfinished legacy battle rows; отдельный headless mobile Playwright-прогон не выполнен из-за отсутствующего локального `playwright-core`, но browser DOM QA desktop/current viewport зелёный.
 Последняя Open Test Regression проверка: `tools/open_test_regression.php --profile=full --password=...` прошёл `24/24` блоков, `failed=0`, `skipped=0`; миграции `73/73`, integrity `P0=0/P1=0/WARN=4`, PvE catch `58/58`, PvE finish `59/59`, breeding `55/55`, PvP Tacos/NIGA `126/126`. Во время прогона исправлены race-safety хвосты: commission notifications и reward/items smoke больше не считают `MAX(id)+1` для auto-increment таблиц, а админская legacy-карта теперь скрыта вне вкладки `Legacy-карта`. Отчёт: `OPEN_TEST_REGRESSION_2026-05-27.md`; screenshots в `tmp/open-test-*.png` локальные и не считаются продуктом.
 Последняя Trainer Card/social проверка: миграции `74/74`, `tools/trainer_card_gym_badge_flow_smoke.php` `8/8`, HTTP smoke `52/52`; browser QA `/game` mobile-width подтвердил: профиль Tacos открывается overlay без URL-перехода, клик по другу `NIGA` открывает `UID: 29` на текущей странице, `game.php` iframe/legacy popup отсутствуют, horizontal overflow и overlap секций отсутствуют.
