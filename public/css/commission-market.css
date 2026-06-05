@@ -27,8 +27,8 @@
 }
 
 .commission-window {
-  width: min(1180px, calc(100vw - 32px));
-  height: min(760px, calc(100vh - 72px));
+  width: min(1480px, calc(100vw - 16px));
+  height: min(790px, calc(100vh - 16px));
   min-height: 560px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
@@ -41,7 +41,7 @@
 }
 
 .commission-page .commission-window {
-  height: min(760px, calc(100vh - 32px));
+  height: min(790px, calc(100vh - 32px));
 }
 
 .commission-head {
@@ -103,7 +103,7 @@
 .commission-layout {
   min-height: 0;
   display: grid;
-  grid-template-columns: 214px minmax(0, 1fr) 288px;
+  grid-template-columns: clamp(220px, 18vw, 270px) minmax(0, 1fr) clamp(280px, 24vw, 360px);
   background: linear-gradient(180deg, #f8fbff, #edf5ff);
 }
 
@@ -235,14 +235,18 @@
 }
 
 .commission-category {
-  min-height: 32px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
   border: 1px solid #c4d7ee;
   border-radius: 8px;
   background: rgba(255, 255, 255, .92);
   color: #40506b;
   font-weight: 800;
+  line-height: 1.15;
   text-align: left;
-  padding: 0 10px;
+  padding: 7px 12px;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 
@@ -313,7 +317,7 @@
 .commission-toolbar {
   padding: 10px;
   display: grid;
-  grid-template-columns: 180px minmax(180px, 1fr) 86px 104px;
+  grid-template-columns: minmax(160px, 190px) minmax(220px, 1fr) minmax(82px, max-content) minmax(100px, max-content);
   gap: 8px;
   border-bottom: 1px solid #cfdef0;
   background: rgba(255, 255, 255, .72);
@@ -494,6 +498,7 @@
   padding: 10px;
   border-top: 1px solid #cfdef0;
   background: rgba(236, 246, 255, .82);
+  overflow: hidden;
 }
 
 .commission-sell h2,
@@ -505,9 +510,13 @@
 
 .commission-sell form {
   display: grid;
-  grid-template-columns: 94px minmax(120px, 1fr) 74px 96px 90px 96px;
+  grid-template-columns: minmax(90px, 110px) minmax(220px, 1fr) minmax(70px, 90px) minmax(100px, 120px) minmax(92px, 110px) minmax(104px, max-content);
   gap: 7px;
   align-items: end;
+}
+
+.commission-sell label {
+  min-width: 0;
 }
 
 .commission-sell label span {
@@ -537,6 +546,7 @@
   color: #526780;
   font-size: 13px;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .commission-preview b {
@@ -594,6 +604,23 @@
 
 body.has-commission-overlay {
   overflow: hidden;
+}
+
+@media (max-width: 1240px) {
+  .commission-layout {
+    grid-template-columns: clamp(210px, 22vw, 250px) minmax(0, 1fr);
+  }
+
+  .commission-preview {
+    grid-column: 1 / -1;
+    border-left: 0;
+    border-top: 1px solid #cfdef0;
+    max-height: 180px;
+  }
+
+  .commission-sell form {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 980px) {

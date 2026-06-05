@@ -127,12 +127,38 @@ final class BattleEngineService
 
         return match ($action) {
             'attack' => $this->attack($userId, (int) ($payload['move_id'] ?? 0)),
-            'switch' => $this->switchPokemon($userId, (int) ($payload['pokemon_id'] ?? 0)),
-            'item' => $this->useItem($userId, (int) ($payload['item_user_id'] ?? 0)),
-            'ball' => $this->useBall($userId, (int) ($payload['item_user_id'] ?? 0)),
-            'escape' => $this->escape($userId),
+            'switch' => $this->withPveBattleActionLock($userId, fn (): array => $this->switchPokemon($userId, (int) ($payload['pokemon_id'] ?? 0))),
+            'item' => $this->withPveBattleActionLock($userId, fn (): array => $this->useItem($userId, (int) ($payload['item_user_id'] ?? 0))),
+            'ball' => $this->withPveBattleActionLock($userId, fn (): array => $this->useBall($userId, (int) ($payload['item_user_id'] ?? 0))),
+            'escape' => $this->withPveBattleActionLock($userId, fn (): array => $this->escape($userId)),
             default => ['ok' => false, 'active' => true, 'message' => 'Неизвестное действие.'],
         };
+    }
+
+    /**
+     * Non-attack PvE actions also mutate the battle: they can spend items,
+     * consume balls, advance rounds, switch pokemon or finish the fight.
+     * Use the same per-battle mutex as attacks so fast double-clicks cannot
+     * process two turns in parallel.
+     *
+     * @param callable():array $callback
+     */
+    private function withPveBattleActionLock(int $userId, callable $callback): array
+    {
+        $battleId = $this->battles->findActivePveBattleIdForUser($userId);
+        if ($battleId <= 0) {
+            return ['ok' => false, 'active' => false, 'message' => 'Бой не найден.'];
+        }
+
+        if (!$this->battles->acquirePveBattleActionLock($battleId)) {
+            return ['ok' => false, 'active' => true, 'message' => 'Предыдущее действие ещё обрабатывается.'];
+        }
+
+        try {
+            return $callback();
+        } finally {
+            $this->battles->releasePveBattleActionLock($battleId);
+        }
     }
 
     public function acknowledgeEnd(int $userId): array

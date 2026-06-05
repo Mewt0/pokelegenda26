@@ -329,13 +329,44 @@
       await load();
     }
 
-    function hintNavigation(kind) {
+    function activeNavigationForQuest(quest) {
+      if (!quest) return null;
+      const step = quest.current_step || {};
+      return step.navigation || quest.navigation || null;
+    }
+
+    function activateNavigation(kind) {
       const quest = selectedQuest();
       if (!quest) return;
       const step = quest.current_step || {};
-      const label = kind === 'npc' ? 'Переход к NPC' : 'Метка на карте';
-      const action = step.action_key ? ` Текущий ключ цели: ${step.action_key}.` : '';
-      toast(`${label} будет включен, когда у цели появится точная локация.${action}`);
+      const navigation = activeNavigationForQuest(quest);
+      const label = kind === 'npc' ? 'Путь к NPC' : 'Путь по карте';
+      if (!navigation) {
+        const action = step.action_key ? ` Текущий ключ цели: ${step.action_key}.` : '';
+        toast(`${label} будет включен, когда у цели появится точная локация.${action}`);
+        return;
+      }
+
+      window.dispatchEvent(new CustomEvent('pokemon:quest-guide', {
+        detail: {
+          action: 'activate',
+          mode: kind,
+          quest: {
+            id: Number(quest.id || 0),
+            title: String(quest.title || 'Квест'),
+          },
+          step,
+          navigation,
+        },
+      }));
+
+      const target = navigation.onTarget
+        ? (navigation.targetNpcTitle || navigation.targetLocationTitle || navigation.label || 'цель')
+        : (navigation.nextLocationTitle || navigation.targetLocationTitle || navigation.label || 'следующий переход');
+      toast(`${label} включён: ${target}.`);
+      if (mode === 'overlay') {
+        close();
+      }
     }
 
     function open() {
@@ -378,11 +409,11 @@
     els.detail?.addEventListener('click', (event) => {
       if (event.target.closest('[data-quest-start]')) startQuest();
       if (event.target.closest('[data-quest-track-inline]')) trackQuest();
-      if (event.target.closest('[data-quest-map-inline]')) hintNavigation('map');
+      if (event.target.closest('[data-quest-map-inline]')) activateNavigation('map');
     });
     els.track?.addEventListener('click', trackQuest);
-    els.map?.addEventListener('click', () => hintNavigation('map'));
-    els.npc?.addEventListener('click', () => hintNavigation('npc'));
+    els.map?.addEventListener('click', () => activateNavigation('map'));
+    els.npc?.addEventListener('click', () => activateNavigation('npc'));
     els.closeButtons.forEach((button) => button.addEventListener('click', close));
     overlay?.addEventListener('click', (event) => {
       if (event.target === overlay) close();

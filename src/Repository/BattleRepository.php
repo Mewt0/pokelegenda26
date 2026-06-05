@@ -639,6 +639,9 @@ final class BattleRepository
         }
 
         $row['battle_pokemon'] = $battlePokemon;
+        if ($table === 'pok_user') {
+            $this->normalizePlayerBattleStats($row);
+        }
         $this->applyTrainingBonus($row);
         $battleId = $battleId > 0 ? $battleId : $this->findActiveBattleIdForBattlePokemon($battlePokemon);
         if ($battleId > 0) {
@@ -923,6 +926,46 @@ final class BattleRepository
         $base = max(1, (int) ($pokemon[$stat] ?? 0));
         $pokemon[$stat] = max(1, (int) floor($base * (1 + $bonus / 100)));
         $pokemon['training_bonus_percent'] = $bonus;
+    }
+
+    private function normalizePlayerBattleStats(array &$pokemon): void
+    {
+        $level = max(1, min(100, (int) ($pokemon['lvl'] ?? 1)));
+        $hpMax = max(1, (int) ($pokemon['hp_max'] ?? 1));
+        $hpCurrent = max(0, (int) ($pokemon['hp_my'] ?? $hpMax));
+        $fields = ['atk', 'def', 'satk', 'sdef', 'speed'];
+
+        $impossible = (int) ($pokemon['lvl'] ?? 1) !== $level || $hpCurrent > $hpMax || $hpMax > 1000;
+        foreach ($fields as $field) {
+            if ((int) ($pokemon[$field] ?? 0) > 1000) {
+                $impossible = true;
+                break;
+            }
+        }
+
+        if (!$impossible) {
+            $pokemon['hp_my'] = min($hpCurrent, $hpMax);
+            $pokemon['lvl'] = $level;
+            return;
+        }
+
+        $safe = $pokemon;
+        foreach (['hp', ...$fields] as $field) {
+            $safe[$field . '_iv'] = max(0, min(31, (int) ($safe[$field . '_iv'] ?? 1)));
+            $safe[$field . '_ev'] = max(0, min(252, (int) ($safe[$field . '_ev'] ?? 0)));
+        }
+
+        $stats = $this->calculateStats($safe, $level);
+        $oldMax = max(1, $hpMax);
+        $ratio = max(0.0, min(1.0, $hpCurrent / $oldMax));
+
+        $pokemon['lvl'] = $level;
+        $pokemon['hp_max'] = max(1, (int) ($stats['hp'] ?? $hpMax));
+        $pokemon['hp_my'] = max(0, min((int) $pokemon['hp_max'], (int) round((int) $pokemon['hp_max'] * $ratio)));
+        foreach ($fields as $field) {
+            $pokemon[$field] = max(1, (int) ($stats[$field] ?? $pokemon[$field] ?? 1));
+        }
+        $pokemon['stats_normalized_for_battle'] = true;
     }
 
     public function findUserBattlePokemonOptions(int $userId): array

@@ -948,6 +948,12 @@
   window.PokemonSocial.removeFriend = removeFriend;
   window.PokemonSocial.requestBattle = requestBattle;
   window.PokemonSocial.forceBattle = forceBattle;
+  window.PokemonSocial.openBreeding = openBreedingPopup;
+  window.PokemonSocial.requestTrade = function requestTrade(player) {
+    const login = player && player.login ? String(player.login) : 'игроком';
+    notify('Обмен с ' + login + ' ещё переносится в новый игровой слой.', 'info');
+    return Promise.resolve({ ok: false, message: 'Обмен ещё переносится.' });
+  };
 
   document.addEventListener('click', async event => {
     const actionButton = event.target.closest('[data-player-action]');

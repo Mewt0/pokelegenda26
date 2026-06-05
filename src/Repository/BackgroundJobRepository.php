@@ -171,8 +171,9 @@ final class BackgroundJobRepository
         $now = time();
         $pveSeconds = $this->settingInt('background_jobs.stuck_pve_seconds', 86400);
         $pvpSeconds = $this->settingInt('background_jobs.stuck_pvp_seconds', 14400);
-        $pve = $this->countSql('SELECT COUNT(*) FROM battles WHERE pobeda = 0 AND batl_tip = "pve" AND time > 0 AND time <= :cutoff', ['cutoff' => $now - $pveSeconds]);
-        $pvp = $this->countSql('SELECT COUNT(*) FROM battles WHERE pobeda = 0 AND batl_tip = "pvp" AND time > 0 AND time <= :cutoff', ['cutoff' => $now - $pvpSeconds]);
+        $battleStamp = 'COALESCE(NULLIF(times, 0), NULLIF(time, 0), 0)';
+        $pve = $this->countSql('SELECT COUNT(*) FROM battles WHERE pobeda = 0 AND batl_tip = "pve" AND ' . $battleStamp . ' > 0 AND ' . $battleStamp . ' <= :cutoff', ['cutoff' => $now - $pveSeconds]);
+        $pvp = $this->countSql('SELECT COUNT(*) FROM battles WHERE pobeda = 0 AND batl_tip = "pvp" AND ' . $battleStamp . ' > 0 AND ' . $battleStamp . ' <= :cutoff', ['cutoff' => $now - $pvpSeconds]);
         $this->log($runId, 'stuck_battles', 'battle.stuck.scan', ($pve + $pvp) > 0 ? 'warn' : 'info', 'battle', '', [
             'pve' => $pve,
             'pvp' => $pvp,
@@ -312,7 +313,7 @@ final class BackgroundJobRepository
         return match ($jobName) {
             'expire_market' => $this->tableExists('market_lots') ? $this->countSql('SELECT COUNT(*) FROM market_lots WHERE status = "active" AND expires_at <= :now', ['now' => $now]) : 0,
             'pvp_timeouts' => $this->tableExists('pvp_requests') ? $this->countSql('SELECT COUNT(*) FROM pvp_requests WHERE status = "pending" AND expires_at > 0 AND expires_at <= :now', ['now' => $now]) : 0,
-            'stuck_battles' => $this->tableExists('battles') ? $this->countSql('SELECT COUNT(*) FROM battles WHERE pobeda = 0 AND time > 0 AND time <= :cutoff', ['cutoff' => $now - 14400]) : 0,
+            'stuck_battles' => $this->tableExists('battles') ? $this->countSql('SELECT COUNT(*) FROM battles WHERE pobeda = 0 AND COALESCE(NULLIF(times, 0), NULLIF(time, 0), 0) > 0 AND COALESCE(NULLIF(times, 0), NULLIF(time, 0), 0) <= :cutoff', ['cutoff' => $now - 14400]) : 0,
             'temporary_items' => $this->tableExists('items_users') ? $this->countSql('SELECT COUNT(*) FROM items_users WHERE dattimer REGEXP "^[0-9]+$" AND CAST(dattimer AS UNSIGNED) <= :now', ['now' => $now]) : 0,
             'transport_flights' => $this->tableExists('transport_flights') ? $this->countSql('SELECT COUNT(*) FROM transport_flights WHERE status = "active" AND arrives_at > 0 AND arrives_at <= :now', ['now' => $now]) : 0,
             'event_cleanup' => $this->tableExists('game_event_boosts') ? $this->countSql('SELECT COUNT(*) FROM game_event_boosts WHERE enabled = 1 AND ends_at > 0 AND ends_at < :now', ['now' => $now]) : 0,

@@ -38,6 +38,28 @@ final class IntegrityRepository
         $reserveUser = $this->commissionReserveUserId();
         $this->check($checks, $runKey, 'pokemon.invalid_owner', 'warn', 'pokemon owned by missing users outside commission reserve', 'SELECT COUNT(*) FROM pok_user p LEFT JOIN users u ON u.id = p.users WHERE p.users > 0 AND p.users <> ' . $reserveUser . ' AND u.id IS NULL', false);
         $this->check($checks, $runKey, 'pokemon.permanent_primal_mega', 'p1', 'permanent Primal/Mega battle form ids in pok_user.basenum', 'SELECT COUNT(*) FROM pok_user WHERE basenum BETWEEN 5000 AND 5099', false);
+        $this->check(
+            $checks,
+            $runKey,
+            'pokemon.impossible_battle_stats',
+            'p1',
+            'player pokemon rows with impossible level or stats; these can create absurd PvE/PvP damage and broken Primal/Mega displays',
+            'SELECT COUNT(*) FROM pok_user p JOIN users u ON u.id = p.users JOIN poke_base pb ON pb.id = p.basenum WHERE p.basenum > 0 AND (p.lvl < 1 OR p.lvl > 100 OR p.hp_max > 1000 OR p.atk > 1000 OR p.def > 1000 OR p.satk > 1000 OR p.sdef > 1000 OR p.speed > 1000)',
+            $fixSafe,
+            fn (): int => $this->repairImpossiblePokemonStats()
+        );
+        $this->check(
+            $checks,
+            $runKey,
+            'pokemon.hp_overflow',
+            'p1',
+            'player pokemon rows where current HP is above max HP',
+            'SELECT COUNT(*) FROM pok_user WHERE hp_my > hp_max AND hp_max > 0',
+            $fixSafe,
+            function (): int {
+                return $this->executeAffected('UPDATE pok_user SET hp_my = hp_max WHERE hp_my > hp_max AND hp_max > 0');
+            }
+        );
 
         if ($this->tableExists('eggs')) {
             $this->check($checks, $runKey, 'eggs.invalid_owner', 'warn', 'eggs owned by missing users outside commission reserve', 'SELECT COUNT(*) FROM eggs e LEFT JOIN users u ON u.id = e.users_egg WHERE e.users_egg > 0 AND e.users_egg <> ' . $reserveUser . ' AND u.id IS NULL', false);
@@ -187,6 +209,96 @@ final class IntegrityRepository
     private function executeAffected(string $sql): int
     {
         return (int) $this->db->exec($sql);
+    }
+
+    private function repairImpossiblePokemonStats(): int
+    {
+        $stmt = $this->db->query(
+            'SELECT p.id, p.lvl, p.hp_my, p.hp_max, p.har,
+                    p.hp_iv, p.atk_iv, p.def_iv, p.satk_iv, p.sdef_iv, p.speed_iv,
+                    p.hp_ev, p.atk_ev, p.def_ev, p.satk_ev, p.sdef_ev, p.speed_ev,
+                    pb.hp AS base_hp, pb.atk AS base_atk, pb.def AS base_def,
+                    pb.satk AS base_satk, pb.sdef AS base_sdef, pb.speed AS base_speed,
+                    h.atk AS nature_atk, h.def AS nature_def, h.satk AS nature_satk,
+                    h.sdef AS nature_sdef, h.speed AS nature_speed
+               FROM pok_user p
+               JOIN users u ON u.id = p.users
+               JOIN poke_base pb ON pb.id = p.basenum
+          LEFT JOIN har h ON h.id_har = p.har
+              WHERE p.basenum > 0
+                AND (p.lvl < 1 OR p.lvl > 100 OR p.hp_max > 1000 OR p.atk > 1000
+                  OR p.def > 1000 OR p.satk > 1000 OR p.sdef > 1000 OR p.speed > 1000)'
+        );
+
+        $update = $this->db->prepare(
+            'UPDATE pok_user
+                SET lvl = :lvl,
+                    hp_my = :hp_my, hp_max = :hp_max,
+                    atk = :atk, def = :def, satk = :satk, sdef = :sdef, speed = :speed,
+                    hp_iv = :hp_iv, atk_iv = :atk_iv, def_iv = :def_iv,
+                    satk_iv = :satk_iv, sdef_iv = :sdef_iv, speed_iv = :speed_iv,
+                    hp_ev = :hp_ev, atk_ev = :atk_ev, def_ev = :def_ev,
+                    satk_ev = :satk_ev, sdef_ev = :sdef_ev, speed_ev = :speed_ev,
+                    evcount = :evcount
+              WHERE id = :id
+              LIMIT 1'
+        );
+
+        $fixed = 0;
+        foreach ($stmt->fetchAll() ?: [] as $row) {
+            $level = max(1, min(100, (int) ($row['lvl'] ?? 1)));
+            $iv = [
+                'hp' => max(0, min(31, (int) ($row['hp_iv'] ?? 1))),
+                'atk' => max(0, min(31, (int) ($row['atk_iv'] ?? 1))),
+                'def' => max(0, min(31, (int) ($row['def_iv'] ?? 1))),
+                'satk' => max(0, min(31, (int) ($row['satk_iv'] ?? 1))),
+                'sdef' => max(0, min(31, (int) ($row['sdef_iv'] ?? 1))),
+                'speed' => max(0, min(31, (int) ($row['speed_iv'] ?? 1))),
+            ];
+            $ev = [
+                'hp' => max(0, min(252, (int) ($row['hp_ev'] ?? 0))),
+                'atk' => max(0, min(252, (int) ($row['atk_ev'] ?? 0))),
+                'def' => max(0, min(252, (int) ($row['def_ev'] ?? 0))),
+                'satk' => max(0, min(252, (int) ($row['satk_ev'] ?? 0))),
+                'sdef' => max(0, min(252, (int) ($row['sdef_ev'] ?? 0))),
+                'speed' => max(0, min(252, (int) ($row['speed_ev'] ?? 0))),
+            ];
+            $calcStat = static function (int $base, int $ivValue, int $evValue, float $nature, int $lvl): int {
+                return max(1, (int) round(((($ivValue + $base * 2 + (int) floor($evValue / 4)) * $lvl / 100) + 5) * max(0.1, $nature)));
+            };
+            $hpMax = max(1, (int) round((($iv['hp'] + (int) ($row['base_hp'] ?? 1) * 2 + (int) floor($ev['hp'] / 4) + 100) * $level / 100) + 10));
+            $oldHpMax = max(1, (int) ($row['hp_max'] ?? 1));
+            $ratio = max(0.0, min(1.0, (int) ($row['hp_my'] ?? $oldHpMax) / $oldHpMax));
+            $hpMy = max(0, min($hpMax, (int) round($hpMax * $ratio)));
+
+            $update->execute([
+                'id' => (int) $row['id'],
+                'lvl' => $level,
+                'hp_my' => $hpMy,
+                'hp_max' => $hpMax,
+                'atk' => $calcStat((int) ($row['base_atk'] ?? 1), $iv['atk'], $ev['atk'], (float) ($row['nature_atk'] ?? 1), $level),
+                'def' => $calcStat((int) ($row['base_def'] ?? 1), $iv['def'], $ev['def'], (float) ($row['nature_def'] ?? 1), $level),
+                'satk' => $calcStat((int) ($row['base_satk'] ?? 1), $iv['satk'], $ev['satk'], (float) ($row['nature_satk'] ?? 1), $level),
+                'sdef' => $calcStat((int) ($row['base_sdef'] ?? 1), $iv['sdef'], $ev['sdef'], (float) ($row['nature_sdef'] ?? 1), $level),
+                'speed' => $calcStat((int) ($row['base_speed'] ?? 1), $iv['speed'], $ev['speed'], (float) ($row['nature_speed'] ?? 1), $level),
+                'hp_iv' => $iv['hp'],
+                'atk_iv' => $iv['atk'],
+                'def_iv' => $iv['def'],
+                'satk_iv' => $iv['satk'],
+                'sdef_iv' => $iv['sdef'],
+                'speed_iv' => $iv['speed'],
+                'hp_ev' => $ev['hp'],
+                'atk_ev' => $ev['atk'],
+                'def_ev' => $ev['def'],
+                'satk_ev' => $ev['satk'],
+                'sdef_ev' => $ev['sdef'],
+                'speed_ev' => $ev['speed'],
+                'evcount' => array_sum($ev),
+            ]);
+            $fixed += $update->rowCount();
+        }
+
+        return $fixed;
     }
 
     /**

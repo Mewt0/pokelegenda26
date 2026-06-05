@@ -318,6 +318,15 @@
       fields: [],
       extra: 'gmCenterTools'
     },
+    content_wizard: {
+      title: 'Мастер контента',
+      subtitle: 'Простое создание и подключение контента без охоты по таблицам, папкам и legacy-файлам.',
+      endpoint: null,
+      create: false,
+      columns: [],
+      fields: [],
+      extra: 'contentWizard'
+    },
     users: {
       title: 'Пользователи',
       subtitle: 'Права, телепорт, карма, PvE/PvP состояние и доступ к админке.',
@@ -967,6 +976,13 @@
     $('#adminCreate').hidden = config.create === false || !config.save;
     $('#adminSearchInput').value = '';
     $('#adminLegacy').hidden = true;
+    const customWorkspace = $('#adminCustomWorkspace');
+    const tableWrap = $('#adminTableWrap');
+    if (customWorkspace) {
+      customWorkspace.hidden = true;
+      customWorkspace.innerHTML = '';
+    }
+    if (tableWrap) tableWrap.hidden = false;
     $('#adminTable').hidden = false;
     renderFilterbar(config);
     renderPager(null);
@@ -987,6 +1003,7 @@
       state.pagination = null;
       renderTable(config, []);
       renderPager(null);
+      buildForm(config, null);
       setStatus('');
       return;
     }
@@ -1138,6 +1155,7 @@
 
     if (!config.fields.length) {
       form.innerHTML = '<p class="muted">В этом разделе нет формы редактирования.</p>';
+      form.onsubmit = null;
     } else {
       form.innerHTML = config.fields.map(field => inputHtml(field, row)).join('') + (config.save ? '<button type="submit">Сохранить</button>' : '');
       form.onsubmit = async event => {
@@ -1178,6 +1196,26 @@
 
   function buildExtra(config, row) {
     const danger = $('#adminDanger');
+    if (config.extra === 'contentWizard') {
+      const customWorkspace = $('#adminCustomWorkspace');
+      const tableWrap = $('#adminTableWrap');
+      if (tableWrap) tableWrap.hidden = true;
+      if (customWorkspace) customWorkspace.hidden = false;
+      if (window.PokemonAdminContentWizard && typeof window.PokemonAdminContentWizard.render === 'function') {
+        window.PokemonAdminContentWizard.render({
+          root: customWorkspace,
+          inspector: danger,
+          send,
+          setStatus,
+          openTab: setTab,
+          lookupId
+        });
+      } else if (customWorkspace) {
+        customWorkspace.innerHTML = '<p class="muted">Модуль мастера контента не загрузился. Проверь public/js/admin-content-wizard.js.</p>';
+      }
+      return;
+    }
+
     if (config.extra === 'gmCenterTools') {
       const gm = state.payload?.dashboard?.gmCenter || {};
       if (!row) {

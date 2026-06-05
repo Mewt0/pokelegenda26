@@ -142,18 +142,18 @@ try {
         ($profile['social']['status'] ?? '') === 'self' && ($profile['viewerOwnsProfile'] ?? false) === true,
         'status=' . (string) ($profile['social']['status'] ?? 'missing')
     );
-    $partyHeldShape = true;
+    $partyHeldHidden = true;
     foreach (($profile['party'] ?? []) as $pokemon) {
-        if (!isset($pokemon['heldItem']) || !is_array($pokemon['heldItem'])) {
-            $partyHeldShape = false;
+        if (array_key_exists('heldItem', $pokemon)) {
+            $partyHeldHidden = false;
             break;
         }
     }
     assertTrue(
         $results,
-        'profile.card.held_items',
-        $partyHeldShape,
-        'party heldItem objects=' . count($profile['party'] ?? [])
+        'profile.card.held_items_hidden',
+        $partyHeldHidden,
+        'party=' . count($profile['party'] ?? [])
     );
 
     [$history] = jsonCheck($client, $results, 'battle.history', 'GET', '/api/battle/history');

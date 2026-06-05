@@ -2,11 +2,11 @@
     const itemIconIndex = runtimeConfig.itemIconIndex || {};
     const app = document.querySelector('.world');
     const csrf = app.dataset.csrf;
-    const state = { busy: false, locationId: 0, activeNpc: null, pveButton: false };
+    const state = { busy: false, locationId: 0, activeNpc: null, pveButton: false, questGuide: null };
     window.state = state;
     window.PokemonGameState = state;
     const inventory = { page: 1, pages: 1, items: [], selected: null, pokemon: [], category: '', query: '', categories: [], flightRoutes: [], flightRoutesLoaded: false, flightRoutesLoading: false };
-    const battleState = { active: false, reviewing: false, mode: '', moves: [], knownMoves: [] };
+    const battleState = { active: false, reviewing: false, mode: '', moves: [], knownMoves: [], actionPending: false };
     const battleWindowDrag = { ready: false, dragging: false, offsetX: 0, offsetY: 0 };
     const pokemonWindowDrag = { ready: false, dragging: false, offsetX: 0, offsetY: 0 };
     const battleHoverState = { ready: false, player: null, enemy: null, movePinned: false };
@@ -245,6 +245,132 @@
       });
     }
 
+    function normalizeGuideText(value) {
+      return String(value || '').trim().toLowerCase();
+    }
+
+    function clearQuestGuideMarks() {
+      document.querySelectorAll('.quest-guide-target').forEach(node => {
+        node.classList.remove('quest-guide-target', 'quest-guide-npc-target', 'quest-guide-route-target', 'quest-guide-control-target');
+        delete node.dataset.guideLabel;
+      });
+    }
+
+    function questGuidePathText(navigation) {
+      const path = Array.isArray(navigation && navigation.path) ? navigation.path : [];
+      if (path.length <= 1) {
+        return navigation && navigation.targetLocationTitle ? navigation.targetLocationTitle : '';
+      }
+      return path.map(point => point && point.title ? point.title : ('#' + (point && point.id || 0))).join(' → ');
+    }
+
+    function currentQuestGuideNextLocation(navigation) {
+      const current = Number(state.locationId || 0);
+      const path = Array.isArray(navigation && navigation.path) ? navigation.path : [];
+      for (let index = 0; index < path.length; index += 1) {
+        if (Number(path[index] && path[index].id || 0) === current) {
+          return Number(path[index + 1] && path[index + 1].id || 0);
+        }
+      }
+      const explicit = Number(navigation && navigation.nextLocationId || 0);
+      if (explicit > 0) return explicit;
+      return Number(path[0] && path[0].id || 0);
+    }
+
+    function markQuestGuideTarget(element, label, type) {
+      if (!element) return false;
+      element.classList.add('quest-guide-target');
+      if (type) element.classList.add('quest-guide-' + type + '-target');
+      element.dataset.guideLabel = label || 'Сюда';
+      if (typeof element.scrollIntoView === 'function') {
+        element.scrollIntoView({ block: 'nearest', inline: 'center' });
+      }
+      return true;
+    }
+
+    function renderQuestGuideBanner(text, onTarget = false) {
+      const banner = document.getElementById('questGuideBanner');
+      if (!banner) return;
+      const title = document.getElementById('questGuideTitle');
+      const body = document.getElementById('questGuideText');
+      banner.hidden = false;
+      banner.classList.toggle('is-target', !!onTarget);
+      if (title) title.textContent = state.questGuide && state.questGuide.quest && state.questGuide.quest.title
+        ? 'Помощь: ' + state.questGuide.quest.title
+        : 'Маршрут к цели';
+      if (body) body.textContent = text || 'Подсветка включена.';
+    }
+
+    function applyQuestGuide() {
+      clearQuestGuideMarks();
+      const guide = state.questGuide;
+      const navigation = guide && guide.navigation ? guide.navigation : null;
+      const banner = document.getElementById('questGuideBanner');
+      if (!guide || !navigation) {
+        if (banner) banner.hidden = true;
+        return;
+      }
+
+      const current = Number(state.locationId || 0);
+      const targetLocationId = Number(navigation.targetLocationId || 0);
+      const onTarget = targetLocationId > 0 && current === targetLocationId;
+      const targetNpcTitle = normalizeGuideText(navigation.targetNpcTitle);
+      const targetControl = normalizeGuideText(navigation.targetControl);
+
+      if (onTarget) {
+        if (targetNpcTitle) {
+          const npcButton = [...document.querySelectorAll('.npc-btn')].find(button => normalizeGuideText(button.dataset.npcTitle) === targetNpcTitle);
+          if (markQuestGuideTarget(npcButton, navigation.targetNpcTitle || 'NPC', 'npc')) {
+            renderQuestGuideBanner('Вы на месте. Нажмите на NPC: ' + (navigation.targetNpcTitle || navigation.label || 'цель') + '.', true);
+            return;
+          }
+        }
+        if (targetControl === 'pve' || normalizeGuideText(navigation.kind) === 'battle') {
+          markQuestGuideTarget(document.getElementById('pveButton'), 'Начать', 'control');
+          renderQuestGuideBanner('Вы на нужной локации. Начните PvE-бой или включите нападение.', true);
+          return;
+        }
+        markQuestGuideTarget(document.getElementById('location'), 'Цель', 'control');
+        renderQuestGuideBanner(navigation.hint || ('Вы на нужной локации: ' + (navigation.targetLocationTitle || navigation.label || 'цель') + '.'), true);
+        return;
+      }
+
+      const nextLocationId = currentQuestGuideNextLocation(navigation);
+      const nextButton = nextLocationId > 0 ? document.querySelector('.move-btn[data-location-id="' + String(nextLocationId) + '"]') : null;
+      if (markQuestGuideTarget(nextButton, 'Идти', 'route')) {
+        const nextTitle = nextButton && nextButton.dataset.locationTitle ? nextButton.dataset.locationTitle : (navigation.nextLocationTitle || navigation.targetLocationTitle || navigation.label || 'следующий переход');
+        const pathText = questGuidePathText(navigation);
+        renderQuestGuideBanner('Следующий переход: ' + nextTitle + (pathText ? '. Маршрут: ' + pathText + '.' : '.'));
+        return;
+      }
+
+      renderQuestGuideBanner(navigation.hint || ('Цель: ' + (navigation.targetLocationTitle || navigation.label || 'локация') + '.'));
+    }
+
+    function activateQuestGuide(detail) {
+      const navigation = detail && detail.navigation ? detail.navigation : null;
+      if (!navigation) {
+        setStatus('У этой цели пока нет точной метки на карте.', true);
+        return;
+      }
+      state.questGuide = {
+        mode: detail.mode || 'map',
+        quest: detail.quest || null,
+        step: detail.step || null,
+        navigation
+      };
+      applyQuestGuide();
+      setStatus('Помощь включена: ' + (navigation.label || navigation.targetLocationTitle || 'цель квеста') + '.');
+    }
+
+    function cancelQuestGuide() {
+      state.questGuide = null;
+      clearQuestGuideMarks();
+      const banner = document.getElementById('questGuideBanner');
+      if (banner) banner.hidden = true;
+      setStatus('Помощь по квесту отключена.');
+    }
+
     function bugReportJson(value) {
       const seen = new WeakSet();
       return JSON.stringify(value, (key, val) => {
@@ -459,6 +585,7 @@
       if (!state.activeNpc) {
         setStatus('Готово • локация #' + state.locationId);
       }
+      applyQuestGuide();
     }
 
     function closeNpcPanel() {
@@ -493,6 +620,8 @@
         button.innerHTML = '<span class="npc-icon"><img alt="" loading="lazy"></span><span class="npc-title"></span>';
         button.querySelector('.npc-icon img').src = npcIconSrc(npc);
         button.querySelector('.npc-title').textContent = npc.title;
+        button.dataset.npcTitle = npc.title || '';
+        button.dataset.npcType = npc.type || '';
         button.addEventListener('click', () => openNpc(npc));
         list.appendChild(button);
       }
@@ -533,6 +662,7 @@
         button.querySelector('.route-ico img').src = routeIconSrc(move.title);
         button.querySelector('.route-title').textContent = move.title;
         button.dataset.locationId = move.id;
+        button.dataset.locationTitle = move.title || '';
         button.addEventListener('click', () => moveTo(move.id));
         moves.appendChild(button);
       }
@@ -1110,7 +1240,7 @@
 
       const doneBox = document.getElementById('battleFinishBox');
       doneBox.hidden = !payload.finished;
-      setBattleControlsDisabled(!!payload.finished || battle.canAct === false || battle.waitingForOpponent === true);
+      setBattleControlsDisabled(battleState.actionPending || !!payload.finished || battle.canAct === false || battle.waitingForOpponent === true);
     }
 
     function renderBattleHeldItem(id, heldItem) {
@@ -1708,6 +1838,12 @@
         setStatus('Покеболы нельзя использовать в PvP-бою.', true);
         return;
       }
+      if (battleState.actionPending) {
+        setStatus('Боевое действие уже отправлено. Подождите ответ сервера.', false);
+        return;
+      }
+      battleState.actionPending = true;
+      setBattleControlsDisabled(true);
       const body = new URLSearchParams();
       body.set('_csrf', csrf);
       body.set('action', action);
@@ -1735,6 +1871,9 @@
         }
       } catch (error) {
         setStatus('Боевое действие не выполнено.', true);
+        loadBattleState();
+      } finally {
+        battleState.actionPending = false;
       }
     }
 
@@ -2369,6 +2508,15 @@
     }
 
     document.getElementById('pveButton').addEventListener('click', togglePveButton);
+    document.getElementById('questGuideCancelBtn')?.addEventListener('click', cancelQuestGuide);
+    window.addEventListener('pokemon:quest-guide', event => {
+      const detail = event.detail || {};
+      if (detail.action === 'cancel') {
+        cancelQuestGuide();
+        return;
+      }
+      activateQuestGuide(detail);
+    });
     document.getElementById('bugReportCloseBtn')?.addEventListener('click', closeBugReportModal);
     document.getElementById('bugReportCancelBtn')?.addEventListener('click', closeBugReportModal);
     document.getElementById('bugReportSubmitBtn')?.addEventListener('click', submitBugReport);

@@ -5,6 +5,7 @@ namespace Pokemon8\Repository;
 
 use PDO;
 use Pokemon8\Game\PokemonFormCatalog;
+use Pokemon8\Security\PasswordHasher;
 
 final class ProfileRepository
 {
@@ -54,11 +55,25 @@ final class ProfileRepository
         $normalDex = $this->countDistinctPokemon($profileId, 'normal');
         $shinyDex = $this->countDistinctPokemon($profileId, 'shine');
 
+        $settings = $this->profileSettings($profileId);
+        $viewerOwnsProfile = $viewerId === $profileId;
         $formattedUser = $this->formatUser($user, $normalDex, $shinyDex);
-        $party = $this->activeParty($profileId);
-        $awards = $this->presents($profileId, 1);
-        $gifts = $this->presents($profileId, 2);
-        $gymBadges = $this->gymBadges($profileId);
+        $appearance = [
+            'background' => $settings['profileBackground'] !== '' ? $settings['profileBackground'] : 'classic',
+            'frame' => $settings['profileFrame'] !== '' ? $settings['profileFrame'] : 'classic',
+            'title' => $settings['title'],
+        ];
+        if (!$viewerOwnsProfile && !$settings['showOnline']) {
+            $formattedUser['online'] = false;
+            $formattedUser['lastOnline'] = 0;
+        }
+        $partyVisible = $viewerOwnsProfile || $settings['showPartyPublic'];
+        $party = $partyVisible ? $this->activeParty($profileId) : [];
+        $achievementsVisible = $viewerOwnsProfile || $settings['showAchievements'];
+        $giftsVisible = $viewerOwnsProfile || $settings['showGifts'];
+        $awards = $achievementsVisible ? $this->presents($profileId, 1) : [];
+        $gifts = $giftsVisible ? $this->presents($profileId, 2) : [];
+        $gymBadges = $achievementsVisible ? $this->gymBadges($profileId) : [];
         $friends = $this->friends($profileId);
 
         return [
@@ -67,8 +82,21 @@ final class ProfileRepository
             'avatar' => $formattedUser['avatar'],
             'rank' => $formattedUser['rank'],
             'clan' => $formattedUser['clan'],
+            'appearance' => $appearance,
             'party' => $party,
             'activeTeam' => $party,
+            'privacy' => [
+                'showPartyPublic' => $settings['showPartyPublic'],
+                'showOnline' => $settings['showOnline'],
+                'allowPm' => $settings['allowPm'],
+                'allowFriendRequests' => $settings['allowFriendRequests'],
+                'showGifts' => $settings['showGifts'],
+                'showAchievements' => $settings['showAchievements'],
+                'partyVisible' => $partyVisible,
+                'partyHidden' => !$partyVisible,
+                'giftsVisible' => $giftsVisible,
+                'achievementsVisible' => $achievementsVisible,
+            ],
             'awards' => $awards,
             'gifts' => $gifts,
             'gymBadges' => $gymBadges,
@@ -80,9 +108,410 @@ final class ProfileRepository
                 'gifts' => count($gifts),
                 'friends' => count($friends),
             ],
-            'social' => $this->socialState($viewerId, $profileId),
-            'viewerOwnsProfile' => $viewerId === $profileId,
+            'social' => $this->socialState($viewerId, $profileId, $settings),
+            'viewerOwnsProfile' => $viewerOwnsProfile,
         ];
+    }
+
+    public function settingsForUser(int $userId): array
+    {
+        return $this->settingsPayload($userId);
+    }
+
+    public function saveSettings(int $userId, array $input): array
+    {
+        if ($userId <= 0) {
+            return ['ok' => false, 'message' => 'Нужно войти в игру.'];
+        }
+        if (!$this->tableExists('user_settings')) {
+            return ['ok' => false, 'message' => 'Настройки профиля пока недоступны: миграция user_settings не применена.'];
+        }
+
+        $this->ensureSettingsRow($userId);
+        $section = strtolower(trim((string) ($input['section'] ?? '')));
+        if ($section === '' && array_key_exists('show_party_public', $input)) {
+            $section = 'privacy';
+        }
+
+        return match ($section) {
+            'account' => $this->saveAccountSettings($userId, $input),
+            'profile' => $this->saveProfileSettings($userId, $input),
+            'privacy' => $this->savePrivacySettings($userId, $input),
+            'interface' => $this->saveInterfaceSettings($userId, $input),
+            'notifications' => $this->saveNotificationSettings($userId, $input),
+            default => ['ok' => false, 'message' => 'Раздел настроек пока не поддерживается.'],
+        };
+    }
+
+    private function settingsPayload(int $userId): array
+    {
+        $settings = $this->profileSettings($userId);
+        $account = $this->accountInfo($userId);
+        $profile = $this->profileInfo($userId, $settings);
+
+        return $settings + [
+            'account' => $account,
+            'profile' => $profile,
+            'options' => [
+                'themes' => [
+                    ['value' => 'light', 'label' => 'Светлая'],
+                    ['value' => 'dark', 'label' => 'Тёмная'],
+                    ['value' => 'auto', 'label' => 'Авто'],
+                ],
+                'uiSizes' => [
+                    ['value' => 'compact', 'label' => 'Компактный'],
+                    ['value' => 'normal', 'label' => 'Обычный'],
+                    ['value' => 'large', 'label' => 'Крупный'],
+                ],
+                'backgrounds' => [
+                    ['value' => 'classic', 'label' => 'Классический'],
+                    ['value' => 'kanto', 'label' => 'Канто'],
+                    ['value' => 'forest', 'label' => 'Лес'],
+                    ['value' => 'ocean', 'label' => 'Океан'],
+                    ['value' => 'arena', 'label' => 'Арена'],
+                ],
+                'frames' => [
+                    ['value' => 'classic', 'label' => 'Классическая'],
+                    ['value' => 'blue', 'label' => 'Синяя'],
+                    ['value' => 'gold', 'label' => 'Золотая'],
+                    ['value' => 'shadow', 'label' => 'Тёмная'],
+                ],
+                'titles' => $this->availableTitles($userId),
+            ],
+            'future' => [
+                'twoFactor' => false,
+                'telegram' => false,
+                'discord' => false,
+                'vk' => false,
+                'googleAuthenticator' => false,
+                'loginHistory' => false,
+                'activeSessions' => false,
+                'profileLayout' => false,
+            ],
+        ];
+    }
+
+    private function saveAccountSettings(int $userId, array $input): array
+    {
+        $messages = [];
+        $account = $this->accountInfo($userId, true);
+        if ($account === []) {
+            return ['ok' => false, 'message' => 'Аккаунт не найден.'];
+        }
+
+        $newLogin = trim((string) ($input['new_login'] ?? ''));
+        if ($newLogin !== '' && strcasecmp($newLogin, (string) ($account['login'] ?? '')) !== 0) {
+            return [
+                'ok' => false,
+                'message' => 'Смена логина пока выключена: нужно отдельное правило, чтобы не сломать legacy-связи, почту, сделки и логи.',
+                'settings' => $this->settingsPayload($userId),
+            ];
+        }
+
+        $newEmail = $this->normalizeOptionalEmail((string) ($input['new_email'] ?? ''));
+        $repeatEmail = $this->normalizeOptionalEmail((string) ($input['repeat_email'] ?? ''));
+        if ($newEmail !== null || $repeatEmail !== null) {
+            if ($newEmail === null || $repeatEmail === null || strcasecmp($newEmail, $repeatEmail) !== 0) {
+                return ['ok' => false, 'message' => 'Новый email и повтор email должны совпадать.', 'settings' => $this->settingsPayload($userId)];
+            }
+            if (!filter_var($newEmail, FILTER_VALIDATE_EMAIL)) {
+                return ['ok' => false, 'message' => 'Укажи корректный email.', 'settings' => $this->settingsPayload($userId)];
+            }
+            if ($this->emailExists($newEmail, $userId)) {
+                return ['ok' => false, 'message' => 'Этот email уже привязан к другому аккаунту.', 'settings' => $this->settingsPayload($userId)];
+            }
+            $stmt = $this->db->prepare(
+                'UPDATE users SET email = :email, email_verified_at = 0 WHERE id = :id LIMIT 1'
+            );
+            $stmt->execute(['email' => $newEmail, 'id' => $userId]);
+            $messages[] = 'Email сохранён. Подтверждение можно будет подключить отдельным письмом.';
+        }
+
+        $oldPassword = (string) ($input['old_password'] ?? '');
+        $newPassword = (string) ($input['new_password'] ?? '');
+        $repeatPassword = (string) ($input['repeat_password'] ?? '');
+        if ($oldPassword !== '' || $newPassword !== '' || $repeatPassword !== '') {
+            if ($oldPassword === '' || $newPassword === '' || $repeatPassword === '') {
+                return ['ok' => false, 'message' => 'Для смены пароля заполни старый пароль, новый пароль и повтор.', 'settings' => $this->settingsPayload($userId)];
+            }
+            $len = mb_strlen($newPassword, 'UTF-8');
+            if ($len < 6 || $len > 72) {
+                return ['ok' => false, 'message' => 'Новый пароль должен быть от 6 до 72 символов.', 'settings' => $this->settingsPayload($userId)];
+            }
+            if (!hash_equals($newPassword, $repeatPassword)) {
+                return ['ok' => false, 'message' => 'Новый пароль и повтор не совпадают.', 'settings' => $this->settingsPayload($userId)];
+            }
+            $hasher = new PasswordHasher();
+            if (!$hasher->verify($oldPassword, (string) ($account['password'] ?? ''))) {
+                return ['ok' => false, 'message' => 'Старый пароль указан неверно.', 'settings' => $this->settingsPayload($userId)];
+            }
+            $stmt = $this->db->prepare('UPDATE users SET password = :password WHERE id = :id LIMIT 1');
+            $stmt->execute(['password' => $hasher->hash($newPassword), 'id' => $userId]);
+            $messages[] = 'Пароль изменён.';
+        }
+
+        return [
+            'ok' => true,
+            'message' => $messages ? implode(' ', $messages) : 'Данные аккаунта без изменений.',
+            'settings' => $this->settingsPayload($userId),
+        ];
+    }
+
+    private function saveProfileSettings(int $userId, array $input): array
+    {
+        $description = trim((string) ($input['description'] ?? ''));
+        if (mb_strlen($description, 'UTF-8') > 500) {
+            $description = mb_substr($description, 0, 500, 'UTF-8');
+        }
+        $background = $this->choice((string) ($input['profile_background'] ?? 'classic'), ['classic', 'kanto', 'forest', 'ocean', 'arena'], 'classic');
+        $frame = $this->choice((string) ($input['profile_frame'] ?? 'classic'), ['classic', 'blue', 'gold', 'shadow'], 'classic');
+        $title = mb_substr(trim((string) ($input['title'] ?? '')), 0, 64, 'UTF-8');
+
+        $stmt = $this->db->prepare('UPDATE users SET info = :info WHERE id = :id LIMIT 1');
+        $stmt->execute(['info' => $description, 'id' => $userId]);
+
+        $stmt = $this->db->prepare(
+            'UPDATE user_settings
+                SET profile_background = :background,
+                    profile_frame = :frame,
+                    profile_title = :title,
+                    updated_at = :updated
+              WHERE user_id = :user
+              LIMIT 1'
+        );
+        $stmt->execute([
+            'background' => $background,
+            'frame' => $frame,
+            'title' => $title,
+            'updated' => time(),
+            'user' => $userId,
+        ]);
+
+        return ['ok' => true, 'message' => 'Настройки профиля сохранены.', 'settings' => $this->settingsPayload($userId)];
+    }
+
+    private function savePrivacySettings(int $userId, array $input): array
+    {
+        $current = $this->profileSettings($userId);
+        $settings = [
+            'show_online' => $this->boolInput($input, 'show_online', $current['showOnline']),
+            'allow_pm' => $this->boolInput($input, 'allow_pm', $current['allowPm']),
+            'allow_friend_requests' => $this->boolInput($input, 'allow_friend_requests', $current['allowFriendRequests']),
+            'show_gifts' => $this->boolInput($input, 'show_gifts', $current['showGifts']),
+            'show_achievements' => $this->boolInput($input, 'show_achievements', $current['showAchievements']),
+            'show_party_public' => $this->boolInput($input, 'show_party_public', $current['showPartyPublic']),
+        ];
+        $this->updateSettingsColumns($userId, $settings);
+        $this->syncLegacyPartySetting($userId, (bool) $settings['show_party_public']);
+
+        return [
+            'ok' => true,
+            'message' => $settings['show_party_public'] ? 'Настройки приватности сохранены. Команда видна.' : 'Настройки приватности сохранены. Команда скрыта.',
+            'settings' => $this->settingsPayload($userId),
+        ];
+    }
+
+    private function saveInterfaceSettings(int $userId, array $input): array
+    {
+        $current = $this->profileSettings($userId);
+        $this->updateSettingsColumns($userId, [
+            'theme' => $this->choice((string) ($input['theme'] ?? $current['theme']), ['light', 'dark', 'auto'], 'auto'),
+            'ui_size' => $this->choice((string) ($input['ui_size'] ?? $current['uiSize']), ['compact', 'normal', 'large'], 'normal'),
+            'sounds' => $this->boolInput($input, 'sounds', $current['sounds']),
+            'animations' => $this->boolInput($input, 'animations', $current['animations']),
+        ]);
+
+        return ['ok' => true, 'message' => 'Настройки интерфейса сохранены.', 'settings' => $this->settingsPayload($userId)];
+    }
+
+    private function saveNotificationSettings(int $userId, array $input): array
+    {
+        $current = $this->profileSettings($userId);
+        $this->updateSettingsColumns($userId, [
+            'notify_messages' => $this->boolInput($input, 'notify_messages', $current['notifyMessages']),
+            'notify_friends' => $this->boolInput($input, 'notify_friends', $current['notifyFriends']),
+            'notify_gifts' => $this->boolInput($input, 'notify_gifts', $current['notifyGifts']),
+            'notify_clan' => $this->boolInput($input, 'notify_clan', $current['notifyClan']),
+            'notify_system' => $this->boolInput($input, 'notify_system', $current['notifySystem']),
+        ]);
+
+        return ['ok' => true, 'message' => 'Настройки уведомлений сохранены.', 'settings' => $this->settingsPayload($userId)];
+    }
+
+    private function updateSettingsColumns(int $userId, array $columns): void
+    {
+        if ($columns === []) {
+            return;
+        }
+
+        $allowed = [
+            'show_online', 'allow_pm', 'allow_friend_requests', 'show_gifts', 'show_achievements',
+            'show_party_public', 'theme', 'ui_size', 'sounds', 'animations', 'notify_messages',
+            'notify_friends', 'notify_gifts', 'notify_clan', 'notify_system', 'profile_background',
+            'profile_frame', 'profile_title',
+        ];
+        $sets = [];
+        $params = ['user' => $userId, 'updated' => time()];
+        foreach ($columns as $column => $value) {
+            if (!in_array($column, $allowed, true)) {
+                continue;
+            }
+            $sets[] = $column . ' = :' . $column;
+            $params[$column] = is_bool($value) ? ($value ? 1 : 0) : $value;
+        }
+        if ($sets === []) {
+            return;
+        }
+        $sets[] = 'updated_at = :updated';
+
+        $stmt = $this->db->prepare(
+            'UPDATE user_settings SET ' . implode(', ', $sets) . ' WHERE user_id = :user LIMIT 1'
+        );
+        $stmt->execute($params);
+    }
+
+    private function ensureSettingsRow(int $userId): void
+    {
+        if ($userId <= 0 || !$this->tableExists('user_settings')) {
+            return;
+        }
+
+        $legacyParty = true;
+        if ($this->tableExists('user_profile_settings')) {
+            $stmt = $this->db->prepare('SELECT show_party_public FROM user_profile_settings WHERE user_id = :user LIMIT 1');
+            $stmt->execute(['user' => $userId]);
+            $value = $stmt->fetchColumn();
+            if ($value !== false) {
+                $legacyParty = (int) $value === 1;
+            }
+        }
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO user_settings (user_id, show_party_public, updated_at)
+             VALUES (:user, :party, :updated)
+             ON DUPLICATE KEY UPDATE user_id = user_id'
+        );
+        $stmt->execute([
+            'user' => $userId,
+            'party' => $legacyParty ? 1 : 0,
+            'updated' => time(),
+        ]);
+    }
+
+    private function syncLegacyPartySetting(int $userId, bool $showPartyPublic): void
+    {
+        if (!$this->tableExists('user_profile_settings')) {
+            return;
+        }
+        $stmt = $this->db->prepare(
+            'INSERT INTO user_profile_settings (user_id, show_party_public, updated_at)
+             VALUES (:user, :show_party_public, :updated_at)
+             ON DUPLICATE KEY UPDATE show_party_public = VALUES(show_party_public), updated_at = VALUES(updated_at)'
+        );
+        $stmt->execute([
+            'user' => $userId,
+            'show_party_public' => $showPartyPublic ? 1 : 0,
+            'updated_at' => time(),
+        ]);
+    }
+
+    private function boolInput(array $input, string $key, bool $default): bool
+    {
+        if (!array_key_exists($key, $input)) {
+            return $default;
+        }
+        $raw = strtolower(trim((string) $input[$key]));
+        return in_array($raw, ['1', 'true', 'on', 'yes'], true);
+    }
+
+    private function choice(string $value, array $allowed, string $default): string
+    {
+        $value = strtolower(trim($value));
+        return in_array($value, $allowed, true) ? $value : $default;
+    }
+
+    private function normalizeOptionalEmail(string $email): ?string
+    {
+        $email = trim(mb_strtolower($email, 'UTF-8'));
+        return $email === '' || $email === 'none@mail.ru' ? null : $email;
+    }
+
+    private function emailExists(string $email, int $exceptUserId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT 1 FROM users WHERE LOWER(email) = LOWER(:email) AND id != :except LIMIT 1'
+        );
+        $stmt->execute(['email' => $email, 'except' => $exceptUserId]);
+        return (bool) $stmt->fetchColumn();
+    }
+
+    private function accountInfo(int $userId, bool $includePassword = false): array
+    {
+        $columns = $includePassword ? 'id, login, email, email_verified_at, password' : 'id, login, email, email_verified_at';
+        $stmt = $this->db->prepare('SELECT ' . $columns . ' FROM users WHERE id = :id AND activation = 1 LIMIT 1');
+        $stmt->execute(['id' => $userId]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            return [];
+        }
+
+        $email = (string) ($row['email'] ?? '');
+        $payload = [
+            'id' => (int) $row['id'],
+            'login' => (string) $row['login'],
+            'email' => $email,
+            'emailMasked' => $this->maskEmail($email),
+            'emailVerified' => (int) ($row['email_verified_at'] ?? 0) > 0,
+            'twoFactorEnabled' => false,
+            'loginChangeEnabled' => false,
+        ];
+        if ($includePassword) {
+            $payload['password'] = (string) ($row['password'] ?? '');
+        }
+
+        return $payload;
+    }
+
+    private function profileInfo(int $userId, array $settings): array
+    {
+        $stmt = $this->db->prepare('SELECT info, avatars, rang FROM users WHERE id = :id AND activation = 1 LIMIT 1');
+        $stmt->execute(['id' => $userId]);
+        $row = $stmt->fetch() ?: [];
+
+        return [
+            'description' => trim(strip_tags((string) ($row['info'] ?? ''))),
+            'avatarId' => (int) ($row['avatars'] ?? 0),
+            'avatarUploadEnabled' => false,
+            'background' => $settings['profileBackground'],
+            'frame' => $settings['profileFrame'],
+            'title' => $settings['title'],
+            'rankTitle' => (string) ($row['rang'] ?? 'Новичок'),
+        ];
+    }
+
+    private function availableTitles(int $userId): array
+    {
+        $profile = $this->profile($userId, $userId);
+        $user = $profile['user'] ?? [];
+        $raw = array_unique(array_filter([
+            'Тренер',
+            (string) ($user['rank'] ?? ''),
+            (string) ($user['pvpTitle'] ?? ''),
+            (string) ($user['pveTitle'] ?? ''),
+        ]));
+
+        return array_map(static fn (string $title): array => ['value' => $title, 'label' => $title], $raw);
+    }
+
+    private function maskEmail(string $email): string
+    {
+        $email = trim($email);
+        if ($email === '' || !str_contains($email, '@')) {
+            return '';
+        }
+        [$name, $domain] = explode('@', $email, 2);
+        $first = mb_substr($name, 0, 1, 'UTF-8');
+        return $first . '***@' . $domain;
     }
 
     private function formatUser(array $user, int $normalDex, int $shinyDex): array
@@ -130,13 +559,8 @@ final class ProfileRepository
     private function activeParty(int $profileId): array
     {
         $stmt = $this->db->prepare(
-            'SELECT pu.id, pu.basenum, pu.names, pu.lvl, pu.hp_my, pu.hp_max, pu.tips,
-                    COALESCE(ip.id_items, pu.item, 0) AS held_item_id,
-                    held.name AS held_item_name,
-                    held.tittle AS held_item_title
+            'SELECT pu.id, pu.basenum, pu.names, pu.lvl, pu.hp_my, pu.hp_max, pu.tips
                FROM pok_user pu
-          LEFT JOIN items_poke ip ON ip.id_poke = pu.id
-          LEFT JOIN items held ON held.id = COALESCE(ip.id_items, pu.item, 0)
               WHERE pu.users = :user AND pu.active = 1
               ORDER BY pu.startepoke DESC, pu.id ASC
               LIMIT 6'
@@ -158,12 +582,6 @@ final class ProfileRepository
                 'hp' => max(0, (int) $row['hp_my']),
                 'hpMax' => max(1, (int) $row['hp_max']),
                 'tips' => (string) ($row['tips'] ?? 'normal'),
-                'heldItem' => [
-                    'id' => (int) ($row['held_item_id'] ?? 0),
-                    'name' => strip_tags((string) ($row['held_item_name'] ?? '')),
-                    'title' => strip_tags((string) ($row['held_item_title'] ?? '')),
-                    'image' => $this->itemIconPath((int) ($row['held_item_id'] ?? 0)),
-                ],
             ];
         }
 
@@ -196,6 +614,76 @@ final class ProfileRepository
         return $items;
     }
 
+    private function profileSettings(int $profileId): array
+    {
+        $defaults = [
+            'showOnline' => true,
+            'allowPm' => true,
+            'allowFriendRequests' => true,
+            'showGifts' => true,
+            'showAchievements' => true,
+            'showPartyPublic' => true,
+            'theme' => 'auto',
+            'uiSize' => 'normal',
+            'sounds' => true,
+            'animations' => true,
+            'notifyMessages' => true,
+            'notifyFriends' => true,
+            'notifyGifts' => true,
+            'notifyClan' => true,
+            'notifySystem' => true,
+            'profileBackground' => 'classic',
+            'profileFrame' => 'classic',
+            'title' => '',
+        ];
+
+        if ($profileId <= 0) {
+            return $defaults;
+        }
+
+        if ($this->tableExists('user_settings')) {
+            $this->ensureSettingsRow($profileId);
+            $stmt = $this->db->prepare('SELECT * FROM user_settings WHERE user_id = :user LIMIT 1');
+            $stmt->execute(['user' => $profileId]);
+            $row = $stmt->fetch();
+            if ($row) {
+                return [
+                    'showOnline' => (int) ($row['show_online'] ?? 1) === 1,
+                    'allowPm' => (int) ($row['allow_pm'] ?? 1) === 1,
+                    'allowFriendRequests' => (int) ($row['allow_friend_requests'] ?? 1) === 1,
+                    'showGifts' => (int) ($row['show_gifts'] ?? 1) === 1,
+                    'showAchievements' => (int) ($row['show_achievements'] ?? 1) === 1,
+                    'showPartyPublic' => (int) ($row['show_party_public'] ?? 1) === 1,
+                    'theme' => (string) ($row['theme'] ?? 'auto'),
+                    'uiSize' => (string) ($row['ui_size'] ?? 'normal'),
+                    'sounds' => (int) ($row['sounds'] ?? 1) === 1,
+                    'animations' => (int) ($row['animations'] ?? 1) === 1,
+                    'notifyMessages' => (int) ($row['notify_messages'] ?? 1) === 1,
+                    'notifyFriends' => (int) ($row['notify_friends'] ?? 1) === 1,
+                    'notifyGifts' => (int) ($row['notify_gifts'] ?? 1) === 1,
+                    'notifyClan' => (int) ($row['notify_clan'] ?? 1) === 1,
+                    'notifySystem' => (int) ($row['notify_system'] ?? 1) === 1,
+                    'profileBackground' => (string) ($row['profile_background'] ?? 'classic'),
+                    'profileFrame' => (string) ($row['profile_frame'] ?? 'classic'),
+                    'title' => (string) ($row['profile_title'] ?? ''),
+                ];
+            }
+        }
+
+        if ($this->tableExists('user_profile_settings')) {
+            $stmt = $this->db->prepare(
+                'SELECT show_party_public FROM user_profile_settings WHERE user_id = :user LIMIT 1'
+            );
+            $stmt->execute(['user' => $profileId]);
+            $value = $stmt->fetchColumn();
+            if ($value !== false) {
+                $defaults['showPartyPublic'] = (int) $value === 1;
+            }
+        }
+
+        return $defaults;
+    }
+
     private function friends(int $profileId): array
     {
         $stmt = $this->db->prepare(
@@ -221,7 +709,7 @@ final class ProfileRepository
         return $items;
     }
 
-    private function socialState(int $viewerId, int $profileId): array
+    private function socialState(int $viewerId, int $profileId, array $settings): array
     {
         $status = 'none';
         if ($viewerId <= 0 || $profileId <= 0) {
@@ -241,9 +729,9 @@ final class ProfileRepository
             'profileId' => $profileId,
             'status' => $status,
             'own' => $status === 'self',
-            'canMessage' => $viewerId > 0 && $profileId > 0 && $viewerId !== $profileId,
+            'canMessage' => $viewerId > 0 && $profileId > 0 && $viewerId !== $profileId && $settings['allowPm'],
             'canBattle' => $viewerId > 0 && $profileId > 0 && $viewerId !== $profileId,
-            'canRequestFriend' => $status === 'none',
+            'canRequestFriend' => $status === 'none' && $settings['allowFriendRequests'],
             'canAcceptFriend' => $status === 'incoming',
             'canRemoveFriend' => $status === 'friends',
         ];
@@ -305,11 +793,15 @@ final class ProfileRepository
         $badges = [];
         foreach ($stmt->fetchAll() ?: [] as $row) {
             $iconItemId = (int) ($row['icon_item_id'] ?? 0);
+            $key = (string) $row['badge_key'];
+            $title = (string) $row['title'];
+            $leader = (string) ($row['leader_name'] ?? '');
             $badges[] = [
                 'id' => (int) $row['id'],
-                'key' => (string) $row['badge_key'],
-                'title' => (string) $row['title'],
-                'leader' => (string) ($row['leader_name'] ?? ''),
+                'key' => $key,
+                'title' => $title,
+                'leader' => $leader,
+                'description' => $this->gymBadgeDescription($key, $title, $leader),
                 'location' => (string) ($row['location_name'] ?? ''),
                 'locationId' => (int) ($row['location_id'] ?? 0),
                 'iconItemId' => $iconItemId,
@@ -333,6 +825,34 @@ final class ProfileRepository
         }
 
         return $badges;
+    }
+
+    private function gymBadgeDescription(string $key, string $title, string $leader): string
+    {
+        $leaderLabel = match ($key) {
+            'boulder' => 'Брока',
+            'cascade' => 'Мисти',
+            'thunder' => 'Лейтенанта Сёрджа',
+            'rainbow' => 'Эрики',
+            'soul' => 'Коги',
+            'marsh' => 'Сабрины',
+            'volcano' => 'Блейна',
+            'earth' => 'Джованни',
+            default => $leader,
+        };
+        $type = match ($key) {
+            'boulder' => 'каменного гим-лидера',
+            'cascade' => 'водного гим-лидера',
+            'thunder' => 'электрического гим-лидера',
+            'rainbow' => 'травяного гим-лидера',
+            'soul' => 'ядовитого гим-лидера',
+            'marsh' => 'психического гим-лидера',
+            'volcano' => 'огненного гим-лидера',
+            'earth' => 'земляного гим-лидера',
+            default => 'гим-лидера',
+        };
+
+        return $leaderLabel !== '' ? $title . ' — значок ' . $type . ' ' . $leaderLabel . '.' : $title . ' — значок ' . $type . '.';
     }
 
     private function countDistinctPokemon(int $profileId, string $tips): int

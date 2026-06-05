@@ -1,6 +1,6 @@
 # PokemonChic Current Project Context
 
-Обновлено: 2026-05-27.
+Обновлено: 2026-06-05.
 
 Этот файл - короткий источник правды для дальнейшей разработки. Если чат или старые ТЗ противоречат этому файлу, использовать этот файл и живой код.
 
@@ -10,6 +10,7 @@
 - `REWRITE.md` - исторический документ, не текущая карта работ.
 - Старые QA-отчёты - только как архив багов, не как актуальную архитектуру.
 - Legacy PHP-файлы - только как справочник поведения при переносе, не как основной слой.
+- Новые функции нельзя строить на legacy как на runtime-источнике. Если модуль ещё читает legacy-конфиг, это считается долгом переноса, а не финальной архитектурой.
 - Серые legacy UI-макеты - только визуальная референция, новый UI должен жить в текущем игровом стиле.
 - `tmp/`, локальные скриншоты, прототипы, debug/log txt - не считать частью продукта.
 
@@ -23,6 +24,7 @@
 - Основной игровой shell: `/game`, `views/game-start.php`, `public/js/*`, `public/css/*`.
 - `/game` view больше не держит основной inline-runtime: игровая логика вынесена в `public/js/game-start-runtime.js`, PHP передаёт только JSON-конфиг `gameRuntimeConfig`; чатовые стили вынесены в `public/css/chat.css`.
 - Админка/GM Center: `/game/admin`, `views/game-admin.php`, `public/js/admin-panel.js`, `public/css/admin-panel.css`, `/api/admin/gm-center`, `/api/admin/qa-seed-tools`.
+- Простая рабочая админка: вкладка `Мастер контента` в `/game/admin`, отдельные файлы `public/js/admin-content-wizard.js` и `public/css/admin-content-wizard.css`. Это верхний слой для владельца игры: создание предметов, подготовка квестов/NPC и карта ассетов без ручного поиска таблиц.
 - `AdminRepository` уже частично разнесён на traits: commission, GM Center, QA Seed Tools, events/tournaments/medals; следующие безопасные кандидаты - pokemon grant, moderation/users, legacy-map helpers.
 - Карта legacy -> новый слой: `src/Game/GameRoutes.php`.
 - Миграции: `database/migrations/*.sql`; новые изменения применять в живую БД и оставлять идемпотентными.
@@ -40,7 +42,7 @@
   - `tools/beta_data_audit.php --fix-safe` - только безопасные исправления: merge одинаковых item stacks, expire due commission/PvP.
   - `tools/background_jobs.php --status|--dry-run|--job=<name>` - ручной запуск фоновых задач;
   - `tools/db_integrity_smoke.php [--fix-safe]` - integrity/anti-dupe проверки.
-- Последний статус миграций: `74/74`, `pending=0`, `dirty=0`, `failed=0`.
+- Последний статус миграций: `78/78`, `pending=0`, `dirty=0`, `failed=0`.
 - Последний beta audit: `P0=0`, `P1=0`; `WARN` остаётся по историческим незавершённым rows в `battles`.
 - Комиссионная лавка резервирует покемонов/яйца через `commission.reserve_user_id`, сейчас это аккаунт `Система`, а не живой игрок `id=3`; дополнительно ведётся ledger `market_reserved_objects`.
 - Safe Storage: `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`, `SafeStorageRepository`, `tools/safe_storage_smoke.php`.
@@ -49,15 +51,15 @@
 - Notifications + Mail: `game_notifications` хранит `sender_id/source_type/source_id/email_status/email_sent_at`, системный отправитель берётся из аккаунта `Система`, `MessageRepository::sendSystem()` пишет внутренние письма в `sends`, `Mailer` поддерживает `mail/smtp/log` transport и delivery-log в `mail_delivery_logs`.
 - Event notifications: `GameEventRepository` создаёт одноразовые push-уведомления по активным событиям через `game_event_notification_receipts`, без дублей при повторных `/api/events/active`.
 - Background jobs: `background_job_runs`, `background_job_logs`, `BackgroundJobRepository`, `tools/background_jobs.php`, `tools/background_jobs_smoke.php`.
-- Текущие jobs: `expire_market`, `pvp_timeouts`, `stuck_battles` (warning-only), `temporary_items`, `transport_flights` (scan), `event_cleanup`, `safe_storage_status`, `economy_guard`.
+- Текущие jobs: `expire_market`, `pvp_timeouts`, `stuck_battles` (warning-only, считает stale по `COALESCE(NULLIF(times,0), NULLIF(time,0), 0)`), `temporary_items`, `transport_flights` (scan), `event_cleanup`, `safe_storage_status`, `economy_guard`.
 - Economy Guard: `economy_guard_alerts`, `EconomyGuardRepository`, `tools/economy_guard_smoke.php`, background job `economy_guard`, admin API `/api/admin/economy-guard/alerts|scan|review`; ловит suspicious trades, massive money gain, transfer abuse и fake market prices.
 - Battle IDs: `battle_id_sequence` резервирует уникальные положительные `battles.id` для PvE/PvP/Boss на старой схеме без `AUTO_INCREMENT`; duplicate positive ids считаются P1.
 - Battle Replay: `battle_replays`, `battle_replay_events`, `BattleReplayRepository`, `/api/battle/replay`, `/api/admin/battle-replays`; пишет snapshots, round logs, actions, random rolls и damage audit для QA/спорных боёв.
 - Admin/GM Center health: `/api/admin/gm-center`, `AdminGmCenterRepositoryTrait`, `/game/admin` dashboard; единый payload для health cards, active/stuck battles, market moderation, replay tools, background jobs, migration status, safe storage, moderation summary и unified logs.
 - QA Seed Tools: `AdminQaSeedRepositoryTrait`, `/api/admin/qa-seed-tools`, `/api/admin/qa-seed-tools/run`, блок в GM Center для `setup test accounts`, `give teams`, `give items`, `reset market`, `run smokes`; действия пишутся в `admin_audit_log` как `qa_seed.*`.
 - Bug Reporter: `bug_reports`, `bug_report_events`, `BugReportRepository`, `/api/bug-reports`, `/api/admin/bug-reports`, кнопка `Report bug` в `/game`; report прикладывает page/game state, battle id/battle snapshot, client logs и tail server logs. GM Center показывает open/critical reports, вкладка `Bug Reports` даёт фильтры, inspector и смену статуса.
-- DB Integrity: `data_integrity_logs`, `IntegrityRepository`, `tools/db_integrity_smoke.php`. `--fix-safe` чинит только очевидно безопасное: `items_users.count<=0`, orphan held rows, finished active transformations, expired PvP requests, `battles.id<=0` и stale user battle flags.
-- Текущие integrity WARN: orphan legacy owners и исторические unfinished battles; P0/P1 после safe-fix нет.
+- DB Integrity: `data_integrity_logs`, `IntegrityRepository`, `tools/db_integrity_smoke.php`. `--fix-safe` чинит только очевидно безопасное: `items_users.count<=0`, orphan held rows, finished active transformations, expired PvP requests, `battles.id<=0`, stale user battle flags, `hp_my > hp_max` и реальные `pok_user` с невозможным level/stat через пересчёт по `poke_base + IV/EV + har`.
+- Текущий integrity smoke после safe-fix: `P0=0`, `P1=0`, `WARN=4` (`items.orphan_user=38`, `pokemon.invalid_owner=63`, `eggs.invalid_owner=1`, `battle.active_unfinished=208`).
 - Дампы и backup-файлы не коммитить: `storage/backups/` в `.gitignore`.
 
 ## Основные Рабочие Системы
@@ -65,14 +67,16 @@
 - Auth: регистрация без обязательной почты, password reset, techwork, роли через users/admin repository.
 - Game state/location: `/api/game/state`, `/api/map/move`, `LocationStateService`, `MapMoveService`.
 - NPC/quests: `/api/location/npc`, `/api/quests`, `/api/quests/track`, `NpcDialogService`, `QuestRepository`, `quest_definitions`, `quest_steps`, `user_quest_tracking`.
+- NPC migration rule: all quest NPC currently listed in `config/location_content.php` are handled by the new NPC engine without direct legacy PHP execution. Story NPC coverage includes Алабастия, Оук, Билли, Стив, Кэрол, Старая женщина, Цветочный прилавок, Амира, Айрен, Articuno, Гарен and праздничный зал. Event/tournament NPC helpers already started moving into `NpcDialogEventTrait`. Legacy `include/rooms/npc/*.php` remains reference-only.
+- Owner-facing project map: `PROJECT_MAP_RU.md` is the short practical guide for where to add items, pictures, NPC, quests, UI and code. `PROJECT_STRUCTURE_RU.md` remains the deeper technical map and refactor reference.
 - First Player Experience: квесты `1 -> 101 -> 102 -> 103` ведут игрока через Оука, стартера, Дорогу 1, первый PvE бой, Вертанию и первый транспорт; smoke `tools/fpe_quest_smoke.php`.
-- Quests minimum: стартовые/battle/reward/cooldown/repeatable сценарии покрыты `tools/quests_minimum_smoke.php`; ежедневный Metapod-квест нельзя перезапустить во время cooldown, после истечения он снова становится `available`; журнал квестов отдаёт progress/reward_view/tracked state.
+- Quests minimum: стартовые/battle/reward/cooldown/repeatable сценарии покрыты `tools/quests_minimum_smoke.php`; ежедневный Metapod-квест нельзя перезапустить во время cooldown, после истечения он снова становится `available`; цепочка `Рассказ Спайка` покрыта полным NPC-flow `Спайк -> Старая женщина -> Амира -> Айрен -> Articuno -> Айрен` с reward-flow; журнал квестов отдаёт progress/reward_view/tracked/navigation state.
 - NPC + Locations: routes/map transitions/wild encounters/blocked routes/transport NPC/ship/flight smoke покрыты `tools/location_npc_transport_smoke.php`.
-- PvE/PvP battle: `/api/battle/pve/*`, `/api/battle/pvp/*`, `BattleEngineService`, `BattleRepository`; активный бой выбирается строго по флагу `pve/pvp` и `batl_tip`, чтобы PvE catch не попадал в PvP-row при legacy-дублях id.
+- PvE/PvP battle: `/api/battle/pve/*`, `/api/battle/pvp/*`, `BattleEngineService`, `BattleRepository`; активный бой выбирается строго по флагу `pve/pvp` и `batl_tip`, чтобы PvE catch не попадал в PvP-row при legacy-дублях id. PvE mutating actions защищены per-battle mutex от fast double-click, а `BattleRepository::findPokemon()` нормализует невозможные player stats в runtime, чтобы старые грязные `pok_user` не ломали damage/Primal/Mega displays.
 - Battle replay viewer: игроки открывают свой replay через `/api/battle/replay`; админы смотрят список и детали через вкладку `Повторы боёв` в GM Center.
 - Bug Reporter UI: игрок отправляет report прямо из нижней панели `/game`; mobile actionbar должен быть высотой `auto`, чтобы quick controls, главное меню и system-status не перекрывали друг друга.
 - GM Center dashboard: админы видят health/status rows, QA Seed Tools, активные и зависшие бои, market moderation, replay summary, jobs/migrations/safe storage и последние логи на первой вкладке `/game/admin`; smoke `tools/admin_gm_center_smoke.php`.
-- Battle transformations: Mega/Primal через `BattleTransformationCatalog`; формы боевые, не постоянные в `pok_user.basenum`.
+- Battle transformations: Mega/Primal через `BattleTransformationCatalog`; формы боевые, не постоянные в `pok_user.basenum`. Проверка `tools/battle_transformation_stats_smoke.php` подтверждает sane stats: Primal Kyogre `342 HP / 354 Atk / 431 SAtk`, Primal Groudon `342 HP / 479 Atk`, Mega Rayquaza `352 HP / 479 Atk`.
 - Inventory/items: `/api/inventory/page`, `/battle`, `/equip`, `/unequip`, `/use-target`, `/open-gift`, `InventoryRepository`.
 - Held items metadata: `item_gameplay_metadata` is source of truth for `item_target_rules`; `equip_held` replacement returns old held item to inventory. Effects can be `implemented`, `visual_only`, `todo`.
 - Gifts/rewards: `/api/inventory/open-gift` блокирует gift row через `FOR UPDATE`, считает loot table, начисляет награды через `RewardRepository::grantPipeline()` и списывает подарок только после успешного начисления.
@@ -116,7 +120,7 @@
 ## Актуальные UI-Системы
 
 - `/game` - основной экран и overlays.
-- `/game/admin` - рабочий GM Center; legacy-карта должна быть только отдельной вкладкой.
+- `/game/admin` - рабочий GM Center + `Мастер контента`; legacy-карта должна быть только отдельной вкладкой, а обычная работа с контентом должна начинаться с мастера.
 - `/game` Bug Reporter - кнопка `Report bug` открывает модалку, прикладывает state/battle/client logs/server logs и отправляет report без перезагрузки.
 - `/game/commission` и overlay на `/game` - новая комиссионная лавка.
 - `/game/items` - новый инвентарь.

@@ -918,12 +918,12 @@ final class AdminRepository
         $har = max(1, (int) ($payload['har'] ?? 1));
         $nature = $this->rowById('har', 'id_har', $har) ?: ['atk' => 1, 'def' => 1, 'satk' => 1, 'sdef' => 1, 'speed' => 1];
         $iv = [
-            'hp' => $this->grantInt($payload, 'hp_iv', 1, 0, 9999),
-            'atk' => $this->grantInt($payload, 'atk_iv', 1, 0, 9999),
-            'def' => $this->grantInt($payload, 'def_iv', 1, 0, 9999),
-            'satk' => $this->grantInt($payload, 'satk_iv', 1, 0, 9999),
-            'sdef' => $this->grantInt($payload, 'sdef_iv', 1, 0, 9999),
-            'speed' => $this->grantInt($payload, 'speed_iv', 1, 0, 9999),
+            'hp' => $this->grantInt($payload, 'hp_iv', 1, 0, 31),
+            'atk' => $this->grantInt($payload, 'atk_iv', 1, 0, 31),
+            'def' => $this->grantInt($payload, 'def_iv', 1, 0, 31),
+            'satk' => $this->grantInt($payload, 'satk_iv', 1, 0, 31),
+            'sdef' => $this->grantInt($payload, 'sdef_iv', 1, 0, 31),
+            'speed' => $this->grantInt($payload, 'speed_iv', 1, 0, 31),
         ];
         $ev = [
             'hp' => $this->grantInt($payload, 'hp_ev', 0, 0, 252),
@@ -948,14 +948,14 @@ final class AdminRepository
             'sdef' => $calcStat((int) $base['sdef'], $iv['sdef'], $ev['sdef'], (float) $nature['sdef'], $level),
             'speed' => $calcStat((int) $base['speed'], $iv['speed'], $ev['speed'], (float) $nature['speed'], $level),
         ];
-        $allStats = $this->grantInt($payload, 'stat_all', 0, 0, 9999);
+        $allStats = $this->grantInt($payload, 'stat_all', 0, 0, 1000);
         $stats = [
-            'hp' => $this->grantInt($payload, 'stat_hp', $allStats > 0 ? $allStats : $calculated['hp'], 1, 9999),
-            'atk' => $this->grantInt($payload, 'stat_atk', $allStats > 0 ? $allStats : $calculated['atk'], 1, 9999),
-            'def' => $this->grantInt($payload, 'stat_def', $allStats > 0 ? $allStats : $calculated['def'], 1, 9999),
-            'satk' => $this->grantInt($payload, 'stat_satk', $allStats > 0 ? $allStats : $calculated['satk'], 1, 9999),
-            'sdef' => $this->grantInt($payload, 'stat_sdef', $allStats > 0 ? $allStats : $calculated['sdef'], 1, 9999),
-            'speed' => $this->grantInt($payload, 'stat_speed', $allStats > 0 ? $allStats : $calculated['speed'], 1, 9999),
+            'hp' => $this->grantInt($payload, 'stat_hp', $allStats > 0 ? $allStats : $calculated['hp'], 1, 1000),
+            'atk' => $this->grantInt($payload, 'stat_atk', $allStats > 0 ? $allStats : $calculated['atk'], 1, 1000),
+            'def' => $this->grantInt($payload, 'stat_def', $allStats > 0 ? $allStats : $calculated['def'], 1, 1000),
+            'satk' => $this->grantInt($payload, 'stat_satk', $allStats > 0 ? $allStats : $calculated['satk'], 1, 1000),
+            'sdef' => $this->grantInt($payload, 'stat_sdef', $allStats > 0 ? $allStats : $calculated['sdef'], 1, 1000),
+            'speed' => $this->grantInt($payload, 'stat_speed', $allStats > 0 ? $allStats : $calculated['speed'], 1, 1000),
         ];
         $hpCurrent = $this->grantInt($payload, 'hp_my', $stats['hp'], 0, $stats['hp']);
         $tips = $shiny ? 'shine' : mb_substr(trim((string) ($payload['tips'] ?? 'normal')), 0, 10);

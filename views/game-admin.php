@@ -3,6 +3,8 @@ use Pokemon8\View\View;
 
 $adminCssVersion = @filemtime(__DIR__ . '/../public/css/admin-panel.css') ?: time();
 $adminJsVersion = @filemtime(__DIR__ . '/../public/js/admin-panel.js') ?: time();
+$contentWizardCssVersion = @filemtime(__DIR__ . '/../public/css/admin-content-wizard.css') ?: time();
+$contentWizardJsVersion = @filemtime(__DIR__ . '/../public/js/admin-content-wizard.js') ?: time();
 ?>
 <!doctype html>
 <html lang="ru">
@@ -11,6 +13,7 @@ $adminJsVersion = @filemtime(__DIR__ . '/../public/js/admin-panel.js') ?: time()
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Админка - Pokemon 8.0</title>
   <link rel="stylesheet" href="/public/css/admin-panel.css?v=<?= (int) $adminCssVersion ?>">
+  <link rel="stylesheet" href="/public/css/admin-content-wizard.css?v=<?= (int) $contentWizardCssVersion ?>">
 </head>
 <body>
   <main class="admin-shell" data-csrf="<?= View::e($csrf) ?>">
@@ -39,6 +42,7 @@ $adminJsVersion = @filemtime(__DIR__ . '/../public/js/admin-panel.js') ?: time()
       <aside class="admin-card admin-nav" id="adminNav" aria-label="Разделы админки">
         <span class="admin-nav-group">Операции</span>
         <button type="button" class="is-active" data-admin-tab="dashboard">Дашборд</button>
+        <button type="button" data-admin-tab="content_wizard">Мастер контента</button>
         <button type="button" data-admin-tab="users">Пользователи</button>
         <button type="button" data-admin-tab="commission">Комиссионная лавка</button>
         <button type="button" data-admin-tab="economy_guard">Economy Guard</button>
@@ -77,7 +81,8 @@ $adminJsVersion = @filemtime(__DIR__ . '/../public/js/admin-panel.js') ?: time()
         </div>
         <div class="admin-status" id="adminStatus"></div>
         <form class="admin-filterbar" id="adminFilterForm" hidden></form>
-        <div class="admin-table-wrap">
+        <div class="admin-custom-workspace" id="adminCustomWorkspace" hidden></div>
+        <div class="admin-table-wrap" id="adminTableWrap">
           <table class="admin-table" id="adminTable">
             <thead></thead>
             <tbody></tbody>
@@ -107,6 +112,7 @@ $adminJsVersion = @filemtime(__DIR__ . '/../public/js/admin-panel.js') ?: time()
       </aside>
     </section>
   </main>
+  <script src="/public/js/admin-content-wizard.js?v=<?= (int) $contentWizardJsVersion ?>"></script>
   <script src="/public/js/admin-panel.js?v=<?= (int) $adminJsVersion ?>"></script>
 </body>
 </html>

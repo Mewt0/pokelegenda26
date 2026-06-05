@@ -271,9 +271,9 @@ final class MessageRepository
             'INSERT INTO mail_message_state (message_id, user_id, folder, read_at, archived_at, deleted_at, created_at, updated_at)
              VALUES (:message, :user, :folder, :read_at, :archived_at, :deleted_at, :created_at, :updated_at)
              ON DUPLICATE KEY UPDATE
-                read_at = IF(:read_at_update > 0, :read_at_update, read_at),
-                archived_at = IF(:archived_at_update > 0, :archived_at_update, archived_at),
-                deleted_at = IF(:deleted_at_update > 0, :deleted_at_update, deleted_at),
+                read_at = IF(:read_at_update_check > 0, :read_at_update_value, read_at),
+                archived_at = IF(:archived_at_update_check > 0, :archived_at_update_value, archived_at),
+                deleted_at = IF(:deleted_at_update_check > 0, :deleted_at_update_value, deleted_at),
                 updated_at = :updated_at_update'
         );
         $stmt->execute([
@@ -285,9 +285,12 @@ final class MessageRepository
             'deleted_at' => $deletedAt,
             'created_at' => $now,
             'updated_at' => $now,
-            'read_at_update' => $readAt,
-            'archived_at_update' => $archivedAt,
-            'deleted_at_update' => $deletedAt,
+            'read_at_update_check' => $readAt,
+            'read_at_update_value' => $readAt,
+            'archived_at_update_check' => $archivedAt,
+            'archived_at_update_value' => $archivedAt,
+            'deleted_at_update_check' => $deletedAt,
+            'deleted_at_update_value' => $deletedAt,
             'updated_at_update' => $now,
         ]);
     }

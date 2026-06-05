@@ -14,13 +14,15 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <title>Pokemon 8.0 - Игровой мир</title>
   <link rel="stylesheet" href="/public/css/game-start.css?v=20260526-pokemon-drag3">
   <link rel="stylesheet" href="/public/css/chat.css?v=20260527-split1">
-  <link rel="stylesheet" href="/public/css/game-shell.css?v=20260527-topbar-tools">
+  <link rel="stylesheet" href="/public/css/game-shell.css?v=20260603-quest-guide">
   <link rel="stylesheet" href="/public/css/game-battle-dock.css?v=20260527-battle-replay">
   <link rel="stylesheet" href="/public/css/player-menu.css?v=20260527-breeding-popup2">
-  <link rel="stylesheet" href="/public/css/trainer-profile-window.css?v=20260527-social-polish9">
+  <link rel="stylesheet" href="/public/css/trainer-profile-window.css?v=20260605-card-appearance1">
+  <link rel="stylesheet" href="/public/css/profile-settings-modal.css?v=20260603-profile-settings">
   <link rel="stylesheet" href="/public/css/game-market-overlay.css?v=20260528-fix2">
-  <link rel="stylesheet" href="/public/css/commission-market.css?v=20260527-my-lots">
-  <link rel="stylesheet" href="/public/css/quest-journal.css?v=20260527-quest-mockup2">
+  <link rel="stylesheet" href="/public/css/commission-market.css?v=20260603-layout-fix">
+  <link rel="stylesheet" href="/public/css/mail-overlay.css?v=20260603-game-mail3">
+  <link rel="stylesheet" href="/public/css/quest-journal.css?v=20260603-quest-guide">
 </head>
 <body>
   <main class="world game-shell" data-csrf="<?= View::e($csrf) ?>" data-user-id="<?= (int) ($userId ?? 0) ?>">
@@ -45,6 +47,14 @@ $itemIconIndex = is_file($itemIconIndexPath)
       <div class="travel-line"></div>
       <div class="moves travel-buttons" id="moves"></div>
       <div class="travel-line"></div>
+    </section>
+
+    <section class="quest-guide-banner glass-card" id="questGuideBanner" hidden aria-live="polite">
+      <div class="quest-guide-copy">
+        <b id="questGuideTitle">Маршрут к цели</b>
+        <span id="questGuideText">Подсветка включена.</span>
+      </div>
+      <button type="button" id="questGuideCancelBtn">Отменить помощь</button>
     </section>
 
     <section class="main-grid">
@@ -86,7 +96,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
         <a href="/game/quests" data-open-quests><img src="/public/img/ui/menu-quests.png" alt="">Квесты</a>
         <a href="/game/battle/pvp"><img src="/public/img/ui/menu-battle.png" alt="">Бои</a>
         <a href="/game/tournaments"><img src="/public/img/ui/menu-battle.png" alt="">Турниры</a>
-        <a href="/game/messages"><img src="/public/img/ui/menu-mail.png" alt="">Почта</a>
+        <a href="/game/messages" data-open-mail><img src="/public/img/ui/menu-mail.png" alt="">Почта</a>
       </div>
       <div class="system-status">
         <?php if (!empty($isAdmin)): ?>
@@ -95,6 +105,14 @@ $itemIconIndex = is_file($itemIconIndexPath)
         <div class="game-tools-menu" id="gameToolsMenu">
           <button type="button" class="settings-btn" id="gameToolsBtn" aria-label="Настройки" aria-haspopup="true" aria-expanded="false">⚙</button>
           <div class="game-tools-dropdown" id="gameToolsDropdown" role="menu" aria-hidden="true">
+            <label class="game-tools-toggle" role="menuitem">
+              <input type="checkbox" id="profileShowPartyToggle">
+              <span>
+                <b>Показывать команду</b>
+                <em>в тренер-карте</em>
+              </span>
+            </label>
+            <div class="game-tools-status" id="profilePrivacyStatus" aria-live="polite"></div>
             <button type="button" id="bugReportBtn" role="menuitem">
               <span class="game-tools-icon" aria-hidden="true">⚑</span>
               <span>Report bug</span>
@@ -214,6 +232,12 @@ $itemIconIndex = is_file($itemIconIndexPath)
     $commissionMode = 'overlay';
     $commissionRootId = 'commissionOverlay';
     require APP_ROOT . '/views/components/commission-market-panel.php';
+  ?>
+  <?php
+    $mailMode = 'overlay';
+    $mailRootId = 'mailOverlay';
+    $prefillRecipient = '';
+    require APP_ROOT . '/views/components/mail-panel.php';
   ?>
   <?php
     $questMode = 'overlay';
@@ -451,15 +475,17 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <script type="application/json" id="gameRuntimeConfig">
     <?= json_encode(['itemIconIndex' => $itemIconIndex], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}' ?>
   </script>
-  <script src="/public/js/game-start-runtime.js?v=20260527-split1"></script>
-  <script src="/public/js/trainer-profile-window.js?v=20260527-social-polish5"></script>
-  <script src="/public/js/chat.js?v=20260525-trainer-card-hover"></script>
-  <script src="/public/js/player-menu.js?v=20260527-breeding-popup2"></script>
-  <script src="/public/js/game-toolbar.js?v=20260527-topbar-tools"></script>
+  <script src="/public/js/game-start-runtime.js?v=20260603-quest-guide"></script>
+  <script src="/public/js/trainer-profile-window.js?v=20260605-card-appearance1"></script>
+  <script src="/public/js/profile-settings-modal.js?v=20260603-profile-settings"></script>
+  <script src="/public/js/chat.js?v=20260603-mail-overlay"></script>
+  <script src="/public/js/player-menu.js?v=20260603-profile-actions"></script>
+  <script src="/public/js/game-toolbar.js?v=20260603-profile-privacy"></script>
   <script src="/public/js/dex-overlay.js?v=20260525-dex-filters"></script>
   <script src="/public/js/game-market-overlay.js?v=20260528-fix2"></script>
   <script src="/public/js/commission-market.js?v=20260527-my-lots"></script>
-  <script src="/public/js/quest-journal.js?v=20260527-quest-mockup"></script>
+  <script src="/public/js/mail-overlay.js?v=20260603-game-mail3"></script>
+  <script src="/public/js/quest-journal.js?v=20260603-quest-guide"></script>
 
 </body>
 </html>
