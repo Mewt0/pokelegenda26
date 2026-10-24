@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Pokemon8\Game;
 
 use Pokemon8\Repository\ChatRepository;
+use Pokemon8\Repository\PokemonRepository;
 use Pokemon8\Repository\UserRepository;
 use Pokemon8\Security\Session;
 
@@ -17,6 +18,7 @@ final class ChatService
 
     public function __construct(
         private ChatRepository $chatRepository,
+        private PokemonRepository $pokemonRepository,
         private UserRepository $userRepository,
         private Session $session
     ) {
@@ -25,15 +27,29 @@ final class ChatService
     public function getMessages(int $userId, int $roomId, int $afterId = 0): array
     {
         $messages = $this->chatRepository->findMessages($userId, $roomId, $afterId);
+        $messages = array_values(array_filter($messages, function ($msg): bool {
+            if ((int) ($msg['tipe'] ?? 0) !== self::TIPE_CLAN || (int) ($msg['private'] ?? 0) === 1) {
+                return true;
+            }
+
+            $viewerClan = (int) ($msg['viewer_clan_id'] ?? 0);
+            $authorClan = (int) ($msg['author_clan_id'] ?? 0);
+            return $viewerClan > 0 && $viewerClan === $authorClan;
+        }));
 
         return array_map(function ($msg) {
+            $text = self::normalizePokemonMentions((string) $msg['text']);
+            $authorId = (int) ($msg['resolved_author_id'] ?? $msg['author_id'] ?? 0);
+            $cards = $this->pokemonCardsForMessage($text, $authorId);
             return [
                 'id'          => (int) $msg['id'],
-                'author_id'   => (int) ($msg['resolved_author_id'] ?? $msg['author_id'] ?? 0),
+                'author_id'   => $authorId,
                 'author_name' => $msg['author_name'] ?? $msg['author'] ?? 'System',
                 'to_id'       => (int) $msg['userto'],
                 'to_name'     => $msg['to_name'] ?? '',
-                'text'        => $msg['text'],
+                'text'        => $text,
+                'pokemon_card' => $cards[0] ?? null,
+                'pokemon_cards' => $cards,
                 'tipe'        => (int) $msg['tipe'],
                 'private'     => (int) $msg['private'] === 1,
                 'room'        => (int) $msg['room'],
@@ -45,6 +61,16 @@ final class ChatService
     public function latestVisibleMessageId(int $userId, int $roomId): int
     {
         return $this->chatRepository->latestVisibleMessageId($userId, $roomId);
+    }
+
+    public function teamPokemonForMention(int $userId): array
+    {
+        return $this->pokemonRepository->listChatMentionTeam($userId);
+    }
+
+    public function canMentionPokemon(int $userId, int $pokemonId): bool
+    {
+        return $pokemonId > 0 && $this->pokemonRepository->ownsChatMentionPokemon($userId, $pokemonId);
     }
 
     public function sendMessage(int $userId, string $login, int $roomId, string $text, array $options = []): array
@@ -137,6 +163,32 @@ final class ChatService
     {
         $text = preg_replace('/\s+/', ' ', $text);
         return trim($text);
+    }
+
+    public static function normalizePokemonMentions(string $text): string
+    {
+        return preg_replace('/(?<![\p{L}\p{N}_#])#([1-9][0-9]{0,9})(?![\p{L}\p{N}_])/u', '[[poke:$1]]', $text) ?? $text;
+    }
+
+    private function pokemonCardsForMessage(string $text, int $authorId): array
+    {
+        preg_match_all('/\[\[poke:([1-9][0-9]*)]]/', $text, $matches);
+        $cards = [];
+        foreach (array_slice(array_unique($matches[1]), 0, 6) as $id) {
+            $pokemonId = (int) $id;
+            $cards[] = ($authorId > 0 ? $this->pokemonRepository->chatMentionCard($authorId, $pokemonId) : null)
+                ?? $this->missingPokemonCard($pokemonId);
+        }
+        return $cards;
+    }
+
+    private function missingPokemonCard(int $pokemonId): array
+    {
+        return [
+            'id' => $pokemonId,
+            'available' => false,
+            'message' => 'Pokemon mention is unavailable.',
+        ];
     }
 
     private function handleModeratorCommand(int $userId, string $login, int $roomId, string $text): array

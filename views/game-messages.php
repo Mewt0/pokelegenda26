@@ -7,12 +7,15 @@ $mailRootId = 'mailPage';
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Почта - Pokemon 8.0</title>
-  <link rel="stylesheet" href="/public/css/game-shell.css">
-  <link rel="stylesheet" href="/public/css/mail-overlay.css?v=20260603-game-mail3">
+  <title>Почта - League of Pokemons</title>
+  <?php
+    $headStyles = ['/public/css/game-shell.css', '/public/css/mail-overlay.css'];
+    require APP_ROOT . '/views/components/head-styles.php';
+  ?>
 </head>
 <body>
   <?php require APP_ROOT . '/views/components/mail-panel.php'; ?>
-  <script src="/public/js/mail-overlay.js?v=20260603-game-mail3"></script>
+  <script src="<?= \Pokemon8\View\View::e(asset_url('/public/js/ui-preferences.js')) ?>"></script>
+  <script src="<?= \Pokemon8\View\View::e(asset_url('/public/js/mail-overlay.js')) ?>"></script>
 </body>
 </html>

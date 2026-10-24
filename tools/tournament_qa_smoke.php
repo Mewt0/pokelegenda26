@@ -541,7 +541,7 @@ final class SmokeClient
         if ($body === false) {
             $body = curl_error($ch);
         }
-        curl_close($ch);
+        unset($ch);
         return ['status' => $status, 'body' => (string) $body];
     }
 }

@@ -295,6 +295,7 @@ final class InventoryRepository
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollBack();
+            error_log('[inventory] useItem failed: ' . $e->getMessage());
             return ['ok' => false, 'message' => 'Не удалось применить предмет.'];
         }
 
@@ -641,13 +642,14 @@ final class InventoryRepository
             $this->db->prepare(
                 'UPDATE attac_my_poke
                     SET ' . $slot . '_id = :move,
-                        ' . $slot . '_pp_min = :pp,
-                        ' . $slot . '_pp_max = :pp
+                        ' . $slot . '_pp_min = :pp_min,
+                        ' . $slot . '_pp_max = :pp_max
                   WHERE pok_id = :pokemon
                   LIMIT 1'
             )->execute([
                 'move' => (int) ($move['id'] ?? 0),
-                'pp' => (int) ($move['pp'] ?? 0),
+                'pp_min' => (int) ($move['pp'] ?? 0),
+                'pp_max' => (int) ($move['pp'] ?? 0),
                 'pokemon' => $pokemonId,
             ]);
         } else {
@@ -846,45 +848,67 @@ final class InventoryRepository
             return false;
         }
 
-        $remaining = $count;
-        $stmt = $this->db->prepare(
-            'SELECT id, count
-               FROM items_users
-              WHERE user_id = :user
-                AND item_id = :item
-                AND count > 0
-                AND (dattimer = "not" OR (dattimer REGEXP "^[0-9]+$" AND CAST(dattimer AS UNSIGNED) > :time))
-              ORDER BY count ASC, id ASC
-              FOR UPDATE'
-        );
-        $stmt->execute([
-            'user' => $userId,
-            'item' => $itemId,
-            'time' => time(),
-        ]);
-
-        foreach ($stmt->fetchAll() ?: [] as $row) {
-            if ($remaining <= 0) {
-                break;
-            }
-
-            $rowId = (int) $row['id'];
-            $rowCount = (int) $row['count'];
-            $take = min($rowCount, $remaining);
-            $newCount = $rowCount - $take;
-
-            if ($newCount > 0) {
-                $update = $this->db->prepare('UPDATE items_users SET count = :count WHERE id = :id LIMIT 1');
-                $update->execute(['count' => $newCount, 'id' => $rowId]);
-            } else {
-                $delete = $this->db->prepare('DELETE FROM items_users WHERE id = :id LIMIT 1');
-                $delete->execute(['id' => $rowId]);
-            }
-
-            $remaining -= $take;
+        $started = !$this->db->inTransaction();
+        if ($started) {
+            $this->db->beginTransaction();
         }
 
-        return $remaining <= 0;
+        $remaining = $count;
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT id, count
+                   FROM items_users
+                  WHERE user_id = :user
+                    AND item_id = :item
+                    AND count > 0
+                    AND (dattimer = "not" OR (dattimer REGEXP "^[0-9]+$" AND CAST(dattimer AS UNSIGNED) > :time))
+                  ORDER BY count ASC, id ASC
+                  FOR UPDATE'
+            );
+            $stmt->execute([
+                'user' => $userId,
+                'item' => $itemId,
+                'time' => time(),
+            ]);
+
+            foreach ($stmt->fetchAll() ?: [] as $row) {
+                if ($remaining <= 0) {
+                    break;
+                }
+
+                $rowId = (int) $row['id'];
+                $rowCount = (int) $row['count'];
+                $take = min($rowCount, $remaining);
+
+                $update = $this->db->prepare('UPDATE items_users SET count = count - :take_sub WHERE id = :id AND count >= :take_cmp LIMIT 1');
+                $update->execute(['take_sub' => $take, 'take_cmp' => $take, 'id' => $rowId]);
+                if ($update->rowCount() !== 1) {
+                    break;
+                }
+
+                $delete = $this->db->prepare('DELETE FROM items_users WHERE id = :id AND count <= 0 LIMIT 1');
+                $delete->execute(['id' => $rowId]);
+
+                $remaining -= $take;
+            }
+
+            if ($remaining > 0) {
+                if ($started && $this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                return false;
+            }
+
+            if ($started) {
+                $this->db->commit();
+            }
+            return true;
+        } catch (\Throwable $e) {
+            if ($started && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
     }
 
     public function equipItemToPokemon(int $userId, int $itemUserId, int $pokemonId): array

@@ -141,6 +141,7 @@ final class TrainingRepository
 
     public function buy(int $userId, string $shop, int $itemId, int $count = 1): array
     {
+        return $this->withTransaction(function () use ($userId, $shop, $itemId, $count): array {
         $count = max(1, min(99, $count));
         if (!in_array($itemId, [self::TRAINING_ITEM_ID, self::WEAKENING_ITEM_ID], true)) {
             return ['ok' => false, 'message' => 'Этот предмет здесь не продается.'];
@@ -163,6 +164,7 @@ final class TrainingRepository
             'currencyItemId' => $currency,
             'price' => $total,
         ];
+        });
     }
 
     public static function statLabel(string $stat): string

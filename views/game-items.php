@@ -12,51 +12,12 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Инвентарь - League of Pokemons</title>
-  <style>
-    :root { --line:#b7bcc3; --panel:#e6e8ea; --cell:#f5f7f8; --text:#1d2430; --muted:#546173; --accent:#2a6fbd; }
-    * { box-sizing: border-box; }
-    body { margin:0; background:#d9dde0; color:var(--text); font:14px/1.35 Tahoma, Arial, sans-serif; }
-    .page { max-width:1020px; margin:0 auto; padding:14px 10px 24px; }
-    .head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
-    .head a { color:#1e5da3; font-weight:700; text-decoration:none; }
-    .window { background:linear-gradient(#f1f2f3,#dfe2e5); border:1px solid #949aa1; border-radius:7px; box-shadow:0 8px 28px rgba(0,0,0,.2); overflow:hidden; }
-    .toolbar { display:flex; align-items:center; gap:6px; padding:6px; border-bottom:1px solid #b6bcc3; background:#eceff1; }
-    .ico { width:26px; height:26px; border:1px solid #8f969e; border-radius:4px; background:linear-gradient(#fff,#dde3e8); display:grid; place-items:center; font-size:13px; cursor:pointer; }
-    .search { margin-left:auto; display:flex; align-items:center; gap:6px; }
-    .search input { width:280px; height:28px; border:1px solid #9aa2ab; border-radius:4px; padding:0 10px; }
-    .grid-wrap { padding:6px; background:#d9dde0; }
-    .inv-grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:4px; }
-    .slot { aspect-ratio:1/1; border:1px solid #a8b0b8; border-radius:3px; background:radial-gradient(circle at 50% 45%, #fff 0%, #f7f7f7 35%, #ebedf0 100%); position:relative; padding:2px; cursor:pointer; }
-    .slot:hover { border-color:#6f9fcf; }
-    .slot.selected { border-color:#2a6fbd; box-shadow:0 0 0 1px #2a6fbd inset; }
-    .slot.empty { cursor:default; opacity:.8; }
-    .slot img { width:100%; height:100%; object-fit:contain; image-rendering:pixelated; }
-    .cnt { position:absolute; left:3px; bottom:1px; font-size:11px; font-weight:700; color:#2a2a2a; text-shadow:0 1px 0 #fff; }
-    .bottombar { display:flex; align-items:center; gap:8px; padding:7px 8px; border-top:1px solid #b6bcc3; background:#eceff1; }
-    .nav { display:flex; gap:6px; }
-    .nav button, .act button { min-width:34px; height:30px; border:1px solid #9098a1; border-radius:4px; background:linear-gradient(#fff,#dde3e8); cursor:pointer; }
-    .act { display:flex; gap:6px; margin-left:6px; }
-    .slots { margin-left:auto; font-weight:700; letter-spacing:.2px; }
-    .gem { margin-left:12px; border:1px solid #9098a1; border-radius:4px; min-width:68px; height:30px; display:grid; place-items:center; background:linear-gradient(#fff,#dde3e8); color:#1b74bc; font-weight:700; }
-    .side { margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-    .card { background:#edf0f2; border:1px solid #b4bbc2; border-radius:6px; padding:8px; }
-    .card h3 { margin:0 0 6px; font-size:14px; }
-    .preview { display:grid; grid-template-columns:42px 1fr; gap:8px; align-items:center; }
-    .preview img { width:36px; height:36px; object-fit:contain; image-rendering:pixelated; }
-    .preview .nm { font-weight:700; }
-    .preview .ds { font-size:12px; color:var(--muted); margin-top:2px; }
-    .controls { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px; }
-    .controls input, .controls select, .controls button { height:32px; border:1px solid #97a0aa; border-radius:4px; padding:0 8px; font:inherit; background:#fff; }
-    .controls button { background:linear-gradient(#fff,#dde3e8); cursor:pointer; font-weight:700; color:#1f4e87; }
-    .controls button[disabled] { opacity:.5; cursor:not-allowed; }
-    .pager { margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; }
-    .pager button { min-width:32px; height:28px; border:1px solid #9098a1; border-radius:4px; background:#fff; cursor:pointer; }
-    .pager button.active { background:#2a6fbd; color:#fff; border-color:#2a6fbd; }
-    .hint { margin-top:6px; font-size:12px; color:var(--muted); }
-    @media (max-width: 980px) { .search input{width:180px;} .side{grid-template-columns:1fr;} }
-  </style>
+  <?php
+    $headStyles = ['/public/css/game-items.css'];
+    require APP_ROOT . '/views/components/head-styles.php';
+  ?>
 </head>
-<body data-csrf="<?= View::e((string) $csrf) ?>">
+<body class="items-page" data-csrf="<?= View::e((string) $csrf) ?>">
   <main class="page">
     <div class="head">
       <div>
@@ -68,16 +29,16 @@ $itemIconIndex = is_file($itemIconIndexPath)
     <section class="window">
       <header class="toolbar">
         <button class="ico" type="button">☰</button>
-        <button class="ico" type="button">⚙</button>
-        <button class="ico" type="button">◈</button>
+        <button class="ico" type="button"><span class="icon icon--ui-settings" aria-hidden="true"></span></button>
+        <button class="ico" type="button"><span class="icon icon--ui-mode-general" aria-hidden="true"></span></button>
         <button class="ico" type="button">✦</button>
         <button class="ico" type="button">⚑</button>
-        <button class="ico" type="button">★</button>
+        <button class="ico" type="button"><span class="icon icon--ui-pve-on" aria-hidden="true"></span></button>
         <button class="ico" type="button">⚒</button>
         <button class="ico" type="button">❖</button>
         <div class="search">
           <input id="searchInput" placeholder="Начните вводить название">
-          <button class="ico" id="searchReset" type="button">✕</button>
+          <button class="ico" id="searchReset" type="button" aria-label="Очистить поиск"><span class="icon icon--chat-clear" aria-hidden="true"></span></button>
         </div>
       </header>
       <div class="grid-wrap">
@@ -85,13 +46,13 @@ $itemIconIndex = is_file($itemIconIndexPath)
       </div>
       <footer class="bottombar">
         <div class="nav">
-          <button id="refreshBtn" type="button">⟳</button>
-          <button id="prevPageBtn" type="button">≪</button>
-          <button id="nextPageBtn" type="button">≫</button>
+          <button id="refreshBtn" type="button" aria-label="Обновить список">⟳</button>
+          <button id="prevPageBtn" type="button" aria-label="Предыдущая страница">≪</button>
+          <button id="nextPageBtn" type="button" aria-label="Следующая страница">≫</button>
         </div>
         <div class="act">
-          <button id="dropBtn" type="button" disabled>🖐</button>
-          <button id="useBtn" type="button" disabled>✋</button>
+          <button id="dropBtn" type="button" disabled aria-label="Выбросить предмет">🖐</button>
+          <button id="useBtn" type="button" disabled aria-label="Использовать предмет">✋</button>
         </div>
         <div class="slots">СЛОТОВ ЗАНЯТО: <span id="occupiedCount">0</span></div>
         <div class="gem">💎 +</div>
@@ -137,6 +98,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
       </section>
     </div>
   </main>
+  <script src="<?= View::e(asset_url('/public/js/ui-preferences.js')) ?>"></script>
   <script>
     const itemIconIndex = <?= json_encode($itemIconIndex, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}' ?>;
     const csrf = document.body.dataset.csrf || '';
@@ -259,13 +221,20 @@ $itemIconIndex = is_file($itemIconIndexPath)
       body.set('_csrf', csrf);
       Object.entries(fields || {}).forEach(([key, value]) => body.set(key, String(value)));
 
-      const response = await fetch(url, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-        body
-      });
-      return response.json();
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body
+        });
+        if (!response.ok) {
+          return { ok: false, message: 'Не удалось выполнить действие. Попробуйте ещё раз.' };
+        }
+        return response.json();
+      } catch (error) {
+        return { ok: false, message: 'Не удалось выполнить действие. Попробуйте ещё раз.' };
+      }
     }
 
     async function equipSelectedItem() {
@@ -403,8 +372,18 @@ $itemIconIndex = is_file($itemIconIndexPath)
     }
 
     async function loadPage(page = 1) {
-      const response = await fetch('/api/inventory/page?page=' + encodeURIComponent(page), { credentials: 'same-origin' });
-      const payload = await response.json();
+      let payload = null;
+      try {
+        const response = await fetch('/api/inventory/page?page=' + encodeURIComponent(page), { credentials: 'same-origin' });
+        if (!response.ok) {
+          setToast('Не удалось загрузить инвентарь. Попробуйте ещё раз.');
+          return;
+        }
+        payload = await response.json();
+      } catch (error) {
+        setToast('Не удалось загрузить инвентарь. Попробуйте ещё раз.');
+        return;
+      }
       if (!payload || payload.ok !== true) {
         setToast(payload && payload.message ? payload.message : 'Не удалось загрузить инвентарь.');
         return;

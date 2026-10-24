@@ -69,7 +69,18 @@ final class Session
      */
     private function isHttps(): bool
     {
-        return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+        if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+            return true;
+        }
+
+        $remoteAddress = trim((string) ($_SERVER['REMOTE_ADDR'] ?? ''));
+        $trustedProxies = array_filter(array_map(
+            static fn (string $proxy): string => trim($proxy),
+            explode(',', (string) ($_ENV['TRUSTED_PROXIES'] ?? ''))
+        ));
+
+        return $remoteAddress !== ''
+            && in_array($remoteAddress, $trustedProxies, true)
+            && strtolower(trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0])) === 'https';
     }
 }

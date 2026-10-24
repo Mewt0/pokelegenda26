@@ -28,11 +28,32 @@
     "'": '&#039;',
   }[char]));
   const normalizeString = (value) => String(value || '').trim().toLowerCase();
+  const visiblePreviewValue = (value) => {
+    const text = String(value ?? '').trim();
+    return /^(?:unknown|undefined|null|n\/a|не указан(?:а|о|ы)?|[-—])$/iu.test(text) ? '' : text;
+  };
+  const addPreviewField = (rows, label, value) => {
+    const text = visiblePreviewValue(value);
+    if (text) rows.push([label, text]);
+  };
+  const normalizeButtonCase = (root) => {
+    root.querySelectorAll('button').forEach((button) => {
+      button.childNodes.forEach((node) => {
+        if (node.nodeType !== 3) return;
+        const label = node.textContent.trim();
+        if (label.length <= 3 || !/[А-ЯЁ]/u.test(label) || label !== label.toLocaleUpperCase('ru-RU')) return;
+        node.textContent = node.textContent.replace(label, label[0] + label.slice(1).toLocaleLowerCase('ru-RU'));
+      });
+    });
+  };
 
   async function readJson(response) {
     const text = await response.text();
     try {
       const data = JSON.parse(text);
+      if (!response.ok) {
+        return data && typeof data === 'object' ? { ok: false, message: data.message || 'Не удалось выполнить запрос.' } : { ok: false, message: 'Не удалось выполнить запрос.' };
+      }
       if (data && typeof data === 'object') {
         return data;
       }
@@ -96,6 +117,29 @@
       closeButtons: [...root.querySelectorAll('[data-commission-close]')],
     };
 
+    // Подключаем общие стили, не изменяя селекторы обработчиков.
+    normalizeButtonCase(root);
+    if (els.categories) {
+      els.categories.tabIndex = 0;
+      els.categories.setAttribute('aria-label', 'Категории лотов, прокрутка по горизонтали');
+    }
+    els.tabs.forEach((button) => {
+      button.classList.add('ui-btn');
+      button.classList.add(button.dataset.commissionView === 'my' ? 'ui-btn--primary' : 'ui-btn--ghost');
+    });
+    [els.reset, els.refresh, ...els.closeButtons].filter(Boolean).forEach((button) => {
+      button.classList.add('ui-btn', 'ui-btn--ghost');
+    });
+    els.form?.querySelector('button[type="submit"]')?.classList.add('ui-btn', 'ui-btn--primary');
+    [els.sort, els.search, els.sellableSearch, els.sellType, els.sellObject, els.sellQty]
+      .filter(Boolean).forEach((control) => control.classList.add('ui-field__control'));
+    root.querySelectorAll('.commission-sell label').forEach((label) => {
+      label.classList.add('ui-field');
+      label.querySelector('span')?.classList.add('ui-field__label');
+    });
+    els.sellableSearch?.closest('.commission-sellable-search')?.classList.add('ui-field');
+    els.empty?.classList.add('ui-empty');
+
     function setStatus(text, bad = false) {
       if (!els.status) return;
       els.status.textContent = text || 'Готово';
@@ -103,7 +147,7 @@
     }
 
     function setBadge(value) {
-      const text = value > 0 ? (value > 99 ? '99+' : String(value)) : 'NEW';
+      const text = value > 0 ? (value > 99 ? '99+' : String(value)) : 'Новое';
       document.querySelectorAll('[data-commission-badge]').forEach((badge) => {
         badge.textContent = text;
       });
@@ -144,7 +188,7 @@
         state.category = 'all';
       }
       els.categories.innerHTML = categories.map((category) => (
-        `<button type="button" class="commission-category${category.key === state.category ? ' is-active' : ''}" data-commission-category="${escapeHtml(category.key)}">${escapeHtml(category.label)}</button>`
+        `<button type="button" class="commission-category ui-btn ${category.key === state.category ? 'ui-btn--primary is-active' : 'ui-btn--ghost'}" data-commission-category="${escapeHtml(category.key)}">${escapeHtml(category.label)}</button>`
       )).join('');
     }
 
@@ -173,10 +217,10 @@
 
     function actionForLot(lot) {
       if (lot.status === 'active' && lot.is_own) {
-        return `<button type="button" class="cancel" data-commission-cancel="${Number(lot.id || 0)}">Снять</button>`;
+        return `<button type="button" class="cancel ui-btn ui-btn--danger" data-commission-cancel="${Number(lot.id || 0)}">Снять</button>`;
       }
       if (lot.status === 'active' && lot.can_buy !== false) {
-        return `<button type="button" class="buy" data-commission-buy="${Number(lot.id || 0)}">Купить</button>`;
+        return `<button type="button" class="buy ui-btn ui-btn--primary" data-commission-buy="${Number(lot.id || 0)}">Купить</button>`;
       }
       return `<small>${escapeHtml(statusLabel(lot.status))}</small>`;
     }
@@ -204,22 +248,26 @@
       if (!els.lots || !els.empty) return;
       renderTableHeader();
       const rows = lotRows();
-      els.empty.textContent = state.view === 'my' ? 'Не найдено ни одного выставленного лота.' : 'Активных лотов пока нет.';
+      const canReset = state.view !== 'my' && !!els.reset
+        && (state.category !== 'all' || !!state.q || state.sort !== 'new');
+      els.empty.innerHTML = `<span>${state.view === 'my' ? 'Не найдено ни одного выставленного лота.' : 'Активных лотов пока нет.'}</span>${canReset ? '<button type="button" class="ui-btn ui-btn--ghost" data-commission-empty-reset>Сбросить фильтры</button>' : ''}`;
       els.empty.hidden = rows.length > 0;
       els.lots.innerHTML = rows.map((lot) => {
         const expires = formatDate(lot.expires_at);
         return `<tr>
           <td>
-            <div class="commission-lot">
-              <span class="commission-lot-icon">
+            <div class="commission-lot ui-card">
+              <span class="commission-lot-icon ui-card__media">
                 <img src="${escapeHtml(lot.object_icon || '/public/img/ui/chatgpt-pokeball.png')}" alt="" onerror="this.src='/public/img/ui/chatgpt-pokeball.png'">
                 <b class="commission-lot-count">${formatNumber(lot.quantity)}</b>
               </span>
               <span>
-                <b class="commission-lot-name">${escapeHtml(lot.object_name || 'Лот')}</b>
-                <span class="commission-lot-sub">${escapeHtml(lot.category_label || typeLabel(lot.object_type))} · #${formatNumber(lot.object_id)}</span>
+                <b class="commission-lot-name ui-card__title">${escapeHtml(lot.object_name || 'Лот')}</b>
+                <span class="commission-lot-sub ui-card__meta">${escapeHtml(lot.category_label || typeLabel(lot.object_type))} · #${formatNumber(lot.object_id)}</span>
               </span>
-              <button class="commission-preview-button" type="button" data-commission-preview-lot="${Number(lot.id || 0)}" aria-label="Предпросмотр">▥</button>
+              <span class="commission-lot-actions ui-card__actions">
+                <button class="commission-preview-button ui-btn ui-btn--ghost" type="button" data-commission-preview-lot="${Number(lot.id || 0)}" aria-label="Предпросмотр">▥</button>
+              </span>
             </div>
           </td>
           <td><div class="commission-price">${formatNumber(lot.total_price)}</div></td>
@@ -243,12 +291,17 @@
         return normalizeString(`${row.name || ''} ${row.id || ''} ${row.category_label || ''}`).includes(q);
       });
       els.sellableGrid.innerHTML = rows.length > 0 ? rows.map((row) => `
-        <button type="button" class="commission-sellable-card${row.blocked ? ' is-blocked' : ''}" data-commission-sellable-type="${escapeHtml(row.type || 'item')}" data-commission-sellable-id="${Number(row.id || 0)}" ${row.blocked ? 'disabled' : ''} title="${escapeHtml(row.blocked_reason || row.name || '')}">
-          <img src="${escapeHtml(row.icon || '/public/img/ui/chatgpt-pokeball.png')}" alt="" onerror="this.src='/public/img/ui/chatgpt-pokeball.png'">
-          ${row.count ? `<b>${formatNumber(row.count)}</b>` : ''}
-          <span>${escapeHtml(row.name || 'Объект')}</span>
+        <button type="button" class="commission-sellable-card ui-card${row.blocked ? ' is-blocked' : ''}" data-commission-sellable-type="${escapeHtml(row.type || 'item')}" data-commission-sellable-id="${Number(row.id || 0)}" ${row.blocked ? 'disabled' : ''} title="${escapeHtml(row.blocked_reason || row.name || '')}">
+          <span class="commission-sellable-media ui-card__media">
+            <img src="${escapeHtml(row.icon || '/public/img/ui/chatgpt-pokeball.png')}" alt="" onerror="this.src='/public/img/ui/chatgpt-pokeball.png'">
+            ${row.count ? `<b class="commission-sellable-count ui-card__meta">${formatNumber(row.count)}</b>` : ''}
+          </span>
+          <span class="commission-sellable-title ui-card__title">${escapeHtml(row.name || 'Объект')}</span>
         </button>
-      `).join('') : '<p class="commission-sellable-empty">Нет объектов, которые можно выставить.</p>';
+      `).join('') : `<div class="commission-sellable-empty ui-empty">
+        <span>Нет объектов, которые можно выставить.</span>
+        ${q ? '<button type="button" class="ui-btn ui-btn--ghost" data-commission-clear-sellable>Сбросить поиск</button>' : ''}
+      </div>`;
     }
 
     function moveNames(moves) {
@@ -258,7 +311,10 @@
 
     function statPairs(data) {
       if (!data || typeof data !== 'object') return '';
-      return Object.entries(data).map(([key, value]) => `${key}:${value}`).join(' / ');
+      return Object.entries(data)
+        .map(([key, value]) => [key, visiblePreviewValue(value)])
+        .filter(([, value]) => value)
+        .map(([key, value]) => `${key}:${value}`).join(' / ');
     }
 
     function renderPreview(data) {
@@ -270,29 +326,28 @@
       const preview = data.preview || data;
       const rows = [];
       const title = data.object_name || data.name || preview.name || '';
-      if (title) rows.push(['Название', title]);
-      if (data.object_type || data.type) rows.push(['Тип', typeLabel(data.object_type || data.type)]);
-      if (data.category_label) rows.push(['Категория', data.category_label]);
-      if (data.count) rows.push(['Доступно', formatNumber(data.count)]);
-      if (data.total_price) rows.push(['Цена', formatNumber(data.total_price)]);
-      if (data.price_per_unit) rows.push(['Цена за 1', formatNumber(data.price_per_unit)]);
-      if (preview.description) rows.push(['Описание', preview.description]);
-      if (preview.level) rows.push(['Уровень', preview.level]);
-      if (preview.sex !== undefined) rows.push(['Пол', Number(preview.sex) === 2 ? 'Самка' : (Number(preview.sex) === 1 ? 'Самец' : 'Бесполый')]);
-      if (preview.shiny !== undefined) rows.push(['Shiny', preview.shiny ? 'да' : 'нет']);
-      if (preview.nature) rows.push(['Характер', preview.nature]);
-      if (preview.active !== undefined) rows.push(['Статус', preview.active ? 'Активная команда' : 'Питомник/хранилище']);
-      if (preview.held_item && preview.held_item.name) rows.push(['Предмет', preview.held_item.name]);
-      if (preview.iv) rows.push(['IV', statPairs(preview.iv)]);
-      if (preview.ev) rows.push(['EV', statPairs(preview.ev)]);
-      const moves = moveNames(preview.moves);
-      if (moves) rows.push(['Атаки', moves]);
-      if (preview.egg_attack_name) rows.push(['Яйцевая атака', preview.egg_attack_name]);
-      if (preview.remaining_seconds !== undefined) rows.push(['До вылупления', `${formatNumber(Math.max(0, Math.ceil(Number(preview.remaining_seconds) / 3600)))} ч.`]);
-      if (preview.effect_status) rows.push(['Статус эффекта', preview.effect_status]);
-      if (preview.target_use_rule) rows.push(['Правило применения', preview.target_use_rule]);
-      if (preview.compatibility) rows.push(['Совместимость', preview.compatibility]);
-      if (preview.equippable !== undefined) rows.push(['Можно экипировать', preview.equippable ? 'да' : 'нет']);
+      addPreviewField(rows, 'Название', title);
+      if (data.object_type || data.type) addPreviewField(rows, 'Тип', typeLabel(data.object_type || data.type));
+      addPreviewField(rows, 'Категория', data.category_label);
+      if (data.count) addPreviewField(rows, 'Доступно', formatNumber(data.count));
+      if (data.total_price) addPreviewField(rows, 'Цена', formatNumber(data.total_price));
+      if (data.price_per_unit) addPreviewField(rows, 'Цена за 1', formatNumber(data.price_per_unit));
+      addPreviewField(rows, 'Описание', preview.description);
+      addPreviewField(rows, 'Уровень', preview.level);
+      if (preview.sex != null) addPreviewField(rows, 'Пол', Number(preview.sex) === 2 ? 'Самка' : (Number(preview.sex) === 1 ? 'Самец' : 'Бесполый'));
+      if (preview.shiny != null) addPreviewField(rows, 'Сияющий', preview.shiny ? 'да' : 'нет');
+      addPreviewField(rows, 'Характер', preview.nature);
+      if (preview.active != null) addPreviewField(rows, 'Статус', preview.active ? 'Активная команда' : 'Питомник/хранилище');
+      addPreviewField(rows, 'Предмет', preview.held_item?.name);
+      addPreviewField(rows, 'IV', statPairs(preview.iv));
+      addPreviewField(rows, 'EV', statPairs(preview.ev));
+      addPreviewField(rows, 'Атаки', moveNames(preview.moves));
+      addPreviewField(rows, 'Яйцевая атака', preview.egg_attack_name);
+      if (preview.remaining_seconds != null) addPreviewField(rows, 'До вылупления', `${formatNumber(Math.max(0, Math.ceil(Number(preview.remaining_seconds) / 3600)))} ч.`);
+      addPreviewField(rows, 'Статус эффекта', preview.effect_status);
+      addPreviewField(rows, 'Правило применения', preview.target_use_rule);
+      addPreviewField(rows, 'Совместимость', preview.compatibility);
+      if (preview.equippable != null) addPreviewField(rows, 'Можно экипировать', preview.equippable ? 'да' : 'нет');
 
       els.preview.innerHTML = rows.length
         ? rows.map(([key, value]) => `<li><b>${escapeHtml(key)}:</b> ${escapeHtml(value)}</li>`).join('')
@@ -427,7 +482,7 @@
         els.sideTitle.textContent = state.view === 'my' ? 'Мои объекты' : 'Категории';
       }
       if (els.viewTitle) {
-        els.viewTitle.textContent = state.view === 'my' ? 'Лоты выставленные на продажу' : 'Активные лоты';
+        els.viewTitle.textContent = state.view === 'my' ? 'Лоты, выставленные на продажу' : 'Активные лоты';
       }
       if (els.categories) {
         els.categories.hidden = state.view === 'my';
@@ -500,6 +555,9 @@
     });
 
     els.refresh?.addEventListener('click', () => loadAll(true));
+    els.empty?.addEventListener('click', (event) => {
+      if (event.target.closest('[data-commission-empty-reset]')) els.reset?.click();
+    });
 
     els.lots?.addEventListener('click', async (event) => {
       const previewButton = event.target.closest('[data-commission-preview-lot]');
@@ -515,11 +573,15 @@
       const button = buyButton || cancelButton;
       button.disabled = true;
       const lotId = Number(button.dataset.commissionBuy || button.dataset.commissionCancel || 0);
-      const data = await post(buyButton ? '/api/commission/lots/buy' : '/api/commission/lots/cancel', { lot_id: lotId });
-      setStatus(data.message || (data.ok ? 'Готово.' : 'Операция не выполнена.'), !data.ok);
-      if (data.ok) {
-        await loadAll(true);
-      } else {
+      try {
+        const data = await post(buyButton ? '/api/commission/lots/buy' : '/api/commission/lots/cancel', { lot_id: lotId });
+        setStatus(data.message || (data.ok ? 'Готово.' : 'Операция не выполнена.'), !data.ok);
+        if (data.ok) {
+          await loadAll(true);
+        }
+      } catch (error) {
+        setStatus('Ошибка сети. Попробуйте операцию ещё раз.', true);
+      } finally {
         button.disabled = false;
       }
     });
@@ -530,6 +592,12 @@
       renderSellableGrid();
     });
     els.sellableGrid?.addEventListener('click', (event) => {
+      if (event.target.closest('[data-commission-clear-sellable]')) {
+        state.sellableQ = '';
+        if (els.sellableSearch) els.sellableSearch.value = '';
+        renderSellableGrid();
+        return;
+      }
       const card = event.target.closest('[data-commission-sellable-id]');
       if (!card || card.disabled) return;
       const type = card.dataset.commissionSellableType || 'item';
@@ -552,12 +620,17 @@
       const submit = els.form.querySelector('button[type="submit"]');
       submit.disabled = true;
       const payload = Object.fromEntries(new FormData(els.form).entries());
-      const data = await post('/api/commission/lots', payload);
-      setStatus(data.message || (data.ok ? 'Лот выставлен.' : 'Не удалось выставить лот.'), !data.ok);
-      if (data.ok) {
-        await loadAll(true);
+      try {
+        const data = await post('/api/commission/lots', payload);
+        setStatus(data.message || (data.ok ? 'Лот выставлен.' : 'Не удалось выставить лот.'), !data.ok);
+        if (data.ok) {
+          await loadAll(true);
+        }
+      } catch (error) {
+        setStatus('Ошибка сети. Попробуйте выставить лот ещё раз.', true);
+      } finally {
+        submit.disabled = false;
       }
-      submit.disabled = false;
     });
 
     els.closeButtons.forEach((button) => button.addEventListener('click', close));

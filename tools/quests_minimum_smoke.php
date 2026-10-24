@@ -77,6 +77,26 @@ try {
     assertTrue($results, 'quest.spike.start.ui', ($spikeStart['ok'] ?? false) === true, dialogText($spikeStart));
     assertTrue($results, 'quest.spike.state.started', $spikeState !== null && (int) ($spikeState['process'] ?? 0) === 2 && (int) ($spikeState['gotov'] ?? 0) === 0);
 
+    // Reject forged completion, skipped requirements, and the wrong NPC.
+    foreach ([
+        ['complete', 1, 3, 'quest_update:2:20:1'],
+        ['unknown', 1, 3, 'quest_update:999999:20:1'],
+        ['wrong_npc', 7, 2, 'quest_update:2:3:0'],
+        ['wrong_location', 1, 1, 'quest_update:2:3:0'],
+        ['skip_turnin', 11, 1, 'quest_update:2:5:0'],
+        ['skip_story', 13, 1, 'quest_update:2:7:0'],
+        ['start_at_finish', 1, 3, 'quest_start:2:20'],
+        ['start_other_quest', 1, 3, 'quest_start:4:10'],
+    ] as [$case, $where, $npc, $command]) {
+        setLocation($db, $userId, $where);
+        $rejected = $npcs->action($userId, $where, ['quest_npc' => (string) $npc], $command);
+        $after = $quests->findForUser($userId, 2);
+        assertTrue($results, 'quest.security.' . $case,
+            ($rejected['ok'] ?? true) === false && $after === $spikeState,
+            dialogText($rejected));
+    }
+    assertTrue($results, 'quest.security.no_unknown_row', $quests->findForUser($userId, 999999) === null);
+
     $spikeJournal = questFromJournal($quests->journalForUser($userId), 2);
     assertTrue($results, 'quest.spike.journal.steps', count($spikeJournal['steps'] ?? []) >= 7, json_encode($spikeJournal['steps'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     assertTrue($results, 'quest.spike.journal.map_hint', isset(($spikeJournal['steps'][1] ?? [])['navigation']['targetLocationId']));
@@ -118,6 +138,10 @@ try {
     assertTrue($results, 'quest.spike.completed', $quests->isCompleted($userId, 2));
     assertTrue($results, 'quest.spike.reward.coins', $inventory->countItem($userId, 1) >= $coinsBeforeSpikeFinish + 15000);
     assertTrue($results, 'quest.spike.reward.moon_stone', $inventory->countItem($userId, 44) >= $moonBeforeSpikeFinish + 1);
+    $finishedState = $quests->findForUser($userId, 2);
+    $oldAcknowledgment = $npcs->action($userId, 11, ['quest_npc' => '1', 'do' => '3'], 'quest_update:2:5:0');
+    assertTrue($results, 'quest.security.old_acknowledgment_does_not_rewind',
+        ($oldAcknowledgment['ok'] ?? false) === true && $quests->findForUser($userId, 2) === $finishedState);
 
     setLocation($db, $userId, 3);
     for ($i = 0; $i < 5; $i++) {

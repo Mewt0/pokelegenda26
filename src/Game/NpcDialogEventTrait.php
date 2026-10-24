@@ -319,14 +319,16 @@ trait NpcDialogEventTrait
             $status = $place <= 3 ? 'winner' : 'finished';
             $this->db->prepare(
                 'UPDATE hippodrome_participants
-                    SET status = :status, place_num = :place, prize_amount = :prize,
-                        reward_claimed_at = IF(:prize > 0, :now, reward_claimed_at), updated_at = :now
+                    SET status = :status, place_num = :place, prize_amount = :prize_value,
+                        reward_claimed_at = IF(:prize_check > 0, :now_reward, reward_claimed_at), updated_at = :now_updated
                   WHERE id = :id LIMIT 1'
             )->execute([
                 'status' => $status,
                 'place' => $place <= 3 ? $place : 0,
-                'prize' => $prize,
-                'now' => $now,
+                'prize_value' => $prize,
+                'prize_check' => $prize,
+                'now_reward' => $now,
+                'now_updated' => $now,
                 'id' => (int) $row['id'],
             ]);
             $this->db->prepare('UPDATE pok_user SET active = 1 WHERE id = :pokemon AND users = :user AND active = 3 LIMIT 1')
@@ -335,8 +337,8 @@ trait NpcDialogEventTrait
                 $this->grantRewardItems((int) $row['user_id'], [1 => $prize], 'Ипподром: призовое место #' . $place);
             }
         }
-        $this->db->prepare('UPDATE hippodrome_races SET status = "finished", settled_at = :now, updated_at = :now WHERE id = :id LIMIT 1')
-            ->execute(['now' => $now, 'id' => (int) $race['id']]);
+        $this->db->prepare('UPDATE hippodrome_races SET status = "finished", settled_at = :now_settled, updated_at = :now_updated WHERE id = :id LIMIT 1')
+            ->execute(['now_settled' => $now, 'now_updated' => $now, 'id' => (int) $race['id']]);
         $this->hippodromeLog((int) $race['id'], 0, 'race.finish', ['participants' => count($participants), 'prize_pool' => $pool]);
     }
 
@@ -353,8 +355,8 @@ trait NpcDialogEventTrait
                 $this->grantRewardItems((int) $row['user_id'], [1 => $fee], 'Ипподром: возврат взноса');
             }
         }
-        $this->db->prepare('UPDATE hippodrome_races SET status = "cancelled", settled_at = :now, updated_at = :now, note = :note WHERE id = :id LIMIT 1')
-            ->execute(['now' => $now, 'note' => $reason, 'id' => (int) $race['id']]);
+        $this->db->prepare('UPDATE hippodrome_races SET status = "cancelled", settled_at = :now_settled, updated_at = :now_updated, note = :note WHERE id = :id LIMIT 1')
+            ->execute(['now_settled' => $now, 'now_updated' => $now, 'note' => $reason, 'id' => (int) $race['id']]);
         $this->hippodromeLog((int) $race['id'], 0, 'race.cancel', ['reason' => $reason, 'participants' => count($participants)]);
     }
 

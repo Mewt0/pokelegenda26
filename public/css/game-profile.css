@@ -1,0 +1,335 @@
+/* Профиль тренера: трёхколоночный «шелл» с аватаром, отрядом и карточками
+   статистики. Разметка даёт .profile-page на <body>. Локальные переменные
+   объявлены на .profile-page, а не на :root: иначе при выносе из <style> они
+   утекли бы на все страницы игры. Значения — из tokens.css. */
+
+.profile-page {
+  --pf-line: var(--border-1);
+  margin: 0;
+  background: var(--surface-3);
+  color: var(--text-1);
+  font: var(--fs-300) / var(--lh-normal) var(--font-sans);
+}
+
+.profile-page .wrap {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: var(--space-5);
+}
+
+.profile-page .top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.profile-page .top a {
+  color: var(--accent-text);
+  font-weight: var(--fw-bold);
+  text-decoration: none;
+}
+
+.profile-page .shell {
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-3);
+  background: var(--surface-1);
+}
+
+.profile-page .hero {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 280px;
+  gap: 0;
+  min-height: 560px;
+}
+
+.profile-page .side,
+.profile-page .center {
+  padding: var(--space-4);
+}
+
+.profile-page .side {
+  background: var(--surface-0);
+  border-right: 1px solid var(--pf-line);
+}
+
+.profile-page .side.right {
+  border-right: 0;
+  border-left: 1px solid var(--pf-line);
+}
+
+.profile-page .center {
+  background: linear-gradient(var(--surface-1), var(--surface-0));
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: var(--space-3);
+}
+
+.profile-page .card {
+  background: var(--surface-1);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.profile-page .card h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--fs-300);
+  text-transform: uppercase;
+  color: var(--text-2);
+  letter-spacing: .04em;
+}
+
+.profile-page .kv {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-3);
+}
+
+.profile-page .k {
+  color: var(--text-2);
+}
+
+.profile-page .v {
+  font-weight: var(--fw-bold);
+  text-align: right;
+}
+
+.profile-page .namebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.profile-page .namebar h1 {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-600);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-page .badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 3px var(--space-2);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-1);
+  color: var(--text-2);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+
+.profile-page .badge.online {
+  color: var(--success-text);
+  border-color: var(--success);
+  background: var(--success-soft);
+}
+
+.profile-page .avatar {
+  display: grid;
+  place-items: center;
+  min-height: 320px;
+  border: 1px solid var(--pf-line);
+  border-radius: var(--radius-md);
+  background: radial-gradient(circle at 50% 18%, var(--surface-1), var(--border-soft));
+  overflow: hidden;
+}
+
+.profile-page .avatar img {
+  max-width: 100%;
+  max-height: 315px;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, .22));
+}
+
+.profile-page .rank-img {
+  height: 20px;
+  object-fit: contain;
+}
+
+.profile-page .party {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.profile-page .poke {
+  min-width: 0;
+  border: 1px solid var(--pf-line);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  padding: var(--space-2);
+  text-align: center;
+}
+
+.profile-page .poke img {
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+}
+
+.profile-page .poke b {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-100);
+}
+
+.profile-page .hp {
+  height: 6px;
+  margin-top: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.profile-page .hp i {
+  display: block;
+  height: 100%;
+  background: var(--success);
+}
+
+.profile-page .info {
+  min-height: 72px;
+  color: var(--text-2);
+  white-space: pre-line;
+}
+
+.profile-page .collection {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.profile-page .score {
+  padding: var(--space-3);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--radius-md);
+  background: var(--surface-0);
+}
+
+.profile-page .score span {
+  display: block;
+  color: var(--text-2);
+}
+
+.profile-page .score b {
+  display: block;
+  margin-top: 3px;
+  font-size: var(--fs-600);
+}
+
+.profile-page .score.pvp b {
+  color: var(--accent-text);
+}
+
+.profile-page .score.pve b,
+.profile-page .score.karma.good b {
+  color: var(--success-text);
+}
+
+.profile-page .score.karma.bad b {
+  color: var(--danger-text);
+}
+
+.profile-page .score.karma.neutral b {
+  color: var(--text-2);
+}
+
+.profile-page .present-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+  min-height: 42px;
+}
+
+.profile-page .present {
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--pf-line);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+}
+
+.profile-page .present img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+
+.profile-page .empty {
+  color: var(--text-2);
+  font-size: var(--fs-200);
+}
+
+.profile-page .clan {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.profile-page .clan img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+}
+
+.profile-page .email-form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.profile-page .email-form input,
+.profile-page .email-form button {
+  height: 36px;
+  border: 1px solid var(--pf-line);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  font: inherit;
+}
+
+.profile-page .email-form button {
+  background: var(--accent-strong);
+  color: var(--text-inverse);
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+}
+
+@media (max-width: 980px) {
+  .profile-page .hero {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-page .side,
+  .profile-page .side.right {
+    border: 0;
+    border-top: 1px solid var(--pf-line);
+  }
+
+  .profile-page .party {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  /* На узком экране длинный бейдж роли («Главный администратор») с nowrap
+     раздувал min-content колонки: .shell{overflow:hidden} прятал переполнение,
+     и содержимое просто обрезалось справа. Разрешаем перенос. */
+  .profile-page .namebar {
+    flex-wrap: wrap;
+  }
+
+  .profile-page .namebar h1,
+  .profile-page .badge {
+    white-space: normal;
+  }
+}

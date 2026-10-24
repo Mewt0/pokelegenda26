@@ -1,0 +1,289 @@
+/* Турниры: hero со статусом, сетка карточек и боковая колонка с логом.
+   Разметка даёт .tournaments-page на <body>. Локальные переменные объявлены на
+   .tournaments-page, а не на :root: иначе при выносе из <style> они утекли бы
+   на все страницы игры. Значения — из tokens.css. */
+
+.tournaments-page {
+  --tn-panel: var(--surface-panel);
+  --tn-line: var(--border-1);
+  margin: 0;
+  color: var(--text-1);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface-0));
+  font: var(--fs-400) / var(--lh-normal) var(--font-sans);
+}
+
+.tournaments-page .wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-5);
+}
+
+.tournaments-page .top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.tournaments-page .top a {
+  color: var(--accent-text);
+  font-weight: var(--fw-bold);
+  text-decoration: none;
+}
+
+.tournaments-page .hero,
+.tournaments-page .panel,
+.tournaments-page .card {
+  background: var(--tn-panel);
+  border: 1px solid var(--tn-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+}
+
+.tournaments-page .hero {
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.tournaments-page h1 {
+  margin: 0 0 var(--space-2);
+  font-size: clamp(var(--fs-700), 4vw, 42px);
+  line-height: var(--lh-tight);
+}
+
+.tournaments-page h2,
+.tournaments-page h3 {
+  margin: 0;
+}
+
+.tournaments-page .muted,
+.tournaments-page .hero p {
+  color: var(--text-2);
+  margin: 0;
+}
+
+.tournaments-page .hero-badge {
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  padding: var(--space-3);
+  min-width: 180px;
+  text-align: right;
+}
+
+.tournaments-page .grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.tournaments-page .panel {
+  padding: var(--space-4);
+}
+
+.tournaments-page .cards {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.tournaments-page .card {
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.tournaments-page .card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.tournaments-page .status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  padding: 5px var(--space-2);
+  font-weight: var(--fw-bold);
+  background: var(--surface-2);
+  color: var(--accent-text);
+  white-space: nowrap;
+}
+
+.tournaments-page .status.active {
+  color: var(--success-text);
+  background: var(--success-soft);
+}
+
+.tournaments-page .status.finished {
+  color: var(--warning-text);
+  background: var(--warning-soft);
+}
+
+.tournaments-page .status.cancelled {
+  color: var(--danger-text);
+  background: var(--danger-soft);
+}
+
+.tournaments-page .info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.tournaments-page .info {
+  border: 1px solid var(--surface-3);
+  background: var(--surface-0);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  min-height: 66px;
+}
+
+.tournaments-page .info span {
+  display: block;
+  color: var(--text-2);
+  font-size: var(--fs-100);
+  margin-bottom: 3px;
+}
+
+.tournaments-page .info b {
+  overflow-wrap: anywhere;
+}
+
+.tournaments-page .rules {
+  border-left: 4px solid var(--accent-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-0);
+  color: var(--text-2);
+  border-radius: var(--radius-md);
+}
+
+.tournaments-page .actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.tournaments-page button,
+.tournaments-page .btn {
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: var(--fw-bold);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.tournaments-page button.primary {
+  color: var(--text-inverse);
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
+.tournaments-page button.danger {
+  color: var(--danger-text);
+  border-color: var(--danger);
+}
+
+.tournaments-page button.success {
+  color: var(--text-inverse);
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.tournaments-page button:disabled {
+  opacity: .55;
+  cursor: default;
+}
+
+.tournaments-page .participant {
+  border: 1px solid var(--surface-3);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-1);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.tournaments-page .empty {
+  border: 1px dashed var(--tn-line);
+  color: var(--text-2);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: var(--surface-panel);
+}
+
+.tournaments-page .log {
+  margin-top: var(--space-3);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  border: 1px solid var(--tn-line);
+  background: var(--surface-2);
+  color: var(--text-2);
+  min-height: 42px;
+}
+
+.tournaments-page .log.error {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}
+
+.tournaments-page .log.success {
+  border-color: var(--success);
+  background: var(--success-soft);
+  color: var(--success-text);
+}
+
+.tournaments-page .side-list {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.tournaments-page .qa-row {
+  border: 1px solid var(--tn-line);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  padding: var(--space-2) var(--space-3);
+}
+
+.tournaments-page .qa-row strong {
+  display: block;
+  margin-bottom: 3px;
+}
+
+@media (max-width: 920px) {
+  .tournaments-page .wrap {
+    padding: var(--space-3);
+  }
+
+  .tournaments-page .hero {
+    grid-template-columns: 1fr;
+  }
+
+  .tournaments-page .hero-badge {
+    text-align: left;
+  }
+
+  .tournaments-page .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tournaments-page .info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tournaments-page .card-top {
+    display: grid;
+  }
+}

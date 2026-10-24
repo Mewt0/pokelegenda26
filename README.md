@@ -1,23 +1,27 @@
 # PokemonChic / Pokemon Legend 8.0
 
+Актуальный релизный baseline (2026-10-24): PHP 8.5.11, миграции 87/87, full regression 29/29. Источник текущих проверок и оставшихся условий: [release candidate](docs/reports/RELEASE_CANDIDATE_2026-10-24.md). Старые числа ниже сохранены как история.
+
 Modern rewrite of the legacy browser Pokemon MMORPG for PHP, MySQL and a JSON API driven frontend.
 
 The project is being prepared for open testing. Legacy PHP files are still kept as compatibility/reference material, but the active game flow is moving to `public/index.php`, controllers, repositories, services and modern game overlays.
 
 ## Current Status
 
-Last project audit: 2026-05-27.
+Last project audit: 2026-10-07. The current source of truth is [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md); older reports are historical unless they match live code and current smoke results.
 
-Approximate readiness:
+Current verification snapshot:
 
-| Stage | Readiness | Notes |
-| --- | ---: | --- |
-| Active development build | 84% | Main game shell, API, admin tools and QA accounts are usable. |
-| Closed alpha | 74% | Core gameplay is testable with trusted players and active monitoring. |
-| Open beta | 62% | PvE/PvP, inventory, eggs, breeding, commission market and Trainer Card work, but long edge-case QA and production jobs are still needed. |
-| Production | 37% | Needs battle replay/audit, CI, background jobs, migration status and production hardening. |
+| Area | Status | Evidence |
+| --- | --- | --- |
+| Site availability | OK | `http://pokemonchic.com` returns 200 in the 2026-10-07 gate. |
+| Quick regression | OK | `tools/open_test_regression.php --profile=quick` = 24/24 in the 2026-10-07 gate. |
+| Read smoke | OK | `tools/http_smoke.php` = 52/52 in the 2026-10-07 gate. |
+| Migrations | OK | `79/79`, `pending=0`, `dirty=0`, `failed=0` in `PROJECT_CONTEXT.md`. |
+| Integrity | OK with accepted historical rows | `P0=0`, `P1=0`, `WARN=0`, `ACCEPTED=4` in `PROJECT_CONTEXT.md`. |
+| Item gameplay metadata | Mixed | `implemented=42`, `visual_only=17`, `todo=11` in the 2026-10-07 gate. |
 
-See [REWRITE_STATUS.md](REWRITE_STATUS.md) for the detailed migration journal and [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for the short current architecture summary.
+See [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for the short current architecture summary and [REWRITE_STATUS.md](REWRITE_STATUS.md) for the migration journal.
 
 ## Implemented Systems
 
@@ -110,17 +114,14 @@ See [REWRITE_STATUS.md](REWRITE_STATUS.md) for the detailed migration journal an
 
 ## Main Open-Test Risks
 
-These are the highest-priority remaining tasks before open testing:
+These are the highest-priority remaining tasks before open testing. Battle replay, background jobs, migration status and GM Center health views already exist in the current layer; remaining work is hardening and broader QA, not initial implementation.
 
-1. Add production battle replay/audit for PvE and PvP disputes.
-2. Add background jobs for expired lots, flights, events, temporary items and stuck battles.
-3. Add migration status tracking for the live database.
-4. Finish long real 6v6 PvP testing with two sessions.
-5. Finish rare battle item/status/weather edge-case QA.
-6. Finish first-player path with stable quests, NPCs and location transitions.
-7. Harden economy safety: no item/Pokemon/egg/currency loss or duplication.
-8. Add Health Dashboard for errors, active battles, pending returns and smoke status.
-9. Run desktop and mobile browser regression before inviting open testers.
+1. Finish long real 6v6 PvP testing with two sessions.
+2. Finish rare battle item/status/weather edge-case QA.
+3. Finish first-player path validation across quests, NPCs, location transitions and rewards.
+4. Harden economy safety through more market, commission and reward edge-case checks.
+5. Run desktop and mobile browser regression before inviting open testers.
+6. Keep production operations documented: backup cadence, smoke cadence, background job monitoring and incident handling.
 
 ## QA Accounts
 
@@ -135,10 +136,10 @@ The current project uses these permanent QA/system accounts:
 Run from the project root with the configured PHP binary:
 
 ```bash
-php tools/http_smoke.php --login=Tacos --password=jungheinrick
-php tools/pvp_qa_smoke.php --login1=Tacos --login2=NIGA --password1=jungheinrick --password2=jungheinrick
+php tools/http_smoke.php --login=Tacos --password=REDACTED_USE_SMOKE_PASSWORD
+php tools/pvp_qa_smoke.php --login1=Tacos --login2=NIGA --password1=REDACTED_USE_SMOKE_PASSWORD --password2=REDACTED_USE_SMOKE_PASSWORD
 php tools/legacy_core_qa_smoke.php
-php tools/breeding_qa_smoke.php --password=jungheinrick
+php tools/breeding_qa_smoke.php --password=REDACTED_USE_SMOKE_PASSWORD
 php tools/commission_market_smoke.php
 ```
 

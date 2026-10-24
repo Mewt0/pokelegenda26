@@ -1,0 +1,101 @@
+/* Auth-экраны: сообщение, восстановление пароля, регистрация, сброс пароля.
+   Один компонент на семейство — значения только из tokens.css.
+   Разметка даёт .auth-page на <body> и .auth-panel на карточку.
+
+   Центрирование сделано flex, а не grid+place-items:center намеренно.
+   С grid проценты в width карточки разрешаются от grid-колонки, размер которой
+   сам зависит от карточки, и на 390 px карточка вылезала за вьюпорт. */
+
+.auth-page {
+  margin: 0;
+  min-height: 100vh;
+  padding: var(--space-4) var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-0);
+  color: var(--text-1);
+  font: var(--fs-400) / var(--lh-normal) var(--font-sans);
+}
+
+.auth-panel {
+  width: 100%;
+  max-width: 520px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
+  padding: var(--space-6);
+}
+
+.auth-panel h1 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--fs-700);
+  line-height: var(--lh-tight);
+}
+
+.auth-panel p {
+  margin: 0 0 var(--space-4);
+  color: var(--text-2);
+}
+
+.auth-panel b {
+  color: var(--text-1);
+}
+
+.auth-error {
+  color: var(--danger-text);
+}
+
+.auth-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* Поля и кнопки здесь больше не описываются: их владелец — components.css
+   (.ui-field__control, .ui-btn). Файл отвечает только за каркас auth-экранов. */
+
+.auth-panel a:focus-visible {
+  outline: none;
+  border-color: var(--focus-color);
+  box-shadow: var(--focus-ring);
+}
+
+.auth-panel a {
+  color: var(--accent-text);
+  font-weight: var(--fw-bold);
+  text-decoration: none;
+}
+
+.auth-panel a:hover {
+  text-decoration: underline;
+}
+
+.auth-actions {
+  margin-top: var(--space-4);
+}
+
+.auth-hint {
+  margin-top: var(--space-1);
+  font-size: var(--fs-200);
+  color: var(--text-2);
+}
+
+.auth-links {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+@media (max-width: 480px) {
+  .auth-panel {
+    padding: var(--space-5);
+  }
+
+  .auth-links {
+    flex-direction: column;
+  }
+}

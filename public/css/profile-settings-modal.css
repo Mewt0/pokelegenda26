@@ -1,11 +1,15 @@
+/* Настройки профиля. Стили согласованы с tokens.css и components.css.
+   Исходные селекторы сохранены для совместимости с существующей разметкой и JS.
+   Там, где разметка ещё не содержит ui-*, повторяются значения базовых компонентов. */
+
 .profile-settings-overlay {
   position: fixed;
   inset: 0;
   z-index: 130000;
   display: none;
   place-items: center;
-  padding: 18px;
-  background: rgba(24, 34, 48, .42);
+  padding: var(--space-4);
+  background: var(--surface-backdrop);
 }
 
 .profile-settings-overlay.is-open {
@@ -13,137 +17,148 @@
 }
 
 .profile-settings-window {
-  width: min(720px, calc(100vw - 28px));
-  height: min(520px, calc(100vh - 36px));
+  width: min(720px, calc(100vw - var(--space-7)));
+  height: min(520px, calc(100vh - var(--space-8)));
   min-height: 430px;
   display: grid;
   grid-template-rows: 74px minmax(0, 1fr) 52px;
   overflow: hidden;
-  border: 2px solid rgba(132, 152, 180, .94);
-  border-radius: 8px;
-  background:
-    linear-gradient(rgba(246, 250, 255, .96), rgba(224, 233, 243, .96)),
-    repeating-linear-gradient(135deg, rgba(255,255,255,.28) 0 16px, rgba(140,160,184,.12) 16px 32px);
-  box-shadow: 0 22px 50px rgba(18, 31, 48, .36);
-  color: #152842;
+  border: 2px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-3);
+  color: var(--text-1);
 }
 
 .profile-settings-head {
   position: relative;
-  padding: 18px 58px 10px 26px;
-  border-bottom: 4px solid #ba70ec;
+  padding: var(--space-4) calc(var(--space-7) + var(--space-6)) var(--space-3) var(--space-6);
+  border-bottom: 4px solid var(--accent-strong);
 }
 
 .profile-settings-head h2 {
   margin: 0;
-  color: #4e5663;
-  font: 900 30px/1.05 Tahoma, Arial, sans-serif;
+  color: var(--text-1);
+  font: var(--fw-bold) var(--fs-700)/var(--lh-tight) var(--font-sans);
+  text-transform: none;
 }
 
 .profile-settings-head p {
-  margin: 4px 0 0;
-  color: #7d8796;
-  font-size: 13px;
-  font-weight: 800;
+  margin: var(--space-1) 0 0;
+  color: var(--text-2);
+  font-size: var(--fs-200);
+  font-weight: var(--fw-bold);
 }
 
+/* Визуальный эквивалент .ui-btn--ghost без изменения класса в HTML. */
 .profile-settings-close {
   position: absolute;
-  right: 14px;
-  top: 15px;
+  right: var(--space-3);
+  top: var(--space-4);
   width: 36px;
   height: 36px;
-  border: 0;
-  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
   background: transparent;
-  color: #8a9099;
-  font-size: 34px;
-  line-height: 1;
+  color: var(--accent-text);
+  font: var(--fw-bold) var(--fs-700)/var(--lh-tight) var(--font-sans);
   cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out);
 }
 
 .profile-settings-close:hover {
-  background: rgba(255,255,255,.72);
-  color: #576170;
+  background: var(--accent-soft);
+  color: var(--accent-text);
 }
 
 .profile-settings-body {
   min-height: 0;
   display: grid;
   grid-template-columns: 176px minmax(0, 1fr);
-  gap: 16px;
-  padding: 16px 18px;
+  gap: var(--space-4);
+  padding: var(--space-4);
 }
 
 .profile-settings-nav {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  border: 1px solid #bac7d8;
-  border-radius: 8px;
-  background: rgba(221, 232, 243, .74);
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
 }
 
+/* Вкладки используют базовую палитру .ui-btn и активный стиль .ui-btn--primary. */
 .profile-settings-tab {
   min-height: 44px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 12px;
-  border: 1px solid #b9c7d9;
-  border-radius: 7px;
-  background: rgba(248, 251, 255, .78);
-  color: #505c6d;
-  font: 900 15px/1 Tahoma, Arial, sans-serif;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-1);
+  font: var(--fw-bold) var(--fs-400)/var(--lh-tight) var(--font-sans);
+  text-transform: none;
   cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out);
 }
 
 .profile-settings-tab:hover,
-.profile-settings-tab.is-active {
-  border-color: #a55ee0;
-  background: linear-gradient(135deg, #cd78ef, #b55fe4);
-  color: #fff;
+.profile-settings-tab.is-active,
+.profile-settings-tab.ui-btn--primary {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+  color: var(--text-inverse);
 }
 
 .profile-settings-future {
   margin-top: auto;
-  padding: 10px;
-  border: 1px solid #c2cfdf;
-  border-radius: 7px;
-  background: rgba(255,255,255,.55);
-  color: #6c7888;
-  font-size: 11px;
-  line-height: 1.35;
+  padding: var(--space-3);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-0);
+  color: var(--text-2);
+  font-size: var(--fs-100);
+  line-height: var(--lh-normal);
 }
 
 .profile-settings-content {
   min-height: 0;
   overflow: auto;
-  padding: 16px;
-  border: 1px solid #bac7d8;
-  border-radius: 8px;
-  background: rgba(248, 251, 255, .82);
+  padding: var(--space-4);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
 }
 
 .profile-settings-content h3 {
-  margin: 0 0 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #cbd6e4;
-  color: #4f5c6e;
-  font: 900 22px/1.1 Tahoma, Arial, sans-serif;
+  margin: 0 0 var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text-1);
+  font: var(--fw-bold) var(--fs-600)/var(--lh-tight) var(--font-sans);
+  text-transform: none;
 }
 
 .profile-settings-grid {
   display: grid;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .profile-settings-row {
   display: grid;
   grid-template-columns: 150px minmax(0, 1fr);
-  gap: 12px;
+  gap: var(--space-3);
   align-items: center;
 }
 
@@ -151,132 +166,166 @@
   grid-template-columns: 1fr;
 }
 
+/* Совместимость с .ui-field__label. */
 .profile-settings-row label,
 .profile-settings-label {
-  color: #576477;
-  font-size: 14px;
-  font-weight: 900;
+  color: var(--text-2);
+  font-size: var(--fs-300);
+  font-weight: var(--fw-bold);
 }
 
+/* Совместимость с .ui-field__control. */
 .profile-settings-input,
 .profile-settings-select,
 .profile-settings-textarea {
   width: 100%;
-  min-height: 38px;
-  border: 1px solid #b7c7d8;
-  border-radius: 7px;
-  background: rgba(255,255,255,.92);
-  color: #172944;
-  font: 800 14px/1.2 Tahoma, Arial, sans-serif;
-  padding: 0 11px;
+  min-height: 40px;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-1);
+  font: var(--fw-bold) var(--fs-300)/var(--lh-tight) var(--font-sans);
+  padding: 0 var(--space-3);
 }
 
 .profile-settings-input[readonly],
 .profile-settings-input[disabled] {
-  background: #e7edf4;
-  color: #657286;
+  background: var(--surface-2);
+  color: var(--text-3);
 }
 
 .profile-settings-textarea {
   min-height: 112px;
-  padding: 10px 11px;
+  padding: var(--space-3);
   resize: vertical;
-  line-height: 1.35;
+  line-height: var(--lh-normal);
 }
 
+/* Совместимость с .ui-field__hint. */
 .profile-settings-hint {
-  color: #718197;
-  font-size: 12px;
-  font-weight: 700;
+  color: var(--text-2);
+  font-size: var(--fs-100);
+  font-weight: var(--fw-bold);
 }
 
 .profile-settings-toggle {
-  min-height: 38px;
+  min-height: 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 8px 10px;
-  border: 1px solid #c2cfdd;
-  border-radius: 8px;
-  background: rgba(255,255,255,.62);
-  color: #4d5b6e;
-  font-weight: 900;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-1);
+  font-weight: var(--fw-bold);
 }
 
 .profile-settings-toggle input {
   width: 20px;
   height: 20px;
-  accent-color: #59c878;
+  accent-color: var(--success);
 }
 
 .profile-settings-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .profile-settings-footer {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 18px;
-  border-top: 1px solid #c1ccda;
-  background: rgba(229, 237, 246, .9);
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-4);
+  border-top: 1px solid var(--border-soft);
+  background: var(--surface-0);
 }
 
 .profile-settings-status {
   min-width: 0;
   flex: 1;
-  color: #6f7f93;
-  font-size: 13px;
-  font-weight: 800;
+  color: var(--text-2);
+  font-size: var(--fs-200);
+  font-weight: var(--fw-bold);
 }
 
 .profile-settings-status.is-ok {
-  color: #24783a;
+  color: var(--success-text);
 }
 
 .profile-settings-status.is-error {
-  color: #9d2d2d;
+  color: var(--danger-text);
 }
 
+/* Визуальный эквивалент .ui-btn; имя сохранено для работающего JS. */
 .profile-settings-action {
   min-width: 128px;
-  height: 36px;
-  border: 1px solid #9db6ce;
-  border-radius: 8px;
-  background: rgba(255,255,255,.72);
-  color: #4f5e70;
-  font: 900 14px/1 Tahoma, Arial, sans-serif;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-1);
+  font: var(--fw-bold) var(--fs-300)/var(--lh-tight) var(--font-sans);
+  text-transform: none;
   cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out);
 }
 
-.profile-settings-action.is-primary {
-  border-color: #65ad7c;
-  background: linear-gradient(180deg, #dbf4e1, #b8e8c6);
-  color: #26723b;
+/* Сохраняется существующий .is-primary; поддерживается и .ui-btn--primary. */
+.profile-settings-action.is-primary,
+.profile-settings-action.ui-btn--primary {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+  color: var(--text-inverse);
 }
 
 .profile-settings-action:hover {
-  filter: brightness(1.03);
+  background: var(--surface-2);
 }
 
+.profile-settings-action.is-primary:hover,
+.profile-settings-action.ui-btn--primary:hover {
+  border-color: var(--accent-strong-hover);
+  background: var(--accent-strong-hover);
+}
+
+/* Внешняя кнопка профиля сохраняет исходный селектор и оформление из токенов. */
 .trainer-profile-social-button.is-settings {
-  border-color: #82a9e6;
-  background: rgba(235, 244, 255, .86);
+  border-color: var(--border-2);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+/* Фокус оформлен теми же токенами, что и в компонентах проекта. */
+.profile-settings-close:focus-visible,
+.profile-settings-tab:focus-visible,
+.profile-settings-action:focus-visible,
+.profile-settings-input:focus-visible,
+.profile-settings-select:focus-visible,
+.profile-settings-textarea:focus-visible {
+  outline: none;
+  border-color: var(--focus-color);
+  box-shadow: var(--focus-ring);
 }
 
 @media (max-width: 720px) {
   .profile-settings-window {
-    height: min(620px, calc(100vh - 20px));
+    height: min(620px, calc(100vh - var(--space-5)));
     min-height: 0;
   }
 
   .profile-settings-body {
     grid-template-columns: 1fr;
-    gap: 10px;
-    padding: 10px;
+    gap: var(--space-3);
+    padding: var(--space-3);
   }
 
   .profile-settings-nav {
@@ -286,7 +335,7 @@
 
   .profile-settings-tab {
     flex: 0 0 auto;
-    min-height: 38px;
+    min-height: 40px;
   }
 
   .profile-settings-future {
@@ -297,4 +346,28 @@
   .profile-settings-columns {
     grid-template-columns: 1fr;
   }
+}
+
+@media (max-width: 720px) {
+  .profile-settings-window {
+    width: calc(100vw - 16px);
+    height: calc(100dvh - 16px);
+    max-height: calc(100dvh - 16px);
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+  .profile-settings-head { padding: var(--space-3); align-items: center; }
+  .profile-settings-head h2 { font-size: var(--fs-500); line-height: 1.3; }
+  .profile-settings-head p { display: none; }
+  .profile-settings-close { flex: 0 0 44px; min-height: 44px; }
+  .profile-settings-body { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+  .profile-settings-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; flex: 0 0 auto; }
+  .profile-settings-tab { min-width: 0; min-height: 52px; padding-inline: var(--space-2); font-size: var(--fs-200); gap: var(--space-1); white-space: normal; }
+  .profile-settings-tab > span { flex: 0 0 16px; }
+  .profile-settings-tab b { min-width: 0; font-size: var(--fs-100); line-height: 1.3; white-space: normal; overflow-wrap: anywhere; }
+  .profile-settings-content { overflow: visible; flex: 0 0 auto; }
+  .profile-settings-input, .profile-settings-select, .profile-settings-textarea { font-size: var(--fs-400); min-height: 44px; }
+  .profile-settings-footer { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); padding: var(--space-3); }
+  .profile-settings-status { grid-column: 1 / -1; }
+  .profile-settings-footer .profile-settings-action { min-width: 0; width: 100%; min-height: 44px; }
 }

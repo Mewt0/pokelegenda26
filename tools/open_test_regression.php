@@ -107,6 +107,7 @@ function regressionChecks(string $profile, string $login, string $forbiddenLogin
     $forbidden = ['--forbidden-login=' . $forbiddenLogin, '--forbidden-password=' . $password];
 
     $checks = [
+        ['name' => 'PDO param hygiene', 'args' => ['tools/pdo_param_audit.php']],
         ['name' => 'Migrations', 'args' => ['tools/migration_status.php', '--record-status']],
         ['name' => 'DB integrity', 'args' => ['tools/db_integrity_smoke.php', '--json']],
         ['name' => 'HTTP API read smoke', 'args' => array_merge(['tools/http_smoke.php'], $auth), 'needsPassword' => true],
@@ -117,11 +118,15 @@ function regressionChecks(string $profile, string $login, string $forbiddenLogin
         ['name' => 'Inventory/Held items', 'args' => ['tools/inventory_held_items_smoke.php']],
         ['name' => 'Reward pipeline', 'args' => ['tools/reward_pipeline_smoke.php']],
         ['name' => 'Safe storage', 'args' => ['tools/safe_storage_smoke.php']],
+        ['name' => 'PvE reward idempotency', 'args' => ['tools/pve_reward_idempotency_smoke.php']],
+        ['name' => 'PvE action lock safety', 'args' => ['tools/pve_action_lock_smoke.php']],
         ['name' => 'Background jobs', 'args' => ['tools/background_jobs_smoke.php']],
         ['name' => 'Commission market', 'args' => ['tools/commission_market_smoke.php']],
         ['name' => 'Commission hardening', 'args' => ['tools/commission_hardening_smoke.php', '--iterations=60']],
         ['name' => 'Economy guard', 'args' => ['tools/economy_guard_smoke.php']],
         ['name' => 'Battle replay', 'args' => ['tools/battle_replay_smoke.php']],
+        ['name' => 'Battle transformation stats', 'args' => ['tools/battle_transformation_stats_smoke.php']],
+        ['name' => 'Battle transformation/weather', 'args' => ['tools/battle_transformation_weather_smoke.php']],
         ['name' => 'Notifications/mail', 'args' => ['tools/notifications_mail_smoke.php']],
         ['name' => 'Dex/AttackDex', 'args' => array_merge(['tools/dex_attackdex_smoke.php'], $auth), 'needsPassword' => true],
         ['name' => 'Tournament flow', 'args' => ['tools/tournament_qa_smoke.php', '--password=' . $password], 'needsPassword' => true],
@@ -151,7 +156,9 @@ function runCommand(array $command): array
     $descriptor = [
         0 => ['pipe', 'r'],
         1 => ['pipe', 'w'],
-        2 => ['pipe', 'w'],
+        // Drain one stream: verbose stderr must not deadlock the child while
+        // the parent waits for stdout to close (notably PHP 8.5 warnings).
+        2 => ['redirect', 1],
     ];
     $process = proc_open($cmd, $descriptor, $pipes, dirname(__DIR__));
     if (!is_resource($process)) {
@@ -160,15 +167,13 @@ function runCommand(array $command): array
 
     fclose($pipes[0]);
     $stdout = stream_get_contents($pipes[1]) ?: '';
-    $stderr = stream_get_contents($pipes[2]) ?: '';
     fclose($pipes[1]);
-    fclose($pipes[2]);
     $exitCode = proc_close($process);
 
     return [
         'exitCode' => (int) $exitCode,
         'durationMs' => (int) round((microtime(true) - $started) * 1000),
-        'output' => trim($stdout . ($stderr !== '' ? PHP_EOL . $stderr : '')),
+        'output' => trim($stdout),
     ];
 }
 
@@ -178,7 +183,7 @@ function summarizeOutput(string $output): string
     if (is_array($decoded) && isset($decoded['summary']) && is_array($decoded['summary'])) {
         $summary = $decoded['summary'];
         $parts = [];
-        foreach (['p0', 'p1', 'warn', 'ok', 'fixed'] as $key) {
+        foreach (['p0', 'p1', 'warn', 'accepted', 'ok', 'fixed'] as $key) {
             if (array_key_exists($key, $summary)) {
                 $parts[] = strtoupper($key) . '=' . (int) $summary[$key];
             }

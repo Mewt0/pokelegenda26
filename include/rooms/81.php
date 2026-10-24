@@ -12,5 +12,5 @@ $pers = '<a href="/game.php?go=char&npc=4&do=1">Старший Тренер</a> 
 
 $move = '<a href="/game.php?go=charWork&loc=1" target="_chat_two">Алабастия</a>';
 
-$img_r = '<img src="img/room/1_1.jpg" width="290" height="150">';
+$img_r = '<img src="img/room/28.png" width="290" height="150">';
 ?>

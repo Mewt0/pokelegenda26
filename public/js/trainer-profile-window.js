@@ -12,6 +12,8 @@
   let offsetX = 0;
   let offsetY = 0;
   let loadSeq = 0;
+  let loadController = null;
+  let returnFocus = null;
   let currentProfileOptions = {};
 
   function ensureDom() {
@@ -19,13 +21,14 @@
 
     overlay = document.createElement('section');
     overlay.className = 'trainer-profile-overlay';
+    overlay.setAttribute('data-ui-overlay', '');
     overlay.id = 'trainerProfileOverlay';
     overlay.setAttribute('aria-hidden', 'true');
     overlay.innerHTML = [
-      '<div class="trainer-profile-window" role="dialog" aria-label="Профиль игрока">',
+      '<div class="trainer-profile-window" role="dialog" aria-modal="true" aria-label="Профиль игрока" aria-busy="false" tabindex="-1">',
         '<header class="trainer-profile-head">',
           '<strong>Профиль игрока</strong>',
-          '<button type="button" class="trainer-profile-close" aria-label="Закрыть">&times;</button>',
+          '<button type="button" class="trainer-profile-close ui-btn ui-btn--ghost" aria-label="Закрыть">&times;</button>',
         '</header>',
         '<div class="trainer-profile-body">',
           '<aside class="trainer-profile-side">',
@@ -53,7 +56,7 @@
                 '</div>',
                 '<div class="trainer-profile-info-section">',
                   '<div class="trainer-profile-info-label">Данные тренера</div>',
-                  '<div class="trainer-profile-stats" data-trainer-stats></div>',
+                  '<div class="trainer-profile-stats" data-trainer-stats aria-live="polite"></div>',
                 '</div>',
               '</div>',
             '</section>',
@@ -100,12 +103,15 @@
     ].join('');
     document.body.appendChild(overlay);
     win = overlay.querySelector('.trainer-profile-window');
+    window.UiOverlay?.attach(overlay);
+    overlay.addEventListener('ui-overlay:closed', close);
 
     overlay.querySelector('.trainer-profile-close').addEventListener('click', close);
     overlay.addEventListener('click', event => {
       if (event.target === overlay) close();
     });
     document.addEventListener('keydown', event => {
+      if (event.defaultPrevented) return;
       if (event.key === 'Escape' && overlay.classList.contains('is-open')) {
         close();
       }
@@ -131,6 +137,7 @@
     };
 
     const beginDrag = (event, pointerId = null) => {
+      if (window.matchMedia('(max-width: 920px)').matches) return;
       if (event.target.closest('button')) return;
       const rect = win.getBoundingClientRect();
       dragging = true;
@@ -195,20 +202,34 @@
 
   function open(options = {}) {
     ensureDom();
+    if (!overlay.classList.contains('is-open')) {
+      returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
     currentProfileOptions = { ...options };
     overlay.classList.add('is-open');
+    document.body.classList.add('has-trainer-profile');
     overlay.setAttribute('aria-hidden', 'false');
     resetScroll();
     renderLoading(options.login || options.user || options.id || '');
     loadProfile(options);
+    window.setTimeout(() => win?.focus({ preventScroll: true }), 0);
   }
 
   function close() {
     if (!overlay) return;
+    loadSeq += 1;
+    loadController?.abort();
+    loadController = null;
     dragging = false;
     dragPointerId = null;
     overlay.classList.remove('is-open');
+    document.body.classList.remove('has-trainer-profile');
     overlay.setAttribute('aria-hidden', 'true');
+    win?.setAttribute('aria-busy', 'false');
+    if (returnFocus && returnFocus.isConnected) {
+      returnFocus.focus({ preventScroll: true });
+    }
+    returnFocus = null;
   }
 
   function resetScroll() {
@@ -220,6 +241,10 @@
 
   async function loadProfile(options) {
     const seq = ++loadSeq;
+    loadController?.abort();
+    const controller = new AbortController();
+    loadController = controller;
+    win?.setAttribute('aria-busy', 'true');
     const params = new URLSearchParams();
     if (Number(options.id || 0) > 0) {
       params.set('id', String(Number(options.id)));
@@ -231,11 +256,18 @@
       const response = await fetch('/api/profile/card?' + params.toString(), {
         credentials: 'same-origin',
         headers: { 'Accept': 'application/json' },
+        signal: controller.signal,
       });
-      const data = await response.json();
+      const text = await response.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (parseError) {
+        throw new Error('Сервер вернул некорректный ответ.');
+      }
       if (seq !== loadSeq) return;
 
-      if (!data || data.ok !== true) {
+      if (!response.ok || !data || data.ok !== true) {
         renderError(data && data.message ? data.message : 'Профиль не найден.');
         return;
       }
@@ -244,8 +276,14 @@
       renderProfile(data.profile || {});
     } catch (error) {
       if (seq !== loadSeq) return;
+      if (error && error.name === 'AbortError') return;
       console.error('Trainer profile failed:', error);
-      renderError('Не удалось загрузить профиль тренера.');
+      renderError(error && error.message ? error.message : 'Не удалось загрузить профиль тренера.');
+    } finally {
+      if (seq === loadSeq) {
+        loadController = null;
+        win?.setAttribute('aria-busy', 'false');
+      }
     }
   }
 
@@ -270,10 +308,12 @@
   }
 
   function renderLoading(target) {
+    win?.setAttribute('aria-busy', 'true');
     applyAppearance({});
     setText('[data-trainer-name]', target ? 'Загружаю: ' + target : 'Загружаю профиль...');
     setText('[data-trainer-info]', 'Получаю данные тренера.');
     setText('[data-trainer-clan-name]', '...');
+    setImage('[data-trainer-clan-img]', '/public/img/ui/menu-profile.png', '/public/img/ui/menu-profile.png');
     setText('[data-trainer-clan-points]', '0');
     setText('[data-trainer-activity]', '...');
     setText('[data-trainer-rating]', '0');
@@ -305,8 +345,13 @@
     clearList('[data-trainer-friends]', '');
     clearList('[data-trainer-social]', '');
     setText('[data-trainer-badges-count]', '0');
-    qs('[data-trainer-stats]').innerHTML = '<div class="trainer-profile-error"></div>';
-    qs('.trainer-profile-error').textContent = message;
+    qs('[data-trainer-stats]').innerHTML = '<div class="trainer-profile-error ui-empty" role="alert"><span></span><button type="button" class="ui-btn ui-btn--primary" data-trainer-retry>Повторить</button></div>';
+    qs('.trainer-profile-error span').textContent = message;
+    qs('[data-trainer-retry]').addEventListener('click', () => {
+      resetScroll();
+      renderLoading(currentProfileOptions.login || currentProfileOptions.user || currentProfileOptions.id || '');
+      loadProfile(currentProfileOptions);
+    });
   }
 
   function renderProfile(profile) {
@@ -323,7 +368,8 @@
     const social = profile.social || {};
 
     applyAppearance(profile.appearance || user.appearance || {});
-    setText('[data-trainer-name]', '[' + Number(user.id || profile.uid || 0) + '] ' + (user.login || 'Тренер'));
+    setText('[data-trainer-name]', user.login || 'Тренер');
+    qs('[data-trainer-avatar]')?.setAttribute('alt', 'Аватар тренера ' + (user.login || ''));
     setText('[data-trainer-clan-name]', clan.name || 'Без клана');
     setText('[data-trainer-clan-points]', formatNumber(clan.points || 0));
     setImage('[data-trainer-clan-img]', clan.image ? '/img/clan/' + clan.image + '.png' : '/public/img/ui/menu-profile.png', '/public/img/ui/menu-profile.png');
@@ -369,7 +415,7 @@
       ['Рейтинг PVP', formatNumber(user.pvpRating || 0) + ' (' + (user.pvpTitle || 'Новичок') + ')'],
       ['Рейтинг PVE', formatNumber(user.pveRating || 0) + ' (' + (user.pveTitle || 'Искатель') + ')'],
       ['Игровой рейтинг', formatNumber(user.questRating || 0)],
-      ['Коллекция', 'обычные: ' + formatNumber(user.normalDex || 0) + ' / shiny: ' + formatNumber(user.shinyDex || 0)],
+      ['Коллекция', 'Обычные: ' + formatNumber(user.normalDex || 0) + ' / сияющие: ' + formatNumber(user.shinyDex || 0)],
       ['Репутация', (karma.title || 'Нейтральная репутация') + ' ' + formatNumber(karma.score || 0)],
       ['Регистрация', user.registeredAt || 'нет данных'],
       ['Последняя активность', formatOnlineTime(user.lastOnline)],
@@ -394,21 +440,28 @@
     box.innerHTML = '';
     if (privacy.partyHidden) {
       const hidden = document.createElement('div');
-      hidden.className = 'trainer-profile-party-private';
+      hidden.className = 'trainer-profile-party-private ui-empty';
       hidden.textContent = 'Команда скрыта настройками тренера.';
       box.appendChild(hidden);
       return;
     }
 
     const alive = party.slice(0, 6);
+    if (!alive.length) {
+      const empty = document.createElement('div');
+      empty.className = 'trainer-profile-party-private ui-empty';
+      empty.textContent = 'Команда пока пуста.';
+      box.appendChild(empty);
+      return;
+    }
     for (let i = 0; i < 6; i++) {
       const pokemon = alive[i] || null;
       const slot = document.createElement('span');
-      slot.className = 'trainer-profile-party-slot' + (pokemon ? '' : ' is-empty');
+      slot.className = 'trainer-profile-party-slot ui-card' + (pokemon ? '' : ' is-empty');
       const image = document.createElement('img');
-      image.className = 'trainer-profile-party-mon';
+      image.className = 'trainer-profile-party-mon ui-card__media';
       image.alt = pokemon ? (pokemon.name || 'Покемон') : 'Пустой слот';
-      image.title = pokemon ? (pokemon.name || 'Покемон') + ' Lv.' + Number(pokemon.level || 0) : 'Пустой слот';
+      image.title = pokemon ? (pokemon.name || 'Покемон') + ' — ур. ' + Number(pokemon.level || 0) : 'Пустой слот';
       image.src = pokemon ? pokemonSprite(pokemon) : '/img/pokeball.png';
       image.onerror = () => {
         image.onerror = null;
@@ -425,7 +478,7 @@
     const visible = badges.slice(0, 12);
     if (!visible.length) {
       const empty = document.createElement('span');
-      empty.className = 'trainer-profile-gym-empty';
+      empty.className = 'trainer-profile-gym-empty ui-empty';
       empty.textContent = 'Пока нет значков.';
       box.appendChild(empty);
       return;
@@ -433,8 +486,9 @@
 
     visible.forEach(badge => {
       const cell = document.createElement('span');
-      cell.className = 'trainer-profile-gym-badge';
+      cell.className = 'trainer-profile-gym-badge ui-card';
       const image = document.createElement('img');
+      image.className = 'ui-card__media';
       image.src = badge.image || '/public/img/ui/menu-profile.png';
       image.alt = badge.title || 'Значок';
       const issuedAt = Number(badge.issuedAt || badge.awardedAt || 0);
@@ -454,7 +508,7 @@
 
     if (badges.length > visible.length) {
       const more = document.createElement('span');
-      more.className = 'trainer-profile-gym-badge trainer-profile-gym-more';
+      more.className = 'trainer-profile-gym-badge trainer-profile-gym-more ui-card';
       more.textContent = '+' + (badges.length - visible.length);
       more.title = 'Ещё значков: ' + (badges.length - visible.length);
       box.appendChild(more);
@@ -475,7 +529,7 @@
     box.appendChild(state);
 
     if (own) {
-      box.appendChild(socialButton('⚙ Настройки', () => {
+      box.appendChild(socialButton('Настройки', () => {
         if (window.ProfileSettingsModal && typeof window.ProfileSettingsModal.open === 'function') {
           window.ProfileSettingsModal.open({
             onSaved: () => loadProfile(currentProfileOptions),
@@ -483,29 +537,29 @@
         } else {
           notify('Окно настроек ещё загружается.', 'error');
         }
-      }, 'is-settings'));
+      }, 'is-settings', 'ui-settings'));
       return;
     }
     if (id <= 0) return;
 
     if (social.canMessage !== false) {
       const message = document.createElement('a');
-      message.className = 'trainer-profile-social-button';
+      message.className = 'trainer-profile-social-button ui-btn ui-btn--ghost';
       message.href = '/game/messages?mail_to=' + encodeURIComponent(login || String(id));
       message.textContent = 'Написать';
       box.appendChild(message);
     }
 
     if (social.canAcceptFriend) {
-      box.appendChild(socialButton('Принять', () => runSocialAction('acceptFriend', id)));
+      box.appendChild(socialButton('Принять', () => runSocialAction('acceptFriend', id), '', '', 'ui-btn--primary'));
     } else if (social.canRemoveFriend) {
-      box.appendChild(socialButton('Убрать', () => runSocialAction('removeFriend', id)));
+      box.appendChild(socialButton('Убрать', () => runSocialAction('removeFriend', id), '', '', 'ui-btn--danger'));
     } else if (social.canRequestFriend) {
-      box.appendChild(socialButton('В друзья', () => runSocialAction('requestFriend', id)));
+      box.appendChild(socialButton('В друзья', () => runSocialAction('requestFriend', id), '', '', 'ui-btn--primary'));
     } else if (status === 'outgoing') {
       const pending = document.createElement('button');
       pending.type = 'button';
-      pending.className = 'trainer-profile-social-button is-disabled';
+      pending.className = 'trainer-profile-social-button ui-btn ui-btn--ghost is-disabled';
       pending.disabled = true;
       pending.textContent = 'Заявка отправлена';
       box.appendChild(pending);
@@ -518,11 +572,19 @@
     box.appendChild(socialButton('Обмен', () => runSocialAction('requestTrade', id, user)));
   }
 
-  function socialButton(label, handler, extraClass = '') {
+  function socialButton(label, handler, extraClass = '', iconClass = '', variant = 'ui-btn--ghost') {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'trainer-profile-social-button' + (extraClass ? ' ' + extraClass : '');
-    button.textContent = label;
+    button.className = 'trainer-profile-social-button ui-btn ' + variant + (extraClass ? ' ' + extraClass : '');
+    if (iconClass) {
+      const icon = document.createElement('span');
+      icon.className = 'icon icon--' + iconClass;
+      icon.setAttribute('aria-hidden', 'true');
+      button.appendChild(icon);
+      button.appendChild(document.createTextNode(' ' + label));
+    } else {
+      button.textContent = label;
+    }
     button.addEventListener('click', handler);
     return button;
   }
@@ -581,12 +643,20 @@
     const box = qs(selector);
     box.innerHTML = '';
     const visible = items.slice(0, limit);
+    if (!visible.length) {
+      const empty = document.createElement('div');
+      empty.className = 'trainer-profile-empty ui-empty';
+      empty.textContent = selector === '[data-trainer-awards]' ? 'Наград пока нет.' : 'Подарков пока нет.';
+      box.appendChild(empty);
+      return;
+    }
     for (let i = 0; i < limit; i++) {
       const item = visible[i] || null;
       const cell = document.createElement('span');
-      cell.className = 'trainer-profile-cell';
+      cell.className = 'trainer-profile-cell ui-card';
       if (item) {
         const image = document.createElement('img');
+        image.className = 'ui-card__media';
         image.src = item.image || '/public/img/ui/menu-inventory.png';
         image.alt = item.name || '';
         image.title = [item.name, item.title, item.comment].filter(Boolean).join(' ');
@@ -605,7 +675,7 @@
     box.innerHTML = '';
     if (!friends.length) {
       const empty = document.createElement('div');
-      empty.className = 'trainer-profile-empty';
+      empty.className = 'trainer-profile-empty ui-empty';
       empty.textContent = 'Друзей пока нет.';
       box.appendChild(empty);
       return;
@@ -614,11 +684,11 @@
     friends.forEach(friend => {
       const row = document.createElement('button');
       row.type = 'button';
-      row.className = 'trainer-profile-friend' + (friend.online ? ' is-online' : '');
+      row.className = 'trainer-profile-friend ui-card ui-btn' + (friend.online ? ' is-online' : '');
       row.title = friend.group || 'Тренер';
       row.dataset.profileId = String(friend.id || 0);
-      row.innerHTML = '<i></i><span></span>';
-      row.querySelector('span').textContent = friend.login || ('#' + Number(friend.id || 0));
+      row.innerHTML = '<i class="ui-card__media"><span class="icon icon--' + (friend.online ? 'player-online' : 'player-offline') + '" aria-hidden="true"></span></i><span class="ui-card__title"></span>';
+      row.querySelector('.ui-card__title').textContent = friend.login || ('#' + Number(friend.id || 0));
       row.addEventListener('click', () => {
         if (Number(friend.id || 0) > 0) open({ id: Number(friend.id) });
       });

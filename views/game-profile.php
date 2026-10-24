@@ -23,61 +23,13 @@ $lastOnlineText = $lastOnline > 0 ? date('Y-m-d H:i', $lastOnline) : 'нет д�
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Профиль <?= View::e($u['login']) ?> - Pokemon 8.0</title>
-  <style>
-    :root { --bg:#eef2f5; --panel:#fff; --soft:#f6f8fb; --line:#cfd8e3; --text:#172033; --muted:#66758a; --blue:#1d66c2; --green:#18864a; --gold:#a97100; }
-    * { box-sizing:border-box; }
-    body { margin:0; background:#dfe5eb; color:var(--text); font:14px/1.45 Tahoma, Arial, sans-serif; }
-    .wrap { max-width:1160px; margin:0 auto; padding:18px; }
-    .top { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
-    .top a { color:#1d5faf; font-weight:700; text-decoration:none; }
-    .shell { border:1px solid #aeb9c6; border-radius:8px; overflow:hidden; box-shadow:0 12px 28px rgba(0,0,0,.18); background:var(--panel); }
-    .hero { display:grid; grid-template-columns:280px minmax(0,1fr) 280px; gap:0; min-height:560px; }
-    .side, .center { padding:14px; }
-    .side { background:#f1f4f7; border-right:1px solid var(--line); }
-    .side.right { border-right:0; border-left:1px solid var(--line); }
-    .center { background:linear-gradient(#ffffff,#f7fafc); display:grid; grid-template-rows:auto auto 1fr auto; gap:12px; }
-    .card { background:#fff; border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:10px; }
-    .card h2 { margin:0 0 9px; font-size:14px; text-transform:uppercase; color:#506074; letter-spacing:.04em; }
-    .kv { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px 12px; }
-    .k { color:var(--muted); }
-    .v { font-weight:700; text-align:right; }
-    .namebar { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-    .namebar h1 { margin:0; min-width:0; font-size:24px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .badge { display:inline-flex; align-items:center; justify-content:center; min-height:24px; padding:3px 9px; border:1px solid var(--line); border-radius:999px; background:#fff; color:#4e6178; font-weight:700; white-space:nowrap; }
-    .badge.online { color:#0f7a3a; border-color:#9bd7b2; background:#effaf2; }
-    .avatar { display:grid; place-items:center; min-height:320px; border:1px solid var(--line); border-radius:8px; background:radial-gradient(circle at 50% 18%, #fff, #e9eef4); overflow:hidden; }
-    .avatar img { max-width:100%; max-height:315px; object-fit:contain; image-rendering:auto; filter:drop-shadow(0 8px 16px rgba(0,0,0,.22)); }
-    .rank-img { height:20px; object-fit:contain; }
-    .party { display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:8px; }
-    .poke { min-width:0; border:1px solid var(--line); border-radius:8px; background:#fff; padding:8px; text-align:center; }
-    .poke img { width:54px; height:54px; object-fit:contain; image-rendering:auto; }
-    .poke b { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
-    .hp { height:6px; margin-top:6px; border-radius:99px; background:#dce4ec; overflow:hidden; }
-    .hp i { display:block; height:100%; background:linear-gradient(90deg,#2aaa5b,#8bd55c); }
-    .info { min-height:72px; color:#314157; white-space:pre-line; }
-    .collection { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-    .score { padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--soft); }
-    .score span { display:block; color:var(--muted); }
-    .score b { display:block; margin-top:3px; font-size:22px; }
-    .score.pvp b { color:var(--blue); }
-    .score.pve b { color:var(--green); }
-    .score.karma.good b { color:var(--green); }
-    .score.karma.bad b { color:#c73333; }
-    .score.karma.neutral b { color:#64748b; }
-    .present-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; min-height:42px; }
-    .present { aspect-ratio:1/1; display:grid; place-items:center; border:1px solid var(--line); border-radius:8px; background:#fff; }
-    .present img { width:36px; height:36px; object-fit:contain; }
-    .empty { color:var(--muted); font-size:13px; }
-    .clan { display:flex; gap:10px; align-items:center; }
-    .clan img { width:42px; height:42px; object-fit:contain; }
-    .email-form { display:grid; gap:8px; }
-    .email-form input, .email-form button { height:36px; border:1px solid var(--line); border-radius:7px; padding:0 10px; font:inherit; }
-    .email-form button { background:var(--blue); color:#fff; font-weight:800; cursor:pointer; }
-    @media (max-width: 980px) { .hero { grid-template-columns:1fr; } .side, .side.right { border:0; border-top:1px solid var(--line); } .party { grid-template-columns:repeat(3,1fr); } }
-  </style>
+  <title>Профиль <?= View::e($u['login']) ?> - League of Pokemons</title>
+  <?php
+    $headStyles = ['/public/css/game-profile.css'];
+    require APP_ROOT . '/views/components/head-styles.php';
+  ?>
 </head>
-<body>
+<body class="profile-page">
   <main class="wrap">
     <nav class="top">
       <a href="/game">Игровой мир</a>
@@ -213,5 +165,6 @@ $lastOnlineText = $lastOnline > 0 ? date('Y-m-d H:i', $lastOnline) : 'нет д�
       </div>
     </section>
   </main>
+  <script src="<?= \Pokemon8\View\View::e(asset_url('/public/js/ui-preferences.js')) ?>"></script>
 </body>
 </html>

@@ -11,9 +11,11 @@ $contentWizardJsVersion = @filemtime(__DIR__ . '/../public/js/admin-content-wiza
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Админка - Pokemon 8.0</title>
-  <link rel="stylesheet" href="/public/css/admin-panel.css?v=<?= (int) $adminCssVersion ?>">
-  <link rel="stylesheet" href="/public/css/admin-content-wizard.css?v=<?= (int) $contentWizardCssVersion ?>">
+  <title>Админка - League of Pokemons</title>
+  <?php
+    $headStyles = ['/public/css/admin-panel.css', '/public/css/admin-content-wizard.css'];
+    require APP_ROOT . '/views/components/head-styles.php';
+  ?>
 </head>
 <body>
   <main class="admin-shell" data-csrf="<?= View::e($csrf) ?>">
@@ -112,7 +114,7 @@ $contentWizardJsVersion = @filemtime(__DIR__ . '/../public/js/admin-content-wiza
       </aside>
     </section>
   </main>
-  <script src="/public/js/admin-content-wizard.js?v=<?= (int) $contentWizardJsVersion ?>"></script>
-  <script src="/public/js/admin-panel.js?v=<?= (int) $adminJsVersion ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/admin-content-wizard.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/admin-panel.js')) ?>"></script>
 </body>
 </html>

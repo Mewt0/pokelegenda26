@@ -204,24 +204,40 @@ final class BackgroundJobRepository
         }
 
         $deletedInventory = 0;
-        if ($expiredInventory > 0) {
-            $stmt = $this->db->prepare('DELETE FROM items_users WHERE dattimer REGEXP "^[0-9]+$" AND CAST(dattimer AS UNSIGNED) <= :now ORDER BY id ASC LIMIT ' . $limit);
-            $stmt->execute(['now' => $now]);
-            $deletedInventory = $stmt->rowCount();
-        }
-
         $deletedHeld = 0;
-        if ($expiredHeld > 0) {
-            $stmt = $this->db->prepare('DELETE FROM items_poke WHERE datetime REGEXP "^[0-9]+$" AND CAST(datetime AS UNSIGNED) <= :now LIMIT ' . $limit);
-            $stmt->execute(['now' => $now]);
-            $deletedHeld = $stmt->rowCount();
+        $disabledBoosts = 0;
+        $started = !$this->db->inTransaction();
+        if ($started) {
+            $this->db->beginTransaction();
         }
 
-        $disabledBoosts = 0;
-        if ($expiredBoosts > 0) {
-            $stmt = $this->db->prepare('UPDATE player_boosts SET active = 0 WHERE active = 1 AND expires_at > 0 AND expires_at <= :now LIMIT ' . $limit);
-            $stmt->execute(['now' => $now]);
-            $disabledBoosts = $stmt->rowCount();
+        try {
+            if ($expiredInventory > 0) {
+                $stmt = $this->db->prepare('DELETE FROM items_users WHERE dattimer REGEXP "^[0-9]+$" AND CAST(dattimer AS UNSIGNED) <= :now ORDER BY id ASC LIMIT ' . $limit);
+                $stmt->execute(['now' => $now]);
+                $deletedInventory = $stmt->rowCount();
+            }
+
+            if ($expiredHeld > 0) {
+                $stmt = $this->db->prepare('DELETE FROM items_poke WHERE datetime REGEXP "^[0-9]+$" AND CAST(datetime AS UNSIGNED) <= :now LIMIT ' . $limit);
+                $stmt->execute(['now' => $now]);
+                $deletedHeld = $stmt->rowCount();
+            }
+
+            if ($expiredBoosts > 0) {
+                $stmt = $this->db->prepare('UPDATE player_boosts SET active = 0 WHERE active = 1 AND expires_at > 0 AND expires_at <= :now LIMIT ' . $limit);
+                $stmt->execute(['now' => $now]);
+                $disabledBoosts = $stmt->rowCount();
+            }
+
+            if ($started) {
+                $this->db->commit();
+            }
+        } catch (Throwable $e) {
+            if ($started && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
         }
 
         $summary = [

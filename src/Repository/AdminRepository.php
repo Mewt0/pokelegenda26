@@ -555,13 +555,28 @@ final class AdminRepository
             return ['ok' => true, 'message' => 'IP разбанен.'];
         }
 
-        $exists = $this->db->prepare('SELECT 1 FROM banip WHERE ip = :ip LIMIT 1');
-        $exists->execute(['ip' => $ip]);
-        if (!$exists->fetchColumn()) {
-            $this->db->prepare('INSERT INTO banip (id, ip, date) VALUES (:id, :ip, NOW())')
-                ->execute(['id' => $this->nextTableId('banip', 'id'), 'ip' => $ip]);
+        $startedTransaction = !$this->db->inTransaction();
+        if ($startedTransaction) {
+            $this->db->beginTransaction();
         }
-        $this->audit($adminId, 'banip.create', 'banip', $ip, ['user_id' => $userId, 'ip' => $ip]);
+
+        try {
+            $exists = $this->db->prepare('SELECT 1 FROM banip WHERE ip = :ip LIMIT 1');
+            $exists->execute(['ip' => $ip]);
+            if (!$exists->fetchColumn()) {
+                $this->db->prepare('INSERT INTO banip (id, ip, date) VALUES (:id, :ip, NOW())')
+                    ->execute(['id' => $this->nextTableId('banip', 'id'), 'ip' => $ip]);
+            }
+            $this->audit($adminId, 'banip.create', 'banip', $ip, ['user_id' => $userId, 'ip' => $ip]);
+            if ($startedTransaction) {
+                $this->db->commit();
+            }
+        } catch (Throwable $e) {
+            if ($startedTransaction && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            return ['ok' => false, 'message' => 'Failed to ban IP: ' . $e->getMessage()];
+        }
         return ['ok' => true, 'message' => 'IP забанен.'];
     }
 

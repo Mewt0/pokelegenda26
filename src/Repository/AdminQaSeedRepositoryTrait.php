@@ -28,6 +28,11 @@ trait AdminQaSeedRepositoryTrait
     /** @param array<string,mixed> $payload */
     public function qaSeedRun(int $adminId, array $payload): array
     {
+        $environment = (string) ($_ENV['APP_ENV'] ?? getenv('APP_ENV') ?: 'production');
+        $enabled = filter_var($_ENV['QA_TOOLS_ENABLED'] ?? getenv('QA_TOOLS_ENABLED') ?: 'false', FILTER_VALIDATE_BOOL);
+        if ($environment === 'production' || !$enabled) {
+            return ['ok' => false, 'message' => 'Изменяющие данные QA-инструменты отключены в этом окружении.'];
+        }
         $action = trim((string) ($payload['action'] ?? ''));
         return match ($action) {
             'setup_accounts' => $this->qaSeedSetupAccounts($adminId),
@@ -270,7 +275,8 @@ trait AdminQaSeedRepositoryTrait
         $created = false;
         if (!$row) {
             $created = true;
-            $password = $system ? '!system-account-no-login!' : password_hash('jungheinrick', PASSWORD_DEFAULT);
+            $seedPassword = (string) ($_ENV['QA_SEED_PASSWORD'] ?? getenv('QA_SEED_PASSWORD') ?: bin2hex(random_bytes(32)));
+            $password = $system ? '!system-account-no-login!' : password_hash($seedPassword, PASSWORD_DEFAULT);
             $stmt = $this->db->prepare(
                 'INSERT INTO users
                     (login, password, email, email_verified_at, online, onlinetime, activation, `groups`,

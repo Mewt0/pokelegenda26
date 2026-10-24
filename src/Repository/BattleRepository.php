@@ -677,7 +677,7 @@ final class BattleRepository
         if (!$this->tableExists('battle_transformations')) {
             return;
         }
-        if ($this->findBattleTransformation($battleId, $battlePokemon) !== null || $this->battleHasTransformation($battleId)) {
+        if ($this->findBattleTransformation($battleId, $battlePokemon) !== null) {
             return;
         }
 
@@ -694,6 +694,9 @@ final class BattleRepository
             $this->pokemonKnowsMove($pokemonId, 'Dragon Ascent')
         );
         if ($rule === null || !$this->transformationUnlocked((int) ($pokemon['users'] ?? 0), $baseId, (int) $rule['formId'])) {
+            return;
+        }
+        if (($rule['type'] ?? '') === 'mega' && $this->trainerHasActiveMegaTransformation($battleId, (int) ($pokemon['users'] ?? 0))) {
             return;
         }
 
@@ -794,7 +797,9 @@ final class BattleRepository
         }
 
         $stmt = $this->db->prepare(
-            'SELECT *
+            'SELECT id, battle_id, battle_pokemon, user_pokemon_id, original_base_id, form_base_id,
+                    transformation_type, required_item_id, source_key, active, activated_round, reverted_at,
+                    created_at, updated_at
                FROM battle_transformations
               WHERE battle_id = :battle AND battle_pokemon = :pokemon AND active = 1
               LIMIT 1'
@@ -803,14 +808,23 @@ final class BattleRepository
         return $stmt->fetch() ?: null;
     }
 
-    private function battleHasTransformation(int $battleId): bool
+    private function trainerHasActiveMegaTransformation(int $battleId, int $userId): bool
     {
-        if ($battleId <= 0 || !$this->tableExists('battle_transformations')) {
+        if ($battleId <= 0 || $userId <= 0 || !$this->tableExists('battle_transformations')) {
             return false;
         }
 
-        $stmt = $this->db->prepare('SELECT 1 FROM battle_transformations WHERE battle_id = :battle AND active = 1 LIMIT 1');
-        $stmt->execute(['battle' => $battleId]);
+        $stmt = $this->db->prepare(
+            'SELECT 1
+               FROM battle_transformations bt
+         INNER JOIN pok_user pu ON pu.id = bt.user_pokemon_id
+              WHERE bt.battle_id = :battle
+                AND bt.active = 1
+                AND bt.transformation_type = "mega"
+                AND pu.users = :user
+              LIMIT 1'
+        );
+        $stmt->execute(['battle' => $battleId, 'user' => $userId]);
         return $stmt->fetchColumn() !== false;
     }
 
@@ -2289,7 +2303,12 @@ final class BattleRepository
     public function addExperienceAndEffort(int $userId, int $pokemonId, int $exp, int $baseEv): array
     {
         $stmt = $this->db->prepare(
-            'SELECT *
+            'SELECT id, users, basenum, names, active, evcount, lvl, sex, har, hp_my, hp_max,
+                    exp, exp_b, atk, def, satk, sdef, speed, hp_ev, atk_ev, def_ev, satk_ev,
+                    sdef_ev, speed_ev, hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv,
+                    tips, startone, startepoke, reproduction, happy, datemay, usersone, sprz,
+                    item, ability_key, training_stage, training_stat, training_named_effect,
+                    training_tamed, training_updated_at
                FROM pok_user
               WHERE id = :pokemon AND users = :user AND active = 1
               LIMIT 1'
@@ -2470,15 +2489,28 @@ final class BattleRepository
         return $stmt->rowCount();
     }
 
-    public function catchWildPokemon(int $userId, string $enemyBattlePokemon, int $active): ?int
+    public function catchWildPokemon(int $userId, string $enemyBattlePokemon, int $active, int $battleId = 0): ?int
     {
         $parsed = $this->parseBattlePokemon($enemyBattlePokemon);
         if ($parsed === null || $parsed['table'] !== 'pok_pve') {
             return null;
         }
 
-        $stmt = $this->db->prepare('SELECT * FROM pok_pve WHERE id = :id AND poimka = 1 LIMIT 1');
-        $stmt->execute(['id' => $parsed['id']]);
+        $where = 'id = :id AND poimka = 1';
+        $params = ['id' => $parsed['id']];
+        if ($battleId > 0) {
+            $where .= ' AND battleid = :battle';
+            $params['battle'] = $battleId;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT id, users, basenum, names, evcount, lvl, sex, har, hp_my, hp_max, exp, exp_b,
+                    atk, def, satk, sdef, speed, hp_ev, atk_ev, def_ev, satk_ev, sdef_ev,
+                    speed_ev, hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv, tips, poimka,
+                    startepoke, reproduction, happy, battleid, sprz, ability_key
+               FROM pok_pve WHERE ' . $where . ' LIMIT 1'
+        );
+        $stmt->execute($params);
         $wild = $stmt->fetch();
         if (!$wild) {
             return null;
@@ -2635,6 +2667,13 @@ final class BattleRepository
         $stmt->execute(['name' => 'pokemon8_pve_battle_action_' . $battleId]);
     }
 
+    private function clearBattleHelpingHand(int $battleId): void
+    {
+        $this->db->prepare(
+            'DELETE FROM battle_dop WHERE battleid = :battle AND pokeid LIKE "v:%" AND mess = "helping_hand"'
+        )->execute(['battle' => $battleId]);
+    }
+
     public function claimPveBattleFinish(int $battleId, int $userId, int $winner): bool
     {
         if ($battleId <= 0 || $userId <= 0) {
@@ -2653,6 +2692,7 @@ final class BattleRepository
             return false;
         }
 
+        $this->clearBattleHelpingHand($battleId);
         $this->markBattleTransformationsReverted($battleId);
         $this->db->prepare(
             'UPDATE users SET pve = 0, battleid = :battle, atack_poke = :next_attack WHERE id = :id LIMIT 1'
@@ -2679,6 +2719,7 @@ final class BattleRepository
               WHERE id = :id AND user_1 = :user AND batl_tip = "pve"
               LIMIT 1'
         )->execute(['winner' => $winner, 'id' => $battleId, 'user' => $userId]);
+        $this->clearBattleHelpingHand($battleId);
         $this->markBattleTransformationsReverted($battleId);
 
         $this->db->prepare(
@@ -2700,6 +2741,7 @@ final class BattleRepository
         $this->db->prepare(
             'UPDATE battles SET pobeda = :winner WHERE id = :id AND batl_tip = "pvp" LIMIT 1'
         )->execute(['winner' => $winner, 'id' => $battleId]);
+        $this->clearBattleHelpingHand($battleId);
         $this->markBattleTransformationsReverted($battleId);
 
         $this->db->prepare(
@@ -2718,7 +2760,13 @@ final class BattleRepository
         if ($battleId <= 0) {
             return null;
         }
-        $stmt = $this->db->prepare('SELECT * FROM battles WHERE id = :id LIMIT 1');
+        $stmt = $this->db->prepare(
+            'SELECT id, user_1, user_2, poke_1, poke_2, attac_1, attac_2, item_1, item_2,
+                    to_p, to_p2, batl_tip, time, pobeda, raund, effect_go, effect_go2, effect,
+                    effect2, id_pogodi, times, time_1, time_2, to_it, to_it2, hod_user_id,
+                    tips_battle, zamtru_1, zamtru_2, room, dates
+               FROM battles WHERE id = :id LIMIT 1'
+        );
         $stmt->execute(['id' => $battleId]);
         $row = $stmt->fetch();
         return is_array($row) ? $row : null;
@@ -2758,7 +2806,10 @@ final class BattleRepository
         }
 
         $battle = $this->db->prepare(
-            'SELECT *
+            'SELECT id, user_1, user_2, poke_1, poke_2, attac_1, attac_2, item_1, item_2,
+                    to_p, to_p2, batl_tip, time, pobeda, raund, effect_go, effect_go2, effect,
+                    effect2, id_pogodi, times, time_1, time_2, to_it, to_it2, hod_user_id,
+                    tips_battle, zamtru_1, zamtru_2, room, dates
                FROM battles
               WHERE id = :id AND user_1 = :user AND batl_tip = "pve"
               LIMIT 1'
@@ -2945,8 +2996,10 @@ final class BattleRepository
 
         $stmt = $this->db->prepare(
             'SELECT tip, def, atc, sdef, satc, speed, acc, accuracy,
-                    tip_b, def_b, atc_b, sdef_b, satc_b, speed_b, acc_b, accuracy_b
+                    tip_b, def_b, atc_b, sdef_b, satc_b, speed_b, acc_b, accuracy_b,
+                    ap.stati
                FROM stat_attak
+               LEFT JOIN attac_power ap ON ap.atac_id = stat_attak.id_atk
               WHERE id_atk = :move
               LIMIT 1'
         );
@@ -2956,9 +3009,19 @@ final class BattleRepository
             return [];
         }
 
+        // Кого меняет атака, определяет attac_power.stati: 1 — сам атакующий, 2 — цель.
+        // Раньше считалось жёстко «tip → себе», поэтому Swagger и Flatter поднимали
+        // характеристику атакующему вместо противника.
+        $targetsEnemy = (int) ($row['stati'] ?? 0) === 2;
+        $primaryTarget = $targetsEnemy ? 'enemy' : 'self';
+        $secondaryTarget = $targetsEnemy ? 'self' : 'enemy';
+
         $effects = [];
-        $this->appendStageEffectsFromRow($effects, $row, 'self', (string) ($row['tip'] ?? ''), false);
-        $this->appendStageEffectsFromRow($effects, $row, 'enemy', (string) ($row['tip_b'] ?? ''), true);
+        // Пятый аргумент — какие колонки читать (false: без «_b», true: с «_b»),
+        // поэтому он остаётся false для строки tip и true для строки tip_b.
+        // Меняется только цель.
+        $this->appendStageEffectsFromRow($effects, $row, $primaryTarget, (string) ($row['tip'] ?? ''), false);
+        $this->appendStageEffectsFromRow($effects, $row, $secondaryTarget, (string) ($row['tip_b'] ?? ''), true);
         return $effects;
     }
 
@@ -3607,7 +3670,7 @@ final class BattleRepository
         return match ($kind) {
             'trap', 'partial_trap', 'badly_poisoned', 'confusion', 'curse', 'leech_seed', 'nightmare', 'perish_song',
             'destiny_bond', 'taunt', 'heal_block', 'encore', 'torment', 'disable', 'knock_off' => $kind,
-            'weather_started' => $kind,
+            'weather_started', 'helping_hand' => $kind,
             default => '',
         };
     }

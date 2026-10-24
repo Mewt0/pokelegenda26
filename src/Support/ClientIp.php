@@ -7,19 +7,53 @@ final class ClientIp
 {
     public static function fromServer(array $server): string
     {
-        // Берем первый валидный IP из доверенных серверных заголовков.
-        foreach (['HTTP_X_FORWARDED_FOR', 'HTTP_CLIENT_IP', 'HTTP_X_REAL_IP', 'REMOTE_ADDR'] as $header) {
-            $raw = $server[$header] ?? '';
-            if ($raw === '' || strtolower((string) $raw) === 'unknown') {
-                continue;
-            }
+        $remoteAddress = self::firstValidIp((string) ($server['REMOTE_ADDR'] ?? ''));
+        $trustedProxies = self::trustedProxies();
+        $canTrustProxyHeaders = $remoteAddress !== null && in_array($remoteAddress, $trustedProxies, true);
 
-            $ip = trim(explode(',', (string) $raw)[0]);
-            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+        if ($canTrustProxyHeaders) {
+            foreach (['HTTP_X_FORWARDED_FOR', 'HTTP_CLIENT_IP', 'HTTP_X_REAL_IP'] as $header) {
+                $ip = self::firstValidIp((string) ($server[$header] ?? ''));
+                if ($ip !== null) {
+                    return $ip;
+                }
+            }
+        }
+
+        return $remoteAddress ?? '127.0.0.1';
+    }
+
+    private static function firstValidIp(string $raw): ?string
+    {
+        if ($raw === '' || strtolower($raw) === 'unknown') {
+            return null;
+        }
+
+        foreach (explode(',', $raw) as $candidate) {
+            $ip = trim($candidate);
+            if ($ip !== '' && strtolower($ip) !== 'unknown' && filter_var($ip, FILTER_VALIDATE_IP)) {
                 return $ip;
             }
         }
 
-        return '127.0.0.1';
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function trustedProxies(): array
+    {
+        $raw = (string) ($_ENV['TRUSTED_PROXIES'] ?? getenv('TRUSTED_PROXIES') ?: '');
+
+        $proxies = [];
+        foreach (explode(',', $raw) as $proxy) {
+            $proxy = trim($proxy);
+            if ($proxy !== '' && filter_var($proxy, FILTER_VALIDATE_IP)) {
+                $proxies[] = $proxy;
+            }
+        }
+
+        return $proxies;
     }
 }

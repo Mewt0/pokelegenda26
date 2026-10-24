@@ -328,7 +328,13 @@ final class BugReportRepository
         if (!$this->tableExists('battles')) {
             return [];
         }
-        $stmt = $this->db->prepare('SELECT * FROM battles WHERE id = :id LIMIT 1');
+        $stmt = $this->db->prepare(
+            'SELECT id, user_1, user_2, poke_1, poke_2, attac_1, attac_2, item_1, item_2,
+                    to_p, to_p2, batl_tip, time, pobeda, raund, effect_go, effect_go2, effect,
+                    effect2, id_pogodi, times, time_1, time_2, to_it, to_it2, hod_user_id,
+                    tips_battle, zamtru_1, zamtru_2, room, dates
+               FROM battles WHERE id = :id LIMIT 1'
+        );
         $stmt->execute(['id' => $battleId]);
         return $this->trimSnapshot($stmt->fetch(PDO::FETCH_ASSOC) ?: []);
     }
@@ -338,7 +344,11 @@ final class BugReportRepository
         if (!$this->tableExists('battle_replays')) {
             return [];
         }
-        $stmt = $this->db->prepare('SELECT * FROM battle_replays WHERE battle_id = :id LIMIT 1');
+        $stmt = $this->db->prepare(
+            'SELECT battle_id, battle_type, user_1, user_2, winner_id, status, rounds, started_at,
+                    finished_at, meta_json, created_at, updated_at
+               FROM battle_replays WHERE battle_id = :id LIMIT 1'
+        );
         $stmt->execute(['id' => $battleId]);
         return $this->trimSnapshot($stmt->fetch(PDO::FETCH_ASSOC) ?: []);
     }

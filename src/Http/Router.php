@@ -32,6 +32,9 @@ final class Router
         $handler = $this->routes[$key] ?? null;
 
         if ($handler === null) {
+            if ($request->path === '/api' || str_starts_with($request->path, '/api/')) {
+                return new Response(json_encode(['ok' => false, 'error' => 'not_found', 'message' => 'Маршрут не найден.'], JSON_UNESCAPED_UNICODE), 404, ['Content-Type' => 'application/json; charset=UTF-8']);
+            }
             return new Response('<h1>404</h1>', 404);
         }
 

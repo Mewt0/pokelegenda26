@@ -13,40 +13,53 @@
   let settings = null;
   let onSaved = null;
 
+  function iconMarkup(name) {
+    return '<span class="icon icon--' + name + '" aria-hidden="true"></span>';
+  }
+
   const sections = [
     ['account', '👤', 'Аккаунт'],
     ['profile', '🎨', 'Профиль'],
     ['privacy', '🔒', 'Приватность'],
     ['interface', '🖥', 'Интерфейс'],
     ['notifications', '🔔', 'Уведомления'],
-    ['extra', '⚙', 'Дополнительно'],
+    ['extra', iconMarkup('ui-settings'), 'Дополнительно'],
   ];
 
   function ensureDom() {
     if (overlay) return;
     overlay = document.createElement('section');
-    overlay.className = 'profile-settings-overlay';
+    overlay.className = 'profile-settings-overlay ui-overlay';
     overlay.id = 'profileSettingsOverlay';
     overlay.setAttribute('aria-hidden', 'true');
+    // data-ui-overlay подключает окно к общему помощнику (public/js/ui-overlay.js):
+    // он даёт фокус-трап и возврат фокуса. Esc и клик по подложке здесь уже были
+    // реализованы отдельно — обработчики складываются, а close() идемпотентен.
+    overlay.setAttribute('data-ui-overlay', '');
     overlay.innerHTML = [
-      '<div class="profile-settings-window" role="dialog" aria-label="Настройки аккаунта">',
-        '<header class="profile-settings-head">',
-          '<h2>Настройки аккаунта</h2>',
-          '<p>Почта, профиль, приватность и будущие пункты меню</p>',
-          '<button type="button" class="profile-settings-close" aria-label="Закрыть">&times;</button>',
+      '<div class="profile-settings-window ui-overlay__window" role="dialog" aria-modal="true" aria-label="Настройки аккаунта">',
+        '<header class="profile-settings-head ui-overlay__head">',
+          '<div class="profile-settings-heading">',
+            '<h2 class="ui-overlay__title">Настройки аккаунта</h2>',
+            '<p>Почта, профиль, приватность и будущие пункты меню</p>',
+          '</div>',
+          '<button type="button" class="profile-settings-close ui-btn ui-btn--ghost" aria-label="Закрыть">&times;</button>',
         '</header>',
         '<div class="profile-settings-body">',
           '<nav class="profile-settings-nav" data-settings-nav></nav>',
-          '<main class="profile-settings-content" data-settings-content></main>',
+          '<main class="profile-settings-content ui-overlay__body" data-settings-content></main>',
         '</div>',
-        '<footer class="profile-settings-footer">',
-          '<div class="profile-settings-status" data-settings-status>Открывается по кнопке «Настройки».</div>',
-          '<button type="button" class="profile-settings-action" data-settings-cancel>Отмена</button>',
-          '<button type="button" class="profile-settings-action is-primary" data-settings-save>Сохранить</button>',
+        '<footer class="profile-settings-footer ui-overlay__foot">',
+          '<div class="profile-settings-status" role="status" aria-live="polite" data-settings-status>Открывается по кнопке «Настройки».</div>',
+          '<button type="button" class="profile-settings-action ui-btn" data-settings-cancel>Отмена</button>',
+          '<button type="button" class="profile-settings-action is-primary ui-btn ui-btn--primary" data-settings-save>Сохранить</button>',
         '</footer>',
       '</div>',
     ].join('');
     document.body.appendChild(overlay);
+    if (window.UiOverlay && typeof window.UiOverlay.attach === 'function') {
+      window.UiOverlay.attach(overlay);
+    }
 
     content = overlay.querySelector('[data-settings-content]');
     statusNode = overlay.querySelector('[data-settings-status]');
@@ -58,7 +71,7 @@
       if (event.target === overlay) close();
     });
     document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && overlay.classList.contains('is-open')) close();
+      if (!event.defaultPrevented && event.key === 'Escape' && overlay.classList.contains('is-open')) close();
     });
     saveButton.addEventListener('click', saveCurrentSection);
     renderNav();
@@ -70,10 +83,14 @@
     sections.forEach(([key, icon, title]) => {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'profile-settings-tab' + (key === currentSection ? ' is-active' : '');
+      button.className = 'profile-settings-tab ui-btn ' + (key === currentSection ? 'ui-btn--primary is-active' : 'ui-btn--ghost');
       button.dataset.section = key;
       button.innerHTML = '<span></span><b></b>';
-      button.querySelector('span').textContent = icon;
+      const iconNode = button.querySelector('span');
+      iconNode.setAttribute('aria-hidden', 'true');
+      if (key === 'extra') iconNode.innerHTML = iconMarkup('ui-settings');
+      else iconNode.textContent = icon;
+      button.setAttribute('aria-pressed', String(key === currentSection));
       button.querySelector('b').textContent = title;
       button.addEventListener('click', () => {
         currentSection = key;
@@ -128,7 +145,7 @@
     if (!content) return;
     saveButton.hidden = currentSection === 'extra';
     if (!settings) {
-      content.innerHTML = '<h3>Настройки</h3><p class="profile-settings-hint">Загрузка...</p>';
+      content.innerHTML = '<h3>Настройки</h3><p class="profile-settings-hint ui-field__hint">Загрузка...</p>';
       return;
     }
     if (currentSection === 'account') return renderAccount();
@@ -146,13 +163,13 @@
       '<div class="profile-settings-grid">',
         row('Логин', input('current_login', account.login || '', true)),
         row('Новый логин', input('new_login', '', false, 'Смена логина пока выключена')),
-        row('Текущий Email', input('current_email', account.emailMasked || account.email || '', true)),
-        row('Новый Email', input('new_email', '', false, 'mail@example.com', 'email')),
-        row('Повтор Email', input('repeat_email', '', false, 'повторите email', 'email')),
-        row('Старый пароль', input('old_password', '', false, 'старый пароль', 'password')),
-        row('Новый пароль', input('new_password', '', false, 'новый пароль', 'password')),
-        row('Повтор нового пароля', input('repeat_password', '', false, 'повторите пароль', 'password')),
-        '<div class="profile-settings-hint">Двухфакторная защита и история входов подготовлены как будущие пункты.</div>',
+        row('Текущий email', input('current_email', account.emailMasked || account.email || '', true)),
+        row('Новый email', input('new_email', '', false, 'mail@example.com', 'email')),
+        row('Повтор email', input('repeat_email', '', false, 'Повторите email', 'email')),
+        row('Старый пароль', input('old_password', '', false, 'Старый пароль', 'password')),
+        row('Новый пароль', input('new_password', '', false, 'Новый пароль', 'password')),
+        row('Повтор нового пароля', input('repeat_password', '', false, 'Повторите пароль', 'password')),
+        '<div class="profile-settings-hint ui-field__hint">Двухфакторная защита и история входов подготовлены как будущие пункты.</div>',
       '</div>',
     ].join('');
   }
@@ -171,7 +188,7 @@
     ].join('');
     const textareaNode = content.querySelector('[name="description"]');
     const hint = document.createElement('div');
-    hint.className = 'profile-settings-hint';
+    hint.className = 'profile-settings-hint ui-field__hint';
     const updateHint = () => { hint.textContent = 'Символов: ' + textareaNode.value.length + ' / 500'; };
     textareaNode.addEventListener('input', updateHint);
     textareaNode.parentElement.appendChild(hint);
@@ -201,6 +218,7 @@
         toggle('animations', 'Анимации', settings.animations !== false),
         toggle('sounds', 'Звуки интерфейса', settings.sounds !== false),
       '</div>',
+      '<div class="profile-settings-hint ui-field__hint">Тема, размер интерфейса и анимации применяются после сохранения. Звуки пока не влияют на игру: звуковой системы ещё нет.</div>',
     ].join('');
   }
 
@@ -220,8 +238,8 @@
   function renderExtra() {
     content.innerHTML = [
       '<h3>Дополнительно</h3>',
-      '<div class="profile-settings-grid">',
-        '<div class="profile-settings-hint">Здесь зарезервировано место под Telegram, Discord, VK, Google Authenticator, историю входов, активные сессии, список устройств, настройку блоков тренер-карты и персональные цвета профиля.</div>',
+      '<div class="ui-empty">',
+        '<div class="profile-settings-hint ui-field__hint">Здесь зарезервировано место под Telegram, Discord, VK, Google Authenticator, историю входов, активные сессии, список устройств, настройку блоков тренер-карты и персональные цвета профиля.</div>',
       '</div>',
     ].join('');
   }
@@ -229,6 +247,7 @@
   async function saveCurrentSection() {
     if (!settings || currentSection === 'extra') return;
     saveButton.disabled = true;
+    saveButton.classList.add('is-loading');
     setStatus('Сохраняю...');
     try {
       const body = new URLSearchParams();
@@ -260,6 +279,7 @@
       setStatus('Ошибка сохранения настроек.', 'error');
     } finally {
       saveButton.disabled = false;
+      saveButton.classList.remove('is-loading');
     }
   }
 
@@ -289,20 +309,29 @@
   }
 
   function row(label, field, extra = '') {
-    return '<div class="profile-settings-row ' + extra + '"><label>' + escapeHtml(label) + '</label><div>' + field + '</div></div>';
+    // Подпись связывается с полем через id/for: раньше label и input жили рядом,
+    // но программно связаны не были, и скринридер не называл поля.
+    const nameMatch = String(field).match(/name="([^"]+)"/);
+    if (nameMatch && !String(field).includes('id="')) {
+      const fieldId = 'ps-' + nameMatch[1];
+      const linked = String(field).replace(/^<(\w+)/, '<$1 id="' + fieldId + '"');
+      return '<div class="profile-settings-row ui-field ' + extra + '"><label class="ui-field__label" for="' + fieldId + '">' + escapeHtml(label) + '</label><div>' + linked + '</div></div>';
+    }
+
+    return '<div class="profile-settings-row ui-field ' + extra + '"><label class="ui-field__label">' + escapeHtml(label) + '</label><div>' + field + '</div></div>';
   }
 
   function input(name, value, readonly = false, placeholder = '', type = 'text') {
-    return '<input class="profile-settings-input" name="' + escapeHtml(name) + '" type="' + escapeHtml(type) + '" value="' + escapeHtml(value) + '"' + (readonly ? ' readonly' : '') + ' placeholder="' + escapeHtml(placeholder) + '">';
+    return '<input class="profile-settings-input ui-field__control" name="' + escapeHtml(name) + '" type="' + escapeHtml(type) + '" value="' + escapeHtml(value) + '"' + (readonly ? ' readonly' : '') + ' placeholder="' + escapeHtml(placeholder) + '">';
   }
 
   function textarea(name, value, maxlength) {
-    return '<textarea class="profile-settings-textarea" name="' + escapeHtml(name) + '" maxlength="' + Number(maxlength || 500) + '">' + escapeHtml(value) + '</textarea>';
+    return '<textarea class="profile-settings-textarea ui-field__control" name="' + escapeHtml(name) + '" maxlength="' + Number(maxlength || 500) + '">' + escapeHtml(value) + '</textarea>';
   }
 
   function select(name, options, value) {
     const list = Array.isArray(options) ? options : [];
-    return '<select class="profile-settings-select" name="' + escapeHtml(name) + '">' + list.map(option => {
+    return '<select class="profile-settings-select ui-field__control" name="' + escapeHtml(name) + '">' + list.map(option => {
       const optionValue = String(option.value ?? '');
       const label = String(option.label ?? optionValue);
       return '<option value="' + escapeHtml(optionValue) + '"' + (optionValue === String(value ?? '') ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';

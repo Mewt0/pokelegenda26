@@ -84,12 +84,34 @@ function defaultOutputPath(): string
 function findMysqlDump(string $explicit): string
 {
     $candidates = [];
+    $searched = [];
     if ($explicit !== '') {
-        $candidates[] = $explicit;
+        if (is_file($explicit)) {
+            return $explicit;
+        }
+        throw new RuntimeException('Configured mysqldump path does not exist: ' . $explicit);
     }
     $candidates[] = 'mysqldump';
-    foreach (glob('D:/OSPanel/modules/database/*/bin/mysqldump.exe') ?: [] as $path) {
-        $candidates[] = $path;
+
+    $roots = [];
+    foreach (['OSPANEL_ROOT', 'OSPanel_ROOT', 'OSPANEL_HOME'] as $envName) {
+        $root = getenv($envName);
+        if (is_string($root) && trim($root) !== '') {
+            $roots[] = rtrim(trim($root), '\\\\/');
+        }
+    }
+    foreach (['D:/OSPanel', 'E:/OSPanel'] as $root) {
+        $roots[] = $root;
+    }
+    $roots = array_values(array_unique($roots));
+
+    foreach ($roots as $root) {
+        $pattern = $root . '/modules/database/*/bin/mysqldump.exe';
+        $matches = glob($pattern) ?: [];
+        $searched[] = $pattern;
+        foreach ($matches as $path) {
+            $candidates[] = $path;
+        }
     }
     usort($candidates, static function (string $a, string $b): int {
         $aTime = is_file($a) ? (int) filemtime($a) : 0;
@@ -99,14 +121,19 @@ function findMysqlDump(string $explicit): string
 
     foreach ($candidates as $candidate) {
         if ($candidate === 'mysqldump') {
+            $searched[] = 'PATH (mysqldump)';
             return $candidate;
         }
+        $searched[] = $candidate;
         if (is_file($candidate)) {
             return $candidate;
         }
     }
 
-    throw new RuntimeException('mysqldump.exe not found. Pass --mysqldump=PATH or set MYSQLDUMP_BIN.');
+    throw new RuntimeException(
+        'mysqldump.exe not found. Searched: ' . implode('; ', array_values(array_unique($searched))
+        ) . '. Pass --mysqldump=PATH or set MYSQLDUMP_BIN.'
+    );
 }
 
 function runProcess(array $command): array

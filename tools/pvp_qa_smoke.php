@@ -8,7 +8,7 @@ declare(strict_types=1);
  * anti-double-click, history and final-state cleanup through the real HTTP API.
  *
  * Usage:
- *   php tools/pvp_qa_smoke.php --password=jungheinrick
+ *   php tools/pvp_qa_smoke.php --password=REDACTED_USE_SMOKE_PASSWORD
  *   php tools/pvp_qa_smoke.php --login1=Tacos --login2=NIGA --password1=... --password2=...
  */
 
@@ -635,14 +635,14 @@ final class QaClient
         $raw = curl_exec($ch);
         if ($raw === false) {
             $error = curl_error($ch);
-            curl_close($ch);
+            unset($ch);
             throw new RuntimeException('HTTP error: ' . $error);
         }
 
         $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         $headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
         $effectiveUrl = (string) curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
-        curl_close($ch);
+        unset($ch);
 
         return [
             'status' => $status,

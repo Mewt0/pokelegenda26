@@ -1,0 +1,178 @@
+/* Design tokens — единственный источник значений для нового слоя UI.
+   Порядок подключения в <head>: fonts.css → tokens.css → base/layout → компоненты.
+   Правило: новый CSS не задаёт цвета/радиусы/тени/слои «руками», только через эти переменные.
+   Совместимость: старые имена (--ui-*, --bd-*) объявлены алиасами в своих файлах и удаляются
+   после перевода всех правил на токены. */
+
+:root {
+  color-scheme: var(--native-color-scheme);
+  --native-color-scheme: light;
+  /* ── Поверхности ─────────────────────────────────────────── */
+  --surface-0: #f4f8ff;            /* фон игры */
+  --surface-1: #ffffff;            /* карточка, инпут */
+  --surface-2: #eaf2ff;            /* мягкая подложка, hover */
+  --surface-3: #dce6f6;            /* разделитель-подложка */
+  --surface-panel: rgba(255, 255, 255, .94); /* полупрозрачная панель */
+  --surface-backdrop: rgba(24, 34, 52, .45); /* затемнение под модалкой */
+
+  /* ── Текст ───────────────────────────────────────────────── */
+  --text-1: #23324d;               /* основной */
+  --text-2: #65748f;               /* вторичный, подписи */
+  --text-3: #8b98ad;               /* отключённый, мета */
+  --text-inverse: #ffffff;
+
+  /* ── Границы ─────────────────────────────────────────────── */
+  --border-1: #dce6f6;
+  --border-2: #cfe0ff;
+  --border-soft: #e8effb;
+
+  /* ── Бренд и семантика (один смысл — одно значение) ──────── */
+  --accent: #3f7fff;               /* акцент-заливка для декора; НЕ под белым текстом и не текст */
+  --accent-2: #5ea2ff;
+  --accent-hover: #2f6ff0;
+  --accent-soft: #eaf2ff;
+  --accent-text: #1d5faf;          /* текст-ссылка и акцентный текст: на --surface-1 ≈ 6.6:1 */
+  --accent-strong: #2563eb;        /* заливка кнопки: с текстом --text-inverse ≈ 5.1:1 */
+  --accent-strong-hover: #1d4ed8;  /* то же в hover, контраст выше */
+  --success: #2fc76f;
+  --success-soft: #f3fff8;         /* подложка под зелёный текст (например, вход в админку) */
+  --success-text: #1f6b3b;         /* текст успеха: контраст на --surface-1 ≈ 6.4:1 */
+  --danger: #ff6b6b;               /* ошибка как заливка/акцент, не для текста */
+  --danger-text: #b12626;          /* текст ошибки: контраст на --surface-1 ≈ 8.2:1 */
+  --danger-soft: #fdecec;          /* подложка под текстом ошибки */
+  --warning: #f5a524;
+  --warning-soft: #fff7e6;         /* подложка «в работе / нужно перенести» */
+  --warning-text: #8a4b00;         /* текст на --warning-soft: контраст ≈ 7.4:1 */
+  --info: #3f7fff;
+
+  /* ── Типографика ─────────────────────────────────────────── */
+  --font-sans: 'Inter', system-ui, 'Segoe UI', Tahoma, Arial, sans-serif;
+  --fs-100: 12px;
+  --fs-200: 13px;
+  --fs-300: 14px;
+  --fs-400: 16px;
+  --fs-500: 18px;
+  --fs-600: 22px;
+  --fs-700: 28px;
+  --lh-tight: 1.2;
+  --lh-normal: 1.45;
+  --fw-normal: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* ── Спейсинг: кратность 4 ───────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+
+  /* ── Радиусы ─────────────────────────────────────────────── */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
+
+  /* ── Тени ────────────────────────────────────────────────── */
+  --shadow-1: 0 2px 8px rgba(74, 112, 180, .08);
+  --shadow-2: 0 8px 24px rgba(74, 112, 180, .10);
+  --shadow-3: 0 16px 40px rgba(74, 112, 180, .16);
+  --shadow-panel: 0 12px 35px rgba(74, 112, 180, .10);
+
+  /* ── Фокус ───────────────────────────────────────────────── */
+  --focus-ring: 0 0 0 3px rgba(63, 127, 255, .35);
+  --focus-color: #2f6ff0;
+
+  /* ── Слои: одна лестница, произвольные z-index запрещены ─── */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-panel: 20;
+  --z-overlay: 30;
+  --z-modal: 40;
+  --z-toast: 50;
+  --z-debug: 60;
+
+  /* ── Моушен ──────────────────────────────────────────────── */
+  --dur-fast: 150ms;
+  --dur-base: 180ms;
+  --dur-slow: 240ms;
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+}
+
+/* Только токены: все экраны наследуют тёмную палитру без специальных селекторов. */
+html[data-theme="dark"] {
+  --native-color-scheme: dark;
+  --surface-0: #0e1626;
+  --surface-1: #192639;
+  --surface-2: #233449;
+  --surface-3: #33465f;
+  --surface-panel: rgba(25, 38, 57, .96);
+  --surface-backdrop: rgba(3, 8, 16, .74);
+
+  --text-1: #eef4ff;
+  --text-2: #bac9df;
+  --text-3: #a5b5cc;
+  --text-inverse: #0e1626;
+
+  --border-1: #40536e;
+  --border-2: #576d89;
+  --border-soft: #34465e;
+
+  --accent: #6caaff;
+  --accent-2: #8abaff;
+  --accent-hover: #93c3ff;
+  --accent-soft: #293c56;
+  --accent-text: #acd1ff;
+  --accent-strong: #87b9ff;
+  --accent-strong-hover: #a4caff;
+  --success: #5dcc9a;
+  --success-soft: #163d30;
+  --success-text: #b2f5d5;
+  --danger: #f67580;
+  --danger-soft: #48252d;
+  --danger-text: #ffb5bd;
+  --warning: #f7c261;
+  --warning-soft: #49371a;
+  --warning-text: #ffe1a4;
+  --info: #6caaff;
+
+  --shadow-1: 0 2px 8px rgba(2, 7, 17, .26);
+  --shadow-2: 0 8px 24px rgba(2, 7, 17, .38);
+  --shadow-3: 0 16px 40px rgba(2, 7, 17, .55);
+  --shadow-panel: 0 12px 35px rgba(2, 7, 17, .4);
+  --focus-ring: 0 0 0 3px rgba(154, 200, 255, .45);
+  --focus-color: #9ac8ff;
+}
+
+/* zoom масштабирует и px-разметку старых экранов, и тексты/отступы UI. */
+html[data-ui-size="compact"] { zoom: .9; }
+html[data-ui-size="normal"] { zoom: 1; }
+html[data-ui-size="large"] { zoom: 1.12; }
+
+/* Единая защита от анимаций для тех, кому они мешают. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Явное выключение анимаций игроком в настройках профиля
+   (public/js/ui-preferences.js ставит html[data-motion="off"]). */
+html[data-motion="off"] *,
+html[data-motion="off"] *::before,
+html[data-motion="off"] *::after {
+  animation-duration: .01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .01ms !important;
+  scroll-behavior: auto !important;
+}

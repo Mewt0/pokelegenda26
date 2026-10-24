@@ -9,12 +9,15 @@ $commissionRootId = 'commissionPage';
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Комиссионная лавка - Pokemon 8.0</title>
-  <link rel="stylesheet" href="/public/css/game-shell.css">
-  <link rel="stylesheet" href="/public/css/commission-market.css?v=20260603-layout-fix">
+  <title>Комиссионная лавка - League of Pokemons</title>
+  <?php
+    $headStyles = ['/public/css/game-shell.css', '/public/css/commission-market.css'];
+    require APP_ROOT . '/views/components/head-styles.php';
+  ?>
 </head>
 <body>
   <?php require APP_ROOT . '/views/components/commission-market-panel.php'; ?>
-  <script src="/public/js/commission-market.js?v=20260527-my-lots"></script>
+  <script src="<?= View::e(asset_url('/public/js/ui-preferences.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/commission-market.js')) ?>"></script>
 </body>
 </html>

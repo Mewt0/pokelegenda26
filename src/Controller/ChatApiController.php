@@ -46,6 +46,33 @@ final class ChatApiController
 
             $messages = $this->chatService->getMessages($userId, $roomId, $afterId);
 
+            // Упоминания приходят маркерами [[user:ID]]: id — источник правды, имя
+            // подставляем из состояния игрока, чтобы упоминание переживало
+            // переименование. Неизвестный id отдаёт пустое имя — фронт покажет
+            // безопасную заглушку вместо сырого маркера.
+            $userNames = [];
+            foreach ($messages as &$message) {
+                $text = (string) ($message['text'] ?? '');
+                preg_match_all('/\[\[user:([1-9][0-9]*)\]\]/', $text, $matches);
+                $message['mentioned_me'] = (int) ($message['author_id'] ?? 0) !== $userId
+                    && in_array((string) $userId, $matches[1], true);
+                $message['user_mentions'] = [];
+                foreach (array_slice(array_unique($matches[1]), 0, 12) as $idText) {
+                    $id = (int) $idText;
+                    if ($id <= 0) {
+                        continue;
+                    }
+                    if (!array_key_exists($id, $userNames)) {
+                        $state = $this->locationRepository->findUserState($id);
+                        $userNames[$id] = $state !== null ? (string) ($state['login'] ?? '') : '';
+                    }
+                    if ($userNames[$id] !== '') {
+                        $message['user_mentions'][(string) $id] = $userNames[$id];
+                    }
+                }
+            }
+            unset($message);
+
             return $this->json([
                 'ok' => true,
                 'messages' => $messages,
@@ -54,6 +81,24 @@ final class ChatApiController
         } catch (Throwable $e) {
             error_log('[ChatApiController::messages] ' . $e::class . ': ' . $e->getMessage());
             return $this->json(['ok' => false, 'message' => 'Ошибка сервера при получении сообщений.'], 500);
+        }
+    }
+
+    public function teamPokemon(Request $request): Response
+    {
+        try {
+            $userId = (int) $this->session->get('id', 0);
+            if ($userId <= 0) {
+                return $this->json(['ok' => false, 'error' => 'auth'], 401);
+            }
+
+            return $this->json([
+                'ok' => true,
+                'pokemon' => $this->chatService->teamPokemonForMention($userId),
+            ]);
+        } catch (Throwable $e) {
+            error_log('[ChatApiController::teamPokemon] ' . $e::class . ': ' . $e->getMessage());
+            return $this->json(['ok' => false, 'message' => 'Server error while loading team pokemon.'], 500);
         }
     }
 
@@ -74,11 +119,26 @@ final class ChatApiController
                 return $this->json(['ok' => false, 'error' => 'auth'], 401);
             }
 
+            // Владелец может показать своего покемона из команды или питомника.
+            // И raw #ID, и маркеры проверяются на сервере, чужие ID не раскрываем.
+            $text = ChatService::normalizePokemonMentions((string) $request->input('text', ''));
+            preg_match_all('/\[\[poke:([1-9][0-9]*)\]\]/', $text, $matches);
+            if (count(array_unique($matches[1])) > 6) {
+                return $this->json(['ok' => false, 'message' => 'В одном сообщении можно показать до шести покемонов.'], 422);
+            }
+            if ($matches[1] !== []) {
+                foreach ($matches[1] as $mentionedId) {
+                    if (!$this->chatService->canMentionPokemon($userId, (int) $mentionedId)) {
+                        return $this->json(['ok' => false, 'message' => 'Можно упоминать только своих покемонов.'], 422);
+                    }
+                }
+            }
+
             $result = $this->chatService->sendMessage(
                 $userId,
                 (string) ($userState['login'] ?? 'Unknown'),
                 (int) ($userState['buildmy'] ?? 1),
-                $request->input('text'),
+                $text,
                 [
                     'tipe' => (int) $request->input('tipe', '1'),
                     'userto' => (int) $request->input('userto', '0'),

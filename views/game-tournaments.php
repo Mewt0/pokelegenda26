@@ -10,69 +10,13 @@ $csrfToken = (string) ($csrf ?? '');
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Турниры - Pokemon 8.0</title>
-  <style>
-    :root {
-      --bg: #eef6ff;
-      --panel: rgba(255, 255, 255, .93);
-      --line: #c8dcf4;
-      --text: #10213d;
-      --muted: #62738d;
-      --blue: #2d72e8;
-      --green: #159862;
-      --red: #c24545;
-      --gold: #b77812;
-    }
-    * { box-sizing: border-box; }
-    body { margin: 0; color: var(--text); background: linear-gradient(180deg, #e7f2ff, #f7fbff); font: 15px/1.45 Tahoma, Arial, sans-serif; }
-    .wrap { max-width: 1180px; margin: 0 auto; padding: 20px; }
-    .top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-    .top a { color: #1458aa; font-weight: 800; text-decoration: none; }
-    .hero, .panel, .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 16px 42px rgba(62, 98, 140, .12); }
-    .hero { padding: 20px; margin-bottom: 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; }
-    h1 { margin: 0 0 8px; font-size: clamp(28px, 4vw, 42px); line-height: 1.05; }
-    h2, h3 { margin: 0; }
-    .muted, .hero p { color: var(--muted); margin: 0; }
-    .hero-badge { border: 1px solid #bad2ef; border-radius: 8px; background: #fff; padding: 10px 12px; min-width: 180px; text-align: right; }
-    .grid { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 14px; align-items: start; }
-    .panel { padding: 14px; }
-    .cards { display: grid; gap: 12px; }
-    .card { padding: 14px; display: grid; gap: 12px; }
-    .card-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
-    .status { display: inline-flex; align-items: center; border-radius: 999px; padding: 5px 9px; font-weight: 800; background: #e9f1ff; color: #165cba; white-space: nowrap; }
-    .status.active { color: #0c744c; background: #e7f9f1; }
-    .status.finished { color: #7a520d; background: #fff2cf; }
-    .status.cancelled { color: #9a2f2f; background: #ffe8e8; }
-    .info-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-    .info { border: 1px solid #d8e7f7; background: #f8fbff; border-radius: 8px; padding: 9px; min-height: 66px; }
-    .info span { display: block; color: var(--muted); font-size: 12px; margin-bottom: 3px; }
-    .info b { overflow-wrap: anywhere; }
-    .rules { border-left: 4px solid #7eb0ef; padding: 8px 10px; background: #f5faff; color: #30496a; border-radius: 8px; }
-    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    button, .btn { border: 1px solid #b9d1ef; border-radius: 8px; background: #fff; color: #124e9c; font-weight: 800; padding: 9px 12px; cursor: pointer; text-decoration: none; }
-    button.primary { color: #fff; background: var(--blue); border-color: var(--blue); }
-    button.danger { color: var(--red); border-color: #efb7b7; }
-    button.success { color: #fff; background: var(--green); border-color: var(--green); }
-    button:disabled { opacity: .55; cursor: default; }
-    .participant { border: 1px solid #d7e6f6; border-radius: 8px; padding: 8px 10px; background: #fff; display: flex; justify-content: space-between; gap: 10px; }
-    .empty { border: 1px dashed var(--line); color: var(--muted); border-radius: 8px; padding: 14px; background: rgba(255,255,255,.7); }
-    .log { margin-top: 10px; border-radius: 8px; padding: 10px; background: #10213d; color: #e8f2ff; min-height: 42px; }
-    .log.error { background: #5d2020; }
-    .log.success { background: #114c38; }
-    .side-list { display: grid; gap: 8px; margin-top: 10px; }
-    .qa-row { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 9px 10px; }
-    .qa-row strong { display: block; margin-bottom: 3px; }
-    @media (max-width: 920px) {
-      .wrap { padding: 12px; }
-      .hero { grid-template-columns: 1fr; }
-      .hero-badge { text-align: left; }
-      .grid { grid-template-columns: 1fr; }
-      .info-grid { grid-template-columns: 1fr; }
-      .card-top { display: grid; }
-    }
-  </style>
+  <title>Турниры - League of Pokemons</title>
+  <?php
+    $headStyles = ['/public/css/game-tournaments.css'];
+    require APP_ROOT . '/views/components/head-styles.php';
+  ?>
 </head>
-<body>
+<body class="tournaments-page">
   <main class="wrap" data-csrf="<?= View::e($csrfToken) ?>" data-tournaments-root>
     <nav class="top">
       <a href="/game">Игровой мир</a>
@@ -83,7 +27,7 @@ $csrfToken = (string) ($csrf ?? '');
     <section class="hero">
       <div>
         <h1>Турниры</h1>
-        <p>Расписание, регистрация, взносы, арена и награды работают через новый backend/API без legacy iframe.</p>
+        <p>Расписание, регистрация, взносы, арена и награды. Время и дедлайны считаются по серверу.</p>
       </div>
       <div class="hero-badge">
         <div class="muted">Время сервера</div>
@@ -103,10 +47,8 @@ $csrfToken = (string) ($csrf ?? '');
         <div class="log" data-tournament-log>Готово</div>
       </div>
 
-      <aside class="panel">
-        <h2>QA-проверки</h2>
-        <div class="side-list" data-qa-list></div>
-      </aside>
+      <?php /* QA-заметки — внутренняя документация: на игровой странице их не показываем.
+               Данные по-прежнему доступны в GM Center (/game/admin). */ ?>
     </section>
   </main>
 
@@ -158,6 +100,15 @@ $csrfToken = (string) ($csrf ?? '');
 
       const renderQa = rows => {
         const target = document.querySelector('[data-qa-list]');
+        if (!target) return;
+        const panel = target.closest('.panel');
+        // QA-заметки внутренние: если сервер их не прислал (обычный игрок),
+        // панель целиком скрывается, чтобы не висел пустой заголовок «QA-проверки».
+        if (!Array.isArray(rows) || rows.length === 0) {
+          if (panel) panel.hidden = true;
+          return;
+        }
+        if (panel) panel.hidden = false;
         target.replaceChildren(...rows.map(row => {
           const div = document.createElement('div');
           div.className = 'qa-row';
@@ -221,5 +172,6 @@ $csrfToken = (string) ($csrf ?? '');
       render();
     })();
   </script>
+  <script src="<?= \Pokemon8\View\View::e(asset_url('/public/js/ui-preferences.js')) ?>"></script>
 </body>
 </html>

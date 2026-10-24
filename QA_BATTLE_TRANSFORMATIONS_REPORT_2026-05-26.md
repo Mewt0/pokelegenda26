@@ -44,7 +44,7 @@
 
 HTTP smoke:
 
-- `tools/http_smoke.php --base=http://pokemonchic.com --login=Tacos --password=jungheinrick --battle=state`
+- `tools/http_smoke.php --base=http://pokemonchic.com --login=Tacos --password=REDACTED_USE_SMOKE_PASSWORD --battle=state`
 - Результат: 32 checks, 0 failures.
 
 Lint:

@@ -6,28 +6,13 @@ use Pokemon8\View\View;
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Транспорт - Pokemon 8.0</title>
-  <style>
-    body { margin:0; background:#eef4fb; color:#102544; font:15px/1.45 Tahoma, Arial, sans-serif; }
-    .wrap { max-width:980px; margin:0 auto; padding:24px; }
-    .top { display:flex; gap:10px; align-items:center; margin-bottom:18px; }
-    a { color:#1d5faf; text-decoration:none; font-weight:800; }
-    .panel { border:1px solid #c8d6e6; border-radius:10px; background:#fff; padding:18px; box-shadow:0 12px 28px rgba(26,58,98,.08); }
-    h1 { margin:0 0 8px; font-size:30px; }
-    .muted { color:#62758f; margin:0 0 18px; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; }
-    .card { display:grid; grid-template-columns:76px 1fr; gap:14px; align-items:center; border:1px solid #d1deec; border-radius:10px; padding:14px; background:#f8fbff; }
-    .icon { width:68px; height:68px; display:grid; place-items:center; border:1px solid #bdd0e4; border-radius:10px; background:#fff; }
-    .icon img { max-width:60px; max-height:60px; object-fit:contain; }
-    h2 { margin:0 0 5px; font-size:18px; }
-    p { margin:0; color:#4d627d; }
-    button { min-height:34px; margin-top:10px; border:1px solid #2f78dc; border-radius:7px; background:#2f78dc; color:#fff; font-weight:900; cursor:pointer; }
-    .status { margin-top:14px; min-height:22px; font-weight:800; color:#1f6b3b; }
-    .status.bad { color:#9b1c1c; }
-    .empty { padding:18px; border:1px dashed #b8c7d9; border-radius:10px; color:#62758f; background:#f8fbff; }
-  </style>
+  <title>Транспорт - League of Pokemons</title>
+  <?php
+    $headStyles = ['/public/css/game-shop.css'];
+    require APP_ROOT . '/views/components/head-styles.php';
+  ?>
 </head>
-<body>
+<body class="shop-page">
   <main class="wrap">
     <nav class="top">
       <a href="/game">Игровой мир</a>
@@ -91,5 +76,6 @@ use Pokemon8\View\View;
       });
     })();
   </script>
+  <script src="<?= \Pokemon8\View\View::e(asset_url('/public/js/ui-preferences.js')) ?>"></script>
 </body>
 </html>

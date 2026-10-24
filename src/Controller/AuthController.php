@@ -73,11 +73,10 @@ final class AuthController
         }
 
         $this->session->regenerate();
+        $this->csrf->rotate();
         $this->session->put('id', (int) $user['id']);
         $this->session->put('login', (string) $user['login']);
-        $this->session->put('password', (string) $user['password']);
         $this->session->put('groups', (int) $user['groups']);
-        $this->session->put('browse', $this->browserSign($request));
 
         $this->users->markOnline((int) $user['id'], ClientIp::fromServer($request->server));
 
@@ -140,11 +139,10 @@ final class AuthController
         $user = $this->users->createUser($login, $hash, $email, ClientIp::fromServer($request->server));
 
         $this->session->regenerate();
+        $this->csrf->rotate();
         $this->session->put('id', (int) $user['id']);
         $this->session->put('login', (string) $user['login']);
-        $this->session->put('password', $hash);
         $this->session->put('groups', 6);
-        $this->session->put('browse', $this->browserSign($request));
         $this->users->markOnline((int) $user['id'], ClientIp::fromServer($request->server));
 
         if ($email !== null) {
@@ -179,7 +177,7 @@ final class AuthController
             $ttl = max(10, (int) ($this->mailConfig['reset_ttl_minutes'] ?? 60));
             $expiresAt = time() + ($ttl * 60);
             $this->users->createPasswordResetToken((int) $user['id'], (string) $user['email'], $hash, $expiresAt, ClientIp::fromServer($request->server));
-            $link = $this->absoluteUrl($request, '/password/reset?token=' . urlencode($token));
+            $link = $this->absoluteUrl('/password/reset?token=' . urlencode($token));
             $this->mailer->send(
                 (string) $user['email'],
                 'Восстановление пароля Pokemon 8.0',
@@ -232,6 +230,7 @@ final class AuthController
 
         $this->users->updatePasswordHash((int) $row['user_id'], $this->passwords->hash($password));
         $this->users->markPasswordResetTokenUsed((int) $row['id']);
+        $this->csrf->rotate();
 
         return $this->authMessage('Новый пароль', 'Пароль изменён. Теперь можно войти с новым паролем.');
     }
@@ -330,7 +329,7 @@ final class AuthController
         $ttl = max(60, (int) ($this->mailConfig['verify_ttl_minutes'] ?? 1440));
         $expiresAt = time() + ($ttl * 60);
         $this->users->createEmailVerificationToken($userId, $email, $hash, $expiresAt, ClientIp::fromServer($request->server));
-        $link = $this->absoluteUrl($request, '/email/verify?token=' . urlencode($token));
+        $link = $this->absoluteUrl('/email/verify?token=' . urlencode($token));
         $this->mailer->send(
             $email,
             'Подтверждение почты Pokemon 8.0',
@@ -338,26 +337,27 @@ final class AuthController
         );
     }
 
-    private function absoluteUrl(Request $request, string $path): string
+    private function absoluteUrl(string $path): string
     {
         $configured = rtrim((string) ($this->config['url'] ?? ''), '/');
-        if ($configured !== '' && !str_contains($configured, '127.0.0.1:8000')) {
+        $configuredHost = (string) parse_url($configured, PHP_URL_HOST);
+        $configuredScheme = strtolower((string) parse_url($configured, PHP_URL_SCHEME));
+        if ($configuredHost !== ''
+            && in_array($configuredScheme, ['http', 'https'], true)
+            && !in_array($configuredHost, ['127.0.0.1', 'localhost'], true)
+        ) {
             return $configured . $path;
         }
 
-        $scheme = (!empty($request->server['HTTPS']) && $request->server['HTTPS'] !== 'off') ? 'https' : 'http';
-        $host = (string) ($request->server['HTTP_HOST'] ?? 'pokemonchic.com');
-        return $scheme . '://' . $host . $path;
-    }
+        $trustedHosts = array_values(array_filter(array_map(
+            static fn (string $host): string => trim($host),
+            explode(',', (string) ($_ENV['APP_TRUSTED_HOSTS'] ?? 'pokemonchic.com'))
+        )));
+        $host = $trustedHosts[0] ?? 'pokemonchic.com';
+        if (!preg_match('/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?::\d{1,5})?$/i', $host)) {
+            $host = 'pokemonchic.com';
+        }
 
-    private function browserSign(Request $request): string
-    {
-        $ip = ClientIp::fromServer($request->server);
-        $parts = explode('.', $ip);
-        $network = ($parts[0] ?? '0') . '.' . ($parts[1] ?? '0');
-        $agent = (string) ($request->server['HTTP_USER_AGENT'] ?? 'none');
-        $secret = (string) ($_ENV['SESSION_BROWSER_SIGN_SECRET'] ?? 'change-me-local-secret');
-
-        return hash('sha256', $secret . '::' . $network . '::' . $agent);
+        return 'http://' . $host . $path;
     }
 }

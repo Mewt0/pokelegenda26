@@ -1,3 +1,4 @@
+
 (() => {
   const overlay = document.getElementById('marketOverlay');
   if (!overlay) return;
@@ -22,6 +23,35 @@
   const cartOwned = root.querySelector('[data-cart-owned]');
   const cartCount = root.querySelector('[data-cart-count]');
   const cartTotal = root.querySelector('[data-cart-total]');
+
+  // Используем компоненты, не изменяя существующие классы и data-атрибуты.
+  root.classList.add('ui-overlay');
+  root.querySelector('.market-window')?.classList.add('ui-overlay__window');
+  root.querySelector('.shop-titlebar')?.classList.add('ui-overlay__head');
+  root.querySelector('.shop-titlebar h1')?.classList.add('ui-overlay__title');
+  root.querySelector('.shop-layout')?.classList.add('ui-overlay__body');
+  root.querySelector('.shop-footer')?.classList.add('ui-overlay__foot');
+  root.querySelectorAll('.shop-tabs button, .shop-footer button').forEach(button => {
+    button.classList.add('ui-btn');
+  });
+  closeButtons.forEach(button => button.classList.add('ui-btn', 'ui-btn--ghost'));
+  buyButton?.classList.add('ui-btn', 'ui-btn--primary');
+  tabs.forEach(button => {
+    button.classList.toggle('ui-btn--primary', button.classList.contains('is-active'));
+  });
+  const searchLabel = search?.closest('label');
+  searchLabel?.classList.add('ui-field');
+  searchLabel?.querySelector('span')?.classList.add('ui-field__label');
+  search?.classList.add('ui-field__control');
+  cartCount?.classList.add('ui-field__control');
+  cartCount?.closest('.cart-count')?.classList.add('ui-field');
+  root.querySelector('.cart-count label')?.classList.add('ui-field__label');
+  cartCard?.classList.add('ui-card');
+  cartIcon?.closest('.cart-art')?.classList.add('ui-card__media');
+  cartName?.classList.add('ui-card__title');
+  cartOwned?.classList.add('ui-card__meta');
+  cartEmpty?.classList.add('ui-empty');
+  root.querySelectorAll('.shop-empty').forEach(empty => empty.classList.add('ui-empty'));
 
   const pageSize = 21;
   const pages = { catalog: 0, lots: 0 };
@@ -64,7 +94,11 @@
   function setTab(tab) {
     activeTab = tab === 'lots' ? 'lots' : 'catalog';
     selected = null;
-    tabs.forEach(button => button.classList.toggle('is-active', button.dataset.marketTab === activeTab));
+    tabs.forEach(button => {
+      const isActive = button.dataset.marketTab === activeTab;
+      button.classList.toggle('is-active', isActive);
+      button.classList.toggle('ui-btn--primary', isActive);
+    });
     panels.forEach(panel => {
       panel.hidden = panel.dataset.marketPanel !== activeTab;
     });
@@ -117,7 +151,7 @@
     const isLot = type === 'lots';
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'shop-item';
+    button.className = 'shop-item ui-btn ui-card';
     button.dataset.source = isLot ? 'lot' : 'catalog';
     button.dataset.id = String(isLot ? item.id_lot : item.id);
     button.dataset.itemId = String(item.item_id || 0);
@@ -139,14 +173,14 @@
     }
 
     const art = document.createElement('span');
-    art.className = 'shop-art';
+    art.className = 'shop-art ui-card__media';
     const img = document.createElement('img');
     img.src = String(item.icon || '/public/img/items/3.png');
     img.alt = '';
     art.appendChild(img);
 
     const price = document.createElement('span');
-    price.className = 'shop-price';
+    price.className = 'shop-price ui-card__meta';
     const priceText = document.createElement('b');
     priceText.textContent = formatNumber(button.dataset.price);
     const coin = document.createElement('img');
@@ -154,7 +188,11 @@
     coin.alt = '';
     price.append(priceText, coin);
 
-    button.append(art, price);
+    const title = document.createElement('span');
+    title.className = 'shop-item-title ui-card__title';
+    title.textContent = button.dataset.name;
+
+    button.append(art, title, price);
     return button;
   }
 
@@ -197,9 +235,25 @@
     const empty = root.querySelector(`[data-market-empty="${activeTab}"]`);
     if (empty) {
       const value = (search?.value || '').trim();
-      empty.textContent = cards.length > 0
-        ? ''
-        : (value !== '' ? 'По такому запросу ничего не найдено.' : (activeTab === 'lots' ? 'В твоём регионе нет активных лотов игроков.' : 'В магазине пока нет активных товаров.'));
+      const message = value !== ''
+        ? 'По такому запросу ничего не найдено.'
+        : (activeTab === 'lots' ? 'В твоём регионе нет активных лотов игроков.' : 'В магазине пока нет активных товаров.');
+      empty.classList.remove('is-loading', 'is-error', 'is-empty');
+      empty.classList.add('is-empty');
+      empty.replaceChildren();
+      if (cards.length === 0) {
+        const text = document.createElement('span');
+        text.textContent = message;
+        empty.appendChild(text);
+        if (value !== '') {
+          const reset = document.createElement('button');
+          reset.type = 'button';
+          reset.className = 'ui-btn ui-btn--ghost shop-empty-action';
+          reset.dataset.marketReset = '';
+          reset.textContent = 'Сбросить поиск';
+          empty.appendChild(reset);
+        }
+      }
       empty.hidden = cards.length > 0;
     }
   }
@@ -296,6 +350,7 @@
     }
 
     buyButton.disabled = true;
+    buyButton.classList.add('is-loading');
     setStatus('Покупка...');
     try {
       const response = await fetch('/api/market/items/buy', {
@@ -329,6 +384,7 @@
     } catch (error) {
       setStatus('Ошибка сети при покупке.', true);
     } finally {
+      buyButton.classList.remove('is-loading');
       if (selected && remainingLimit(selected) > 0) {
         buyButton.disabled = false;
       }
@@ -340,6 +396,11 @@
   });
 
   root.addEventListener('click', event => {
+    if (event.target.closest('[data-market-reset]')) {
+      if (search) search.value = '';
+      loadMarket(true);
+      return;
+    }
     const item = event.target.closest('.shop-item');
     if (item && root.contains(item)) {
       selectItem(item);

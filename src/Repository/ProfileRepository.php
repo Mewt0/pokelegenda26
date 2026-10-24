@@ -156,7 +156,9 @@ final class ProfileRepository
                 'themes' => [
                     ['value' => 'light', 'label' => 'Светлая'],
                     ['value' => 'dark', 'label' => 'Тёмная'],
-                    ['value' => 'auto', 'label' => 'Авто'],
+                    // `auto` оставлен для старых профилей: системная тема больше не
+                    // выбирает тему за игрока, значение означает «как в игре по умолчанию».
+                    ['value' => 'auto', 'label' => 'Как в игре по умолчанию'],
                 ],
                 'uiSizes' => [
                     ['value' => 'compact', 'label' => 'Компактный'],
@@ -514,12 +516,26 @@ final class ProfileRepository
         return $first . '***@' . $domain;
     }
 
+    /**
+     * Рейтинги в легаси-схеме лежат числом, и «значение не задано» записано
+     * пределом signed INT: у аккаунта видны 2147483647 и 2147483646. Игроку такое
+     * число показывать нельзя — это техническое значение, а не рейтинг, поэтому
+     * на выходе оно превращается в честный ноль. Реальные рейтинги на порядки
+     * меньше порога.
+     */
+    private const RATING_SENTINEL_MIN = 2_000_000_000;
+
+    private static function normalizeRating(int $value): int
+    {
+        return $value >= self::RATING_SENTINEL_MIN ? 0 : $value;
+    }
+
     private function formatUser(array $user, int $normalDex, int $shinyDex): array
     {
         $avatar = (int) ($user['avatars'] ?? 0);
         $avatarFile = $avatar > 0 ? str_pad((string) $avatar, 3, '0', STR_PAD_LEFT) : '001';
-        $rangA = (int) ($user['rang_a'] ?? 0);
-        $rangB = (int) ($user['rang_b'] ?? 0);
+        $rangA = self::normalizeRating((int) ($user['rang_a'] ?? 0));
+        $rangB = self::normalizeRating((int) ($user['rang_b'] ?? 0));
 
         return [
             'id' => (int) $user['id'],

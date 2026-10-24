@@ -35,6 +35,7 @@
   const esc = (v) => String(v ?? '').replace(/[&<>'"]/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;'
   }[c]));
+  const iconMarkup = (name) => '<span class="icon icon--' + name + '" aria-hidden="true"></span>';
 
   const endpoint = () => state.mode === 'pokemon' ? '/api/dex/pokemon' : '/api/dex/attacks';
   const detailEndpoint = (id) => state.mode === 'pokemon'
@@ -55,7 +56,7 @@
     overlay.classList.add('is-open');
     input.value = state.query;
     if (Number(id) > 0) {
-      list.innerHTML = '<div class="dex-empty">Загружаю...</div>';
+      list.innerHTML = emptyBox('Загружаю...', 'loading');
       await search(false);
       await showDetails(Number(id));
       return;
@@ -68,17 +69,49 @@
     overlay.setAttribute('aria-hidden', 'true');
   }
 
+  /* Пустое состояние. Раньше загрузка, ошибка и настоящая пустота выглядели
+     одинаково — один класс .dex-empty без модификатора, — и в пустоте не было
+     действия, которое вывело бы игрока из тупика. Поиск без результатов
+     оставлял только текст «Ничего не найдено» (план §5.3: одна понятная
+     кнопка действия). */
+  function emptyBox(text, kind = 'empty', withAction = false) {
+    const action = withAction
+      ? '<button type="button" class="ui-btn dex-empty-action" data-dex-reset>Сбросить поиск и фильтры</button>'
+      : '';
+    return '<div class="dex-empty is-' + kind + '"><span>' + esc(text) + '</span>' + action + '</div>';
+  }
+
+  function resetFilters() {
+    state.query = '';
+    if (input) {
+      input.value = '';
+    }
+    Object.values(filterEls).forEach(el => {
+      if (!el) {
+        return;
+      }
+      if (el.tagName === 'SELECT' || el.tagName === 'INPUT') {
+        if (el.type === 'checkbox') {
+          el.checked = false;
+        } else {
+          el.value = '';
+        }
+      }
+    });
+    search(true);
+  }
+
   async function search(autoOpenFirst = true) {
     const q = input.value.trim();
     state.query = q;
-    list.innerHTML = '<div class="dex-empty">Загрузка...</div>';
+    list.innerHTML = emptyBox('Загрузка...', 'loading');
     try {
       const params = buildSearchParams(q);
       const res = await fetch(endpoint() + '?' + params.toString(), { credentials: 'same-origin' });
       const data = await res.json();
       if (!data.ok) {
-        list.innerHTML = '<div class="dex-empty">Ошибка загрузки</div>';
-        details.innerHTML = '<div class="dex-empty">API вернул ошибку</div>';
+        list.innerHTML = emptyBox('Ошибка загрузки', 'error');
+        details.innerHTML = emptyBox('API вернул ошибку', 'error');
         return;
       }
       state.items = data.items || [];
@@ -86,11 +119,11 @@
       if (autoOpenFirst && state.items[0]) {
         await showDetails(state.items[0].id);
       } else if (autoOpenFirst) {
-        details.innerHTML = '<div class="dex-empty">Ничего не найдено</div>';
+        details.innerHTML = emptyBox('Ничего не найдено', 'empty', true);
       }
     } catch (e) {
-      list.innerHTML = '<div class="dex-empty">Ошибка сети</div>';
-      details.innerHTML = '<div class="dex-empty">Проверь маршруты /api/dex/...</div>';
+      list.innerHTML = emptyBox('Ошибка сети', 'error');
+      details.innerHTML = emptyBox('Проверь маршруты /api/dex/...', 'error');
     }
   }
 
@@ -195,17 +228,17 @@
             <span><small>PP</small><b>${Number(item.pp || 0)}</b></span>
           </div>
         </button>`;
-    }).join('') || '<div class="dex-empty">Ничего не найдено</div>';
+    }).join('') || emptyBox('Ничего не найдено', 'empty', true);
   }
 
   async function showDetails(id) {
     state.pokemonShiny = false;
-    details.innerHTML = '<div class="dex-empty">Загрузка...</div>';
+    details.innerHTML = emptyBox('Загрузка...', 'loading');
     try {
       const res = await fetch(detailEndpoint(id), { credentials: 'same-origin' });
       const data = await res.json();
       if (!data.ok) {
-        details.innerHTML = '<div class="dex-empty">Не найдено</div>';
+        details.innerHTML = emptyBox('Не найдено', 'empty');
         return;
       }
       list.querySelectorAll('[data-id]').forEach(row => row.classList.toggle('is-selected', Number(row.dataset.id) === Number(id)));
@@ -219,7 +252,7 @@
         renderAttackDetails();
       }
     } catch (e) {
-      details.innerHTML = '<div class="dex-empty">Ошибка загрузки данных</div>';
+      details.innerHTML = emptyBox('Ошибка загрузки данных', 'error');
     }
   }
 
@@ -266,7 +299,7 @@
           <b>#${esc(evo.code || evo.number || evo.id)}</b>
           <span>${esc(evo.name)}</span>
         </div>${arrow}`;
-    }).join('') || '<div class="dex-empty">Нет эволюций</div>';
+    }).join('') || emptyBox('Нет эволюций');
 
     const evolutionOptions = (p.evolutionOptions || []).slice(0, 40).map(option => {
       const from = option.from || {};
@@ -340,7 +373,7 @@
         <div class="dex-detail-topline">
           <h2>#${esc(p.code || p.number || p.id)} ${esc(p.name)}</h2>
           <div class="dex-detail-actions">
-            <button type="button" class="dex-ghost-btn" title="Будет подключено позже">☆ В избранное</button>
+            <button type="button" class="dex-ghost-btn" title="Будет подключено позже">${iconMarkup('chat-user-menu-friend')} В избранное</button>
             <button type="button" class="dex-ghost-btn" title="Будет подключено позже">🔊 Крик</button>
           </div>
         </div>
@@ -350,7 +383,7 @@
             <button type="button" class="dex-sprite-toggle" title="${esc(viewHint)}" data-dex-toggle-shiny="1">
               ${imgTag(sprite, p.name, 'dex-main-sprite', fallback)}
             </button>
-            <button type="button" class="dex-view-chip" data-dex-toggle-shiny="1">${state.pokemonShiny ? '✦' : '✧'} ${esc(viewLabel)}</button>
+            <button type="button" class="dex-view-chip" data-dex-toggle-shiny="1">${iconMarkup(state.pokemonShiny ? 'player-online' : 'player-offline')} ${esc(viewLabel)}</button>
           </div>
 
           <div class="dex-data-card">
@@ -404,7 +437,7 @@
   }
 
   function flagChip(label, active) {
-    return `<span class="attack-flag ${active ? 'is-on' : 'is-off'}"><b>${active ? '✓' : '×'}</b> ${esc(label)}</span>`;
+    return `<span class="attack-flag ${active ? 'is-on' : 'is-off'}"><b>${active ? iconMarkup('player-online') : iconMarkup('chat-clear')}</b> ${esc(label)}</span>`;
   }
 
   function formatAttackEffectList(items) {
@@ -503,6 +536,13 @@
       input._t = setTimeout(() => search(true), eventName === 'change' ? 0 : 250);
     });
   });
+  /* Кнопка в пустом состоянии может оказаться и в списке, и в панели деталей,
+     поэтому слушаем на корне оверлея, а не на конкретной панели. */
+  overlay.addEventListener('click', e => {
+    if (e.target.closest('[data-dex-reset]')) {
+      resetFilters();
+    }
+  });
   list.addEventListener('click', e => {
     const row = e.target.closest('[data-id]');
     if (row) showDetails(row.dataset.id);
@@ -559,6 +599,14 @@
       open(btn.dataset.openDex || 'pokemon');
     });
   });
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const dexMode = params.get('dex');
+    if (dexMode) {
+      open(dexMode);
+    }
+  } catch (error) {}
 
   // Compatibility: catch old legacy links in logs/descriptions and open new overlay instead of placeholder pages.
   document.addEventListener('click', e => {

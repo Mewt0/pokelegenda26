@@ -6,823 +6,18 @@ use Pokemon8\View\View;
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Команда покемонов - Pokemon 8.0</title>
-  <style>
-    * { box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; }
-    body {
-      margin: 0;
-      overflow: hidden;
-      background: #dfeaf5;
-      color: #102544;
-      font: 14px/1.35 "Trebuchet MS", Tahoma, Arial, sans-serif;
-      display: grid;
-      place-items: stretch center;
-    }
-    button { font: inherit; cursor: pointer; }
-    .team-window {
-      width: min(1180px, 100vw);
-      height: 100vh;
-      display: grid;
-      grid-template-rows: 38px minmax(0, 1fr) 24px;
-      background: #e5eff8;
-      border: 1px solid #8ea7bf;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.72);
-      overflow: hidden;
-    }
-    .team-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 14px;
-      color: #061a32;
-      font: 800 22px/1 Georgia, "Times New Roman", serif;
-      letter-spacing: .02em;
-      text-transform: uppercase;
-    }
-    .team-head-actions { display: inline-flex; align-items: center; gap: 8px; }
-    .team-icon-btn,
-    .team-close {
-      width: 30px;
-      height: 30px;
-      display: grid;
-      place-items: center;
-      border: 0;
-      background: transparent;
-      color: #526678;
-      font: 400 24px/1 Arial, sans-serif;
-    }
-    .team-close { font-size: 30px; }
-    .team-body {
-      min-height: 0;
-      display: grid;
-      grid-template-columns: 228px minmax(0, 1fr);
-      gap: 14px;
-      padding: 4px 12px 2px;
-    }
-    .team-body.is-overview {
-      grid-template-columns: 1fr;
-    }
-    .team-list {
-      min-width: 0;
-      min-height: 0;
-      display: grid;
-      grid-template-columns: 1fr;
-      align-content: start;
-      gap: 8px;
-      overflow-y: auto;
-      overflow-x: hidden;
-      padding: 2px 4px 2px 0;
-    }
-    .team-list.is-overview {
-      display: block;
-      overflow: auto;
-      padding: 2px 4px 8px;
-    }
-    .team-list.is-detail {
-      overflow-y: auto;
-      overflow-x: hidden;
-    }
-    .poke-tile {
-      height: 104px;
-      border: 1px solid #a8b8c9;
-      border-radius: 6px;
-      background: rgba(230, 238, 246, .84);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
-      position: relative;
-      overflow: hidden;
-      text-align: left;
-      padding: 6px 8px;
-    }
-    .team-list.is-overview .poke-tile {
-      height: 132px;
-      min-width: 0;
-    }
-    .team-section-active .poke-tile {
-      height: 138px;
-      background: linear-gradient(180deg, rgba(246,250,255,.96), rgba(225,237,248,.9));
-    }
-    .team-section-nursery .poke-tile {
-      height: 116px;
-      background: rgba(238, 244, 250, .82);
-    }
-    .team-list.is-detail .poke-tile {
-      height: 150px;
-    }
-    .poke-tile.is-active { border-color: #5d8cc0; box-shadow: 0 0 0 2px rgba(72,132,209,.14) inset; }
-    .poke-tile .ball { position: absolute; left: 6px; top: 9px; width: 23px; height: 23px; object-fit: contain; }
-    .poke-tile .lock { position: absolute; right: 8px; top: 10px; color: #8190a0; font-size: 13px; }
-    .tile-icons { position: absolute; left: 25px; top: 37px; display: grid; gap: 3px; }
-    .tile-icons span {
-      width: 16px;
-      height: 16px;
-      display: grid;
-      place-items: center;
-      border: 1px solid #77899a;
-      border-radius: 3px;
-      background: #d9f1cb;
-      color: #17365e;
-      font-size: 10px;
-      font-weight: 800;
-    }
-    .tile-icons span:nth-child(2) { background: #d9c5ff; }
-    .tile-art { height: 58px; margin: 0 24px 0 42px; display: grid; place-items: center; }
-    .tile-art img { max-width: 116px; max-height: 66px; object-fit: contain; }
-    .team-list.is-overview .tile-art,
-    .team-list.is-detail .tile-art {
-      height: 74px;
-    }
-    .team-list.is-overview .tile-icons,
-    .team-list.is-overview .lock {
-      display: none;
-    }
-    .team-list.is-overview .tile-art {
-      margin: 0 18px;
-    }
-    .team-list.is-overview .tile-art img,
-    .team-list.is-detail .tile-art img {
-      max-width: 132px;
-      max-height: 86px;
-    }
-    .team-section-active .tile-art {
-      height: 82px;
-    }
-    .team-section-active .tile-art img {
-      max-width: 146px;
-      max-height: 94px;
-    }
-    .team-section-nursery .tile-art {
-      height: 62px;
-      margin-left: 38px;
-    }
-    .team-section-nursery .tile-art img {
-      max-width: 112px;
-      max-height: 72px;
-    }
-    .tile-lvl { margin-left: 5px; color: #071b30; font: 800 17px/1 Georgia, serif; }
-    .hpbar { height: 7px; margin: 3px 0 5px; border: 1px solid #aebccc; border-radius: 999px; background: #d5e0ea; overflow: hidden; }
-    .hpbar i { display: block; height: 100%; background: #0ac18f; }
-    .tile-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .tile-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0b1726; font: 800 14px/1 Georgia, serif; text-transform: uppercase; }
-    .gender { color: #6c87a4; font-size: 17px; }
-    .tile-held {
-      position: absolute;
-      right: 8px;
-      top: 34px;
-      width: 26px;
-      height: 26px;
-      display: grid;
-      place-items: center;
-      border: 1px solid rgba(128,150,174,.65);
-      border-radius: 6px;
-      background: rgba(255,255,255,.72);
-      box-shadow: 0 4px 10px rgba(37,65,99,.12);
-    }
-    .team-list.is-overview .tile-held { top: 8px; }
-    .tile-held[hidden] { display: none; }
-    .tile-held img { width: 22px; height: 22px; object-fit: contain; }
-    .held-detail {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      min-height: 28px;
-      margin: 6px 0 2px;
-      padding: 3px 8px;
-      border: 1px solid #b7c9df;
-      border-radius: 6px;
-      background: rgba(255,255,255,.55);
-      color: #314967;
-      font-weight: 800;
-      cursor: pointer;
-      user-select: none;
-    }
-    .held-detail:hover,
-    .held-detail:focus-visible {
-      border-color: #6d9ed2;
-      background: rgba(255,255,255,.82);
-      outline: none;
-      box-shadow: 0 0 0 3px rgba(65,132,214,.16);
-    }
-    .held-detail[hidden] { display: none; }
-    .held-detail img { width: 22px; height: 22px; object-fit: contain; }
-    .held-confirm-pop {
-      position: fixed;
-      z-index: 80;
-      width: min(320px, calc(100vw - 18px));
-      display: grid;
-      gap: 8px;
-      padding: 10px;
-      border: 1px solid #8da9c4;
-      border-radius: 8px;
-      background: linear-gradient(180deg, rgba(246,251,255,.98), rgba(219,234,248,.98));
-      box-shadow: 0 14px 34px rgba(28,48,72,.22);
-      color: #183453;
-      font-weight: 800;
-    }
-    .held-confirm-pop strong { font-size: 14px; }
-    .held-confirm-pop p {
-      margin: 0;
-      color: #4d6682;
-      font-size: 12px;
-      line-height: 1.35;
-    }
-    .held-confirm-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-    .held-confirm-actions button {
-      min-height: 30px;
-      border: 1px solid #8fa8c2;
-      border-radius: 6px;
-      background: rgba(255,255,255,.74);
-      color: #243d5c;
-      font-weight: 900;
-    }
-    .held-confirm-actions .confirm {
-      border-color: #62a674;
-      background: #65bf82;
-      color: #fff;
-    }
-    .empty-tile {
-      min-height: 72px;
-      display: grid;
-      place-items: center;
-      border: 1px solid #a8b8c9;
-      border-radius: 6px;
-      background: repeating-linear-gradient(135deg, rgba(231,239,247,.62), rgba(231,239,247,.62) 8px, rgba(217,229,241,.62) 8px, rgba(217,229,241,.62) 16px);
-      color: #637589;
-      font-size: 13px;
-      font-weight: 800;
-    }
-    .team-section-active .empty-tile {
-      min-height: 138px;
-    }
-    .team-section-nursery .empty-tile {
-      min-height: 96px;
-      grid-column: 1 / -1;
-    }
-    .team-section {
-      display: block;
-      min-width: 0;
-      margin: 0 0 12px;
-      padding: 10px;
-      border: 1px solid rgba(150, 174, 198, .62);
-      border-radius: 10px;
-      background: rgba(255,255,255,.34);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.72);
-    }
-    .breeding-panel {
-      display: grid;
-      gap: 10px;
-      margin: 0 0 12px;
-      padding: 10px;
-      border: 1px solid rgba(142, 167, 191, .72);
-      border-radius: 10px;
-      background: linear-gradient(180deg, rgba(255,255,255,.56), rgba(225,238,249,.58));
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.76);
-    }
-    .breeding-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid rgba(126,151,174,.36);
-      color: #183453;
-      font-weight: 900;
-    }
-    .breeding-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
-    }
-    .breeding-card {
-      min-width: 0;
-      display: grid;
-      gap: 7px;
-      padding: 9px;
-      border: 1px solid #b5c7da;
-      border-radius: 8px;
-      background: rgba(248,251,255,.76);
-    }
-    .breeding-card h3 {
-      margin: 0;
-      color: #17385c;
-      font: 900 13px/1.1 Tahoma, Arial, sans-serif;
-    }
-    .breeding-card label {
-      display: grid;
-      gap: 4px;
-      color: #4b6380;
-      font-size: 11px;
-      font-weight: 800;
-    }
-    .breeding-card select,
-    .breeding-card input {
-      width: 100%;
-      min-width: 0;
-      height: 30px;
-      border: 1px solid #aac0d8;
-      border-radius: 5px;
-      background: #fff;
-      color: #132a46;
-      padding: 0 8px;
-      font: inherit;
-    }
-    .breeding-card button {
-      min-height: 30px;
-      border: 1px solid #6d9ed2;
-      border-radius: 5px;
-      background: #3f85d9;
-      color: #fff;
-      font-weight: 900;
-    }
-    .breeding-card button.secondary { background: #f6fbff; color: #1b446d; border-color: #a9bdd3; }
-    .breeding-card button:disabled { opacity: .55; cursor: not-allowed; }
-    .breeding-note { color: #5a7088; font-size: 12px; }
-    .breeding-request {
-      display: grid;
-      gap: 5px;
-      padding: 7px;
-      border: 1px solid #c0d0df;
-      border-radius: 6px;
-      background: rgba(255,255,255,.58);
-    }
-    .breeding-request strong { color: #102544; }
-    .breeding-request small { color: #637589; font-weight: 800; }
-    .team-section-title {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      margin: 0 0 8px;
-      padding: 0 2px 6px;
-      border-bottom: 1px solid rgba(126, 151, 174, .38);
-      color: #213b59;
-      font-weight: 900;
-    }
-    .team-section-title span {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .team-section-title span::before {
-      width: 22px;
-      height: 22px;
-      display: inline-grid;
-      place-items: center;
-      border: 1px solid #aac2dc;
-      border-radius: 50%;
-      background: linear-gradient(#fff, #dcecff);
-      color: #2d70c9;
-      font: 900 12px/1 Tahoma, Arial, sans-serif;
-      content: "●";
-    }
-    .team-section-nursery .team-section-title span::before {
-      color: #9c7a23;
-      background: linear-gradient(#fff, #fff3cd);
-    }
-    .team-section-title small { color: #637589; font-weight: 800; }
-    .team-section-grid {
-      display: grid;
-      gap: 8px;
-      min-width: 0;
-    }
-    .team-section-active .team-section-grid {
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-    }
-    .team-section-nursery .team-section-grid {
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    }
-    .poke-tile.is-stored { background: rgba(238, 244, 250, .72); }
-    .poke-tile.is-stored .tile-art { opacity: .86; }
-    .tile-status {
-      position: absolute;
-      right: 8px;
-      bottom: 28px;
-      padding: 2px 7px;
-      border: 1px solid #a8b8c9;
-      border-radius: 999px;
-      background: rgba(255,255,255,.74);
-      color: #47627f;
-      font-size: 11px;
-      font-weight: 800;
-    }
-    .team-section-nursery .tile-status { display: none; }
-    .poke-tile.is-stored .tile-status { color: #87682f; border-color: #c9b486; background: #fff8df; }
-    .detail-actions {
-      margin: 12px 0 0;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .team-action {
-      min-height: 34px;
-      padding: 0 12px;
-      border: 1px solid #9fb0c0;
-      border-radius: 5px;
-      background: #edf5fc;
-      color: #183c62;
-      font-weight: 800;
-    }
-    .team-action.primary {
-      border-color: #5f95ce;
-      background: #3f85d9;
-      color: #fff;
-    }
-    .team-action:disabled {
-      opacity: .55;
-      cursor: not-allowed;
-    }
-    .pager { text-align: center; color: #2a7dcc; font-size: 18px; letter-spacing: 5px; }
-    .detail {
-      min-width: 0;
-      min-height: 0;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      position: relative;
-      overflow-y: auto;
-      overflow-x: hidden;
-      padding-right: 4px;
-    }
-    .team-body.is-overview .detail {
-      display: none;
-    }
-    .detail-left { min-width: 0; display: grid; grid-template-rows: 142px auto; gap: 6px; }
-    .detail-art { display: grid; place-items: center; cursor: pointer; border-radius: 6px; }
-    .detail-art:hover { background: rgba(255,255,255,.34); }
-    .detail-art img { max-width: 198px; max-height: 142px; object-fit: contain; }
-    .move-list { min-width: 0; display: grid; gap: 5px; }
-    .move-slot {
-      height: 50px;
-      display: grid;
-      grid-template-columns: 42px minmax(0, 1fr);
-      align-items: center;
-      gap: 7px;
-      border: 1px solid #a8b8c9;
-      border-radius: 6px;
-      background: rgba(231,239,247,.9);
-      padding: 4px;
-      text-align: left;
-    }
-    .move-slot.is-empty { opacity: .72; }
-    .move-icon {
-      width: 38px;
-      height: 38px;
-      display: grid;
-      place-items: center;
-      border: 1px solid rgba(20, 28, 36, .46);
-      border-radius: 4px;
-      background: linear-gradient(145deg, #d7d7d7, #a9a9a9);
-      color: #1e2430;
-      font-weight: 900;
-      font-size: 22px;
-      line-height: 1;
-      text-shadow: 0 1px 0 rgba(255,255,255,.38);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.68), inset 0 -2px 0 rgba(0,0,0,.18), 0 1px 1px rgba(0,0,0,.14);
-    }
-    .move-icon img {
-      width: 100%;
-      height: 100%;
-      display: block;
-      object-fit: contain;
-    }
-    .type-normal { background: linear-gradient(145deg, #d6c39b, #9f8354); color: #5a3d1d; }
-    .type-fire { background: linear-gradient(145deg, #ff9b42, #c44720); color: #6f190c; }
-    .type-water { background: linear-gradient(145deg, #4bc9ef, #1688bd); color: #063c67; }
-    .type-grass { background: linear-gradient(145deg, #8be468, #37a53d); color: #134e20; }
-    .type-electric { background: linear-gradient(145deg, #fff153, #e7b900); color: #7a4c00; }
-    .type-ice { background: linear-gradient(145deg, #b9f2ff, #64cce9); color: #1c6680; }
-    .type-fighting { background: linear-gradient(145deg, #d7745c, #a63d35); color: #5f1a17; }
-    .type-poison { background: linear-gradient(145deg, #d785ff, #9049c8); color: #4f1a79; }
-    .type-ground { background: linear-gradient(145deg, #d2ad65, #8b622c); color: #4e3516; }
-    .type-flying { background: linear-gradient(145deg, #93d7ff, #5a98d6); color: #174c84; }
-    .type-psychic { background: linear-gradient(145deg, #ff83c6, #cf3b86); color: #7c1648; }
-    .type-bug { background: linear-gradient(145deg, #d8df45, #91a721); color: #47560f; }
-    .type-rock { background: linear-gradient(145deg, #c5b08c, #7e6a4c); color: #463824; }
-    .type-ghost { background: linear-gradient(145deg, #7760b5, #3d2d70); color: #1e1645; }
-    .type-dragon { background: linear-gradient(145deg, #b46eff, #6941bf); color: #361d7d; }
-    .type-dark { background: linear-gradient(145deg, #6d6570, #29282d); color: #08090c; }
-    .type-steel { background: linear-gradient(145deg, #c9d2dc, #8a99a7); color: #334250; }
-    .type-fairy { background: linear-gradient(145deg, #ff9bd3, #db5d9f); color: #7d2455; }
-    .move-main { min-width: 0; display: grid; gap: 4px; position: relative; }
-    .move-name { min-width: 0; padding-right: 28px; color: #aa1616; font: 800 14px/1 Georgia, serif; text-transform: uppercase; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    .move-pp { position: absolute; right: 0; top: 0; color: #526173; font-weight: 700; }
-    .move-hint { color: #526173; font-size: 11px; }
-    .detail-main { min-width: 0; padding: 0 2px 10px 0; }
-    .detail-title { margin: 0; color: #102544; font: 800 22px/1.04 Georgia, "Times New Roman", serif; text-transform: uppercase; overflow-wrap: anywhere; }
-    .detail-title[role="button"] { cursor: pointer; }
-    .detail-title[role="button"]:hover { color: #0d5ca8; }
-    .detail-sub { margin-top: 3px; color: #123965; font-size: 14px; overflow-wrap: anywhere; }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      min-height: 22px;
-      margin-top: 4px;
-      padding: 0 8px;
-      border: 1px solid #9fb0c0;
-      border-radius: 4px;
-      background: #eaf2fb;
-      color: #183c62;
-      font-weight: 700;
-    }
-    .stats { max-width: 100%; margin-top: 10px; display: grid; gap: 4px; }
-    .vitamin-summary {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 6px;
-      margin-bottom: 4px;
-      color: #31516f;
-      font-size: 11px;
-      font-weight: 800;
-    }
-    .vitamin-summary span {
-      min-height: 20px;
-      display: inline-flex;
-      align-items: center;
-      padding: 0 7px;
-      border: 1px solid #b5c7da;
-      border-radius: 999px;
-      background: rgba(247,251,255,.75);
-      white-space: nowrap;
-    }
-    .vitamin-summary b { color: #0b8f58; }
-    .stat-row { display: grid; grid-template-columns: 132px 42px minmax(92px, 1fr) auto auto 24px; align-items: center; gap: 7px; color: #1f3855; }
-    .stat-label { min-width: 0; display: flex; align-items: center; gap: 6px; }
-    .stat-label span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .stat-value { text-align: right; color: #526173; font-weight: 700; }
-    .stat-track { height: 10px; border: 1px solid #aab8c6; border-radius: 99px; background: #edf3f9; overflow: hidden; }
-    .stat-track i { display: block; height: 100%; background: #d0c96a; }
-    .stat-row.hp .stat-track i { background: #14bf91; }
-    .stat-row.is-trained { color: #102544; font-weight: 800; }
-    .stat-row.is-trained .stat-track { border-color: #8fb4e4; background: #e8f2ff; box-shadow: 0 0 0 2px rgba(77,139,234,.09); }
-    .stat-row.is-trained .stat-track i { background: linear-gradient(90deg, #5b8df7, #8edb6f); }
-    .training-mark {
-      flex: 0 0 auto;
-      min-width: 24px;
-      height: 18px;
-      display: inline-grid;
-      place-items: center;
-      border: 1px solid #8ca3ba;
-      border-radius: 4px;
-      background: linear-gradient(#fff, #d9e5ef);
-      color: #28445f;
-      font: 900 10px/1 Tahoma, Arial, sans-serif;
-      box-shadow: 0 1px 0 rgba(255,255,255,.75) inset;
-    }
-    .training-mark.s1 { border-color:#9ba6ad; color:#4d5962; }
-    .training-mark.s2 { border-color:#87af4b; color:#3f6c10; background:linear-gradient(#fbfff5,#dff0ca); }
-    .training-mark.s3 { border-color:#5595d8; color:#145ea6; background:linear-gradient(#f5fbff,#d6e9ff); }
-    .training-mark.s4 { border-color:#a06bc6; color:#6d298b; background:linear-gradient(#fff8ff,#ecd9fa); }
-    .training-mark.s5 { border-color:#c95244; color:#9a1c13; background:linear-gradient(#fff8f5,#fad8d3); }
-    .training-mark.s6 { border-color:#c5a21a; color:#755900; background:linear-gradient(#fffbe4,#f4db65); }
-    .stat-plus {
-      width: 22px;
-      height: 22px;
-      border: 0;
-      background: transparent;
-      color: #00b86b;
-      font: 800 20px/1 Arial, sans-serif;
-    }
-    .stat-plus:disabled { opacity: .35; cursor: default; }
-    .stat-ev-chip,
-    .stat-vitamin-chip {
-      min-height: 20px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 999px;
-      font: 900 11px/1 Tahoma, Arial, sans-serif;
-      white-space: nowrap;
-    }
-    .stat-ev-chip {
-      min-width: 82px;
-      padding: 0 7px;
-      border: 1px solid #a9bed4;
-      background: rgba(255,255,255,.62);
-      color: #31516f;
-    }
-    .stat-ev-chip.is-full {
-      border-color: #a9d7bd;
-      background: #e4f8ed;
-      color: #0b8f58;
-    }
-    .stat-vitamin-chip {
-      min-width: 34px;
-      border: 1px solid #77a7d8;
-      background: #eef7ff;
-      color: #1d66a8;
-    }
-    .stat-vitamin-chip.is-empty {
-      border-color: #c1cbd5;
-      background: #edf1f5;
-      color: #7b8793;
-    }
-    .ev-left { justify-self: end; color: #00a75f; font-weight: 900; }
-    .meta { margin-top: 18px; color: #0d5ca8; font-weight: 700; }
-    .training-box {
-      margin-top: 10px;
-      padding: 8px 10px;
-      border: 1px solid #b3c5d8;
-      border-radius: 6px;
-      background: rgba(255,255,255,.42);
-    }
-    .training-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
-    .training-box strong { display:block; color:#102544; }
-    .training-box small { display:block; color:#526173; line-height: 1.25; }
-    .training-chances { margin-top:5px; display:flex; flex-wrap:wrap; gap:4px; }
-    .training-chances span {
-      min-height: 18px;
-      display: inline-flex;
-      align-items: center;
-      padding: 0 6px;
-      border: 1px solid #b8c8d8;
-      border-radius: 999px;
-      background: rgba(247,251,255,.72);
-      color: #435b74;
-      font-size: 10px;
-      font-weight: 800;
-    }
-    .training-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
-    .training-actions button {
-      min-height: 26px;
-      padding: 0 9px;
-      border: 1px solid #9fb4cc;
-      border-radius: 5px;
-      background: #f7fbff;
-      color: #14395f;
-      font-weight: 800;
-    }
-    .training-actions button:hover { border-color:#4d8bea; color:#0d5ca8; }
-    .starter {
-      float: right;
-      min-height: 26px;
-      padding: 0 10px;
-      border: 0;
-      border-radius: 5px;
-      background: #91af13;
-      color: #fff;
-      font-weight: 800;
-    }
-    .learn-pop,
-    .ev-pop {
-      position: fixed;
-      z-index: 40;
-      border-radius: 5px;
-      box-shadow: 0 8px 22px rgba(20,36,54,.28);
-    }
-    .learn-pop {
-      width: 276px;
-      max-height: min(386px, calc(100vh - 18px));
-      overflow: hidden;
-      padding: 7px;
-      border: 1px solid #9fb8d2;
-      background: linear-gradient(#edf6ff, #dcebf8);
-      color: #102544;
-    }
-    .learn-pop h3 {
-      margin: 0 0 6px;
-      padding-bottom: 5px;
-      border-bottom: 1px solid rgba(105, 137, 171, .38);
-      color: #173a61;
-      font: 900 14px/1.1 Tahoma, Arial, sans-serif;
-      text-align: center;
-      text-transform: uppercase;
-      letter-spacing: .2px;
-    }
-    .learn-search {
-      width: 100%;
-      height: 27px;
-      margin: 0 0 5px;
-      padding: 0 8px;
-      border: 1px solid #a9bed4;
-      border-radius: 4px;
-      background: #f8fbff;
-      color: #102544;
-      outline: none;
-      font-size: 12px;
-    }
-    .learn-search:focus { border-color: #7397d3; box-shadow: 0 0 0 2px rgba(77,139,234,.18); }
-    .learn-results {
-      max-height: 318px;
-      display: grid;
-      gap: 4px;
-      overflow: auto;
-      padding-right: 2px;
-    }
-    .learn-row {
-      width: 100%;
-      height: 27px;
-      display: grid;
-      grid-template-columns: 22px minmax(0, 1fr) auto;
-      gap: 6px;
-      align-items: center;
-      border: 1px solid #afc3d8;
-      border-radius: 4px;
-      background: rgba(243, 248, 253, .95);
-      text-align: left;
-      padding: 0 7px;
-      color: #173a61;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.55);
-      transition: background .12s ease, border-color .12s ease, transform .12s ease;
-    }
-    .learn-row:hover,
-    .learn-row:focus {
-      border-color: #6fa0d8;
-      background: #e5f1ff;
-      transform: translateY(-1px);
-      outline: none;
-    }
-    .learn-row.type-fire,
-    .learn-row.type-fighting,
-    .learn-row.type-poison { background: linear-gradient(90deg, rgba(255,240,240,.92), rgba(243,248,253,.96) 42%); }
-    .learn-row.type-water,
-    .learn-row.type-electric,
-    .learn-row.type-ice { background: linear-gradient(90deg, rgba(230,243,255,.94), rgba(243,248,253,.96) 42%); }
-    .learn-row.type-ghost,
-    .learn-row.type-psychic,
-    .learn-row.type-dragon,
-    .learn-row.type-dark { background: linear-gradient(90deg, rgba(241,235,250,.92), rgba(243,248,253,.96) 42%); }
-    .learn-type-icon {
-      width: 21px;
-      height: 21px;
-      display: grid;
-      place-items: center;
-      border: 1px solid rgba(30, 36, 48, .42);
-      border-radius: 4px;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.58), inset 0 -1px 0 rgba(0,0,0,.13);
-    }
-    .learn-type-icon img {
-      width: 18px;
-      height: 18px;
-      display: block;
-      object-fit: contain;
-    }
-    .learn-row strong {
-      min-width: 0;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      color: #173a61;
-      font: 900 12px/1 Tahoma, Arial, sans-serif;
-      text-transform: uppercase;
-    }
-    .learn-row small {
-      color: #4f6b88;
-      font: 800 11px/1 Tahoma, Arial, sans-serif;
-      white-space: nowrap;
-    }
-    .learn-empty { color: #515b65; padding: 8px 2px; font-size: 12px; }
-    .ev-pop {
-      width: 264px;
-      padding: 10px 12px 12px;
-      background: rgba(12,14,18,.94);
-      color: #fff;
-      text-align: center;
-    }
-    .ev-pop strong { display: block; margin-bottom: 8px; }
-    .ev-pop-line { margin: 5px 0; color: #d8e2ef; font-size: 12px; text-align: left; }
-    .ev-pop label { display: grid; grid-template-columns: 1fr 90px; align-items: center; gap: 8px; }
-    .ev-pop input { min-width: 0; height: 28px; border: 1px solid #888; background: #4a4f56; color: #cad2dc; text-align: right; font: inherit; }
-    .ev-pop button {
-      width: 100%;
-      height: 24px;
-      margin-top: 8px;
-      border: 1px solid #188bd6;
-      border-radius: 3px;
-      background: #1478bd;
-      color: #fff;
-      font-weight: 800;
-    }
-    .team-foot { display: flex; align-items: center; justify-content: space-between; padding: 0 14px 5px; color: #8190a0; font-weight: 700; }
-    .status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .is-bad { color: #a4161a; }
-    @media (max-width: 760px) {
-      body { overflow: auto; }
-      .team-window { height: auto; min-height: 100vh; overflow: visible; }
-      .team-body { grid-template-columns: 1fr; padding: 8px 10px; }
-      .team-list { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); max-height: 250px; }
-      .team-list.is-overview { max-height: none; }
-      .team-section-active .team-section-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .team-section-nursery .team-section-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .breeding-grid { grid-template-columns: 1fr; }
-      .detail { grid-template-columns: 1fr; }
-      .detail-left { grid-template-rows: auto auto; }
-      .detail-art { display: none; }
-    }
-    @media (min-width: 761px) and (max-width: 940px) {
-      .team-section-active .team-section-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    }
-  </style>
+  <title>Команда покемонов - League of Pokemons</title>
+  <?php
+    $headStyles = ['/public/css/game-pokemon.css'];
+    require APP_ROOT . '/views/components/head-styles.php';
+  ?>
 </head>
 <body data-csrf="<?= View::e($csrf) ?>">
   <main class="team-window">
     <header class="team-head">
       <span>Команда покемонов</span>
       <span class="team-head-actions">
-        <button type="button" class="team-icon-btn" id="downloadBtn" aria-label="Скачать">⇩</button>
+        <button type="button" class="team-icon-btn" id="downloadBtn" aria-label="Скачать"><span class="icon icon--ui-download" aria-hidden="true"></span></button>
         <button type="button" class="team-close" id="closeBtn" aria-label="Закрыть">×</button>
       </span>
     </header>
@@ -832,10 +27,11 @@ use Pokemon8\View\View;
     </section>
     <footer class="team-foot">
       <span class="status" id="status">Загрузка...</span>
-      <span id="detailId"></span>
+      <button type="button" id="detailId" class="pokemon-chat-id" title="Упомянуть покемона в чате" hidden></button>
     </footer>
   </main>
 
+  <script src="<?= View::e(asset_url('/public/js/ui-preferences.js')) ?>"></script>
   <script>
     const csrf = document.body.dataset.csrf;
     const teamBody = document.querySelector('.team-body');
@@ -845,12 +41,35 @@ use Pokemon8\View\View;
     const detailId = document.getElementById('detailId');
     const slots = ['a', 'b', 'c', 'd'];
     const dragState = { active: false, offsetX: 0, offsetY: 0 };
-    const initialBreedTarget = new URLSearchParams(window.location.search).get('breed_with') || 'NIGA';
     let team = [];
-    let breeding = null;
     let selectedId = 0;
     let detailOpen = false;
     let activeLearn = null;
+
+    function setChatPokemonId(poke) {
+      const id = Number(poke && poke.id || 0);
+      detailId.textContent = id > 0 ? 'id' + id : '';
+      detailId.dataset.pokemonId = String(id);
+      detailId.hidden = id <= 0;
+      detailId.setAttribute('aria-label', 'Упомянуть покемона #' + id + ' в чате');
+    }
+
+    detailId.addEventListener('click', () => {
+      const id = Number(detailId.dataset.pokemonId || 0);
+      if (!Number.isSafeInteger(id) || id <= 0) return;
+      if (window.parent !== window && window.parent.Chat?.insertPokemonMention) {
+        const parentChat = window.parent.Chat;
+        window.parent.document.getElementById('pokemonCloseBtn')?.click();
+        parentChat.insertPokemonMention(id);
+      } else {
+        try {
+          sessionStorage.setItem('pokemonchic:chat-pokemon-mention', JSON.stringify({ id, time: Date.now() }));
+          window.location.href = '/game';
+        } catch (error) {
+          setStatus('Напишите #' + id + ' в строке чата.');
+        }
+      }
+    });
 
     document.getElementById('closeBtn').addEventListener('click', () => {
       resetLocalState();
@@ -878,6 +97,7 @@ use Pokemon8\View\View;
     function setupParentWindowDrag() {
       const head = document.querySelector('.team-head');
       if (!head || !window.parent || window.parent === window) return;
+      if (window.matchMedia('(max-width: 760px)').matches) return;
       head.style.cursor = 'move';
 
       const parentDoc = window.parent.document;
@@ -954,16 +174,6 @@ use Pokemon8\View\View;
       }
     }
 
-    async function loadBreedingState() {
-      try {
-        const response = await fetch('/api/pokemon/breeding', { credentials: 'same-origin' });
-        const payload = await response.json();
-        breeding = payload && payload.ok === true ? payload : null;
-      } catch (error) {
-        breeding = null;
-      }
-    }
-
     function renderAll() {
       renderTeamView();
       return;
@@ -1011,7 +221,7 @@ use Pokemon8\View\View;
         list.className = 'team-list is-overview';
         appendEmptyTile(list, 'Покемонов нет');
         detail.innerHTML = '';
-        detailId.textContent = '';
+        setChatPokemonId(null);
         return;
       }
 
@@ -1019,7 +229,7 @@ use Pokemon8\View\View;
         list.className = 'team-list is-overview';
         renderPokemonSection('Активная команда', activePokemon(), 'active', 'Команда пуста.');
         detail.innerHTML = '';
-        detailId.textContent = '';
+        setChatPokemonId(null);
         return;
       }
 
@@ -1075,252 +285,6 @@ use Pokemon8\View\View;
       list.appendChild(section);
     }
 
-    function renderBreedingPanel() {
-      const panel = document.createElement('section');
-      panel.className = 'breeding-panel';
-      const head = document.createElement('div');
-      head.className = 'breeding-head';
-      head.innerHTML = '<span>Разведение покемонов</span><small></small>';
-      head.querySelector('small').textContent = breeding
-        ? 'Экстракт Дитто: ' + Number(breeding.ditto_essence?.count || 0)
-        : 'данные загружаются';
-      panel.appendChild(head);
-
-      const grid = document.createElement('div');
-      grid.className = 'breeding-grid';
-      panel.appendChild(grid);
-      grid.appendChild(renderBreedingRequestCard());
-      grid.appendChild(renderBreedingIncomingCard());
-      grid.appendChild(renderDittoEssenceCard());
-      list.appendChild(panel);
-    }
-
-    function renderBreedingRequestCard() {
-      const card = document.createElement('div');
-      card.className = 'breeding-card';
-      const candidates = breeding?.candidates || [];
-      card.innerHTML = '<h3>Отправить заявку</h3>';
-      const filterLabel = document.createElement('label');
-      filterLabel.textContent = 'Фильтр ПЦ';
-      const filter = document.createElement('input');
-      filter.type = 'search';
-      filter.placeholder = '25 нс ж / pikachu м';
-      filterLabel.appendChild(filter);
-      card.appendChild(filterLabel);
-
-      const pokemonLabel = document.createElement('label');
-      pokemonLabel.textContent = 'Твой покемон';
-      const select = document.createElement('select');
-      const populateSelect = () => {
-        const previous = select.value;
-        select.innerHTML = '';
-        let firstEnabledPokemon = '';
-        const filtered = filterBreedingCandidates(candidates, filter.value);
-        if (!filtered.length) {
-          const option = document.createElement('option');
-          option.value = '';
-          option.textContent = 'Ничего не найдено';
-          option.disabled = true;
-          select.appendChild(option);
-        } else {
-          filtered.forEach(poke => {
-            const option = document.createElement('option');
-            option.value = String(poke.id);
-            option.textContent = breedingPokemonLabel(poke);
-            option.disabled = !poke.breedable;
-            if (poke.breedable && firstEnabledPokemon === '') firstEnabledPokemon = option.value;
-            select.appendChild(option);
-          });
-        }
-        if (previous && Array.from(select.options).some(option => option.value === previous && !option.disabled)) {
-          select.value = previous;
-        } else if (firstEnabledPokemon !== '') {
-          select.value = firstEnabledPokemon;
-        }
-      };
-      populateSelect();
-      pokemonLabel.appendChild(select);
-      card.appendChild(pokemonLabel);
-
-      const targetLabel = document.createElement('label');
-      targetLabel.textContent = 'Игрок-партнёр';
-      const target = document.createElement('input');
-      target.type = 'text';
-      target.placeholder = 'NIGA или User ID';
-      target.value = initialBreedTarget;
-      targetLabel.appendChild(target);
-      card.appendChild(targetLabel);
-
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = 'Отправить';
-      const updateSendState = () => {
-        button.disabled = !select.value || !!select.selectedOptions[0]?.disabled || !target.value.trim();
-      };
-      select.addEventListener('change', updateSendState);
-      filter.addEventListener('input', () => {
-        populateSelect();
-        updateSendState();
-      });
-      target.addEventListener('input', updateSendState);
-      button.addEventListener('click', () => sendBreedingRequest(select.value, target.value));
-      card.appendChild(button);
-      updateSendState();
-
-      const note = document.createElement('div');
-      note.className = 'breeding-note';
-      const pending = breeding?.outgoing || [];
-      note.textContent = pending.length
-        ? 'Активных заявок: ' + pending.length
-        : 'Второй игрок выбирает совместимого родителя у себя.';
-      card.appendChild(note);
-      return card;
-    }
-
-    function renderBreedingIncomingCard() {
-      const card = document.createElement('div');
-      card.className = 'breeding-card';
-      card.innerHTML = '<h3>Входящие заявки</h3>';
-      const incoming = breeding?.incoming || [];
-      if (!incoming.length) {
-        const empty = document.createElement('div');
-        empty.className = 'breeding-note';
-        empty.textContent = 'Новых заявок нет.';
-        card.appendChild(empty);
-        return card;
-      }
-
-      incoming.forEach(request => {
-        const row = document.createElement('div');
-        row.className = 'breeding-request';
-        const title = document.createElement('strong');
-        title.textContent = (request.requester_login || 'Игрок') + ': ' + (request.requester_pokemon?.label || 'покемон');
-        row.appendChild(title);
-
-        const select = document.createElement('select');
-        let firstEnabledCandidate = '';
-        (request.candidate_options || []).forEach(optionData => {
-          const option = document.createElement('option');
-          option.value = String(optionData.pokemon_id);
-          option.textContent = (optionData.compatible ? '✓ ' : '× ') + optionData.label + ' — ' + optionData.reason;
-          option.disabled = !optionData.compatible;
-          if (optionData.compatible && firstEnabledCandidate === '') firstEnabledCandidate = option.value;
-          select.appendChild(option);
-        });
-        if (firstEnabledCandidate !== '') select.value = firstEnabledCandidate;
-        row.appendChild(select);
-
-        const actions = document.createElement('div');
-        actions.style.display = 'flex';
-        actions.style.gap = '6px';
-        const accept = document.createElement('button');
-        accept.type = 'button';
-        accept.textContent = 'Принять';
-        accept.disabled = !Array.from(select.options).some(option => !option.disabled);
-        accept.addEventListener('click', () => respondBreedingRequest(request.id, 'accept', select.value));
-        const decline = document.createElement('button');
-        decline.type = 'button';
-        decline.className = 'secondary';
-        decline.textContent = 'Отклонить';
-        decline.addEventListener('click', () => respondBreedingRequest(request.id, 'decline', '0'));
-        actions.appendChild(accept);
-        actions.appendChild(decline);
-        row.appendChild(actions);
-
-        const time = document.createElement('small');
-        time.textContent = 'Осталось примерно ' + Math.ceil(Number(request.remaining_seconds || 0) / 60) + ' мин.';
-        row.appendChild(time);
-        card.appendChild(row);
-      });
-      return card;
-    }
-
-    function renderDittoEssenceCard() {
-      const card = document.createElement('div');
-      card.className = 'breeding-card';
-      card.innerHTML = '<h3>Экстракт Дитто</h3>';
-      const essence = breeding?.ditto_essence || { count: 0, valid_candidates: [] };
-      const note = document.createElement('div');
-      note.className = 'breeding-note';
-      note.textContent = Number(essence.count || 0) > 0
-        ? 'Предмет не открывается кнопкой. Надень его на обоих бесполых родителей с одинаковой буквой совместимости, затем отправь обычную заявку.'
-        : 'Нет предмета в инвентаре.';
-      card.appendChild(note);
-      return card;
-    }
-
-    function breedingPokemonLabel(poke) {
-      const groups = Array.isArray(poke.egg_groups) && poke.egg_groups.length ? ' [' + poke.egg_groups.join('/') + ']' : '';
-      const letter = poke.compatibility_letter ? ' буква ' + poke.compatibility_letter : '';
-      const paired = poke.paired ? ' • спарен' : ' • нс';
-      const extract = poke.has_ditto_extract ? ' • Extract' : '';
-      return (poke.label || ('#' + Number(poke.id || 0))) + groups + letter + paired + extract + (poke.breedable ? '' : ' — нельзя');
-    }
-
-    function filterBreedingCandidates(candidates, rawQuery) {
-      const tokens = String(rawQuery || '').toLowerCase().split(/\s+/).map(item => item.trim()).filter(Boolean);
-      if (!tokens.length) return candidates;
-      return candidates.filter(poke => {
-        return tokens.every(token => {
-          if (token === 'нс') return !poke.paired;
-          if (token === 'м') return Number(poke.sex || 0) === 1;
-          if (token === 'ж') return Number(poke.sex || 0) === 2;
-          if (token === 'бп' || token === 'бесполый') return Number(poke.sex || 0) === 0;
-          if (/^\d+$/.test(token)) {
-            const num = Number(token);
-            return Number(poke.base_id || 0) === num || Number(poke.id || 0) === num || String(poke.label || '').includes(token);
-          }
-          const haystack = normalizeSearch([
-            poke.name,
-            poke.label,
-            poke.compatibility_letter,
-            Array.isArray(poke.egg_groups) ? poke.egg_groups.join(' ') : ''
-          ].join(' '));
-          return haystack.includes(normalizeSearch(token));
-        });
-      });
-    }
-
-    async function sendBreedingRequest(pokemonId, target) {
-      const body = new URLSearchParams();
-      body.set('_csrf', csrf);
-      body.set('pokemon_id', String(pokemonId || 0));
-      body.set('target', String(target || ''));
-      await postBreeding('/api/pokemon/breeding/request', body, 'Заявка не отправлена.');
-    }
-
-    async function respondBreedingRequest(requestId, action, pokemonId) {
-      const body = new URLSearchParams();
-      body.set('_csrf', csrf);
-      body.set('request_id', String(requestId || 0));
-      body.set('action', action);
-      body.set('pokemon_id', String(pokemonId || 0));
-      await postBreeding('/api/pokemon/breeding/respond', body, 'Заявка не обработана.');
-    }
-
-    async function useDittoEssence(pokemonId) {
-      const body = new URLSearchParams();
-      body.set('_csrf', csrf);
-      body.set('pokemon_id', String(pokemonId || 0));
-      await postBreeding('/api/pokemon/breeding/ditto-essence', body, 'Экстракт не использован.');
-    }
-
-    async function postBreeding(url, body, failMessage) {
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', 'Accept': 'application/json' },
-          body
-        });
-        const payload = await response.json();
-        setStatus(payload && payload.message ? payload.message : 'Готово', !(payload && payload.ok));
-        await load(true);
-      } catch (error) {
-        setStatus(failMessage, true);
-      }
-    }
-
     function renderTilesOnly() {
       const scrollTop = list.scrollTop;
       list.querySelectorAll('.poke-tile').forEach(tile => {
@@ -1345,9 +309,9 @@ use Pokemon8\View\View;
       });
       tile.innerHTML = [
         '<img class="ball" src="/public/img/legacy/ui/menu-pokemon.png" alt="">',
-        '<span class="lock" aria-hidden="true">▣</span>',
+        '<span class="lock icon icon--ui-lock" aria-hidden="true"></span>',
         '<span class="tile-held" hidden><img alt=""></span>',
-        '<div class="tile-icons"><span>ST</span><span>✦</span></div>',
+        '<div class="tile-icons"><span>ST</span><span class="icon icon--ui-shiny" aria-hidden="true"></span></div>',
         '<span class="tile-status"></span>',
         '<div class="tile-art"><img alt=""></div>',
         '<div class="tile-lvl"></div>',
@@ -1360,23 +324,23 @@ use Pokemon8\View\View;
       tile.querySelector('.tile-name').textContent = displayName(poke);
       tile.querySelector('.tile-status').textContent = poke.active === false ? 'Питомник' : (poke.starter ? 'Стартовый' : 'Команда');
       renderHeldBadge(tile.querySelector('.tile-held'), poke);
-      if (!poke.starter) tile.querySelector('.tile-icons span').textContent = '★';
+      if (!poke.starter) tile.querySelector('.tile-icons span').innerHTML = '<span class="icon icon--ui-starter" aria-hidden="true"></span>';
       return tile;
     }
 
     function renderPokemonDetail(poke) {
       if (!poke) return;
-      detailId.textContent = 'id' + Number(poke.id || 0);
+      setChatPokemonId(poke);
       detail.innerHTML = [
         '<div class="detail-main">',
         '<h2 class="detail-title"></h2>',
         '<div class="detail-sub"></div>',
         '<span class="badge">Обычный характер</span>',
         '<div class="held-detail" hidden><img alt=""><span></span></div>',
+        '<div class="detail-actions"></div>',
         '<div class="stats"></div>',
         '<div class="training-box"></div>',
-        '<div class="detail-actions"></div>',
-        '<div class="meta">☻ ВаДИлаа 2 дня назад <button type="button" class="starter">стартовый</button></div>',
+        '<div class="meta"><span class="icon icon--player-avatar-default" aria-hidden="true"></span> ВаДИлаа 2 дня назад <button type="button" class="starter">стартовый</button></div>',
         '</div>'
       ].join('');
       detail.querySelector('.detail-title').textContent = displayName(poke);
@@ -1392,7 +356,7 @@ use Pokemon8\View\View;
     function renderDetail(poke) {
       closePopups();
       if (!poke) return;
-      detailId.textContent = 'id' + Number(poke.id || 0);
+      setChatPokemonId(poke);
       detail.innerHTML = [
         '<div class="detail-left"><div class="detail-art"><img alt=""></div><div class="move-list"></div></div>',
         '<div class="detail-main">',
@@ -1400,10 +364,10 @@ use Pokemon8\View\View;
         '<div class="detail-sub"></div>',
         '<span class="badge">Обычный характер</span>',
         '<div class="held-detail" hidden><img alt=""><span></span></div>',
+        '<div class="detail-actions"></div>',
         '<div class="stats"></div>',
         '<div class="training-box"></div>',
-        '<div class="detail-actions"></div>',
-        '<div class="meta">☻ ВадИлаа 2 дня назад <button type="button" class="starter">стартовый</button></div>',
+        '<div class="meta"><span class="icon icon--player-avatar-default" aria-hidden="true"></span> ВадИлаа 2 дня назад <button type="button" class="starter">стартовый</button></div>',
         '</div>'
       ].join('');
       setSprite(detail.querySelector('.detail-art img'), poke);
@@ -1432,7 +396,6 @@ use Pokemon8\View\View;
       box.innerHTML = [
         '<button type="button" class="team-action" data-team-back>← Все покемоны</button>',
         '<button type="button" class="team-action primary" data-nursery-action="' + action + '"' + (disabled ? ' disabled' : '') + '></button>',
-        '<button type="button" class="team-action" data-commission-sell>Продать</button>',
       ].join('');
       box.querySelector('[data-team-back]').addEventListener('click', event => {
         event.stopPropagation();
@@ -1445,10 +408,6 @@ use Pokemon8\View\View;
       button.addEventListener('click', event => {
         event.stopPropagation();
         nurseryAction(Number(poke.id || 0), action);
-      });
-      box.querySelector('[data-commission-sell]')?.addEventListener('click', event => {
-        event.stopPropagation();
-        window.location.href = '/game/commission';
       });
     }
 
@@ -1623,6 +582,9 @@ use Pokemon8\View\View;
           evChip.style.visibility = 'hidden';
           plusButton.disabled = true;
           plusButton.textContent = '';
+          // Отключённая кнопка без текста всё равно попадает в дерево доступности
+          // безымянным элементом управления — даём ей имя (план §5.4).
+          plusButton.setAttribute('aria-label', 'Очки усилий для этого стата недоступны');
         }
         box.appendChild(row);
       });

@@ -76,6 +76,23 @@ final class QuestRepository
         $this->updateState($userId, $questId, $process, $completed);
     }
 
+    public function advanceNarrativeStep(int $userId, int $questId, int $expected, int $next): bool
+    {
+        if (!$this->canStart($userId, $questId)) {
+            return false;
+        }
+        $stmt = $this->db->prepare(
+            'UPDATE quest SET process = :next WHERE user_id = :user AND quest_id = :quest AND process = :expected AND gotov = 0 LIMIT 1'
+        );
+        $stmt->execute(['next' => $next, 'user' => $userId, 'quest' => $questId, 'expected' => $expected]);
+        if ($stmt->rowCount() === 1) {
+            return true;
+        }
+        // A repeated click may acknowledge the same step, never rewind it.
+        $state = $this->findForUser($userId, $questId);
+        return $state !== null && (int) $state['process'] >= $next;
+    }
+
     public function startIfAvailable(int $userId, int $questId, int $process): bool
     {
         if (!$this->canStart($userId, $questId)) {
@@ -187,7 +204,7 @@ final class QuestRepository
     {
         $definition = $this->definition($questId);
         if ($definition === []) {
-            return true;
+            return false;
         }
         if ((int) ($definition['enabled'] ?? 1) !== 1) {
             return false;
@@ -662,6 +679,72 @@ final class QuestRepository
                 'target_location_id' => 11,
                 'target_npc_title' => 'Айрен',
                 'hint' => 'Вернитесь к Айрену у озера и завершите историю.',
+            ],
+            // Новые квесты 160–162: подсказки для журнала. Локация Билли выяснена
+            // по легаси-комнате: npc_7 подключается из include/rooms/4.php, то есть
+            // Коллекционер Билли стоит на локации 4 (Дорога 1).
+            'airen_ice_dream_start' => [
+                'kind' => 'npc',
+                'label' => 'Выслушать сон Айрена',
+                'target_location_id' => 7,
+                'target_npc_title' => 'Старая женщина',
+                'hint' => 'Поговорите со знахаркой в Тёмном лесу: ей снится то же, что и Айрену.',
+            ],
+            'airen_ice_catch' => [
+                'kind' => 'npc',
+                'label' => 'Поймать ледяного покемона',
+                'target_location_id' => 11,
+                'target_npc_title' => 'Айрен',
+                'hint' => 'Поймайте покемона ледяного типа не ниже 15 уровня и вернитесь к Айрену.',
+            ],
+            'airen_ice_turnin' => [
+                'kind' => 'npc',
+                'label' => 'Провести ледяной обряд',
+                'target_location_id' => 7,
+                'target_npc_title' => 'Старая женщина',
+                'hint' => 'Принесите ледяного покемона 15+ уровня, 3 энергетика (#15) и 2 пера (#13/#14).',
+            ],
+            'amira_lake_start' => [
+                'kind' => 'npc',
+                'label' => 'Поговорить с Амирой',
+                'target_location_id' => 11,
+                'target_npc_title' => 'Художница Амира',
+                'hint' => 'Днём найдите Амиру у Небольшого озера и расспросите о грозовом крыле.',
+            ],
+            'amira_storm_wins' => [
+                'kind' => 'npc',
+                'label' => 'Победить пять диких покемонов',
+                'target_location_id' => 11,
+                'target_npc_title' => 'Художница Амира',
+                'hint' => 'Одержите пять побед над дикими покемонами — Амира подтвердит счёт.',
+            ],
+            'amira_lake_turnin' => [
+                'kind' => 'npc',
+                'label' => 'Закончить набросок озера',
+                'target_location_id' => 11,
+                'target_npc_title' => 'Художница Амира',
+                'hint' => 'После пяти побед принесите Амире 2 энергетика (#15).',
+            ],
+            'billy_feather_start' => [
+                'kind' => 'npc',
+                'label' => 'Принять условие Билли',
+                'target_location_id' => 4,
+                'target_npc_title' => 'Коллекционер Билли',
+                'hint' => 'Найдите коллекционера Билли на Дороге 1 и выслушайте его условие.',
+            ],
+            'billy_brave_catch' => [
+                'kind' => 'npc',
+                'label' => 'Поймать смелого покемона',
+                'target_location_id' => 4,
+                'target_npc_title' => 'Коллекционер Билли',
+                'hint' => 'Поймайте покемона с характером «смелый» и покажите его Билли.',
+            ],
+            'billy_feather_turnin' => [
+                'kind' => 'npc',
+                'label' => 'Обменять предметы на перо',
+                'target_location_id' => 4,
+                'target_npc_title' => 'Коллекционер Билли',
+                'hint' => 'Принесите Билли 10 сушёных клеверов (#18) и 1 конфету (#9).',
             ],
         ];
     }

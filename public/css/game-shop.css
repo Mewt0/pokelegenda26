@@ -1,0 +1,141 @@
+/* Магазин тренировок и транспорт — один компонент: список карточек
+   «иконка + название + описание + действие». Разметка даёт .shop-page на <body>.
+   Значения только из tokens.css. */
+
+.shop-page {
+  margin: 0;
+  background: var(--surface-2);
+  color: var(--text-1);
+  font: var(--fs-400) / var(--lh-normal) var(--font-sans);
+}
+
+.shop-page .wrap {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: var(--space-6);
+}
+
+.shop-page .top {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  margin-bottom: var(--space-5);
+}
+
+.shop-page a {
+  color: var(--accent-text);
+  text-decoration: none;
+  font-weight: var(--fw-bold);
+}
+
+.shop-page .panel {
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-2);
+}
+
+.shop-page h1 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--fs-700);
+  line-height: var(--lh-tight);
+}
+
+.shop-page .muted {
+  color: var(--text-2);
+  margin: 0 0 var(--space-5);
+}
+
+.shop-page .grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.shop-page .card {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: var(--space-4);
+  align-items: center;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  background: var(--surface-0);
+}
+
+.shop-page .icon {
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+}
+
+.shop-page .icon img {
+  max-width: 60px;
+  max-height: 60px;
+  object-fit: contain;
+}
+
+.shop-page h2 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--fs-500);
+}
+
+.shop-page p {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.shop-page .buy {
+  margin-top: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.shop-page input {
+  width: 64px;
+  height: 34px;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-2);
+  font: inherit;
+}
+
+.shop-page button {
+  min-height: 34px;
+  border: 1px solid var(--accent-strong);
+  border-radius: var(--radius-md);
+  background: var(--accent-strong);
+  color: var(--text-inverse);
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+}
+
+/* Кнопка прямо в карточке (транспорт) — без обёртки .buy. */
+.shop-page .card > div > button {
+  margin-top: var(--space-3);
+}
+
+.shop-page .status {
+  margin-top: var(--space-4);
+  min-height: 22px;
+  font-weight: var(--fw-bold);
+  color: var(--success-text);
+}
+
+.shop-page .status.bad {
+  color: var(--danger-text);
+}
+
+.shop-page .empty {
+  padding: var(--space-5);
+  border: 1px dashed var(--border-1);
+  border-radius: var(--radius-lg);
+  color: var(--text-2);
+  background: var(--surface-0);
+}

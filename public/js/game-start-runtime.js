@@ -84,10 +84,10 @@
       tabs.className = 'battle-tabs';
       tabs.setAttribute('aria-label', 'Battle actions');
       tabs.innerHTML = [
-        '<button type="button" class="battle-tab is-active" data-battle-tab="attacks" title="Attacks"><span>&#9889;</span><b>Fight</b></button>',
-        '<button type="button" class="battle-tab" data-battle-tab="switch" title="Switch"><span>&#8644;</span><b>Pokémon</b></button>',
-        '<button type="button" class="battle-tab" data-battle-tab="items" title="Inventory"><span>&#9635;</span><b>Items</b></button>',
-        '<button type="button" class="battle-tab" data-battle-tab="balls" title="Pokeballs"><span>&#9675;</span><b>Balls</b></button>'
+        '<button type="button" class="battle-tab is-active" data-battle-tab="attacks" title="Attacks"><span class="icon icon--chat-tab-battle" aria-hidden="true"></span><b>Атаки</b></button>',
+        '<button type="button" class="battle-tab" data-battle-tab="switch" title="Switch"><span class="icon icon--chat-autoscroll-on" aria-hidden="true"></span><b>Смена</b></button>',
+        '<button type="button" class="battle-tab" data-battle-tab="items" title="Inventory"><span class="icon icon--chat-tab-trade" aria-hidden="true"></span><b>Предметы</b></button>',
+        '<button type="button" class="battle-tab" data-battle-tab="balls" title="Pokeballs"><span>&#9675;</span><b>Покеболы</b></button>'
       ].join('');
 
       left.insertBefore(turn, left.firstChild);
@@ -98,7 +98,7 @@
       review.className = 'battle-review-actions';
       review.innerHTML = [
         '<div class="battle-review-title"><b>Режим просмотра</b><small>Время не ограничено...</small></div>',
-        '<button type="button" id="battleReplayBtn">&#9654; Повтор боя</button>',
+        '<button type="button" id="battleReplayBtn"><span class="icon icon--ui-debug-battle" aria-hidden="true"></span> Повтор боя</button>',
         '<button type="button" id="battleCloseReviewBtn">&#10006; Закрыть окно</button>'
       ].join('');
       left.appendChild(review);
@@ -525,8 +525,24 @@
         const response = await fetch('/api/notifications', { credentials: 'same-origin' });
         const payload = await response.json();
         if (!payload || payload.ok !== true) return;
+
+        // Одинаковые тексты схлопываем, а на экран выводим не больше трёх:
+        // иначе при накопившихся уведомлениях тосты закрывают половину игры.
+        const seen = new Set();
+        const unique = [];
         for (const notice of (payload.notifications || [])) {
-          showGameNotice(notice.message || notice.title || '', notice.variant || 'info');
+          const message = String(notice.message || notice.title || '').trim();
+          if (message === '' || seen.has(message)) continue;
+          seen.add(message);
+          unique.push({ message, variant: notice.variant || 'info' });
+        }
+
+        const visible = unique.slice(0, 3);
+        visible.forEach(notice => showGameNotice(notice.message, notice.variant));
+
+        const hidden = unique.length - visible.length;
+        if (hidden > 0) {
+          showGameNotice('И ещё ' + hidden + ' уведомлений — в разделе «Уведомления».', 'info');
         }
       } catch (error) {
         // Уведомления не должны ломать игровой экран.
@@ -583,7 +599,7 @@
 
       // Автообновление мира не должно сбивать открытый диалог NPC/питомника.
       if (!state.activeNpc) {
-        setStatus('Готово • локация #' + state.locationId);
+        setStatus('✓ Локация #' + state.locationId);
       }
       applyQuestGuide();
     }
@@ -604,6 +620,28 @@
       btn.style.display = (isRoad1ByTitle || isRoad1ById) ? '' : 'none';
     }
 
+    function iconMarkup(name) {
+      return '<span class="icon icon--' + name + '" aria-hidden="true"></span>';
+    }
+
+    function routeIconClass(title) {
+      const value = String(title || '').toLowerCase();
+      if (value.includes('лес')) return 'route-forest';
+      if (value.includes('пещ') || value.includes('туннель') || value.includes('подвал')) return 'route-cave';
+      if (value.includes('озеро') || value.includes('вод')) return 'route-water';
+      if (value.includes('дорога') || value.includes('маршрут') || value.includes('перевал')) return 'route-road';
+      return 'route-city';
+    }
+
+    function npcIconClass(npc) {
+      const icon = String(npc && npc.icon ? npc.icon : '').toLowerCase();
+      const title = String(npc && npc.title ? npc.title : '').toLowerCase();
+      if (icon === 'quest') return 'npc-quest';
+      if (icon === 'shop' || title.includes('покемаркет')) return 'npc-shop';
+      if (icon === 'look' || title.includes('осмотр')) return 'npc-look';
+      return 'npc-person';
+    }
+
     function renderNpcs(npcs) {
       const panel = document.getElementById('npcPanel');
       if (!state.activeNpc) {
@@ -617,8 +655,7 @@
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'npc-btn';
-        button.innerHTML = '<span class="npc-icon"><img alt="" loading="lazy"></span><span class="npc-title"></span>';
-        button.querySelector('.npc-icon img').src = npcIconSrc(npc);
+        button.innerHTML = '<span class="npc-icon">' + iconMarkup(npcIconClass(npc)) + '</span><span class="npc-title"></span>';
         button.querySelector('.npc-title').textContent = npc.title;
         button.dataset.npcTitle = npc.title || '';
         button.dataset.npcType = npc.type || '';
@@ -642,8 +679,7 @@
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'npc-btn boss-btn';
-        button.innerHTML = '<span class="npc-icon"><img alt="" loading="lazy"></span><span class="npc-title"></span>';
-        button.querySelector('.npc-icon img').src = assetIcon('npcs', 'trainer');
+        button.innerHTML = '<span class="npc-icon">' + iconMarkup('npc-person') + '</span><span class="npc-title"></span>';
         button.querySelector('.npc-title').textContent = (boss.title || 'Босс') + ' · 6x6';
         button.title = boss.description || 'Ивентовый босс локации';
         button.addEventListener('click', () => startBossBattle(Number(boss.id || 0)));
@@ -658,8 +694,7 @@
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'move-btn route-btn';
-        button.innerHTML = '<span class="route-ico" aria-hidden="true"><img alt="" loading="lazy"></span><span class="route-title"></span>';
-        button.querySelector('.route-ico img').src = routeIconSrc(move.title);
+        button.innerHTML = '<span class="route-ico">' + iconMarkup(routeIconClass(move.title)) + '</span><span class="route-title"></span>';
         button.querySelector('.route-title').textContent = move.title;
         button.dataset.locationId = move.id;
         button.dataset.locationTitle = move.title || '';
@@ -688,9 +723,8 @@
         row.dataset.playerLogin = user.login || '';
         row.dataset.playerId = user.id || user.user_id || '';
         row.dataset.playerOnline = user.online ? '1' : '0';
-        row.innerHTML = '<span class="dot ' + (user.online ? 'on' : '') + '"></span>' +
-          '<span class="avatar" aria-hidden="true"></span><span class="user-name player-name"></span><span class="user-tags"></span>';
-        row.querySelector('.avatar').textContent = String(user.login || '?').trim().charAt(0).toUpperCase() || '?';
+        row.innerHTML = '<span class="dot">' + iconMarkup(user.online ? 'player-online' : 'player-offline') + '</span>' +
+          '<span class="avatar">' + iconMarkup('player-avatar-default') + '</span><span class="user-name player-name"></span><span class="user-tags"></span>';
         row.querySelector('.user-name').textContent = user.login;
         row.querySelector('.user-tags').textContent = (user.pveButton ? 'pve' : '');
         usersList.appendChild(row);
@@ -761,7 +795,15 @@
 
     function renderPveButton() {
       const button = document.getElementById('pveButton');
-      button.textContent = state.pveButton ? 'Нападение: вкл' : 'Нападение: выкл';
+      const icon = button.querySelector('.icon');
+      const label = button.querySelector('span:last-child');
+      if (icon) {
+        icon.classList.toggle('icon--ui-pve-on', state.pveButton);
+        icon.classList.toggle('icon--ui-pve-off', !state.pveButton);
+      }
+      if (label) {
+        label.textContent = state.pveButton ? 'Нападение: вкл' : 'Нападение: выкл';
+      }
     }
 
     function openInventory() {
@@ -1480,12 +1522,19 @@
       }
     }
 
+    /* Скелетон на структуру списка вместо текста «Loading...»: в русском
+       интерфейсе это была ещё и английская строка, а класс .battle-empty
+       вообще не имел стилей. Три строки — форма карточек, которые придут. */
+    function battlePocketSkeleton() {
+      return '<div class="battle-empty is-loading">' + '<span class="ui-skeleton battle-skel-row"></span>'.repeat(3) + '</div>';
+    }
+
     async function loadBattlePocket() {
       if (!battlePocket.loaded) {
         const itemsList = document.getElementById('battleItemsList');
         const ballsList = document.getElementById('battleBallsList');
-        if (itemsList) itemsList.innerHTML = '<div class="battle-empty">Loading...</div>';
-        if (ballsList) ballsList.innerHTML = '<div class="battle-empty">Loading...</div>';
+        if (itemsList) itemsList.innerHTML = battlePocketSkeleton();
+        if (ballsList) ballsList.innerHTML = battlePocketSkeleton();
         try {
           const response = await fetch('/api/inventory/battle', { credentials: 'same-origin' });
           const payload = await response.json();
@@ -1593,14 +1642,8 @@
         });
         list.appendChild(row);
       }
-      if (list.dataset.scrollReady !== '1') {
-        list.dataset.scrollReady = '1';
-        list.addEventListener('scroll', () => {
-          if (window.console && typeof window.console.debug === 'function') {
-            console.debug('[SCROLL] Inventory scroll position updated');
-          }
-        }, { passive: true });
-      }
+      // Слушатель скролла с одним console.debug() убран: он писал в консоль
+      // на каждое событие прокрутки и ничего не делал полезного.
     }
 
     function itemIconSrc(item) {
@@ -1646,17 +1689,51 @@
       return String(Math.max(0, Number(num || 0))).padStart(3, '0');
     }
 
-    function setSpriteWithFallback(imgEl, candidates) {
+    function sameSpritePath(imgEl, url) {
+      if (!imgEl || !url || !imgEl.getAttribute('src')) return false;
+      try {
+        return new URL(imgEl.src, window.location.origin).pathname === new URL(url, window.location.origin).pathname;
+      } catch (e) {
+        return imgEl.getAttribute('src') === url;
+      }
+    }
+
+    function setSpriteWithFallback(imgEl, candidates, cacheKey = '') {
       const urls = candidates.filter(Boolean);
+      const spriteKey = cacheKey || urls.join('|');
+      if (imgEl.dataset.spriteKey === spriteKey && imgEl.dataset.spriteResolvedSrc) {
+        if (!sameSpritePath(imgEl, imgEl.dataset.spriteResolvedSrc)) {
+          imgEl.src = imgEl.dataset.spriteResolvedSrc;
+        }
+        imgEl.style.visibility = 'visible';
+        return;
+      }
+      if (imgEl.dataset.spriteKey === spriteKey && imgEl.dataset.spritePending === '1') {
+        return;
+      }
       let idx = 0;
       const tryNext = () => {
+        if (imgEl.dataset.spriteKey !== spriteKey) return;
         if (idx >= urls.length) {
+          imgEl.dataset.spriteResolvedSrc = '/img/blank.gif';
+          imgEl.dataset.spritePending = '0';
           imgEl.src = '/img/blank.gif';
           return;
         }
-        imgEl.src = urls[idx++];
+        const nextUrl = urls[idx++];
+        if (!sameSpritePath(imgEl, nextUrl)) {
+          imgEl.src = nextUrl;
+        }
       };
-      imgEl.onload = () => { imgEl.style.visibility = 'visible'; };
+      imgEl.dataset.spriteKey = spriteKey;
+      imgEl.dataset.spriteResolvedSrc = '';
+      imgEl.dataset.spritePending = '1';
+      imgEl.onload = () => {
+        if (imgEl.dataset.spriteKey !== spriteKey) return;
+        imgEl.dataset.spriteResolvedSrc = imgEl.getAttribute('src') || '';
+        imgEl.dataset.spritePending = '0';
+        imgEl.style.visibility = 'visible';
+      };
       imgEl.onerror = tryNext;
       imgEl.style.visibility = 'hidden';
       tryNext();
@@ -1788,8 +1865,8 @@
       enemyCandidates.push(...spriteGifCandidates('anim', enemyBase));
       enemyCandidates.push(...spritePngCandidates('normal', enemyBase));
 
-      setSpriteWithFallback(playerImg, playerCandidates);
-      setSpriteWithFallback(enemyImg, enemyCandidates);
+      setSpriteWithFallback(playerImg, playerCandidates, 'player:' + playerBase + ':' + (playerIsShiny ? 'shiny' : 'normal') + ':' + playerCandidates.join('|'));
+      setSpriteWithFallback(enemyImg, enemyCandidates, 'enemy:' + enemyBase + ':' + (enemyIsShiny ? 'shiny' : 'normal') + ':' + enemyCandidates.join('|'));
     }
 
     function renderBattleSpritesFromDebug(debug) {
@@ -2219,7 +2296,7 @@
       const name = String(item.name || 'Без названия');
       const count = Number(item.count || 0).toLocaleString('ru-RU');
       const id = Number(item.item_id || 0);
-      tooltip.innerHTML = '<strong>' + name + '</strong><br>ID: ' + id + ' / Кол-во: ' + count;
+      tooltip.innerHTML = '<strong>' + escapeHtml(name) + '</strong><br>ID: ' + id + ' / Кол-во: ' + count;
       tooltip.style.display = 'block';
       moveItemTooltip(event);
     }
@@ -2659,6 +2736,13 @@
     document.getElementById('battleReviewClose').addEventListener('click', () => {
       acknowledgeBattleEnd();
     });
+    // Кнопка повтора живёт в разметке views/game-start.php рядом с закрытием просмотра.
+    const battleReplayBtn = document.getElementById('battleReplayBtn');
+    if (battleReplayBtn) {
+      battleReplayBtn.addEventListener('click', () => {
+        openBattleReplay();
+      });
+    }
 
     loadState();
     fetchGameNotifications();

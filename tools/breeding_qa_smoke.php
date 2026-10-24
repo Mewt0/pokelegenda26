@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Two-session breeding QA smoke for Tacos/NIGA.
  *
  * Usage:
- *   php tools/breeding_qa_smoke.php --password=jungheinrick
+ *   php tools/breeding_qa_smoke.php --password=REDACTED_USE_SMOKE_PASSWORD
  */
 
 if (PHP_SAPI !== 'cli') {
@@ -324,7 +324,7 @@ final class QaClient
         }
         $body = (string) curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        curl_close($ch);
+        unset($ch);
         return ['status' => $status, 'body' => $body];
     }
 }

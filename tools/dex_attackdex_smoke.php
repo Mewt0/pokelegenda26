@@ -210,7 +210,7 @@ final class SmokeClient
         $body = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         $error = curl_error($ch);
-        curl_close($ch);
+        unset($ch);
 
         if ($body === false) {
             throw new RuntimeException('HTTP request failed: ' . $error);

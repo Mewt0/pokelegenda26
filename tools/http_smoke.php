@@ -65,6 +65,15 @@ try {
     htmlCheck($client, $results, 'page.pokemon_market', '/game/market/pokemon', 'Комиссионная лавка');
 
     [$state, $stateResponse] = jsonCheck($client, $results, 'game.state', 'GET', '/api/game/state');
+    $battleStartedByGameState = ($state['wildEncounter']['started'] ?? false) === true;
+    $nonPveFlagsClean = null;
+    $currentUserId = (int) ($state['user']['id'] ?? 0);
+    foreach (($state['users'] ?? []) as $locationUser) {
+        if ((int) ($locationUser['id'] ?? 0) === $currentUserId) {
+            $nonPveFlagsClean = empty($locationUser['pvp']) && empty($locationUser['trade']);
+            break;
+        }
+    }
     $locationId = (int) ($state['location']['id'] ?? 0);
     assertTrue($results, 'game.location', $locationId > 0, 'location_id=' . $locationId);
 
@@ -197,7 +206,7 @@ try {
         }
     }
 
-    runBattleSmoke($client, $results, $csrf, $battleMode);
+    runBattleSmoke($client, $results, $csrf, $battleMode, $battleStartedByGameState, $nonPveFlagsClean);
 } catch (Throwable $e) {
     fail($results, 'fatal', $e->getMessage());
 }
@@ -326,7 +335,14 @@ function runDaycareRoundtrip(SmokeClient $client, array &$results, string $csrf,
     assertTrue($results, 'daycare.take', ($takeJson['ok'] ?? false) === true, (string) ($takeJson['message'] ?? 'take checked'));
 }
 
-function runBattleSmoke(SmokeClient $client, array &$results, string $csrf, string $mode): void
+function runBattleSmoke(
+    SmokeClient $client,
+    array &$results,
+    string $csrf,
+    string $mode,
+    bool $startedByGameState = false,
+    ?bool $nonPveFlagsClean = null
+): void
 {
     if (!in_array($mode, ['none', 'state', 'force', 'catch', 'finish'], true)) {
         fail($results, 'battle.mode', 'unknown mode ' . $mode);
@@ -334,11 +350,26 @@ function runBattleSmoke(SmokeClient $client, array &$results, string $csrf, stri
     }
 
     if ($mode === 'none') {
-        skip($results, 'battle.rewards.catch', 'read-only; pass --battle=catch or --battle=finish for mutating battle checks');
+        if ($startedByGameState) {
+            cleanupPveBattle($client, $results, $csrf, false);
+        }
+        $stateResponse = $client->request('GET', '/api/battle/pve/state');
+        $state = decodeJson($stateResponse['body']);
+        $clean = $stateResponse['status'] === 200
+            && empty($state['active'])
+            && empty($state['finished'])
+            && (int) ($state['battle']['id'] ?? $state['battleId'] ?? 0) === 0
+            && $nonPveFlagsClean === true;
+        assertTrue(
+            $results,
+            'battle.cleanup.state',
+            $clean,
+            $clean ? 'pve=0,pvp=0,trade=0,battleid=0' : (string) ($state['message'] ?? 'battle state is not clean')
+        );
         return;
     }
 
-    $startedBySmoke = false;
+    $startedBySmoke = $startedByGameState;
     if (in_array($mode, ['force', 'catch', 'finish'], true)) {
         $force = $client->request('POST', '/api/battle/pve/force', ['_csrf' => $csrf]);
         $forceJson = decodeJson($force['body']);
@@ -361,6 +392,13 @@ function runBattleSmoke(SmokeClient $client, array &$results, string $csrf, stri
     $moves = $state['battle']['moves'] ?? $state['moves'] ?? [];
     assertTrue($results, 'battle.moves.not_empty', is_array($moves) && count($moves) > 0, 'moves=' . count(is_array($moves) ? $moves : []));
 
+    if ($mode === 'state') {
+        if ($startedBySmoke) {
+            cleanupPveBattle($client, $results, $csrf);
+        }
+        return;
+    }
+
     if ($mode === 'force') {
         if ($startedBySmoke) {
             cleanupPveBattle($client, $results, $csrf);
@@ -381,6 +419,9 @@ function runBattleSmoke(SmokeClient $client, array &$results, string $csrf, stri
         }
         if ($ball === null) {
             skip($results, 'battle.catch', 'no battle ball item');
+            if ($startedBySmoke) {
+                cleanupPveBattle($client, $results, $csrf);
+            }
             return;
         }
         $catch = $client->request('POST', '/api/battle/pve/action', [
@@ -424,6 +465,9 @@ function runBattleSmoke(SmokeClient $client, array &$results, string $csrf, stri
             }
             if (!is_array($move) || (int) ($move['id'] ?? 0) <= 0) {
                 fail($results, 'battle.finish.move', 'no usable move');
+                if ($startedBySmoke) {
+                    cleanupPveBattle($client, $results, $csrf);
+                }
                 return;
             }
             $client->request('POST', '/api/battle/pve/action', [
@@ -439,22 +483,26 @@ function runBattleSmoke(SmokeClient $client, array &$results, string $csrf, stri
     }
 }
 
-function cleanupPveBattle(SmokeClient $client, array &$results, string $csrf): void
+function cleanupPveBattle(SmokeClient $client, array &$results, string $csrf, bool $recordChecks = true): void
 {
     $escape = $client->request('POST', '/api/battle/pve/action', [
         '_csrf' => $csrf,
         'action' => 'escape',
     ]);
     $escapeJson = decodeJson($escape['body']);
-    assertTrue($results, 'battle.cleanup.escape', $escape['status'] === 200 && isset($escapeJson['ok']), (string) ($escapeJson['message'] ?? $escapeJson['result'] ?? 'escape checked'));
-    ackPveBattle($client, $results, $csrf);
+    if ($recordChecks) {
+        assertTrue($results, 'battle.cleanup.escape', $escape['status'] === 200 && isset($escapeJson['ok']), (string) ($escapeJson['message'] ?? $escapeJson['result'] ?? 'escape checked'));
+    }
+    ackPveBattle($client, $results, $csrf, $recordChecks);
 }
 
-function ackPveBattle(SmokeClient $client, array &$results, string $csrf): void
+function ackPveBattle(SmokeClient $client, array &$results, string $csrf, bool $recordCheck = true): void
 {
     $ack = $client->request('POST', '/api/battle/pve/ack-end', ['_csrf' => $csrf]);
     $ackJson = decodeJson($ack['body']);
-    assertTrue($results, 'battle.cleanup.ack', $ack['status'] === 200 && (($ackJson['ok'] ?? false) === true), (string) ($ackJson['message'] ?? 'ack checked'));
+    if ($recordCheck) {
+        assertTrue($results, 'battle.cleanup.ack', $ack['status'] === 200 && (($ackJson['ok'] ?? false) === true), (string) ($ackJson['message'] ?? 'ack checked'));
+    }
 }
 
 /**
@@ -560,14 +608,14 @@ final class SmokeClient
         $raw = curl_exec($ch);
         if ($raw === false) {
             $error = curl_error($ch);
-            curl_close($ch);
+            unset($ch);
             throw new RuntimeException('HTTP error: ' . $error);
         }
 
         $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         $headerSize = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
         $effectiveUrl = (string) curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
-        curl_close($ch);
+        unset($ch);
 
         return [
             'status' => $status,

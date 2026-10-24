@@ -4,6 +4,11 @@ AddDefaultCharset UTF-8
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
+    # Internal source, backups and local QA helpers are never web endpoints.
+    RewriteRule ^(?:\.git|\.hybrid|\.codebase-memory|_incoming|config|database|docs|src|storage|tools|vendor)(?:/|$) - [F,L,NC]
+    RewriteRule ^_qa-(?:view|viewport)\.php$ - [F,L,NC]
+    RewriteRule ^include/function/Services_JSON\.php$ - [F,L,NC]
+    RewriteRule ^(?:debug_[^/]*|Rewire_mysql\.json|RELEASE_MANIFEST\.json|DEPLOY\.txt|probe\.js|shot\.js)$ - [F,L,NC]
     RewriteRule ^css/([a-zA-Z0-9_]+)\.css$ style.php?file=$1 [L]
     RewriteRule ^(login|logout|register)$ public/index.php [QSA,L]
     RewriteRule ^password/(forgot|reset)$ public/index.php [QSA,L]
@@ -13,7 +18,7 @@ AddDefaultCharset UTF-8
     RewriteRule ^robots\.txt$ - [F,L]
 </IfModule>
 
-<FilesMatch "^(\.env|.*\.sql|.*\.log|PHP_errors\.log|log_php_errors\.txt)$">
+<FilesMatch "(?i)^(\.env(?:\..*)?|.*\.(?:sql|log|zip|rar|7z|tar|gz|bak|md|xlsx|py|ps1)|PHP_errors\.log|log_php_errors\.txt)$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>

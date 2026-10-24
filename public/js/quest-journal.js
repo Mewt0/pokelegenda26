@@ -17,11 +17,12 @@
     event: 'Ивентовый',
     chain: 'Цепочка',
   };
+  const iconMarkup = (name) => `<span class="icon icon--${name}" aria-hidden="true"></span>`;
   const summaryConfig = [
     ['active', 'В процессе', '◎'],
-    ['available', 'Новых', '★'],
-    ['completed', 'Выполнено', '✓'],
-    ['locked', 'Закрыто', '▣'],
+    ['available', 'Новых', iconMarkup('npc-quest')],
+    ['completed', 'Выполнено', iconMarkup('player-online')],
+    ['locked', 'Закрыто', iconMarkup('chat-user-menu-ignore')],
   ];
   const highlightWords = [
     'Профессор', 'Оук', 'Спайк', 'Канто', 'Виридиан', 'Оливин',
@@ -52,6 +53,9 @@
     const text = await response.text();
     try {
       const data = JSON.parse(text);
+      if (!response.ok) {
+        return data && typeof data === 'object' ? { ok: false, message: data.message || 'Не удалось выполнить запрос.' } : { ok: false, message: 'Не удалось выполнить запрос.' };
+      }
       return data && typeof data === 'object' ? data : { ok: false, message: 'Некорректный ответ сервера.' };
     } catch (error) {
       if (response.status === 401) return { ok: false, message: 'Нужно войти в игру.' };
@@ -90,6 +94,19 @@
       npc: root.querySelector('[data-quest-npc]'),
       closeButtons: [...root.querySelectorAll('[data-quest-close]')],
     };
+
+    // Подключаем единый слой к существующим элементам, не меняя их селекторы.
+    overlay?.classList.add('ui-overlay');
+    els.search?.classList.add('ui-field__control');
+    els.reset?.classList.add('ui-btn');
+    root.querySelectorAll('.quest-search-row button, .quest-side-actions button').forEach((button) => button.classList.add('ui-btn'));
+    els.filters?.querySelectorAll('button').forEach((button) => {
+      button.classList.add('ui-btn', button.classList.contains('is-active') ? 'ui-btn--primary' : 'ui-btn--ghost');
+    });
+    [els.track, els.map, els.npc].forEach((button) => button?.classList.add('ui-btn'));
+    els.closeButtons.forEach((button) => button.classList.add('ui-btn', 'ui-btn--ghost'));
+    mini?.querySelectorAll('button').forEach((button) => button.classList.add('ui-btn'));
+
 
     function selectedQuest() {
       return state.quests.find((quest) => Number(quest.id || 0) === state.selectedId) || null;
@@ -143,7 +160,7 @@
     function renderSummary() {
       if (!els.summary) return;
       els.summary.innerHTML = summaryConfig.map(([key, label, icon]) => (
-        `<span class="quest-summary-pill is-${key}"><i>${escapeHtml(icon)}</i>${escapeHtml(label)}: ${formatNumber(state.summary[key] || 0)}</span>`
+        `<span class="quest-summary-pill is-${key}"><i>${icon}</i>${escapeHtml(label)}: ${formatNumber(state.summary[key] || 0)}</span>`
       )).join('');
     }
 
@@ -151,18 +168,19 @@
       if (!els.list) return;
       const rows = filteredQuests();
       if (rows.length === 0) {
-        els.list.innerHTML = '<div class="quest-empty-state"><b>Квесты не найдены</b><span>Попробуйте сбросить фильтр.</span></div>';
+        const canReset = !!els.reset && (state.query.trim() !== '' || state.filter !== 'all');
+        els.list.innerHTML = `<div class="quest-empty-state ui-empty"><b>Квесты не найдены</b><span>${canReset ? 'Попробуйте сбросить фильтры.' : 'Пока нет доступных квестов.'}</span>${canReset ? '<button type="button" class="ui-btn" data-quest-empty-reset>Сбросить фильтры</button>' : ''}</div>`;
         return;
       }
       els.list.innerHTML = rows.map((quest) => {
         const progress = quest.progress || {};
         const percent = clampPercent(progress.percent);
         const status = String(quest.status || 'available');
-        return `<button type="button" class="quest-list-card${Number(quest.id) === state.selectedId ? ' is-selected' : ''}${quest.tracked ? ' is-tracked' : ''}" data-quest-select="${Number(quest.id || 0)}">
-          <span class="quest-list-card-icon"><img src="${escapeHtml(quest.icon || '/public/img/ui/menu-quests.png')}" alt=""></span>
+        return `<button type="button" class="quest-list-card ui-card${Number(quest.id) === state.selectedId ? ' is-selected' : ''}${quest.tracked ? ' is-tracked' : ''}" data-quest-select="${Number(quest.id || 0)}">
+          <span class="quest-list-card-icon ui-card__media"><img src="${escapeHtml(quest.icon || '/public/img/ui/menu-quests.png')}" alt=""></span>
           <span class="quest-list-card-main">
-            <b>${escapeHtml(quest.title || `Квест #${quest.id}`)}</b>
-            <small>${escapeHtml(statusLabels[status] || status)} · ${escapeHtml(typeLabels[quest.type] || 'Квест')} · ${percent}%</small>
+            <b class="ui-card__title">${escapeHtml(quest.title || `Квест #${quest.id}`)}</b>
+            <small class="ui-card__meta">${escapeHtml(statusLabels[status] || status)} · ${escapeHtml(typeLabels[quest.type] || 'Квест')} · ${percent}%</small>
           </span>
           ${status === 'available' ? '<span class="quest-new-dot" aria-hidden="true"></span>' : ''}
           <span class="quest-card-arrow" aria-hidden="true">›</span>
@@ -177,7 +195,7 @@
       const quest = selectedQuest();
       if (!els.detail) return;
       if (!quest) {
-        els.detail.innerHTML = '<div class="quest-empty-state"><img src="/public/img/ui/menu-quests.png" alt=""><b>Выберите квест</b><span>Слева появятся активные и доступные задания.</span></div>';
+        els.detail.innerHTML = '<div class="quest-empty-state ui-empty"><img src="/public/img/ui/menu-quests.png" alt=""><b>Выберите квест</b><span>Слева появятся активные и доступные задания.</span></div>';
         renderRewards(null);
         renderActions(null);
         return;
@@ -189,7 +207,7 @@
       els.detail.innerHTML = `
         <div class="quest-detail-title">
           <h2>${escapeHtml(quest.title || `Квест #${quest.id}`)}</h2>
-          <span class="quest-status-badge is-${escapeHtml(status)}"><i>${status === 'completed' ? '✓' : status === 'available' ? '★' : status === 'locked' ? '▣' : '◎'}</i>${escapeHtml(statusLabels[status] || status)}</span>
+          <span class="quest-status-badge is-${escapeHtml(status)}"><i>${status === 'completed' ? iconMarkup('player-online') : status === 'available' ? iconMarkup('npc-quest') : status === 'locked' ? iconMarkup('chat-user-menu-ignore') : '◎'}</i>${escapeHtml(statusLabels[status] || status)}</span>
         </div>
         <p class="quest-description">${highlighted(quest.description || 'Описание пока не заполнено.')}</p>
         <div class="quest-overall">
@@ -198,12 +216,12 @@
           <span class="quest-objective-bar"><span style="width:${percent}%"></span></span>
         </div>
         <div class="quest-objectives">
-          ${objectives.length > 0 ? objectives.map(renderObjective).join('') : '<div class="quest-objective"><b>Цели не заведены</b><p>Квест пока содержит только общее состояние.</p></div>'}
+          ${objectives.length > 0 ? objectives.map(renderObjective).join('') : '<div class="quest-empty-state ui-empty"><b>Цели не заведены</b><p>Квест пока содержит только общее состояние.</p></div>'}
         </div>
         <div class="quest-detail-actions">
-          ${quest.can_start ? '<button type="button" class="primary" data-quest-start>Принять квест</button>' : ''}
-          <button type="button" data-quest-track-inline>${quest.tracked ? 'Не отслеживать' : 'Отследить квест'}</button>
-          <button type="button" data-quest-map-inline>Показать на карте</button>
+          ${quest.can_start ? '<button type="button" class="ui-btn ui-btn--primary" data-quest-start>Принять квест</button>' : ''}
+          <button type="button" class="ui-btn ui-btn--ghost" data-quest-track-inline>${quest.tracked ? 'Не отслеживать' : 'Отследить квест'}</button>
+          <button type="button" class="ui-btn ui-btn--ghost" data-quest-map-inline>Показать на карте</button>
         </div>`;
       renderRewards(quest);
       renderActions(quest);
@@ -215,16 +233,16 @@
       const status = String(step.status || 'locked');
       const stateClass = status === 'done' ? 'is-done' : (percent >= 70 && status === 'active' ? 'is-near' : '');
       const label = status === 'done' ? 'Завершено' : (status === 'active' ? 'Выполняется' : 'Закрыто');
-      return `<article class="quest-objective ${stateClass}">
-        <span class="quest-objective-icon is-${escapeHtml(status)}">${status === 'done' ? '✓' : status === 'active' ? '<img src="/public/img/ui/menu-profile.png" alt="">' : '•'}</span>
+      return `<article class="quest-objective ui-card ${stateClass}">
+        <span class="quest-objective-icon ui-card__media is-${escapeHtml(status)}">${status === 'done' ? iconMarkup('player-online') : status === 'active' ? '<img src="/public/img/ui/menu-profile.png" alt="">' : '•'}</span>
         <div class="quest-objective-main">
           <div class="quest-objective-head">
-            <b>${escapeHtml(step.title || `Цель ${step.step_no || ''}`)}</b>
+            <b class="ui-card__title">${escapeHtml(step.title || `Цель ${step.step_no || ''}`)}</b>
             <span class="quest-step-state is-${escapeHtml(status)}">${escapeHtml(label)}</span>
           </div>
-          <p>${highlighted(step.description || '')}</p>
+          <p class="ui-card__meta">${highlighted(step.description || '')}</p>
           <span class="quest-objective-bar"><span style="width:${percent}%"></span></span>
-          <div class="quest-objective-meta">
+          <div class="quest-objective-meta ui-card__meta">
             <span>${formatNumber(progress.current)} / ${formatNumber(progress.target)}</span>
             <span>${percent}%</span>
           </div>
@@ -236,17 +254,17 @@
       if (!els.rewards) return;
       const rewards = quest && Array.isArray(quest.reward_view) ? quest.reward_view : [];
       if (rewards.length === 0) {
-        els.rewards.className = 'quest-rewards-empty';
+        els.rewards.className = 'quest-rewards-empty ui-empty';
         els.rewards.innerHTML = quest ? 'Награды для квеста пока не указаны.' : 'Выберите квест, чтобы увидеть награды.';
         return;
       }
       els.rewards.className = 'quest-rewards';
       els.rewards.innerHTML = rewards.map((reward) => `
-        <article class="quest-reward-card">
-          <img src="${escapeHtml(reward.icon || '/public/img/ui/menu-quests.png')}" alt="" onerror="this.src='/public/img/ui/menu-quests.png'">
+        <article class="quest-reward-card ui-card">
+          <span class="quest-reward-card-media ui-card__media"><img src="${escapeHtml(reward.icon || '/public/img/ui/menu-quests.png')}" alt="" onerror="this.src='/public/img/ui/menu-quests.png'"></span>
           <span>
-            <b>${escapeHtml(reward.label || 'Награда')}</b>
-            <small>${reward.type === 'rank' ? '+' : '× '}${formatNumber(reward.amount || 1)}</small>
+            <b class="ui-card__title">${escapeHtml(reward.label || 'Награда')}</b>
+            <small class="ui-card__meta">${reward.type === 'rank' ? '+' : '× '}${formatNumber(reward.amount || 1)}</small>
           </span>
         </article>
       `).join('');
@@ -258,6 +276,7 @@
         els.track.disabled = disabled;
         els.track.textContent = quest && quest.tracked ? 'Не отслеживать' : 'Отследить квест';
         els.track.classList.toggle('is-primary', !!quest && !quest.tracked && !disabled);
+        els.track.classList.toggle('ui-btn--primary', !!quest && !quest.tracked && !disabled);
       }
       if (els.map) els.map.disabled = disabled;
       if (els.npc) els.npc.disabled = disabled;
@@ -289,27 +308,32 @@
     async function load() {
       if (state.loading) return;
       state.loading = true;
-      setStatus('Загружаю журнал...');
-      const response = await fetch('/api/quests', { credentials: 'same-origin', headers: { Accept: 'application/json' } });
-      const data = await readJson(response);
-      state.loading = false;
-      if (!data.ok) {
-        setStatus(data.message || 'Не удалось загрузить квесты.', true);
-        return;
+      try {
+        setStatus('Загружаю журнал...');
+        const response = await fetch('/api/quests', { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+        const data = await readJson(response);
+        if (!data.ok) {
+          setStatus(data.message || 'Не удалось загрузить квесты.', true);
+          return;
+        }
+        state.quests = Array.isArray(data.quests) ? data.quests : [];
+        state.summary = data.summary || {};
+        state.trackedQuestId = Number(data.tracked_quest_id || 0);
+        const preferred = state.quests.find((quest) => quest.tracked)
+          || state.quests.find((quest) => quest.status === 'active')
+          || state.quests.find((quest) => quest.can_start)
+          || state.quests[0];
+        if (!selectedQuest() && preferred) {
+          state.selectedId = Number(preferred.id || 0);
+        }
+        state.loaded = true;
+        renderAll();
+        setStatus('Готово');
+      } catch (error) {
+        setStatus('Не удалось загрузить журнал. Попробуйте ещё раз.', true);
+      } finally {
+        state.loading = false;
       }
-      state.quests = Array.isArray(data.quests) ? data.quests : [];
-      state.summary = data.summary || {};
-      state.trackedQuestId = Number(data.tracked_quest_id || 0);
-      const preferred = state.quests.find((quest) => quest.tracked)
-        || state.quests.find((quest) => quest.status === 'active')
-        || state.quests.find((quest) => quest.can_start)
-        || state.quests[0];
-      if (!selectedQuest() && preferred) {
-        state.selectedId = Number(preferred.id || 0);
-      }
-      state.loaded = true;
-      renderAll();
-      setStatus('Готово');
     }
 
     async function startQuest() {
@@ -389,7 +413,12 @@
         state.query = '';
         state.filter = 'all';
         if (els.search) els.search.value = '';
-        els.filters?.querySelectorAll('button').forEach((button) => button.classList.toggle('is-active', button.dataset.questFilter === 'all'));
+        els.filters?.querySelectorAll('button').forEach((button) => {
+          const active = button.dataset.questFilter === 'all';
+          button.classList.toggle('is-active', active);
+          button.classList.toggle('ui-btn--primary', active);
+          button.classList.toggle('ui-btn--ghost', !active);
+        });
         renderAll();
       });
     }
@@ -397,10 +426,19 @@
       const button = event.target.closest('[data-quest-filter]');
       if (!button) return;
       state.filter = button.dataset.questFilter || 'all';
-      els.filters.querySelectorAll('button').forEach((node) => node.classList.toggle('is-active', node === button));
+      els.filters.querySelectorAll('button').forEach((node) => {
+        const active = node === button;
+        node.classList.toggle('is-active', active);
+        node.classList.toggle('ui-btn--primary', active);
+        node.classList.toggle('ui-btn--ghost', !active);
+      });
       renderList();
     });
     els.list?.addEventListener('click', (event) => {
+      if (event.target.closest('[data-quest-empty-reset]')) {
+        els.reset?.click();
+        return;
+      }
       const button = event.target.closest('[data-quest-select]');
       if (!button) return;
       state.selectedId = Number(button.dataset.questSelect || 0);

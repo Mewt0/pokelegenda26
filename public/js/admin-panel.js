@@ -931,11 +931,33 @@
   };
 
   async function request(url, options = {}) {
+    // Раньше здесь был спред `...options` ПОСЛЕ `headers`, из-за чего заголовок
+    // Accept: application/json затирался, а на ответе 500/HTML вызов response.json()
+    // падал молча. Теперь заголовки собираются последними, а не-2xx превращается
+    // в обычный результат { ok: false, message } — все вызывающие уже так делают.
+    const { headers, ...rest } = options;
     const response = await fetch(url, {
       credentials: 'same-origin',
-      headers: { Accept: 'application/json', ...(options.headers || {}) },
-      ...options
+      ...rest,
+      headers: { Accept: 'application/json', ...(headers || {}) },
     });
+
+    if (!response.ok) {
+      let payload = null;
+      try {
+        payload = await response.json();
+      } catch (error) {
+        payload = null;
+      }
+
+      return {
+        ...(payload && typeof payload === 'object' ? payload : {}),
+        ok: false,
+        status: response.status,
+        message: (payload && payload.message) || ('Ошибка запроса (' + response.status + ')'),
+      };
+    }
+
     return response.json();
   }
 

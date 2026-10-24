@@ -33,10 +33,26 @@
   let knownIncomingPvpRequests = new Set(loadSeenPvpRequests());
   let knownIncomingBreedingRequests = new Set(loadSeenBreedingRequests());
   let activeBreedingState = null;
+  let menuLoadSeq = 0;
+  let breedingSubmitting = false;
 
   const app = document.querySelector('.world');
   const csrf = app ? app.dataset.csrf : '';
   const currentUserId = Number(app && app.dataset.userId || 0);
+
+  async function readJson(response) {
+    const raw = await response.text();
+    let data = null;
+    try {
+      data = raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      throw new Error('Сервер вернул некорректный ответ.');
+    }
+    if (!response.ok || !data || typeof data !== 'object') {
+      throw new Error(data && data.message ? data.message : 'Запрос не выполнен.');
+    }
+    return data;
+  }
 
   const text = {
     localPlayer: 'игрок на локации',
@@ -113,19 +129,40 @@
     }
   }
 
-  function notify(message, variant = 'info') {
+  function notify(message, variant = 'info', action = null) {
     if (!message) return;
 
     const toast = document.createElement('div');
     toast.className = 'game-toast game-toast-' + variant;
-    toast.textContent = message;
+
+    const label = document.createElement('span');
+    label.textContent = message;
+    toast.appendChild(label);
+
+    let hideTimer = 0;
+    const dismiss = () => {
+      window.clearTimeout(hideTimer);
+      toast.classList.remove('is-visible');
+      window.setTimeout(() => toast.remove(), 220);
+    };
+
+    if (action && typeof action.onClick === 'function') {
+      const actionButton = document.createElement('button');
+      actionButton.type = 'button';
+      actionButton.className = 'game-toast-action';
+      actionButton.textContent = action.label || 'Ок';
+      actionButton.addEventListener('click', () => {
+        dismiss();
+        action.onClick();
+      });
+      toast.appendChild(actionButton);
+    }
+
     toastStack.appendChild(toast);
 
     window.setTimeout(() => toast.classList.add('is-visible'), 10);
-    window.setTimeout(() => {
-      toast.classList.remove('is-visible');
-      window.setTimeout(() => toast.remove(), 220);
-    }, 4200);
+    // Уведомление с действием живёт дольше: игроку нужно успеть нажать кнопку.
+    hideTimer = window.setTimeout(dismiss, action ? 12000 : 4200);
   }
 
   function pad3(value) {
@@ -147,6 +184,7 @@
   }
 
   function closeMenu() {
+    menuLoadSeq += 1;
     if (activeRow) activeRow.classList.remove('is-menu-open');
     activeRow = null;
     activeLogin = '';
@@ -196,15 +234,19 @@
       .replace(/'/g, '&#039;');
   }
 
+  function iconMarkup(name) {
+    return '<span class="icon icon--' + name + '" aria-hidden="true"></span>';
+  }
+
   function menuButton(action, icon, label, disabled = false, title = '') {
     const titleAttr = title ? ' title="' + escapeAttr(title) + '"' : '';
-    return '<button type="button" data-player-action="' + action + '"' + titleAttr + (disabled ? ' disabled' : '') + '><span class="pcm-icon">' + icon + '</span><span>' + label + '</span></button>';
+    return '<button type="button" class="ui-btn ui-btn--ghost" data-player-action="' + action + '"' + titleAttr + (disabled ? ' disabled' : '') + '><span class="pcm-icon" aria-hidden="true">' + icon + '</span><span>' + label + '</span></button>';
   }
 
   function friendButtonForStatus(status) {
     if (status === 'auth') return menuButton('friend-pending', '&#9888;', 'Нужно войти', true);
     if (status === 'self') return '';
-    if (status === 'incoming') return menuButton('friend-accept', '&#10003;', text.acceptFriend);
+    if (status === 'incoming') return menuButton('friend-accept', iconMarkup('player-online'), text.acceptFriend) + menuButton('friend-decline', iconMarkup('chat-clear'), text.declineFriend || 'Отклонить');
     if (status === 'friends') return menuButton('friend-remove', '&#8722;', text.removeFriend);
     if (status === 'outgoing') return menuButton('friend-pending', '&#8987;', text.requestSent, true);
     if (status === 'loading') return menuButton('friend-pending', '&#8987;', 'Проверяем...', true);
@@ -214,12 +256,12 @@
   function battleButtonForStatus(status) {
     if (status === 'auth') return menuButton('battle-pending', '&#9888;', 'Нужно войти', true);
     if (status === 'self') return '';
-    if (status === 'incoming') return menuButton('battle-accept', '&#9876;', text.acceptBattle);
+    if (status === 'incoming') return menuButton('battle-accept', iconMarkup('chat-tab-battle'), text.acceptBattle);
     if (status === 'outgoing') return menuButton('battle-pending', '&#8987;', text.battleSent, true);
     if (status === 'active') return menuButton('battle-pending', '&#8987;', text.battleActive, true);
     if (status === 'restricted') return menuButton('battle-pending', '&#9888;', text.battleRestricted, true);
     if (status === 'loading') return menuButton('battle-pending', '&#8987;', 'Проверяем бой...', true);
-    return menuButton('battle', '&#9876;', text.battle);
+    return menuButton('battle', iconMarkup('chat-tab-battle'), text.battle);
   }
 
   function forceBattleButtonForStatus(status, permission) {
@@ -231,7 +273,7 @@
     const message = permission && permission.message ? String(permission.message) : '';
     if (permission && permission.allowed === true) {
       const label = permission.requiresWarrant ? text.forceBattle : 'Нападение';
-      return menuButton('battle-force', '&#9876;', label, false, message);
+      return menuButton('battle-force', iconMarkup('chat-tab-battle'), label, false, message);
     }
 
     return menuButton('battle-force-unavailable', '&#9888;', text.forceBattle, true, message || 'Принудительное нападение сейчас недоступно.');
@@ -245,7 +287,7 @@
     menu.innerHTML = [
       '<div class="pcm-head">',
         '<div class="pcm-avatar">' + initial + '</div>',
-        '<div><b></b><small>' + text.localPlayer + '</small></div>',
+        '<div><b></b><small>' + iconMarkup('player-online') + ' ' + text.localPlayer + '</small></div>',
       '</div>',
       menuButton('card', '&#9817;', text.card),
       isSelf ? '' : menuButton('dialog', '&#9743;', text.dialog),
@@ -290,7 +332,7 @@
       if (response.status === 401 || response.status === 403) {
         return 'auth';
       }
-      const data = await response.json();
+      const data = await readJson(response);
       return data.ok ? String(data.status || 'none') : 'none';
     } catch (error) {
       console.error('Friend status failed:', error);
@@ -309,7 +351,7 @@
       if (response.status === 401 || response.status === 403) {
         return { status: 'auth', permission: null };
       }
-      const data = await response.json();
+      const data = await readJson(response);
       return data.ok
         ? { status: String(data.status || 'none'), permission: data.permission || null }
         : { status: 'none', permission: null };
@@ -320,6 +362,7 @@
   }
 
   async function openMenu(row) {
+    const requestSeq = ++menuLoadSeq;
     const login = row.dataset.playerLogin || row.querySelector('.user-name')?.textContent || '';
     const playerId = Number(row.dataset.playerId || 0);
     if (currentUserId <= 0) {
@@ -357,7 +400,7 @@
       loadFriendStatus(activePlayerId),
       loadPvpInfo(activePlayerId),
     ]);
-    if (activeRow !== row || menu.hidden) return;
+    if (requestSeq !== menuLoadSeq || activeRow !== row || menu.hidden) return;
     activeFriendStatus = status;
     activePvpStatus = pvpInfo.status;
     activePvpPermission = pvpInfo.permission;
@@ -384,7 +427,7 @@
       credentials: 'same-origin',
       headers: { 'Accept': 'application/json' },
     });
-    const data = await response.json();
+    const data = await readJson(response);
     if (!data || data.ok !== true) {
       throw new Error(data && data.message ? data.message : 'Не удалось загрузить разведение.');
     }
@@ -497,7 +540,7 @@
       '<div class="player-breeding-dialog" role="dialog" aria-modal="true" aria-labelledby="playerBreedingTitle">',
         '<header>',
           '<b id="playerBreedingTitle">Разведение монстров</b>',
-          '<button type="button" data-breed-close aria-label="Закрыть">&times;</button>',
+          '<button type="button" class="ui-btn ui-btn--ghost" data-breed-close aria-label="Закрыть">&times;</button>',
         '</header>',
         '<div class="player-breeding-body">',
           '<div class="breed-request-line">',
@@ -510,8 +553,8 @@
           '<select id="playerBreedingSelect" data-breed-select' + (outgoing ? ' disabled' : '') + '>' + renderBreedingOptions(state, incoming) + '</select>',
           '<div class="breed-status" data-breed-status>' + (outgoing ? 'Ожидается ответ игрока.' : 'Выберите покемона и отправьте заявку.') + '</div>',
           '<footer>',
-            '<button type="button" class="breed-primary" data-breed-submit' + (outgoing ? ' disabled' : '') + '>' + (incoming ? 'Принять' : 'Отправить') + '</button>',
-            '<button type="button" class="breed-secondary" data-breed-close>Отмена</button>',
+            '<button type="button" class="breed-primary ui-btn ui-btn--primary" data-breed-submit' + (outgoing ? ' disabled' : '') + '>' + (incoming ? 'Принять' : 'Отправить') + '</button>',
+            '<button type="button" class="breed-secondary ui-btn" data-breed-close>Отмена</button>',
           '</footer>',
         '</div>',
       '</div>',
@@ -547,11 +590,12 @@
   }
 
   async function openBreedingPopup(player) {
+    breedingSubmitting = false;
     closeMenu();
     breedingModal.hidden = false;
     breedingModal.innerHTML = [
       '<div class="player-breeding-dialog is-loading" role="dialog" aria-modal="true">',
-        '<header><b>Разведение монстров</b><button type="button" data-breed-close aria-label="Закрыть">&times;</button></header>',
+        '<header><b>Разведение монстров</b><button type="button" class="ui-btn ui-btn--ghost" data-breed-close aria-label="Закрыть">&times;</button></header>',
         '<div class="player-breeding-body"><div class="breed-loading">Загружаю покемонов...</div></div>',
       '</div>',
     ].join('');
@@ -566,21 +610,22 @@
       console.error('Breeding state failed:', error);
       breedingModal.innerHTML = [
         '<div class="player-breeding-dialog" role="dialog" aria-modal="true">',
-          '<header><b>Разведение монстров</b><button type="button" data-breed-close aria-label="Закрыть">&times;</button></header>',
+          '<header><b>Разведение монстров</b><button type="button" class="ui-btn ui-btn--ghost" data-breed-close aria-label="Закрыть">&times;</button></header>',
           '<div class="player-breeding-body">',
-            '<div class="breed-error">Не удалось загрузить разведение.</div>',
-            '<footer><button type="button" class="breed-secondary" data-breed-close>Закрыть</button></footer>',
+            '<div class="breed-error" role="alert">Не удалось загрузить разведение.</div>',
+            '<footer><button type="button" class="breed-primary ui-btn ui-btn--primary" data-breed-retry>Повторить</button><button type="button" class="breed-secondary ui-btn" data-breed-close>Закрыть</button></footer>',
           '</div>',
         '</div>',
       ].join('');
       breedingModal.querySelectorAll('[data-breed-close]').forEach(button => {
         button.addEventListener('click', closeBreedingModal);
       });
+      breedingModal.querySelector('[data-breed-retry]')?.addEventListener('click', () => openBreedingPopup(player));
     }
   }
 
   async function submitBreedingModal() {
-    if (!activeBreedingState) return;
+    if (!activeBreedingState || breedingSubmitting) return;
     const select = breedingModal.querySelector('[data-breed-select]');
     const submit = breedingModal.querySelector('[data-breed-submit]');
     const status = breedingModal.querySelector('[data-breed-status]');
@@ -590,6 +635,7 @@
       return;
     }
 
+    breedingSubmitting = true;
     submit.disabled = true;
     status.textContent = 'Отправляю...';
 
@@ -617,7 +663,7 @@
         },
         body,
       });
-      const data = await response.json();
+      const data = await readJson(response);
       const ok = Boolean(data && data.ok);
       status.textContent = data.message || (ok ? 'Разведение успешно прошло.' : 'Разведение не удалось.');
       notify(data.message || (ok ? 'Разведение успешно прошло.' : 'Разведение не удалось.'), ok ? 'success' : 'error');
@@ -625,12 +671,14 @@
       if (ok) {
         showBreedingSuccess(data, activeBreedingState.mode === 'accept' || Number(data.egg_id || 0) > 0);
       } else {
+        breedingSubmitting = false;
         submit.disabled = false;
       }
     } catch (error) {
       console.error('Breeding submit failed:', error);
       status.textContent = 'Ошибка сервера при разведении.';
       notify('Ошибка сервера при разведении.', 'error');
+      breedingSubmitting = false;
       submit.disabled = false;
     }
   }
@@ -639,14 +687,14 @@
     const title = completedBreeding ? 'Разведение успешно прошло' : 'Заявка отправлена';
     breedingModal.innerHTML = [
       '<div class="player-breeding-dialog is-success" role="dialog" aria-modal="true">',
-        '<header><b>Разведение монстров</b><button type="button" data-breed-close aria-label="Закрыть">&times;</button></header>',
+        '<header><b>Разведение монстров</b><button type="button" class="ui-btn ui-btn--ghost" data-breed-close aria-label="Закрыть">&times;</button></header>',
         '<div class="player-breeding-body">',
           '<div class="breed-success-card">',
             '<span class="breeding-egg-mark" aria-hidden="true"></span>',
             '<b>' + title + '</b>',
             '<small>' + escapeHtml(data && data.message || (completedBreeding ? 'Яйцо создано и появится в разделе яиц.' : 'Игроку отправлено предложение разведения.')) + '</small>',
           '</div>',
-          '<footer><button type="button" class="breed-primary" data-breed-close>Готово</button></footer>',
+          '<footer><button type="button" class="breed-primary ui-btn ui-btn--primary" data-breed-close>Готово</button></footer>',
         '</div>',
       '</div>',
     ].join('');
@@ -703,7 +751,7 @@
         },
         body
       });
-      const data = await response.json();
+      const data = await readJson(response);
       notify(data.message || (data.ok ? successFallback : 'Действие не выполнено.'), data.ok ? 'success' : 'error');
       return data;
     } catch (error) {
@@ -724,6 +772,41 @@
 
   async function removeFriend(id) {
     return postFriendAction('/api/friends/remove', id, 'Игрок удалён из друзей.');
+  }
+
+  async function declineFriend(id) {
+    return postFriendAction('/api/friends/decline', id, 'Заявка в друзья отклонена.');
+  }
+
+  async function declinePvpRequest(requestId) {
+    const id = Number(requestId || 0);
+    if (!id) return null;
+
+    try {
+      const body = new URLSearchParams();
+      body.set('_csrf', csrf);
+      body.set('request_id', String(id));
+
+      const response = await fetch('/api/battle/pvp/decline', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        },
+        body
+      });
+      const data = await readJson(response);
+      notify(
+        data.message || (data.ok ? 'Вызов на бой отклонён.' : 'Не удалось отклонить вызов.'),
+        data.ok ? 'success' : 'error'
+      );
+      return data;
+    } catch (error) {
+      console.error('PvP decline failed:', error);
+      notify('Ошибка сервера при отклонении вызова.', 'error');
+      return null;
+    }
   }
 
   async function requestBattle(id) {
@@ -752,7 +835,7 @@
         },
         body
       });
-      const data = await response.json();
+      const data = await readJson(response);
       notify(data.message || (data.ok ? 'Вызов на бой отправлен.' : 'Бой не удалось начать.'), data.ok ? 'success' : 'error');
       if (data.ok && (data.status === 'active' || Number(data.battleId || 0) > 0)) {
         document.dispatchEvent(new CustomEvent('pvp-battle-started', { detail: data }));
@@ -791,7 +874,7 @@
         },
         body
       });
-      const data = await response.json();
+      const data = await readJson(response);
       notify(data.message || (data.ok ? 'Принудительный бой начался.' : 'Нападение не удалось.'), data.ok ? 'success' : 'error');
       if (data.ok && (data.status === 'active' || Number(data.battleId || 0) > 0)) {
         document.dispatchEvent(new CustomEvent('pvp-battle-started', { detail: data }));
@@ -809,7 +892,7 @@
       credentials: 'same-origin',
       headers: { 'Accept': 'application/json' },
     });
-    const data = await response.json();
+    const data = await readJson(response);
     if (!data || data.ok !== true) {
       throw new Error(data && data.message ? data.message : 'Не удалось загрузить команду.');
     }
@@ -835,8 +918,8 @@
       pvpModal.hidden = false;
       pvpModal.innerHTML = [
         '<div class="pvp-pokemon-dialog" role="dialog" aria-modal="true">',
-          '<header><div><b></b><span>Выберите живого покемона из активной команды</span></div><button type="button" data-pvp-close>&times;</button></header>',
-          '<div class="pvp-pokemon-list"><div class="pvp-pokemon-empty">Загружаю команду...</div></div>',
+          '<header><div><b></b><span>Выберите живого покемона из активной команды</span></div><button type="button" class="ui-btn ui-btn--ghost" data-pvp-close aria-label="Закрыть выбор покемона">&times;</button></header>',
+          '<div class="pvp-pokemon-list"><div class="pvp-pokemon-empty ui-empty">Загружаю команду...</div></div>',
         '</div>',
       ].join('');
       pvpModal.querySelector('header b').textContent = title || 'Выбор покемона';
@@ -849,14 +932,14 @@
       try {
         const pokemon = await loadPvpPokemonOptions();
         if (!pokemon.length) {
-          list.innerHTML = '<div class="pvp-pokemon-empty">Нет живых активных покемонов.</div>';
+          list.innerHTML = '<div class="pvp-pokemon-empty ui-empty">Нет живых активных покемонов.</div>';
           return;
         }
         list.innerHTML = pokemon.map(item => {
           const hp = hpPercent(item);
           const name = String(item.name || ('Pokemon #' + Number(item.baseNum || 0))).replace(/^#?\d+\s*/, '');
           return [
-            '<button type="button" class="pvp-pokemon-choice" data-pokemon-id="' + Number(item.id || 0) + '">',
+            '<button type="button" class="pvp-pokemon-choice ui-card" data-pokemon-id="' + Number(item.id || 0) + '">',
               '<span class="pvp-pokemon-art"><img src="' + pokemonSprite(item) + '" alt=""></span>',
               '<span class="pvp-pokemon-main">',
                 '<b>#' + pad3(displayDexNumber(item)) + ' ' + name + '</b>',
@@ -874,7 +957,7 @@
         });
       } catch (error) {
         console.error('PvP pokemon options failed:', error);
-        list.innerHTML = '<div class="pvp-pokemon-empty is-error">Не удалось загрузить команду.</div>';
+        list.innerHTML = '<div class="pvp-pokemon-empty ui-empty is-error">Не удалось загрузить команду.</div>';
       }
     });
   }
@@ -885,7 +968,7 @@
         credentials: 'same-origin',
         headers: { 'Accept': 'application/json' },
       });
-      const data = await response.json();
+      const data = await readJson(response);
       if (!data.ok || !Array.isArray(data.requests)) return;
 
       data.requests.forEach(request => {
@@ -907,7 +990,7 @@
         credentials: 'same-origin',
         headers: { 'Accept': 'application/json' },
       });
-      const data = await response.json();
+      const data = await readJson(response);
       if (!data.ok || !Array.isArray(data.requests)) return;
 
       data.requests.forEach(request => {
@@ -915,7 +998,10 @@
         if (!id || knownIncomingPvpRequests.has(id)) return;
 
         knownIncomingPvpRequests.add(id);
-        notify((request.login || 'Игрок') + ' вызывает вас на PvP бой.', 'friend');
+        notify((request.login || 'Игрок') + ' вызывает вас на PvP бой.', 'friend', {
+          label: 'Отклонить',
+          onClick: () => { declinePvpRequest(id); },
+        });
       });
       saveSeenPvpRequests();
     } catch (error) {
@@ -965,6 +1051,7 @@
       if (action === 'friend') friendResult = await requestFriend(playerId);
       if (action === 'friend-accept') friendResult = await acceptFriend(playerId);
       if (action === 'friend-remove') friendResult = await removeFriend(playerId);
+      if (action === 'friend-decline') friendResult = await declineFriend(playerId);
       if (action === 'battle' || action === 'battle-accept') {
         await requestBattle(playerId);
         closeMenu();

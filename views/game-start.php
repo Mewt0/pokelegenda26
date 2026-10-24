@@ -11,18 +11,23 @@ $itemIconIndex = is_file($itemIconIndexPath)
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pokemon 8.0 - Игровой мир</title>
-  <link rel="stylesheet" href="/public/css/game-start.css?v=20260526-pokemon-drag3">
-  <link rel="stylesheet" href="/public/css/chat.css?v=20260527-split1">
-  <link rel="stylesheet" href="/public/css/game-shell.css?v=20260603-quest-guide">
-  <link rel="stylesheet" href="/public/css/game-battle-dock.css?v=20260527-battle-replay">
-  <link rel="stylesheet" href="/public/css/player-menu.css?v=20260527-breeding-popup2">
-  <link rel="stylesheet" href="/public/css/trainer-profile-window.css?v=20260605-card-appearance1">
-  <link rel="stylesheet" href="/public/css/profile-settings-modal.css?v=20260603-profile-settings">
-  <link rel="stylesheet" href="/public/css/game-market-overlay.css?v=20260528-fix2">
-  <link rel="stylesheet" href="/public/css/commission-market.css?v=20260603-layout-fix">
-  <link rel="stylesheet" href="/public/css/mail-overlay.css?v=20260603-game-mail3">
-  <link rel="stylesheet" href="/public/css/quest-journal.css?v=20260603-quest-guide">
+  <title>Игровой мир - League of Pokemons</title>
+  <?php
+    $headStyles = [
+      '/public/css/game-start.css',
+      '/public/css/chat.css',
+      '/public/css/game-shell.css',
+      '/public/css/game-battle-dock.css',
+      '/public/css/player-menu.css',
+      '/public/css/trainer-profile-window.css',
+      '/public/css/profile-settings-modal.css',
+      '/public/css/game-market-overlay.css',
+      '/public/css/commission-market.css',
+      '/public/css/mail-overlay.css',
+      '/public/css/quest-journal.css',
+    ];
+    require APP_ROOT . '/views/components/head-styles.php';
+  ?>
 </head>
 <body>
   <main class="world game-shell" data-csrf="<?= View::e($csrf) ?>" data-user-id="<?= (int) ($userId ?? 0) ?>">
@@ -32,7 +37,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
       </div>
       <div class="location-info">
         <div class="location-title-row">
-          <div class="location-pin" aria-hidden="true"></div>
+          <div class="location-pin" aria-hidden="true"><span class="icon icon--location-pin" aria-hidden="true"></span></div>
           <h1 class="location-title" id="locationTitle">Загрузка...</h1>
         </div>
         <div class="decor-line"><span class="decor-dot"></span></div>
@@ -61,9 +66,9 @@ $itemIconIndex = is_file($itemIconIndexPath)
       <section class="chat chat-panel glass-card">
         <div class="chat-log chat-messages" id="chatLog"></div>
         <form class="chat-form chat-input-bar" id="chatForm">
-          <input value="<?= View::e($login) ?>" readonly class="chat-my-login">
-          <input id="chatInput" class="chat-input" placeholder="Сообщение..." autocomplete="off">
-          <button type="submit" class="send-btn" aria-label="Отправить"><img src="/public/img/ui/chat/send.png" alt=""></button>
+          <input value="" data-login="<?= View::e($login) ?>" readonly class="chat-my-login" aria-label="Кому адресовано сообщение" autocomplete="off">
+          <input id="chatInput" class="chat-input" aria-label="Сообщение в чат" placeholder="Сообщение..." autocomplete="off">
+          <button type="submit" class="send-btn" aria-label="Отправить"><span class="icon icon--chat-send" aria-hidden="true"></span></button>
         </form>
       </section>
 
@@ -75,18 +80,15 @@ $itemIconIndex = is_file($itemIconIndexPath)
 
     <nav class="actionbar bottom-toolbar glass-card">
       <div class="quick-controls">
-        <button type="button" id="pveButton" class="status-pill danger">Нападение: выкл</button>
-        <?php if (!empty($isAdmin)): ?>
-          <button type="button" id="debugForceBattleBtn" class="status-pill debug" style="display:none">DEBUG: бой (Дорога 1)</button>
-        <?php endif; ?>
-        <button type="button" class="status-pill mode">Режим: общий</button>
+        <button type="button" id="pveButton" class="status-pill danger"><span class="icon icon--ui-pve-off" aria-hidden="true"></span><span>Нападение: выкл</span></button>
+        <button type="button" class="status-pill mode"><span class="icon icon--ui-mode-general" aria-hidden="true"></span><span>Режим: общий</span></button>
       </div>
       <div class="main-menu">
         <a href="/game/pokemon" id="pokemonLink"><img src="/public/img/ui/menu-pokemon.png" alt="">Покемоны</a>
         <a href="/game/items" id="inventoryLink"><img src="/public/img/ui/menu-inventory.png" alt="">Инвентарь</a>
         <a href="/game/market/items" data-open-market><img src="/public/img/ui/menu-market.png" alt="">Покемаркет</a>
         <a href="/game/commission" class="commission-menu-entry" data-open-commission>
-          <img src="/public/img/ui/menu-market.png" alt="">
+          <img src="/public/img/ui/menu-commission.png" alt="">
           <span>Лавка</span>
           <b class="commission-menu-badge" data-commission-badge>NEW</b>
         </a>
@@ -95,15 +97,18 @@ $itemIconIndex = is_file($itemIconIndexPath)
         <a href="#" data-open-dex="attacks"><img src="/public/img/ui/menu-attackdex.png" alt="">Атакадекс</a>
         <a href="/game/quests" data-open-quests><img src="/public/img/ui/menu-quests.png" alt="">Квесты</a>
         <a href="/game/battle/pvp"><img src="/public/img/ui/menu-battle.png" alt="">Бои</a>
-        <a href="/game/tournaments"><img src="/public/img/ui/menu-battle.png" alt="">Турниры</a>
+        <a href="/game/tournaments"><img src="/public/img/ui/menu-tournaments.png" alt="">Турниры</a>
         <a href="/game/messages" data-open-mail><img src="/public/img/ui/menu-mail.png" alt="">Почта</a>
       </div>
       <div class="system-status">
         <?php if (!empty($isAdmin)): ?>
+          <?php /* QA-кнопка живёт в системной группе и остаётся компактной: длинная подпись
+                   растягивала нижнюю панель и выталкивала главное меню в скролл. */ ?>
+          <button type="button" id="debugForceBattleBtn" class="status-pill debug" style="display:none" title="QA: принудительный бой на Дороге 1" aria-label="QA: принудительный бой на Дороге 1"><span class="icon icon--ui-debug-battle" aria-hidden="true"></span><span>QA</span></button>
           <a href="/game/admin" class="admin-entry" title="Админпанель" aria-label="Админпанель">Админ</a>
         <?php endif; ?>
         <div class="game-tools-menu" id="gameToolsMenu">
-          <button type="button" class="settings-btn" id="gameToolsBtn" aria-label="Настройки" aria-haspopup="true" aria-expanded="false">⚙</button>
+          <button type="button" class="settings-btn" id="gameToolsBtn" aria-label="Настройки" aria-haspopup="true" aria-expanded="false"><span class="icon icon--ui-settings" aria-hidden="true"></span></button>
           <div class="game-tools-dropdown" id="gameToolsDropdown" role="menu" aria-hidden="true">
             <label class="game-tools-toggle" role="menuitem">
               <input type="checkbox" id="profileShowPartyToggle">
@@ -114,22 +119,22 @@ $itemIconIndex = is_file($itemIconIndexPath)
             </label>
             <div class="game-tools-status" id="profilePrivacyStatus" aria-live="polite"></div>
             <button type="button" id="bugReportBtn" role="menuitem">
-              <span class="game-tools-icon" aria-hidden="true">⚑</span>
+              <span class="game-tools-icon icon icon--ui-flag" aria-hidden="true"></span>
               <span>Report bug</span>
             </button>
           </div>
         </div>
         <span class="status" id="status">Готово</span>
-        <span class="signal" aria-hidden="true">▂▄▆</span>
+        <span class="signal icon icon--ui-signal" aria-hidden="true"></span>
       </div>
     </nav>
   </main>
-  <section class="inventory-overlay" id="inventoryOverlay" aria-hidden="true">
-    <div class="inventory-window" role="dialog" aria-label="Инвентарь">
+  <section class="inventory-overlay" id="inventoryOverlay" data-ui-overlay aria-hidden="true">
+    <div class="inventory-window" role="dialog" aria-label="Инвентарь" aria-modal="true">
       <header class="inv-top">
-        <span class="ico">☰</span><span class="ico">⚙</span><span class="ico">◈</span><span class="ico">★</span>
+        <span class="ico" aria-hidden="true">☰</span><span class="icon icon--ui-settings" aria-hidden="true"></span><span class="icon icon--ui-mode-general" aria-hidden="true"></span><span class="icon icon--ui-pve-on" aria-hidden="true"></span>
         <div class="inv-search">
-          <input id="invSearchInput" placeholder="Начните вводить название">
+          <input id="invSearchInput" placeholder="Начните вводить название" aria-label="Поиск по инвентарю">
         </div>
       </header>
       <div class="inv-categories" id="invCategories" aria-label="Категории инвентаря"></div>
@@ -141,15 +146,15 @@ $itemIconIndex = is_file($itemIconIndexPath)
           <strong id="invTargetTitle">Применить предмет</strong>
           <p id="invTargetHint">Выберите покемона и количество.</p>
         </div>
-        <select id="invTargetPokemon"></select>
+        <select id="invTargetPokemon" aria-label="Покемон для применения предмета"></select>
         <input id="invTargetCount" type="number" min="1" value="1" aria-label="Количество">
         <button type="button" id="invTargetApplyBtn">Применить</button>
-        <button type="button" id="invTargetCancelBtn">×</button>
+        <button type="button" id="invTargetCancelBtn" aria-label="Отменить применение предмета">×</button>
       </div>
       <footer class="inv-bottom">
-        <button type="button" id="invRefreshBtn">⟳</button>
-        <button type="button" id="invPrevBtn">≪</button>
-        <button type="button" id="invNextBtn">≫</button>
+        <button type="button" id="invRefreshBtn" aria-label="Обновить инвентарь">⟳</button>
+        <button type="button" id="invPrevBtn" aria-label="Предыдущая страница инвентаря">≪</button>
+        <button type="button" id="invNextBtn" aria-label="Следующая страница инвентаря">≫</button>
         <span id="invPageInfo">1/1</span>
         <button type="button" id="invUseTargetBtn" disabled>Применить</button>
         <span class="inv-slots">СЛОТОВ ЗАНЯТО: <span id="invSlotsCount">0</span></span>
@@ -157,18 +162,18 @@ $itemIconIndex = is_file($itemIconIndexPath)
       </footer>
     </div>
   </section>
-  <section class="pokemon-overlay" id="pokemonOverlay" aria-hidden="true">
-    <div class="pokemon-window" role="dialog" aria-label="Покемоны">
+  <section class="pokemon-overlay" id="pokemonOverlay" data-ui-overlay aria-hidden="true">
+    <div class="pokemon-window" role="dialog" aria-label="Покемоны" aria-modal="true">
       <div class="pokemon-drag-handle" id="pokemonDragHandle" aria-hidden="true" title="Перетащить окно"></div>
       <header class="pokemon-modal-head">
         <strong>Покемоны</strong>
-        <button type="button" id="pokemonCloseBtn">×</button>
+        <button type="button" id="pokemonCloseBtn" aria-label="Закрыть окно покемонов">×</button>
       </header>
       <iframe id="pokemonFrame" title="Покемоны" src="about:blank"></iframe>
     </div>
   </section>
-  <section class="market-overlay" id="marketOverlay" aria-hidden="true">
-    <div class="market-window shop-window" role="dialog" aria-label="Покемаркет">
+  <section class="market-overlay" id="marketOverlay" data-ui-overlay aria-hidden="true">
+    <div class="market-window shop-window" role="dialog" aria-label="Покемаркет" aria-modal="true">
       <header class="shop-titlebar">
         <button type="button" class="shop-close" data-market-close aria-label="Закрыть">×</button>
         <h1>Список товаров</h1>
@@ -179,7 +184,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
         <button type="button" data-market-tab="lots">Лоты игроков</button>
         <label>
           <span>Поиск</span>
-          <input type="search" data-market-search placeholder="Название или ID">
+          <input type="search" aria-label="Поиск по магазину" data-market-search placeholder="Название или ID">
         </label>
         <div class="shop-wallet">
           <span><b data-wallet-coins>0</b> монет</span>
@@ -210,7 +215,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
             </div>
             <label class="cart-count">
               <span>Количество</span>
-              <input type="number" min="1" value="1" data-cart-count>
+              <input type="number" min="1" value="1" aria-label="Количество" data-cart-count>
             </label>
             <div class="cart-total">
               <span>Итого</span>
@@ -223,6 +228,8 @@ $itemIconIndex = is_file($itemIconIndexPath)
       <footer class="shop-footer">
         <button type="button" data-shop-prev>Назад</button>
         <div class="shop-status" data-market-status></div>
+        <span class="shop-page-info" data-market-page-info></span>
+        <span class="shop-slots" data-market-slots></span>
         <button type="button" data-shop-next>Далее</button>
         <button type="button" class="buy-button" data-shop-buy disabled>Купить</button>
       </footer>
@@ -245,11 +252,12 @@ $itemIconIndex = is_file($itemIconIndexPath)
     require APP_ROOT . '/views/components/quest-journal-panel.php';
   ?>
   <section class="battle-overlay battle-dock-overlay" id="battleOverlay" aria-hidden="true">
-    <div class="battle-window battle-dock-window" role="dialog" aria-label="PvE бой">
+    <div class="battle-window battle-dock-window" role="dialog" aria-label="PvE бой" aria-modal="true">
       <header class="battle-head battle-dock-head">
         <span id="battleTitle">Дикий бой</span>
         <strong id="battleRound">Раунд 1</strong>
         <span class="battle-turn-label" id="battleTurnLabel">Ваш ход</span>
+        <button type="button" id="battleReplayBtn" class="battle-review-replay" title="Посмотреть повтор боя" aria-pressed="false"><span class="icon icon--ui-play" aria-hidden="true"></span> Повтор боя</button>
         <button type="button" id="battleReviewClose" class="battle-review-close" aria-label="Закрыть просмотр боя">&times;</button>
       </header>
       <div class="battle-layout battle-dock-layout">
@@ -313,15 +321,15 @@ $itemIconIndex = is_file($itemIconIndexPath)
             <em id="battleEnemyRarity">Частый</em>
           </div>
           <div class="battle-dock-actions">
-            <button type="button" class="battle-tab is-active" data-battle-tab="attacks" title="Атаки"><span>⚔</span><b>Fight</b></button>
-            <button type="button" class="battle-tab" data-battle-tab="switch" title="Покемоны"><span>↻</span><b>Pokémon</b></button>
-            <button type="button" class="battle-tab" data-battle-tab="items" title="Предметы"><span>▣</span><b>Items</b></button>
-            <button type="button" class="battle-tab" data-battle-tab="balls" title="Покеболы"><span>○</span><b>Balls</b></button>
+            <button type="button" class="battle-tab is-active" data-battle-tab="attacks" title="Атаки"><span class="icon icon--chat-tab-battle" aria-hidden="true"></span><b>Атаки</b></button>
+            <button type="button" class="battle-tab" data-battle-tab="switch" title="Покемоны"><span class="icon icon--battle-tab-switch" aria-hidden="true"></span><b>Смена</b></button>
+            <button type="button" class="battle-tab" data-battle-tab="items" title="Предметы"><span class="icon icon--battle-tab-items" aria-hidden="true"></span><b>Предметы</b></button>
+            <button type="button" class="battle-tab" data-battle-tab="balls" title="Покеболы"><span class="icon icon--battle-tab-balls" aria-hidden="true"></span><b>Покеболы</b></button>
           </div>
-          <button type="button" id="battleEscapeBtn" class="battle-dock-danger battle-run-button" title="Сбежать">⚑ Сбежать</button>
+          <button type="button" id="battleEscapeBtn" class="battle-dock-danger battle-run-button" title="Сбежать"><span class="icon icon--ui-run" aria-hidden="true"></span> Сбежать</button>
           <div class="battle-dock-panels">
             <div class="battle-tab-panel" data-battle-panel="switch">
-              <select id="battleSwitchSelect" class="wide"></select>
+              <select id="battleSwitchSelect" class="wide" aria-label="Сменить покемона"></select>
               <button type="button" id="battleSwitchBtn">Сменить</button>
               <div class="battle-list" id="battleSwitchList"></div>
             </div>
@@ -339,15 +347,15 @@ $itemIconIndex = is_file($itemIconIndexPath)
     </div>
   </section>
 
-  <section class="dex-overlay" id="dexOverlay" aria-hidden="true">
-    <div class="dex-window" role="dialog" aria-label="Декс">
+  <section class="dex-overlay" id="dexOverlay" data-ui-overlay aria-hidden="true">
+    <div class="dex-window" role="dialog" aria-label="Декс" aria-modal="true">
       <header class="dex-head">
         <nav>
           <button type="button" class="is-active" data-dex-tab="pokemon">Покедекс</button>
           <button type="button" data-dex-tab="attacks">Атакадекс</button>
         </nav>
         <div class="dex-search-panel">
-          <input id="dexSearchInput" placeholder="Поиск по названию или ID">
+          <input id="dexSearchInput" aria-label="Поиск по Покедексу" placeholder="Поиск по названию или ID">
           <div class="dex-filter-row" id="dexPokemonFilters">
             <select id="dexPokemonTypeFilter" aria-label="Тип покемона">
               <option value="">Все типы</option>
@@ -417,15 +425,15 @@ $itemIconIndex = is_file($itemIconIndexPath)
               <option value="2">Специальные</option>
               <option value="3">Статусные</option>
             </select>
-            <input id="dexAttackPowerMin" inputmode="numeric" placeholder="Сила от">
-            <input id="dexAttackPowerMax" inputmode="numeric" placeholder="до">
-            <input id="dexAttackAccuracyMin" inputmode="numeric" placeholder="Точн. от">
-            <input id="dexAttackAccuracyMax" inputmode="numeric" placeholder="до">
-            <input id="dexAttackPokemonFilter" placeholder="Покемон">
+            <input id="dexAttackPowerMin" aria-label="Сила атаки от" inputmode="numeric" placeholder="Сила от">
+            <input id="dexAttackPowerMax" aria-label="Сила атаки до" inputmode="numeric" placeholder="до">
+            <input id="dexAttackAccuracyMin" aria-label="Точность от" inputmode="numeric" placeholder="Точн. от">
+            <input id="dexAttackAccuracyMax" aria-label="Точность до" inputmode="numeric" placeholder="до">
+            <input id="dexAttackPokemonFilter" aria-label="Покемон для фильтра атак" placeholder="Покемон">
             <label class="dex-check"><input type="checkbox" id="dexAttackTmFilter"> TM</label>
           </div>
         </div>
-        <button type="button" id="dexCloseBtn">×</button>
+        <button type="button" id="dexCloseBtn" aria-label="Закрыть Покедекс">×</button>
       </header>
       <div class="dex-body">
         <aside class="dex-list" id="dexList"></aside>
@@ -433,7 +441,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
       </div>
     </div>
   </section>
-  <section class="bug-report-overlay" id="bugReportOverlay" aria-hidden="true">
+  <section class="bug-report-overlay" id="bugReportOverlay" data-ui-overlay aria-hidden="true">
     <div class="bug-report-window glass-card" role="dialog" aria-modal="true" aria-label="Report bug">
       <header>
         <div>
@@ -444,11 +452,11 @@ $itemIconIndex = is_file($itemIconIndexPath)
       </header>
       <label>
         <span>Коротко что сломалось</span>
-        <input id="bugReportTitle" maxlength="190" placeholder="Например: пропали кнопки боя">
+        <input id="bugReportTitle" aria-label="Тема обращения" maxlength="190" placeholder="Например: пропали кнопки боя">
       </label>
       <label>
         <span>Тип</span>
-        <select id="bugReportSeverity">
+        <select id="bugReportSeverity" aria-label="Важность обращения">
           <option value="bug">Баг</option>
           <option value="critical">Критично</option>
           <option value="visual">Визуал</option>
@@ -475,17 +483,19 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <script type="application/json" id="gameRuntimeConfig">
     <?= json_encode(['itemIconIndex' => $itemIconIndex], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}' ?>
   </script>
-  <script src="/public/js/game-start-runtime.js?v=20260603-quest-guide"></script>
-  <script src="/public/js/trainer-profile-window.js?v=20260605-card-appearance1"></script>
-  <script src="/public/js/profile-settings-modal.js?v=20260603-profile-settings"></script>
-  <script src="/public/js/chat.js?v=20260603-mail-overlay"></script>
-  <script src="/public/js/player-menu.js?v=20260603-profile-actions"></script>
-  <script src="/public/js/game-toolbar.js?v=20260603-profile-privacy"></script>
-  <script src="/public/js/dex-overlay.js?v=20260525-dex-filters"></script>
-  <script src="/public/js/game-market-overlay.js?v=20260528-fix2"></script>
-  <script src="/public/js/commission-market.js?v=20260527-my-lots"></script>
-  <script src="/public/js/mail-overlay.js?v=20260603-game-mail3"></script>
-  <script src="/public/js/quest-journal.js?v=20260603-quest-guide"></script>
+  <script src="<?= View::e(asset_url('/public/js/ui-preferences.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/ui-overlay.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/game-start-runtime.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/trainer-profile-window.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/profile-settings-modal.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/chat.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/player-menu.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/game-toolbar.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/dex-overlay.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/game-market-overlay.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/commission-market.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/mail-overlay.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/quest-journal.js')) ?>"></script>
 
 </body>
 </html>

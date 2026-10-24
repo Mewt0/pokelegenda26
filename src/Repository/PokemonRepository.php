@@ -412,6 +412,201 @@ final class PokemonRepository
         return $rows;
     }
 
+    public function listChatMentionTeam(int $userId): array
+    {
+        $this->normalizeActiveTeam($userId);
+        $stmt = $this->db->prepare(
+            'SELECT pu.id, pu.names, pu.basenum, pu.lvl, pu.hp_my, pu.hp_max
+               FROM pok_user pu
+              WHERE pu.users = :user AND pu.active = 1
+              ORDER BY pu.startepoke DESC, pu.basenum ASC, pu.id ASC
+              LIMIT 6'
+        );
+        $stmt->execute(['user' => $userId]);
+
+        $rows = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $baseNum = (int) $row['basenum'];
+            $rows[] = [
+                'id' => (int) $row['id'],
+                'name' => strip_tags((string) $row['names']),
+                'baseNum' => $baseNum,
+                'dexNumber' => PokemonFormCatalog::displayBaseId($baseNum),
+                'level' => (int) $row['lvl'],
+                'hp' => (int) $row['hp_my'],
+                'hpMax' => (int) $row['hp_max'],
+                'sprite' => $this->pokemonSprite($baseNum, false),
+            ];
+        }
+
+        return $rows;
+    }
+
+    public function ownsChatMentionPokemon(int $userId, int $pokemonId): bool
+    {
+        $stmt = $this->db->prepare('SELECT 1 FROM pok_user WHERE id = :pokemon AND users = :user LIMIT 1');
+        $stmt->execute(['pokemon' => $pokemonId, 'user' => $userId]);
+        return $stmt->fetchColumn() !== false;
+    }
+
+    public function chatMentionCard(int $userId, int $pokemonId): ?array
+    {
+        $columns = $this->columnsForTable('pok_user');
+        $select = [
+            'id', 'names', 'basenum', 'lvl', 'hp_my', 'hp_max',
+            'atk', 'def', 'satk', 'sdef', 'speed',
+            'hp_ev', 'atk_ev', 'def_ev', 'satk_ev', 'sdef_ev', 'speed_ev',
+        ];
+        foreach (['gender', 'sex', 'har', 'haracter', 'nature', 'ability_key', 'shine', 'shiny'] as $column) {
+            if (isset($columns[$column])) {
+                $select[] = $column;
+            }
+        }
+        foreach (['hp_iv', 'atk_iv', 'def_iv', 'satk_iv', 'sdef_iv', 'speed_iv'] as $column) {
+            if (isset($columns[$column])) {
+                $select[] = $column;
+            }
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT ' . implode(', ', array_map(fn (string $column): string => 'pu.`' . $column . '`', $select)) . '
+               FROM pok_user pu
+              WHERE pu.id = :pokemon AND pu.users = :user
+              LIMIT 1'
+        );
+        $stmt->execute(['pokemon' => $pokemonId, 'user' => $userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return null;
+        }
+
+        $baseNum = (int) $row['basenum'];
+        $shiny = (int) ($row['shiny'] ?? $row['shine'] ?? 0) === 1 || stripos((string) $row['names'], 'shiny') !== false;
+        $abilityKey = (string) ($row['ability_key'] ?? '');
+
+        return [
+            'id' => (int) $row['id'],
+            'available' => true,
+            'name' => strip_tags((string) $row['names']),
+            'baseNum' => $baseNum,
+            'dexNumber' => PokemonFormCatalog::displayBaseId($baseNum),
+            'level' => (int) $row['lvl'],
+            'gender' => $this->pokemonGender($row),
+            'nature' => $this->pokemonNature($row),
+            'ability' => $this->abilityName($abilityKey),
+            'abilityKey' => $abilityKey,
+            'shiny' => $shiny,
+            'sprite' => $this->pokemonSprite($baseNum, $shiny),
+            'iv' => [
+                'hp' => (int) ($row['hp_iv'] ?? 0),
+                'atk' => (int) ($row['atk_iv'] ?? 0),
+                'def' => (int) ($row['def_iv'] ?? 0),
+                'satk' => (int) ($row['satk_iv'] ?? 0),
+                'sdef' => (int) ($row['sdef_iv'] ?? 0),
+                'speed' => (int) ($row['speed_iv'] ?? 0),
+            ],
+            'ev' => [
+                'hp' => (int) ($row['hp_ev'] ?? 0),
+                'atk' => (int) ($row['atk_ev'] ?? 0),
+                'def' => (int) ($row['def_ev'] ?? 0),
+                'satk' => (int) ($row['satk_ev'] ?? 0),
+                'sdef' => (int) ($row['sdef_ev'] ?? 0),
+                'speed' => (int) ($row['speed_ev'] ?? 0),
+            ],
+            'stats' => [
+                'hp' => (int) $row['hp_max'],
+                'hpCurrent' => (int) $row['hp_my'],
+                'atk' => (int) $row['atk'],
+                'def' => (int) $row['def'],
+                'satk' => (int) $row['satk'],
+                'sdef' => (int) $row['sdef'],
+                'speed' => (int) $row['speed'],
+            ],
+            'moves' => array_values($this->selectedMoves((int) $row['id'])),
+        ];
+    }
+
+    private function pokemonSprite(int $baseNum, bool $shiny): string
+    {
+        $folder = $shiny ? 'small-shiny' : 'small';
+        $paths = ['/public/img/pokemon/' . $folder . '/' . $baseNum . '.png'];
+        if ($shiny) $paths[] = '/Pok/shiny/' . $baseNum . '.gif';
+        $paths[] = '/Pok/normal/' . $baseNum . '.png';
+        $paths[] = '/Pok/pok/' . $baseNum . '.gif';
+        $paths[] = '/Pok/' . $baseNum . '.jpg';
+        foreach ($paths as $path) {
+            if (is_file(dirname(__DIR__, 2) . $path)) return $path;
+        }
+        return '/public/img/ui/chatgpt-pokeball.png';
+    }
+
+    private function pokemonGender(array $row): string
+    {
+        $raw = strtolower((string) ($row['gender'] ?? $row['sex'] ?? ''));
+        return match ($raw) {
+            '1', 'm', 'male', 'boy' => 'M',
+            '2', 'f', 'female', 'girl' => 'F',
+            default => $raw !== '' ? (string) ($row['gender'] ?? $row['sex']) : 'unknown',
+        };
+    }
+
+    private function pokemonNature(array $row): string
+    {
+        foreach (['nature', 'haracter', 'har'] as $key) {
+            $value = trim(strip_tags((string) ($row[$key] ?? '')));
+            if ($value !== '' && $value !== '0') {
+                return $value;
+            }
+        }
+        return 'unknown';
+    }
+
+    private function abilityName(string $abilityKey): string
+    {
+        if ($abilityKey === '' || !$this->tableExists('pokemon_ability_descriptions')) {
+            return $abilityKey !== '' ? str_replace('_', ' ', $abilityKey) : 'unknown';
+        }
+
+        $stmt = $this->db->prepare('SELECT name_ru FROM pokemon_ability_descriptions WHERE ability_key = :ability LIMIT 1');
+        $stmt->execute(['ability' => $abilityKey]);
+        $name = trim((string) ($stmt->fetchColumn() ?: ''));
+        return $name !== '' ? $name : str_replace('_', ' ', $abilityKey);
+    }
+
+    private function columnsForTable(string $table): array
+    {
+        static $cache = [];
+        if (isset($cache[$table])) {
+            return $cache[$table];
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT COLUMN_NAME
+               FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table'
+        );
+        $stmt->execute(['table' => $table]);
+        $cache[$table] = array_fill_keys(array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []), true);
+        return $cache[$table];
+    }
+
+    private function tableExists(string $table): bool
+    {
+        static $cache = [];
+        if (isset($cache[$table])) {
+            return $cache[$table];
+        }
+        $stmt = $this->db->prepare(
+            'SELECT 1
+               FROM INFORMATION_SCHEMA.TABLES
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table
+              LIMIT 1'
+        );
+        $stmt->execute(['table' => $table]);
+        $cache[$table] = (bool) $stmt->fetchColumn();
+        return $cache[$table];
+    }
+
     private function trainingInfo(array $row): array
     {
         $stage = max(0, min(6, (int) ($row['training_stage'] ?? 0)));

@@ -1,6 +1,20 @@
 # PokemonChic Current Project Context
 
-Обновлено: 2026-06-05.
+Обновлено: 2026-10-24.
+
+## Актуальный релизный срез — 2026-10-24
+
+Эта секция заменяет старые числовые сводки ниже. Подробности: `docs/reports/RELEASE_CANDIDATE_2026-10-24.md`.
+
+- Локальный web и CLI переведены на PHP 8.5.11; OSPanel Default сохранён с этим PHP/Apache. MySQL 5.5 слушает 3308.
+- Миграции: 87/87, pending=0, dirty=0, failed=0. Full regression: 29/29; HTTP read: 52/52; page health: 15/15.
+- Исправлена клиентская подделка квестов: только фиксированные команды, проверка NPC/локации и атомарный переход с ожидаемого этапа. Квестовый smoke: 63/63, FPE: 25/25.
+- Реапер исключает боссов и повторно проверяет условия при UPDATE; неверный deadline использует TTL 7200 от известного времени создания, неизвестный возраст не очищается. Smoke: 21/21. Закрыты 175 просроченных обычных PvE после backup; integrity P0=0/P1=0/WARN=0/ACCEPTED=1 (55 исторических незавершённых боёв).
+- API 404 возвращает JSON; общий обработчик исключений/fatal логирует событие и скрывает внутренние детали. Регрессия ошибок и production QA gate: 7/7.
+- QA-запись запрещена в production и без QA_TOOLS_ENABLED; стандартного пароля новых QA-аккаунтов больше нет. Локальный .env явно помечен local, QA включён только здесь.
+- Backup 20261024_140205 восстановлен в отдельную новую схему: 153/153 таблицы. Рабочая база не заменялась.
+- HTTP-доступ к исходникам, backup, архивам, агентским каталогам и _qa-страницам закрыт. tools/build_release.php собирает snapshot рабочего дерева с SHA256-манифестом без .env, backup, docs и локального мусора.
+- Профиль и почта обновлены; после совместной проверки с DeepSeek Harness выполнен новый этап чата и мобильной раскладки (2026-10-25): поле адресата вместо собственного логина, #ID/кликабельные ID покемонов, всплывающие карточки, вертикальная мобильная оболочка и пригодные для телефона инвентарь/команда/настройки. Чатовый smoke22/22, нормализация8/8, full29/29. Подробности и ещё открытые дефекты: `docs/reports/CHAT_MOBILE_REFRESH_2026-10-25.md`, `docs/reports/JOINT_QA_RESULTS_2026-10-24.md`. Релизный ZIP143250 устарел относительно этих исходников. Production-публикации и GitHub push не было; внешние HTTPS/SMTP/cron и длительный ручной mobile/PvP прогон не проверены.
 
 Этот файл - короткий источник правды для дальнейшей разработки. Если чат или старые ТЗ противоречат этому файлу, использовать этот файл и живой код.
 
@@ -38,12 +52,54 @@
   - `tools/migration_status.php --baseline` - только для фиксации уже существующей живой базы;
   - `tools/migration_status.php --apply` - применить pending миграции;
   - `tools/beta_backup.php` - дамп БД в `storage/backups/`;
+  - `tools/beta_backup_verify.php` - проверка свежего beta dump на размер и ключевые таблицы;
   - `tools/beta_data_audit.php` - аудит P0/P1/WARN;
   - `tools/beta_data_audit.php --fix-safe` - только безопасные исправления: merge одинаковых item stacks, expire due commission/PvP.
   - `tools/background_jobs.php --status|--dry-run|--job=<name>` - ручной запуск фоновых задач;
   - `tools/db_integrity_smoke.php [--fix-safe]` - integrity/anti-dupe проверки.
-- Последний статус миграций: `78/78`, `pending=0`, `dirty=0`, `failed=0`.
+- Последний статус миграций: `87/87`, `pending=0`, `dirty=0`, `failed=0` (2026-10-11).
+- Последний beta backup: `storage/backups/pokemonchic_beta_20261011_035103.sql`, `10.97 MB` (снят перед миграцией внешних ключей).
+- **`BattleEngineService` разложен на сервисы (2026-10-11, `TASK-047`).** `attackLocked`
+  распилен с 260 до 39 строк на `applyPveTurnMoves` и `resolvePveTurn`; расчёт урона уехал в
+  `BattleDamageService`, награда за победу в PvE — в `BattleRewardService`, статусы начала
+  хода — в `BattleTurnStatusService`, одна атака (`applyMove`) — в `BattleMoveService`,
+  состояние PvP-боя (`pvpState`) — в `BattlePvpService`. Движок стал 2 853 строки (было 3 521)
+  и остаётся фасадом: публичный API не менялся, приватные помощники, нужные сервисам, открыты
+  как `public`, состояние `lastDamageDealt` живёт в движке и меняется через
+  `setLastDamageDealt()`. Тела методов переносились программно (токенизатор + байт-в-байт),
+  потому что два прогона Codex подряд испортили кодировку русского текста. Страж кодировки —
+  `php tools/encoding_guard.php` (обязателен после любой правки `src/Game/**`).
+  Следующие кандидаты: боевые предметы (`useItem`, `pvpUseItem`, `battleItemEffect`,
+  `applyGenericBattleItem`, `useBall`) в `BattleItemService`, `applySpecialMoveEffect` — в
+  `BattleMoveService`, форматтеры — в отдельный презентер.
 - Последний beta audit: `P0=0`, `P1=0`; `WARN` остаётся по историческим незавершённым rows в `battles`.
+
+### Целостность данных и внешние ключи (2026-10-11)
+
+- В базе появились **пять внешних ключей** (миграция `database/migrations/2026_10_13_000001_add_critical_foreign_keys.sql`):
+  `items_users.user_id → users.id`, `items_users.item_id → items.id`,
+  `pok_user.users → users.id`, `eggs.users_egg → users.id`,
+  `market_lots.seller_id → users.id`. Все — `ON UPDATE CASCADE ON DELETE RESTRICT`:
+  удаление аккаунта с имуществом падает явной ошибкой вместо тихого появления сирот.
+- Осиротевшие строки не удалены, а сложены в архивные таблицы: `items_users_orphan_archive` (38),
+  `pok_user_orphan_archive` (65), `eggs_orphan_archive` (2); у каждой служебная колонка `archived_at`.
+  Полный откат ключей и запросы восстановления строк — в хвосте файла миграции.
+- Схема приведена под ключи: `items.id` получил индекс `idx_items_id` (до этого у таблицы
+  не было индекса по `id`), `items_users.item_id` сменил тип с `int(20)` на `int(11) unsigned`,
+  `eggs.users_egg` получил индекс `idx_eggs_users_egg`.
+- Осознанно **без** ключей: `battles.user_1/user_2` (ждёт политики архивации боёв, `TASK-032`)
+  и `market_lots.buyer_id/private_buyer_id` (там `0` означает «покупателя нет», это не ссылка).
+- Инструменты по данным: `tools/fk_orphan_recon.php` (read-only разбор связей и сирот),
+  `tools/select_star_audit.php` (`SELECT *` по `src/**`), `tools/encoding_guard.php`
+  (страж кодировки русского текста в `src/Game/**`), `tools/include_reachability.php`
+  (достижимость легаси-дерева `include/**`).
+- **Поправка к прежним утверждениям про `include/`:** легаси-дерево **живое**, а не мёртвый
+  вес. Корневой `index.php` обслуживает `/` и подключает `include/function/*` и
+  `include/class/index.class.php`; `game.php` подключает `include/files/*`; комнаты
+  (`include/rooms/*.php`) строятся динамически из данных игрока и подключают `npc/*.php`
+  относительным путём; часть файлов (`registration.php`, `rulles.php`, `sendpass.php`)
+  отдаётся напрямую по URL. `tools/include_reachability.php`: 240 файлов, 229 достижимо.
+  Переносить `include/` в архив нельзя, пока легаси-входы обслуживают живые URL.
 - Комиссионная лавка резервирует покемонов/яйца через `commission.reserve_user_id`, сейчас это аккаунт `Система`, а не живой игрок `id=3`; дополнительно ведётся ledger `market_reserved_objects`.
 - Safe Storage: `safe_storage_entries`, `safe_operation_rollbacks`, `safe_storage_logs`, `SafeStorageRepository`, `tools/safe_storage_smoke.php`.
 - Safe Storage используется для возврата/резерва при сбоях commission, gift/inventory, rewards, breeding egg create и battle reward rollback-plan. Нормальные успешные операции пишут rollback-plan со статусом `recorded`, аварийные - `failed/open`.
@@ -59,7 +115,7 @@
 - QA Seed Tools: `AdminQaSeedRepositoryTrait`, `/api/admin/qa-seed-tools`, `/api/admin/qa-seed-tools/run`, блок в GM Center для `setup test accounts`, `give teams`, `give items`, `reset market`, `run smokes`; действия пишутся в `admin_audit_log` как `qa_seed.*`.
 - Bug Reporter: `bug_reports`, `bug_report_events`, `BugReportRepository`, `/api/bug-reports`, `/api/admin/bug-reports`, кнопка `Report bug` в `/game`; report прикладывает page/game state, battle id/battle snapshot, client logs и tail server logs. GM Center показывает open/critical reports, вкладка `Bug Reports` даёт фильтры, inspector и смену статуса.
 - DB Integrity: `data_integrity_logs`, `IntegrityRepository`, `tools/db_integrity_smoke.php`. `--fix-safe` чинит только очевидно безопасное: `items_users.count<=0`, orphan held rows, finished active transformations, expired PvP requests, `battles.id<=0`, stale user battle flags, `hp_my > hp_max` и реальные `pok_user` с невозможным level/stat через пересчёт по `poke_base + IV/EV + har`.
-- Текущий integrity smoke после safe-fix: `P0=0`, `P1=0`, `WARN=4` (`items.orphan_user=38`, `pokemon.invalid_owner=63`, `eggs.invalid_owner=1`, `battle.active_unfinished=208`).
+- Текущий integrity smoke после accepted-policy: `P0=0`, `P1=0`, `WARN=0`, `ACCEPTED=4`. Исторические rows `items.orphan_user=38`, `pokemon.invalid_owner=63`, `eggs.invalid_owner=1`, `battle.active_unfinished=208` зафиксированы в `data_integrity_acceptances` до отдельного cleanup-этапа, чтобы beta-gate ловил только новые реальные риски.
 - Дампы и backup-файлы не коммитить: `storage/backups/` в `.gitignore`.
 
 ## Основные Рабочие Системы
@@ -72,15 +128,15 @@
 - First Player Experience: квесты `1 -> 101 -> 102 -> 103` ведут игрока через Оука, стартера, Дорогу 1, первый PvE бой, Вертанию и первый транспорт; smoke `tools/fpe_quest_smoke.php`.
 - Quests minimum: стартовые/battle/reward/cooldown/repeatable сценарии покрыты `tools/quests_minimum_smoke.php`; ежедневный Metapod-квест нельзя перезапустить во время cooldown, после истечения он снова становится `available`; цепочка `Рассказ Спайка` покрыта полным NPC-flow `Спайк -> Старая женщина -> Амира -> Айрен -> Articuno -> Айрен` с reward-flow; журнал квестов отдаёт progress/reward_view/tracked/navigation state.
 - NPC + Locations: routes/map transitions/wild encounters/blocked routes/transport NPC/ship/flight smoke покрыты `tools/location_npc_transport_smoke.php`.
-- PvE/PvP battle: `/api/battle/pve/*`, `/api/battle/pvp/*`, `BattleEngineService`, `BattleRepository`; активный бой выбирается строго по флагу `pve/pvp` и `batl_tip`, чтобы PvE catch не попадал в PvP-row при legacy-дублях id. PvE mutating actions защищены per-battle mutex от fast double-click, а `BattleRepository::findPokemon()` нормализует невозможные player stats в runtime, чтобы старые грязные `pok_user` не ломали damage/Primal/Mega displays.
+- PvE/PvP battle: `/api/battle/pve/*`, `/api/battle/pvp/*`, `BattleEngineService`, `BattleRepository`; активный бой выбирается строго по флагу `pve/pvp` и `batl_tip`, чтобы PvE catch не попадал в PvP-row при legacy-дублях id. PvE mutating actions защищены per-battle mutex от fast double-click, удачная ловля сверяет `pok_pve.battleid` с текущим battle row, а `BattleRepository::findPokemon()` нормализует невозможные player stats в runtime, чтобы старые грязные `pok_user` не ломали damage/Primal/Mega displays.
 - Battle replay viewer: игроки открывают свой replay через `/api/battle/replay`; админы смотрят список и детали через вкладку `Повторы боёв` в GM Center.
 - Bug Reporter UI: игрок отправляет report прямо из нижней панели `/game`; mobile actionbar должен быть высотой `auto`, чтобы quick controls, главное меню и system-status не перекрывали друг друга.
 - GM Center dashboard: админы видят health/status rows, QA Seed Tools, активные и зависшие бои, market moderation, replay summary, jobs/migrations/safe storage и последние логи на первой вкладке `/game/admin`; smoke `tools/admin_gm_center_smoke.php`.
-- Battle transformations: Mega/Primal через `BattleTransformationCatalog`; формы боевые, не постоянные в `pok_user.basenum`. Проверка `tools/battle_transformation_stats_smoke.php` подтверждает sane stats: Primal Kyogre `342 HP / 354 Atk / 431 SAtk`, Primal Groudon `342 HP / 479 Atk`, Mega Rayquaza `352 HP / 479 Atk`.
+- Battle transformations: Mega/Primal через `BattleTransformationCatalog`; формы боевые, не постоянные в `pok_user.basenum`. Mega ограничивается по тренеру, Primal-формы могут сосуществовать в одном бою для strong-weather override. Проверки: `tools/battle_transformation_stats_smoke.php` подтверждает sane stats: Primal Kyogre `342 HP / 354 Atk / 431 SAtk`, Primal Groudon `342 HP / 479 Atk`, Mega Rayquaza `352 HP / 479 Atk`; `tools/battle_transformation_weather_smoke.php` проверяет Kyogre/Groudon/Rayquaza weather order, Fire/Water block, Delta Stream и replay/log/revert.
 - Inventory/items: `/api/inventory/page`, `/battle`, `/equip`, `/unequip`, `/use-target`, `/open-gift`, `InventoryRepository`.
 - Held items metadata: `item_gameplay_metadata` is source of truth for `item_target_rules`; `equip_held` replacement returns old held item to inventory. Effects can be `implemented`, `visual_only`, `todo`.
 - Gifts/rewards: `/api/inventory/open-gift` блокирует gift row через `FOR UPDATE`, считает loot table, начисляет награды через `RewardRepository::grantPipeline()` и списывает подарок только после успешного начисления.
-- Pokemon/team/daycare: `/game/pokemon`, `/api/pokemon/*`, active team отдельно от питомника.
+- Pokemon/team/daycare: `/game/pokemon`, `/api/pokemon/*`, active team отдельно от питомника; старая dead breeding-панель убрана из окна команды, breeding должен идти через player popup/invite-flow.
 - Breeding/eggs: `/api/pokemon/breeding/*`, `/api/eggs`, `BreedingRepository`, `EggRepository`.
 - Markets:
   - `ItemMarketRepository` - старый совместимый item market.
@@ -130,6 +186,31 @@
 - `/game/tournaments` - игроковая страница турниров с регистрацией, взносом, ареной и наградами.
 - Trainer Card - модальное окно на `/game`, не отдельная legacy-страница; клики по профилю/друзьям открывают overlay, API отдаёт `social` и `badgeSummary`; mobile open/profile-switch сбрасывает внутренний scroll, чтобы окно не открывалось с середины карточки.
 
+## Дизайн-система и фронт-инфраструктура
+
+Добавлено 2026-10-07 (освежение дизайна). Это источник правды по UI-слою; детали и история — в `DESIGN_REFRESH_AND_BUGFIX_PLAN.md`.
+
+- **Токены** — `public/css/tokens.css`: единственный источник цветов, типографики, спейсинга, радиусов, теней, слоёв (`--z-*`) и длительностей. Новый UI не задаёт эти значения «руками».
+- **Базовый слой** — `public/css/base.css`: сброс, типографика по умолчанию, `:focus-visible`, скроллбары, `.visually-hidden`, `[hidden]`.
+- **Шрифт** — self-hosted Inter (`public/css/fonts.css` + `public/fonts/inter/`, подмножества cyrillic/latin, OFL). Inter применяется на всех страницах игры и на лендинге.
+- **Подключение стилей** — `views/components/head-styles.php`: страница передаёт `$headStyles`, партиал печатает базовый слой и слои страницы, версия для кэша считается по `filemtime`.
+- **Версии ассетов** — хелпер `asset_url()` (там же) для `<script src>`. Ручные `?v=...` не пишем: их забывали обновлять, и после деплоя игрок оставался на старом JS/CSS.
+- **Совместимость** — старые имена (`--ui-*`, локальные `--accent`/`--text` в `game-start.css`) объявлены алиасами токенов и удаляются по мере перевода правил.
+- **Пользовательские настройки интерфейса** — `public/js/ui-preferences.js` применяет `animations` (`html[data-motion="off"]`) и обновляется по событию `profile-settings:saved`. Тема, размер интерфейса и звук пока сохраняются без применения — в модалке стоит честная подсказка.
+
+### Проверки фронтенда
+
+- `tools/page_health_check.php` — обход 15 страниц авторизованным запросом с поиском признаков PHP-ошибок в HTML (smoke-набор покрывал не всё).
+- `docs/agent-tasks/visual-shot.js` — скриншот страницы + метрики (шрифт, `motion`, переполнение, загрузка Inter) через headless Chrome и CDP, без внешних зависимостей.
+- `docs/agent-tasks/visual-probe.js` — произвольное выражение на странице (замеры элементов, поиск скроллеров).
+- `docs/agent-tasks/audit-pages.js` — браузерный регресс: консольные ошибки, JS-исключения, битые картинки, страничное и внутреннее переполнение, шрифт. Поддерживает вьюпорт (`… 390x844`). Прогон 2026-10-07: 13/13 чисто на 1440.
+- Все три скрипта отключают кэш браузера — иначе проверка идёт по устаревшим файлам.
+
+### Открытые решения по UI
+
+- Бренд расходится: лендинг «League of Pokemons», игровые экраны «Pokemon 8.0», проект PokemonChic/Покелегенда.
+- Корневой `index.php` (legacy-лендинг) отдаётся Apache напрямую, поэтому маршрут `/` нового слоя (`views/home.php` + `HomeController`) недостижим — нужно решить, какой лендинг основной.
+
 ## Комиссионная Лавка: Финальная V1
 
 - Разрешено: предметы, held/evolution/ticket/TM/mega-primal/gift/craft items, покемоны, яйца.
@@ -166,6 +247,10 @@
 - `tools/background_jobs_smoke.php`
 - `tools/db_integrity_smoke.php`
 - `tools/battle_replay_smoke.php`
+- `tools/battle_transformation_stats_smoke.php`
+- `tools/battle_transformation_weather_smoke.php`
+- `tools/pve_reward_idempotency_smoke.php`
+- `tools/pve_action_lock_smoke.php`
 - `tools/inventory_held_items_smoke.php`
 - `tools/reward_pipeline_smoke.php`
 - `tools/fpe_quest_smoke.php`
@@ -177,6 +262,7 @@
 - `tools/open_test_regression.php` - sequential quick/full runner for open-test smoke matrix; runs mutating PvE/PvP/breeding checks in order, not in parallel.
 - `tools/prepare_qa_teams.php`
 
+Последняя beta-gate проверка 2026-06-05: создан backup `storage/backups/pokemonchic_beta_20260605_165616.sql`, `tools/beta_backup_verify.php` подтвердил `OK` и `14/14` ключевых таблиц; миграции `79/79`; `tools/db_integrity_smoke.php --json` вернул `P0=0`, `P1=0`, `WARN=0`, `ACCEPTED=4`; `tools/open_test_regression.php --profile=quick --login=Tacos --password=...` прошёл `24/24` и теперь включает PvE reward idempotency/action-lock safety плюс Primal/Mega stats + weather regression. PvE safety audit: `pve_reward_idempotency_smoke.php` `9/9`, `pve_action_lock_smoke.php` `14/14`, HTTP catch `58/58`, HTTP finish `59/59`; ловля дикого покемона теперь дополнительно проверяет `pok_pve.battleid`, fast ball click под lock не списывает шар, повторный `ack-end` идемпотентен. Primal/Mega/weather audit: `battle_transformation_stats_smoke.php` OK, `battle_transformation_weather_smoke.php` `26/26`, `battle_replay_smoke.php` `6/6`; проверены несколько активных Primal/Mega форм в одном бою, weather override, Fire/Water block, Delta Stream x2 и revert без постоянного `pok_user.basenum`. Дополнительно проверено после удаления dead breeding UI из `/game/pokemon`: `inventory_held_items` `16/16`, `breeding_qa` `55/55`, `http_smoke` `52/52`; browser QA `/game/pokemon` desktop/direct route и mobile `390px` подтвердил, что `Разведение покемонов`/`Отправить заявку` больше не отображаются в команде, заголовок команды есть, console errors нет, horizontal overflow нет.
 Последняя Phase 7 / Release Candidate проверка: 2026-05-28 heartbeat `phase-7-full-manual-regression`, ветка `codex/beta-foundation`. `tools/open_test_regression.php --profile=quick --login=Tacos --password=...` прошёл `20/20`; targeted PvE: `pve_reward_idempotency_smoke.php` `9/9`, `battle_transformation_stats_smoke.php` OK, HTTP catch `56/56`, HTTP finish `58/58`; PvP: `pvp_qa_smoke.php` `126/126`, `battle_replay_smoke.php` `6/6`; economy/content/admin: commission `24/24`, hardening `36/36` на 120 итераций, breeding `55/55`, quests `29/29`, tournament `33/33`, Dex `27/27`, locations/NPC/transport `24/24`, Admin/GM `26/26`. Browser QA `/game`: главный экран без horizontal overflow, `Лавка` открывает overlay, категории без `Зелья/Ягоды`, `Мои лоты` переключается, `Квесты` открывают новый журнал overlay. Final smoke: `tools/open_test_regression.php --profile=full --login=Tacos --password=...` прошёл `24/24`, `failed=0`, `skipped=0`; миграции `74/74`, integrity `P0=0/P1=0/WARN=4`. Known issues без RC-blocker: WARN по старым orphan `items_users`/`pok_user`/`eggs` и 208 unfinished legacy battle rows; отдельный headless mobile Playwright-прогон не выполнен из-за отсутствующего локального `playwright-core`, но browser DOM QA desktop/current viewport зелёный.
 Последняя Open Test Regression проверка: `tools/open_test_regression.php --profile=full --password=...` прошёл `24/24` блоков, `failed=0`, `skipped=0`; миграции `73/73`, integrity `P0=0/P1=0/WARN=4`, PvE catch `58/58`, PvE finish `59/59`, breeding `55/55`, PvP Tacos/NIGA `126/126`. Во время прогона исправлены race-safety хвосты: commission notifications и reward/items smoke больше не считают `MAX(id)+1` для auto-increment таблиц, а админская legacy-карта теперь скрыта вне вкладки `Legacy-карта`. Отчёт: `OPEN_TEST_REGRESSION_2026-05-27.md`; screenshots в `tmp/open-test-*.png` локальные и не считаются продуктом.
 Последняя Trainer Card/social проверка: миграции `74/74`, `tools/trainer_card_gym_badge_flow_smoke.php` `8/8`, HTTP smoke `52/52`; browser QA `/game` mobile-width подтвердил: профиль Tacos открывается overlay без URL-перехода, клик по другу `NIGA` открывает `UID: 29` на текущей странице, `game.php` iframe/legacy popup отсутствуют, horizontal overflow и overlap секций отсутствуют.
@@ -193,7 +279,7 @@
 Последняя Phase 3 gifts/reward проверка: Reward Pipeline `13/13`, Inventory/Held `16/16`, Legacy Core `30/30`, HTTP `51/51`, Commission `24/24`, Safe Storage `7/7`, integrity `P0=0/P1=0/WARN=4`; gift-box теперь пишет `reward_transactions/reward_transaction_entries`, отправляет push и имеет rollback/safe-storage failure record.
 Последняя Phase 3 inventory/economy проверка: Inventory/Held `16/16`, HTTP `51/51`, Commission `24/24`, PvP `126/126`, Safe Storage `7/7`, integrity `P0=0/P1=0/WARN=4`; Browser QA подтвердил `/game` inventory overlay, targetable items, категории и held-item icons на `/game/pokemon`.
 Последняя Phase 2 проверка: PvE catch `57/57`, PvE finish/rewards/ack `58/58`, PvP Tacos/NIGA `126/126`, PvP NIGA/Tacos `126/126`, Mega Rayquaza smoke `126/126`, Battle Replay `6/6`, Commission `24/24`, background jobs `9/9`, safe storage `7/7`, integrity `P0=0/P1=0/WARN=4`.
-Последний Primal/Mega/weather факт: battle logs подтвердили `[TRANSFORM]` и `[WEATHER]` для Primal Kyogre/Primordial Sea, Primal Groudon/Desolate Land и Mega Rayquaza/Delta Stream; `battle_transformations.active=0` после ack, `pok_user.basenum` не хранит форму навсегда.
+Последний Primal/Mega/weather факт: `tools/battle_transformation_weather_smoke.php` `26/26` подтвердил `[TRANSFORM]`, `[WEATHER]`, `[REVERT]` в battle log/replay, несколько активных форм в одном бою, порядок `harsh_sun -> heavy_rain -> harsh_sun -> strong_winds`, блок Fire под Primordial Sea, блок Water под Desolate Land, Delta Stream Ice x2 вместо x4; `battle_transformations.active=0` после revert, `pok_user.basenum` не хранит форму навсегда.
 
 ## Правило Для Следующих Задач
 

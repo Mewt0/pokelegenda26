@@ -35,7 +35,7 @@ $DEFAULT_TIPE   = 1;
 
 /* ===  === */
 function str_clean($s){ $s=str_replace(array("\r\n","\r"),"\n",$s); return trim(preg_replace('~[ \t]+~',' ',$s)); }
-function __u2c($s){ if ($s===''||$s===null) return $s; $r=@iconv('utf-8','cp1251//IGNORE',$s); if($r!==false&&$r!=='')return $r; $r=@utf8_decode($s); return ($r!==false)?$r:$s; }
+function __u2c($s){ if ($s===''||$s===null) return $s; $r=@iconv('utf-8','windows-1251//TRANSLIT//IGNORE',$s); if($r!==false&&$r!=='')return $r; if(function_exists('mb_convert_encoding')){ $r=@mb_convert_encoding($s,'Windows-1251','UTF-8'); if($r!==false&&$r!=='')return $r; } return $s; }
 function __to_utf8($v){ if(is_array($v)){foreach($v as $k=>$val){$v[$k]=__to_utf8($val);}return $v;} if(is_string($v))return iconv('cp1251','utf-8//IGNORE',$v); return $v; }
 function jexit_json($arr){ $arr=__to_utf8($arr); header('Content-Type: application/json; charset=UTF-8'); echo json_encode($arr); exit; }
 

@@ -30,6 +30,7 @@ log/
 templates_c/
 tmp/
 storage/backups/
+storage/releases/
 log_php_errors.txt
 error.log
 

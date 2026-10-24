@@ -8,27 +8,13 @@ $rows = $eggs['eggs'] ?? [];
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title><?= View::e($module['title']) ?> - Pokemon 8.0</title>
-  <style>
-    body { margin: 0; background: #eef4fb; color: #14233a; font: 15px/1.45 Tahoma, Arial, sans-serif; }
-    .wrap { max-width: 1180px; margin: 0 auto; padding: 22px; }
-    .top { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; }
-    .top a { color: #125bb3; font-weight: 700; text-decoration: none; }
-    .panel { background: #fff; border: 1px solid #c9d8ea; border-radius: 8px; padding: 18px; box-shadow: 0 14px 34px rgba(35, 76, 126, .08); }
-    .toolbar { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 12px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
-    .egg { border: 1px solid #cbd9ea; border-radius: 8px; padding: 14px; background: linear-gradient(180deg, #ffffff, #f4f8fd); }
-    .egg h2 { margin: 0 0 8px; font-size: 18px; }
-    .meta { color: #5d718d; font-size: 13px; }
-    .iv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0; font-size: 13px; }
-    button { border: 1px solid #a9c2e4; background: #fff; color: #113966; border-radius: 6px; padding: 8px 12px; font-weight: 700; cursor: pointer; }
-    button.primary { background: #2674dc; color: #fff; border-color: #2674dc; }
-    button:disabled { opacity: .55; cursor: default; }
-    .empty { padding: 34px; text-align: center; color: #60718a; border: 1px dashed #bfd0e5; border-radius: 8px; }
-    .toast { min-height: 22px; color: #0d6b3a; font-weight: 700; }
-  </style>
+  <title><?= View::e($module['title']) ?> - League of Pokemons</title>
+  <?php
+    $headStyles = ['/public/css/game-eggs.css'];
+    require APP_ROOT . '/views/components/head-styles.php';
+  ?>
 </head>
-<body>
+<body class="eggs-page">
   <main class="wrap">
     <nav class="top">
       <a href="/game">Игровой мир</a>
@@ -68,7 +54,7 @@ $rows = $eggs['eggs'] ?? [];
               <?php else: ?>
                 <button data-action="incubate">Инкубировать</button>
               <?php endif; ?>
-              <a href="/game/commission" style="display:inline-block;margin-left:6px;border:1px solid #a9c2e4;background:#fff;color:#113966;border-radius:6px;padding:8px 12px;font-weight:700;text-decoration:none">В лавку</a>
+              <a class="btn" href="/game/commission">В лавку</a>
             </article>
           <?php endforeach; ?>
         </div>
@@ -106,5 +92,6 @@ $rows = $eggs['eggs'] ?? [];
       });
     })();
   </script>
+  <script src="<?= \Pokemon8\View\View::e(asset_url('/public/js/ui-preferences.js')) ?>"></script>
 </body>
 </html>

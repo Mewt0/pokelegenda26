@@ -8,9 +8,11 @@ $title = (string) ($module['title'] ?? 'Квесты');
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title><?= View::e($title) ?> - Pokemon 8.0</title>
-  <link rel="stylesheet" href="/public/css/game-shell.css?v=20260527-topbar-tools">
-  <link rel="stylesheet" href="/public/css/quest-journal.css?v=20260527-quest-mockup2">
+  <title><?= View::e($title) ?> - League of Pokemons</title>
+  <?php
+    $headStyles = ['/public/css/game-shell.css', '/public/css/quest-journal.css'];
+    require APP_ROOT . '/views/components/head-styles.php';
+  ?>
 </head>
 <body class="quest-journal-body">
   <?php
@@ -18,6 +20,7 @@ $title = (string) ($module['title'] ?? 'Квесты');
     $questRootId = 'questPage';
     require APP_ROOT . '/views/components/quest-journal-panel.php';
   ?>
-  <script src="/public/js/quest-journal.js?v=20260527-quest-mockup"></script>
+  <script src="<?= View::e(asset_url('/public/js/ui-preferences.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/quest-journal.js')) ?>"></script>
 </body>
 </html>

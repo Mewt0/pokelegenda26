@@ -1,6 +1,12 @@
 # PokemonChic / Pokemon Legend 8.0
 
-Короткое актуальное описание проекта на русском. Подробный журнал переноса: [REWRITE_STATUS.md](REWRITE_STATUS.md). Краткая карта архитектуры: [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md).
+Актуальный релизный baseline (2026-10-24): PHP 8.5.11, миграции 87/87, full regression 29/29. Текущие проверки и оставшиеся условия: [release candidate](docs/reports/RELEASE_CANDIDATE_2026-10-24.md). Старые числа ниже — исторические.
+
+Короткое актуальное описание проекта на русском. Источник правды по текущей архитектуре и метрикам: [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md). Подробный журнал переноса: [REWRITE_STATUS.md](REWRITE_STATUS.md).
+
+## Текущий срез
+
+Последний общий gate от 2026-10-07: сайт отвечает 200, quick-регрессия 24/24, read-smoke 52/52, миграции 79/79, integrity `P0=0`, `P1=0`, `WARN=0`, `ACCEPTED=4`. В `item_gameplay_metadata`: `implemented=42`, `visual_only=17`, `todo=11`.
 
 ## Что уже есть
 
@@ -17,21 +23,21 @@
 
 ## Главные хвосты до open test
 
-1. Production battle replay/audit для PvE/PvP.
-2. Cron/background jobs: истечение лотов, рейсов, ивентов, временных предметов и зависших боёв.
-3. Migration status table и health dashboard.
-4. Длинные ручные 6x6 PvP-тесты двумя сессиями.
-5. Полная проверка редких предметов, статусов, погоды и атак.
-6. Первый путь нового игрока: квесты, NPC, локации, награды.
-7. Защита экономики от дюпов и потери предметов/валюты/покемонов/яиц.
+Battle replay, background jobs, migration status и health-витрина в GM Center уже есть в текущем слое. Оставшиеся риски — не первичная реализация, а доведение и широкий QA-прогон:
+
+1. Длинные ручные 6x6 PvP-тесты двумя сессиями.
+2. Полная проверка редких предметов, статусов, погоды и атак.
+3. Первый путь нового игрока: квесты, NPC, локации, награды.
+4. Защита экономики от дюпов и потери предметов/валюты/покемонов/яиц.
+5. Desktop/mobile browser regression перед приглашением open-тестеров.
 
 ## QA-команды
 
 ```bash
-php tools/http_smoke.php --login=Tacos --password=jungheinrick
-php tools/pvp_qa_smoke.php --login1=Tacos --login2=NIGA --password1=jungheinrick --password2=jungheinrick
+php tools/http_smoke.php --login=Tacos --password=REDACTED_USE_SMOKE_PASSWORD
+php tools/pvp_qa_smoke.php --login1=Tacos --login2=NIGA --password1=REDACTED_USE_SMOKE_PASSWORD --password2=REDACTED_USE_SMOKE_PASSWORD
 php tools/legacy_core_qa_smoke.php
-php tools/breeding_qa_smoke.php --password=jungheinrick
+php tools/breeding_qa_smoke.php --password=REDACTED_USE_SMOKE_PASSWORD
 php tools/commission_market_smoke.php
 ```
 

@@ -5,7 +5,7 @@
   display: none;
   align-items: flex-start;
   justify-content: center;
-  padding: 18px;
+  padding: var(--space-4);
   pointer-events: none;
 }
 
@@ -20,27 +20,24 @@
   display: grid;
   grid-template-rows: 38px minmax(0, 1fr) 28px;
   overflow: hidden;
-  border: 2px solid rgba(178, 171, 104, .84);
-  border-radius: 7px;
-  background: #d9dde1;
-  color: #172944;
-  box-shadow: 0 20px 52px rgba(18, 35, 58, .28);
+  border: 2px solid var(--border-2);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-1);
+  box-shadow: var(--shadow-3);
   pointer-events: auto;
 }
 
 .trainer-profile-window[data-profile-frame="blue"] {
-  border-color: rgba(82, 139, 224, .92);
-  box-shadow: 0 20px 52px rgba(45, 99, 180, .28);
+  border-color: var(--accent-2);
 }
 
 .trainer-profile-window[data-profile-frame="gold"] {
-  border-color: rgba(210, 157, 45, .96);
-  box-shadow: 0 20px 54px rgba(168, 119, 30, .32);
+  border-color: var(--accent-strong);
 }
 
 .trainer-profile-window[data-profile-frame="shadow"] {
-  border-color: rgba(58, 65, 82, .96);
-  box-shadow: 0 20px 58px rgba(9, 17, 32, .42);
+  border-color: var(--text-3);
 }
 
 .trainer-profile-window.is-dragged {
@@ -52,11 +49,9 @@
   position: relative;
   display: grid;
   place-items: center;
-  border-bottom: 1px solid #b7bec7;
-  background:
-    linear-gradient(rgba(255,255,255,.72), rgba(236,238,240,.84)),
-    repeating-linear-gradient(135deg, rgba(255,255,255,.22) 0 14px, rgba(160,165,174,.12) 14px 28px);
-  color: #56595f;
+  border-bottom: 1px solid var(--border-1);
+  background: linear-gradient(var(--surface-0), var(--surface-2));
+  color: var(--text-2);
   cursor: grab;
   user-select: none;
 }
@@ -66,86 +61,69 @@
 }
 
 .trainer-profile-head strong {
-  color: #585b61;
-  font: 900 19px/1 Tahoma, Arial, sans-serif;
-  text-transform: uppercase;
-  text-shadow: 0 1px 0 rgba(255,255,255,.8);
+  color: var(--text-2);
+  font: var(--fw-bold) var(--fs-500)/var(--lh-tight) var(--font-sans);
+  text-transform: none;
 }
 
 .trainer-profile-close {
   position: absolute;
-  right: 8px;
-  top: 4px;
+  right: var(--space-2);
+  top: var(--space-1);
   width: 30px;
   height: 30px;
+  min-height: 30px;
   border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: #a2a4a8;
-  font-size: 32px;
+  border-radius: var(--radius-sm);
+  padding: 0;
+  font-size: var(--fs-600);
   line-height: 1;
   cursor: pointer;
 }
 
 .trainer-profile-close:hover {
-  background: rgba(255,255,255,.65);
-  color: #60646c;
+  color: var(--accent-text);
 }
 
 .trainer-profile-body {
   min-height: 0;
   display: grid;
   grid-template-columns: 305px minmax(0, 1fr) 305px;
-  background:
-    radial-gradient(circle at 50% 42%, rgba(255,255,255,.72), rgba(236,238,240,.34) 44%, rgba(205,210,216,.28)),
-    repeating-linear-gradient(135deg, rgba(255,255,255,.18) 0 20px, rgba(150,160,170,.09) 20px 40px);
+  background: radial-gradient(circle at 50% 42%, var(--surface-0), var(--surface-1) 44%, var(--surface-2));
 }
 
 .trainer-profile-window[data-profile-background="kanto"] .trainer-profile-body {
-  background:
-    radial-gradient(circle at 52% 40%, rgba(255,255,255,.76), rgba(237,245,255,.42) 42%, rgba(199,219,241,.34)),
-    linear-gradient(135deg, rgba(226,244,255,.72), rgba(252,255,239,.58)),
-    repeating-linear-gradient(135deg, rgba(255,255,255,.2) 0 18px, rgba(117,151,184,.1) 18px 36px);
+  background: radial-gradient(circle at 52% 40%, var(--surface-0), var(--accent-soft) 42%, var(--surface-1));
 }
 
 .trainer-profile-window[data-profile-background="forest"] .trainer-profile-body {
-  background:
-    radial-gradient(circle at 50% 38%, rgba(255,255,255,.72), rgba(229,247,234,.42) 44%, rgba(183,213,188,.34)),
-    linear-gradient(135deg, rgba(222,248,224,.68), rgba(242,252,235,.52)),
-    repeating-linear-gradient(135deg, rgba(255,255,255,.18) 0 20px, rgba(72,126,86,.1) 20px 40px);
+  background: radial-gradient(circle at 50% 38%, var(--surface-0), var(--success-soft) 44%, var(--surface-1));
 }
 
 .trainer-profile-window[data-profile-background="ocean"] .trainer-profile-body {
-  background:
-    radial-gradient(circle at 50% 42%, rgba(255,255,255,.75), rgba(224,243,252,.46) 45%, rgba(169,207,228,.36)),
-    linear-gradient(135deg, rgba(207,239,252,.74), rgba(238,251,255,.55)),
-    repeating-linear-gradient(135deg, rgba(255,255,255,.2) 0 18px, rgba(53,132,173,.1) 18px 36px);
+  background: radial-gradient(circle at 50% 42%, var(--surface-0), var(--accent-soft) 45%, var(--accent-2));
 }
 
 .trainer-profile-window[data-profile-background="arena"] .trainer-profile-body {
-  background:
-    radial-gradient(circle at 50% 42%, rgba(255,255,255,.72), rgba(250,237,220,.42) 44%, rgba(220,188,150,.32)),
-    linear-gradient(135deg, rgba(255,238,215,.68), rgba(243,247,255,.5)),
-    repeating-linear-gradient(135deg, rgba(255,255,255,.18) 0 20px, rgba(164,107,55,.1) 20px 40px);
+  background: radial-gradient(circle at 50% 42%, var(--surface-0), var(--danger-soft) 44%, var(--surface-1));
 }
 
 .trainer-profile-side,
 .trainer-profile-center {
   min-height: 0;
-  padding: 6px;
+  padding: var(--space-2);
 }
 
 .trainer-profile-side {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .trainer-profile-panel {
   overflow: hidden;
-  border: 1px solid #b8bdc4;
-  background: rgba(232,234,237,.82);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
+  border: 1px solid var(--border-1);
+  background: var(--surface-1);
 }
 
 .trainer-profile-panel h3 {
@@ -154,10 +132,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-bottom: 1px solid #c2c7cd;
-  background: linear-gradient(90deg, rgba(246,246,247,.88), rgba(218,221,225,.72), rgba(246,246,247,.88));
-  color: #66686d;
-  font: 900 18px/1 Tahoma, Arial, sans-serif;
+  border-bottom: 1px solid var(--border-soft);
+  background: linear-gradient(90deg, var(--surface-0), var(--surface-2), var(--surface-0));
+  color: var(--text-2);
+  font: var(--fw-bold) var(--fs-500)/var(--lh-tight) var(--font-sans);
   text-align: center;
   white-space: nowrap;
 }
@@ -178,7 +156,7 @@
 .trainer-profile-vip {
   display: grid;
   place-items: center;
-  padding-inline: 6px;
+  padding-inline: var(--space-2);
 }
 
 .trainer-profile-clan-art img,
@@ -191,8 +169,8 @@
 .trainer-profile-clan-name,
 .trainer-profile-activity-name {
   min-width: 0;
-  color: #555962;
-  font-size: 16px;
+  color: var(--text-2);
+  font-size: var(--fs-400);
   font-weight: 800;
   text-align: center;
 }
@@ -201,39 +179,38 @@
   min-height: 30px;
   display: grid;
   place-items: center;
-  background: linear-gradient(90deg, #b978f5, #dc9cf5);
-  color: #7c39bf;
-  font-size: 17px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: var(--fs-400);
   font-weight: 900;
-  text-shadow: 0 1px 0 rgba(255,255,255,.38);
 }
 
 .trainer-profile-awards,
 .trainer-profile-gifts {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 4px;
-  padding: 7px;
+  gap: var(--space-1);
+  padding: var(--space-2);
 }
 
 .trainer-profile-gym-title {
   min-height: 24px;
   display: grid;
   place-items: center;
-  border-bottom: 1px solid #c8ccd2;
-  color: #5c616a;
-  font-size: 13px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text-2);
+  font-size: var(--fs-200);
   font-weight: 900;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .trainer-profile-gymbadges {
   min-height: 47px;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-  padding: 5px 7px;
-  border-bottom: 1px solid #c8ccd2;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .trainer-profile-gym-badge,
@@ -241,62 +218,73 @@
   min-width: 0;
   display: grid;
   place-items: center;
-  border: 1px solid #c0c4ca;
-  border-radius: 5px;
-  background: linear-gradient(135deg, #f5f6f7, #dde0e3);
+  padding: 0;
+  gap: 0;
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
 }
 
 .trainer-profile-gym-badge img {
   width: 34px;
   height: 34px;
+  min-height: 0;
+  background: transparent;
   object-fit: contain;
-  filter: drop-shadow(0 2px 3px rgba(0,0,0,.18));
 }
 
 .trainer-profile-gym-more {
-  color: #536173;
-  font-size: 15px;
+  color: var(--text-2);
+  font-size: var(--fs-400);
   font-weight: 900;
 }
 
 .trainer-profile-gym-empty {
   grid-column: 1 / -1;
   min-height: 34px;
-  color: #7a828d;
-  font-size: 12px;
+  color: var(--text-3);
+  font-size: var(--fs-100);
   font-weight: 800;
+  padding: var(--space-2);
 }
 
 .trainer-profile-cell {
   aspect-ratio: 1;
   display: grid;
   place-items: center;
-  border: 1px solid #c0c4ca;
-  border-radius: 5px;
-  background: linear-gradient(135deg, #f0f0f1, #d8dadd);
+  padding: 0;
+  gap: 0;
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
 }
 
 .trainer-profile-cell img {
   width: 44px;
   height: 44px;
+  min-height: 0;
+  background: transparent;
   object-fit: contain;
+}
+
+.trainer-profile-awards > .ui-empty,
+.trainer-profile-gifts > .ui-empty {
+  grid-column: 1 / -1;
 }
 
 .trainer-profile-count {
   min-height: 30px;
   display: grid;
   place-items: center;
-  border-top: 1px solid #c0c4ca;
-  color: #66686d;
-  font-size: 17px;
+  border-top: 1px solid var(--border-1);
+  color: var(--text-2);
+  font-size: var(--fs-400);
   font-weight: 900;
 }
 
 .trainer-profile-badges-count {
   min-height: 24px;
   border-top: 0;
-  border-bottom: 1px solid #c0c4ca;
-  font-size: 13px;
+  border-bottom: 1px solid var(--border-1);
+  font-size: var(--fs-200);
 }
 
 .trainer-profile-info {
@@ -308,17 +296,17 @@
 .trainer-profile-info-content {
   min-height: 0;
   overflow: auto;
-  padding: 6px;
+  padding: var(--space-2);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .trainer-profile-info-section {
   min-width: 0;
-  border: 1px solid rgba(187, 195, 205, .84);
-  border-radius: 5px;
-  background: rgba(245, 247, 250, .58);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
   overflow: hidden;
 }
 
@@ -326,19 +314,19 @@
   min-height: 22px;
   display: flex;
   align-items: center;
-  padding: 3px 7px;
-  border-bottom: 1px solid rgba(195, 201, 210, .82);
-  color: #4d5a6d;
-  font-size: 12px;
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text-2);
+  font-size: var(--fs-100);
   font-weight: 900;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .trainer-profile-bio {
   min-height: 0;
-  padding: 7px 8px;
-  color: #41464f;
-  font-size: 12px;
+  padding: var(--space-2) var(--space-2);
+  color: var(--text-1);
+  font-size: var(--fs-100);
   line-height: 1.32;
   font-weight: 700;
   overflow-wrap: anywhere;
@@ -347,25 +335,25 @@
 
 .trainer-profile-stats {
   overflow: visible;
-  background: rgba(232,234,237,.44);
+  background: var(--surface-2);
 }
 
 .trainer-profile-stat {
   min-height: 23px;
   display: grid;
   grid-template-columns: minmax(84px, 110px) minmax(0, 1fr);
-  gap: 6px;
+  gap: var(--space-2);
   align-items: center;
-  padding: 3px 7px;
-  border-bottom: 1px solid #c3c7cd;
-  color: #595e66;
-  font-size: 11px;
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border-1);
+  color: var(--text-2);
+  font-size: var(--fs-100);
   font-weight: 900;
 }
 
 .trainer-profile-stat b {
   min-width: 0;
-  color: #273c58;
+  color: var(--text-1);
   overflow-wrap: anywhere;
   text-align: right;
 }
@@ -381,7 +369,7 @@
   grid-template-columns: 70px minmax(0, 1fr) 70px;
   align-items: start;
   overflow: hidden;
-  padding-top: 5px;
+  padding-top: var(--space-1);
   text-align: center;
 }
 
@@ -394,7 +382,7 @@
   overflow: hidden;
   justify-self: center;
   opacity: .65;
-  font-size: 42px;
+  font-size: calc(var(--fs-600) * 2);
   line-height: 1;
   transform: rotate(-14deg);
 }
@@ -408,10 +396,13 @@
 }
 
 .trainer-profile-name-main h2 {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-2);
   overflow: hidden;
-  color: #34445b;
-  font: 400 24px/1.1 Georgia, "Times New Roman", serif;
+  color: var(--text-1);
+  font-size: var(--fs-600);
+  font-weight: 400;
+  line-height: var(--lh-tight);
+  font-family: Georgia, "Times New Roman", serif;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -420,7 +411,7 @@
   min-height: 26px;
   display: flex;
   justify-content: center;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .trainer-profile-party-slot {
@@ -430,6 +421,9 @@
   display: grid;
   place-items: center;
   flex: 0 0 36px;
+  gap: 0;
+  padding: 0;
+  border-radius: var(--radius-sm);
 }
 
 .trainer-profile-party-slot.is-empty {
@@ -439,8 +433,9 @@
 .trainer-profile-party-mon {
   width: 30px;
   height: 30px;
+  min-height: 0;
+  background: transparent;
   object-fit: contain;
-  filter: drop-shadow(0 2px 2px rgba(0,0,0,.18));
 }
 
 .trainer-profile-party-slot.is-empty .trainer-profile-party-mon {
@@ -451,29 +446,28 @@
 
 .trainer-profile-party-held {
   position: absolute;
-  right: -4px;
-  bottom: -4px;
+  right: calc(-1 * var(--space-1));
+  bottom: calc(-1 * var(--space-1));
   width: 15px;
   height: 15px;
-  padding: 1px;
-  border: 1px solid #aab5c2;
-  border-radius: 4px;
-  background: rgba(255,255,255,.9);
+  padding: var(--space-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
   object-fit: contain;
-  box-shadow: 0 1px 3px rgba(0,0,0,.2);
 }
 
 .trainer-profile-party-private {
   min-height: 40px;
   width: 100%;
-  padding: 9px 12px;
+  padding: var(--space-2) var(--space-3);
   display: grid;
   place-items: center;
-  border: 1px dashed rgba(120, 148, 188, .54);
-  border-radius: 8px;
-  background: rgba(245, 250, 255, .86);
-  color: #5e708d;
-  font-size: 12px;
+  border: 1px dashed var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-0);
+  color: var(--text-2);
+  font-size: var(--fs-100);
   font-weight: 900;
   text-align: center;
 }
@@ -483,41 +477,50 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 5px;
-  margin-top: 6px;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
 }
 
 .trainer-profile-social-status {
   min-height: 24px;
   display: inline-grid;
   align-items: center;
-  padding: 0 8px;
-  border: 1px solid #bdc5cf;
-  border-radius: 5px;
-  background: rgba(255,255,255,.58);
-  color: #59687a;
-  font-size: 12px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+  color: var(--text-2);
+  font-size: var(--fs-100);
   font-weight: 900;
 }
 
 .trainer-profile-social-button {
-  min-height: 24px;
-  display: inline-grid;
-  align-items: center;
-  padding: 0 9px;
-  border: 1px solid #9bb4d2;
-  border-radius: 5px;
-  background: linear-gradient(#f9fcff, #dbeeff);
-  color: #265d9a;
-  font-size: 12px;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-100);
   font-weight: 900;
   text-decoration: none;
   cursor: pointer;
 }
 
-.trainer-profile-social-button:hover {
-  border-color: #6b95c3;
-  color: #174e88;
+.trainer-profile-close,
+.trainer-profile-error .ui-btn {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.trainer-profile-close:focus-visible,
+.trainer-profile-social-button:focus-visible,
+.trainer-profile-error .ui-btn:focus-visible {
+  outline: 3px solid var(--focus-color);
+  outline-offset: 2px;
+}
+
+.trainer-profile-error {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
 }
 
 .trainer-profile-social-button.is-disabled,
@@ -531,7 +534,7 @@
   display: grid;
   place-items: center;
   min-height: 0;
-  padding-bottom: 24px;
+  padding-bottom: calc(var(--space-4) + var(--space-2));
   overflow: hidden;
 }
 
@@ -539,30 +542,28 @@
 .trainer-profile-avatar-zone::after {
   content: "";
   position: absolute;
-  top: 70px;
+  top: calc(var(--space-7) * 2 + var(--space-2));
   width: 86px;
   height: 86px;
-  background: radial-gradient(circle, #ff385e 0 18%, #f8c911 18% 36%, #48b5fb 36% 54%, #5bd66a 54% 72%, #a967f0 72%);
-  border-radius: 50%;
+  background: radial-gradient(circle, var(--danger) 0 18%, var(--accent-strong) 18% 36%, var(--accent-2) 36% 54%, var(--success) 54% 72%, var(--text-2) 72%);
+  border-radius: var(--radius-pill);
   opacity: .82;
-  filter: drop-shadow(0 6px 8px rgba(0,0,0,.18));
 }
 
 .trainer-profile-avatar-zone::before {
-  left: 20px;
+  left: calc(var(--space-4) + var(--space-1));
 }
 
 .trainer-profile-avatar-zone::after {
-  right: 20px;
+  right: calc(var(--space-4) + var(--space-1));
 }
 
 .trainer-profile-avatar {
   position: relative;
   z-index: 1;
   max-width: 86%;
-  max-height: calc(100% - 24px);
+  max-height: calc(100% - var(--space-4) - var(--space-2));
   object-fit: contain;
-  filter: drop-shadow(0 13px 18px rgba(38,48,61,.24));
 }
 
 .trainer-profile-friends {
@@ -574,7 +575,7 @@
 .trainer-profile-friends-list {
   min-height: 0;
   overflow: auto;
-  padding: 5px 5px 14px;
+  padding: var(--space-1) var(--space-1) var(--space-4);
 }
 
 .trainer-profile-friend {
@@ -582,52 +583,67 @@
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr);
   align-items: center;
-  gap: 6px;
-  margin-bottom: 3px;
-  padding: 2px 7px;
-  border: 1px solid #bfc4cb;
-  border-radius: 4px;
-  background: rgba(229,231,234,.82);
-  color: #565b63;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
   font-weight: 800;
+}
+
+.trainer-profile-friend .ui-card__title {
+  font-size: var(--fs-200);
+}
+
+.trainer-profile-friend .ui-card__media {
+  min-height: 0;
+  background: transparent;
 }
 
 .trainer-profile-friend i {
   width: 14px;
   height: 14px;
-  border-radius: 50%;
-  background: #929aa5;
+  color: var(--text-3);
+}
+
+.trainer-profile-friend i .icon {
+  width: 14px;
+  height: 14px;
 }
 
 .trainer-profile-friend.is-online i {
-  background: #33c77c;
+  color: var(--success);
 }
 
 .trainer-profile-empty,
 .trainer-profile-error,
 .trainer-profile-loading {
-  padding: 14px;
-  color: #6b7280;
+  color: var(--text-2);
   font-weight: 800;
   text-align: center;
 }
 
+.trainer-profile-loading {
+  padding: var(--space-4);
+}
+
 .trainer-profile-error {
-  color: #9f1d1d;
+  color: var(--danger-text);
 }
 
 .trainer-profile-foot {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  border-top: 1px solid #b7bec7;
-  background: #cdd2d6;
-  color: #6a717b;
+  border-top: 1px solid var(--border-1);
+  background: var(--surface-2);
+  color: var(--text-2);
   font-weight: 900;
 }
 
 .trainer-profile-foot span {
-  padding-inline: 12px;
+  padding-inline: var(--space-3);
 }
 
 .trainer-profile-foot span:last-child {
@@ -636,9 +652,9 @@
 
 .trainer-profile-location {
   min-width: 160px;
-  padding: 5px 28px;
-  background: linear-gradient(90deg, rgba(152,210,185,.75), rgba(197,216,169,.75));
-  color: #11802e;
+  padding: var(--space-1) var(--space-7);
+  background: var(--success-soft);
+  color: var(--success-text);
   text-align: center;
   clip-path: polygon(8% 0, 92% 0, 100% 100%, 0 100%);
 }
@@ -666,29 +682,32 @@
 
 @media (max-width: 640px) {
   .trainer-profile-overlay {
-    padding: 5px;
+    padding: var(--space-1);
   }
 
   .trainer-profile-window {
+    max-width: 100%;
     width: calc(100vw - 10px);
     height: calc(100vh - 10px);
-    grid-template-rows: 36px minmax(0, 1fr) auto;
+    grid-template-rows: 44px minmax(0, 1fr) auto;
     border-width: 1px;
   }
 
   .trainer-profile-head strong {
     max-width: calc(100vw - 74px);
     overflow: hidden;
-    font-size: 16px;
+    font-size: var(--fs-400);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .trainer-profile-body {
+    min-width: 0;
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 5px;
+    gap: var(--space-2);
+    padding: var(--space-1);
   }
 
   .trainer-profile-side,
@@ -702,7 +721,7 @@
   .trainer-profile-side {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--space-2);
     order: 1;
   }
 
@@ -718,7 +737,7 @@
 
   .trainer-profile-namezone {
     grid-template-columns: minmax(0, 1fr);
-    padding-top: 3px;
+    padding-top: var(--space-1);
   }
 
   .trainer-profile-hand {
@@ -726,12 +745,12 @@
   }
 
   .trainer-profile-name-main h2 {
-    font-size: 20px;
+    font-size: var(--fs-600);
     white-space: normal;
   }
 
   .trainer-profile-party {
-    gap: 5px;
+    gap: var(--space-1);
   }
 
   .trainer-profile-party-slot {
@@ -746,29 +765,36 @@
   }
 
   .trainer-profile-social {
-    gap: 4px;
+    gap: var(--space-1);
   }
 
   .trainer-profile-social-status,
   .trainer-profile-social-button {
-    min-height: 28px;
-    padding-inline: 8px;
-    font-size: 12px;
+    min-height: 44px;
+    padding-inline: var(--space-2);
+    font-size: var(--fs-100);
+  }
+
+  .trainer-profile-party,
+  .trainer-profile-awards,
+  .trainer-profile-gifts,
+  .trainer-profile-gymbadges {
+    max-width: 100%;
   }
 
   .trainer-profile-avatar-zone::before,
   .trainer-profile-avatar-zone::after {
-    top: 44px;
+    top: calc(var(--space-7) + var(--space-3));
     width: 62px;
     height: 62px;
   }
 
   .trainer-profile-avatar-zone::before {
-    left: 8px;
+    left: var(--space-2);
   }
 
   .trainer-profile-avatar-zone::after {
-    right: 8px;
+    right: var(--space-2);
   }
 
   .trainer-profile-avatar {
@@ -778,7 +804,7 @@
 
   .trainer-profile-panel h3 {
     min-height: 28px;
-    font-size: 15px;
+    font-size: var(--fs-400);
   }
 
   .trainer-profile-info {
@@ -801,14 +827,14 @@
 
   .trainer-profile-ribbon {
     min-height: 26px;
-    font-size: 14px;
+    font-size: var(--fs-300);
   }
 
   .trainer-profile-awards,
   .trainer-profile-gifts {
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 3px;
-    padding: 5px;
+    gap: var(--space-1);
+    padding: var(--space-1);
   }
 
   .trainer-profile-cell img {
@@ -818,19 +844,19 @@
 
   .trainer-profile-stat {
     grid-template-columns: 104px minmax(0, 1fr);
-    font-size: 12px;
+    font-size: var(--fs-100);
   }
 
   .trainer-profile-foot {
     grid-template-columns: 1fr;
-    gap: 1px;
-    padding: 3px 0;
+    gap: var(--space-1);
+    padding: var(--space-1) 0;
     text-align: center;
   }
 
   .trainer-profile-foot span,
   .trainer-profile-foot span:last-child {
-    padding-inline: 8px;
+    padding-inline: var(--space-2);
     text-align: center;
   }
 
@@ -838,6 +864,78 @@
     width: calc(100% - 18px);
     min-width: 0;
     margin: 0 auto;
-    padding: 5px 10px;
+    padding: var(--space-1) var(--space-3);
   }
+}
+
+/* Trainer passport: identity on the left, readable achievements and history. */
+.trainer-profile-overlay { align-items: center; pointer-events: auto; background: var(--surface-backdrop); }
+body.has-trainer-profile { overflow: hidden; }
+.trainer-profile-window { width: min(1060px, calc(100vw - var(--space-7))); height: min(780px, calc(100dvh - var(--space-7))); min-height: 0; border-width: 1px; border-radius: var(--radius-xl); grid-template-rows: 60px minmax(0, 1fr) auto; font-family: var(--font-sans); }
+.trainer-profile-head { background: var(--surface-1); place-items: center start; padding-inline: var(--space-5); }
+.trainer-profile-head strong { font-size: var(--fs-400); color: var(--text-1); }
+.trainer-profile-close { top: var(--space-2); right: var(--space-3); }
+.trainer-profile-body { grid-template-columns: 300px minmax(0, 1fr); grid-template-rows: max-content max-content; align-content: start; gap: var(--space-5); padding: var(--space-5); overflow: auto; background: var(--surface-0); }
+.trainer-profile-side { min-width: 0; min-height: max-content; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: max-content; grid-auto-rows: max-content; align-content: start; gap: var(--space-4); padding: 0; }
+.trainer-profile-side:first-child { grid-column: 2; grid-row: 1; }
+.trainer-profile-side:last-child { grid-column: 2; grid-row: 2; }
+.trainer-profile-center { grid-column: 1; grid-row: 1 / span 2; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 0; gap: var(--space-5); align-self: start; }
+.trainer-profile-namezone { display: block; padding: var(--space-4) 0 0; overflow: visible; }
+.trainer-profile-hand, .trainer-profile-avatar-zone::before, .trainer-profile-avatar-zone::after { display: none; }
+.trainer-profile-name-main h2 { font: var(--fw-bold) var(--fs-700)/var(--lh-tight) var(--font-sans); margin-bottom: var(--space-4); white-space: normal; overflow-wrap: anywhere; }
+.trainer-profile-party { flex-wrap: wrap; gap: var(--space-2); }
+.trainer-profile-party-slot { width: 38px; height: 38px; flex-basis: 38px; }
+.trainer-profile-social { gap: var(--space-2); margin-top: var(--space-4); }
+.trainer-profile-social-button { font-size: var(--fs-200); font-weight: var(--fw-semibold); padding-inline: var(--space-3); }
+.trainer-profile-social-status { width: 100%; border: 0; background: none; font-weight: var(--fw-normal); }
+.trainer-profile-avatar-zone { min-height: 260px; max-height: 340px; padding: var(--space-4); background: var(--surface-1); border: 1px solid var(--border-1); border-radius: var(--radius-lg); }
+.trainer-profile-avatar { max-width: 100%; width: auto; height: 300px; max-height: 300px; object-fit: contain; object-position: center; }
+.trainer-profile-panel { min-width: 0; min-height: max-content; border: 1px solid var(--border-1); border-radius: var(--radius-lg); background: var(--surface-1); }
+.trainer-profile-panel h3 { min-height: 42px; justify-content: flex-start; padding-inline: var(--space-4); font-size: var(--fs-300); background: var(--surface-1); color: var(--text-1); }
+.trainer-profile-info, .trainer-profile-friends { grid-column: 1 / -1; display: block; }
+.trainer-profile-info-content { overflow: visible; max-height: none; padding: var(--space-4); gap: var(--space-4); }
+.trainer-profile-info-section { background: var(--surface-1); border: 0; }
+.trainer-profile-info-label { padding: 0 0 var(--space-2); border: 0; font-weight: var(--fw-semibold); font-size: var(--fs-200); }
+.trainer-profile-bio { font-size: var(--fs-300); font-weight: var(--fw-normal); line-height: 1.6; padding: 0; }
+.trainer-profile-stats { background: var(--surface-1); }
+.trainer-profile-stat { padding: var(--space-2) 0; grid-template-columns: minmax(110px, 1fr) minmax(0, 1.4fr); font-size: var(--fs-200); font-weight: var(--fw-normal); }
+.trainer-profile-stat b { font-weight: var(--fw-medium); }
+.trainer-profile-stat:last-child { border-bottom: 0; }
+.trainer-profile-clan-name, .trainer-profile-activity-name { font-size: var(--fs-200); font-weight: var(--fw-medium); line-height: 1.6; }
+.trainer-profile-clan-name b, .trainer-profile-activity-name b { display: block; font-size: var(--fs-400); color: var(--text-1); }
+.trainer-profile-ribbon { display: flex; justify-content: center; gap: var(--space-2); padding: var(--space-2); font-size: var(--fs-200); font-weight: var(--fw-medium); }
+.trainer-profile-count { min-height: 26px; font-size: var(--fs-100); font-weight: var(--fw-normal); }
+.trainer-profile-gym-title { font-weight: var(--fw-normal); padding-inline: var(--space-2); }
+.trainer-profile-gymbadges { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.trainer-profile-awards, .trainer-profile-gifts { padding: var(--space-3); }
+.trainer-profile-empty.ui-empty, .trainer-profile-gym-empty.ui-empty { padding: var(--space-3); font-size: var(--fs-200); font-weight: var(--fw-normal); min-height: 0; }
+.trainer-profile-friends-list { overflow: visible; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); padding: var(--space-3); }
+.trainer-profile-friend { min-height: 44px; width: 100%; margin: 0; font-weight: var(--fw-medium); }
+.trainer-profile-foot { padding-block: var(--space-3); font-size: var(--fs-200); font-weight: var(--fw-medium); }
+.trainer-profile-location { clip-path: none; border-radius: var(--radius-pill); min-width: 0; padding: var(--space-1) var(--space-3); }
+.trainer-profile-window[data-profile-background] .trainer-profile-body { background: var(--surface-0); }
+.trainer-profile-window[data-profile-background="forest"] .trainer-profile-avatar-zone { background: var(--success-soft); }
+.trainer-profile-window[data-profile-background="ocean"] .trainer-profile-avatar-zone,
+.trainer-profile-window[data-profile-background="kanto"] .trainer-profile-avatar-zone { background: var(--accent-soft); }
+.trainer-profile-window[data-profile-background="arena"] .trainer-profile-avatar-zone { background: var(--danger-soft); }
+@media (max-width: 920px) {
+  .trainer-profile-body { grid-template-columns: 240px minmax(0, 1fr); gap: var(--space-4); padding: var(--space-4); }
+  .trainer-profile-side { grid-template-columns: minmax(0, 1fr); }
+  .trainer-profile-info, .trainer-profile-friends { grid-column: 1; }
+  .trainer-profile-center { order: initial; }
+}
+@media (max-width: 640px) {
+  .trainer-profile-overlay { padding: 0; }
+  .trainer-profile-window { width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; grid-template-rows: 60px minmax(0, 1fr) auto; }
+  .trainer-profile-head { cursor: default; }
+  .trainer-profile-body { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-4); }
+  .trainer-profile-center { order: -1; width: 100%; align-self: stretch; }
+  .trainer-profile-namezone { padding-top: 0; }
+  .trainer-profile-side { width: 100%; }
+  .trainer-profile-avatar-zone { min-height: 180px; max-height: 240px; }
+  .trainer-profile-avatar { height: 210px; max-height: 210px; }
+  .trainer-profile-info-content { max-height: none; }
+  .trainer-profile-foot { grid-template-columns: 1fr auto; gap: var(--space-2); }
+  .trainer-profile-foot > :first-child { display: none; }
+  .trainer-profile-location { width: auto; margin: 0; }
 }

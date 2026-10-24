@@ -1,14 +1,16 @@
+/* Совместимость с существующей разметкой: селекторы, которые использует JS,
+   сохраняются. Оформление следует ui-overlay, ui-btn, ui-field, ui-card и ui-empty.
+   Добавление самих классов ui-* в HTML/JS не входит в область изменений. */
+
 .market-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  z-index: var(--z-modal);
   display: none;
   align-items: flex-start;
   justify-content: center;
-  padding-top: 24px;
-  background:
-    radial-gradient(circle at 50% 8%, rgba(255, 255, 255, .5), transparent 28%),
-    rgba(214, 232, 249, .72);
+  padding-top: var(--space-6);
+  background: var(--surface-backdrop);
   backdrop-filter: blur(2px);
 }
 
@@ -17,14 +19,14 @@
 }
 
 .market-window {
-  width: min(1260px, calc(100vw - 40px));
-  height: min(810px, calc(100vh - 48px));
+  width: min(1260px, calc(100vw - var(--space-8)));
+  height: min(810px, calc(100vh - var(--space-6) - var(--space-6)));
   overflow: hidden;
-  border: 2px solid rgba(72, 76, 82, .62);
-  border-radius: 8px;
-  background: rgba(196, 196, 196, .92);
-  box-shadow: 0 22px 70px rgba(23, 34, 48, .34);
-  color: #3f3f3f;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-3);
+  color: var(--text-1);
   display: grid;
   grid-template-rows: 44px auto minmax(0, 1fr) 44px;
 }
@@ -33,56 +35,101 @@
   position: relative;
   display: grid;
   place-items: center;
-  border-bottom: 1px solid rgba(79, 83, 88, .35);
-  background: linear-gradient(#d8d8d8, #c6c6c6);
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--surface-0);
 }
 
 .market-overlay .shop-titlebar h1 {
   margin: 0;
-  color: #424242;
-  font: 900 28px/1 Impact, "Arial Black", Tahoma, sans-serif;
-  letter-spacing: .5px;
-  text-transform: uppercase;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, .5);
+  color: var(--text-1);
+  font-family: var(--font-sans);
+  font-size: var(--fs-700);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .market-overlay .shop-close {
   position: absolute;
-  right: 10px;
-  top: 2px;
-  width: 38px;
-  height: 38px;
-  border: 0;
+  right: var(--space-3);
+  top: var(--space-1);
+  width: var(--space-8);
+  height: var(--space-8);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
   background: transparent;
-  color: #9d9d9d;
-  font: 900 36px/1 Arial, sans-serif;
+  color: var(--accent-text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-700);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
   cursor: pointer;
+}
+
+.market-overlay .shop-close:hover {
+  background: var(--accent-soft);
+}
+
+.market-overlay .shop-close:focus-visible {
+  outline: none;
+  border-color: var(--focus-color);
+  box-shadow: var(--focus-ring);
 }
 
 .market-overlay .shop-tabs {
   display: grid;
   grid-template-columns: minmax(130px, 158px) minmax(150px, 168px) auto minmax(220px, 1fr) auto;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
-  padding: 9px 14px;
-  border-bottom: 1px solid rgba(79, 83, 88, .35);
-  background: rgba(210, 210, 210, .74);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--surface-0);
 }
 
+/* При появлении .ui-btn стили предоставляет components.css.
+   Для старой разметки без .ui-btn сохраняется равнозначный вид. */
 .market-overlay .shop-tabs button,
 .market-overlay .shop-footer button {
-  min-height: 35px;
-  border: 1px solid #8e8e8e;
-  background: linear-gradient(#d7d7d7, #bcbcbc);
-  color: #4f4f4f;
-  font: 900 15px/1 Tahoma, Arial, sans-serif;
-  text-transform: uppercase;
+  min-height: var(--space-8);
+  text-transform: none;
+}
+
+.market-overlay .shop-tabs button:not(.ui-btn),
+.market-overlay .shop-footer button:not(.ui-btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-1);
+  font: inherit;
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
   cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out);
+}
+
+.market-overlay .shop-tabs button:not(.ui-btn):hover,
+.market-overlay .shop-footer button:not(.ui-btn):hover {
+  background: var(--surface-2);
+}
+
+.market-overlay .shop-tabs button:not(.ui-btn):focus-visible,
+.market-overlay .shop-footer button:not(.ui-btn):focus-visible {
+  outline: none;
+  border-color: var(--focus-color);
+  box-shadow: var(--focus-ring);
 }
 
 .market-overlay .shop-tabs button.is-active {
-  background: linear-gradient(#fff, #d9d9d9);
-  color: #2c6a54;
+  background: var(--accent-soft);
+  border-color: var(--accent-strong);
+  color: var(--accent-text);
 }
 
 .market-overlay .shop-tabs label {
@@ -91,48 +138,57 @@
 
 .market-overlay .shop-tabs label span {
   align-self: center;
-  color: #606060;
-  font-weight: 900;
+  color: var(--text-2);
+  font-size: var(--fs-200);
+  font-weight: var(--fw-bold);
 }
 
+/* Поля оформлены как ui-field__control без изменения HTML. */
 .market-overlay .shop-tabs input {
   width: 100%;
-  height: 35px;
-  padding: 0 12px;
-  border: 1px solid #a0a0a0;
-  background: rgba(255, 255, 255, .84);
-  color: #29313b;
-  font-weight: 700;
+  min-height: var(--space-8);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-1);
+  font: inherit;
+}
+
+.market-overlay .shop-tabs input:focus-visible,
+.market-overlay .cart-count input:focus-visible {
+  outline: none;
+  border-color: var(--focus-color);
+  box-shadow: var(--focus-ring);
 }
 
 .market-overlay .shop-wallet {
   display: flex;
-  gap: 12px;
+  gap: var(--space-3);
   justify-content: flex-end;
-  color: #505050;
-  font-weight: 900;
+  color: var(--text-2);
+  font-weight: var(--fw-bold);
   white-space: nowrap;
 }
 
 .market-overlay .shop-wallet b {
-  color: #1f7d52;
+  color: var(--success-text);
 }
 
 .market-overlay .shop-layout {
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(288px, 320px);
-  background: rgba(194, 194, 194, .7);
+  align-content: start;
+  background: var(--surface-0);
 }
 
 .market-overlay .shop-catalog {
   position: relative;
   min-height: 0;
-  padding: 20px 14px 18px;
-  border-right: 1px solid rgba(79, 83, 88, .35);
-  overflow: auto;
-  scrollbar-gutter: stable;
+  padding: var(--space-5) var(--space-4);
+  border-right: 1px solid var(--border-soft);
 }
 
 .market-overlay .shop-catalog[hidden] {
@@ -143,41 +199,60 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   grid-auto-rows: 132px;
-  gap: 34px 8px;
+  gap: var(--space-7) var(--space-2);
   align-items: end;
-  padding-bottom: 10px;
+  padding-bottom: var(--space-3);
 }
 
+/* Карточка предмета повторяет основу ui-card; старый класс остаётся рабочим. */
 .market-overlay .shop-item {
   position: relative;
   min-height: 132px;
+  min-width: 0;
   display: grid;
   place-items: end center;
-  padding: 0 4px;
-  border: 0;
-  background: transparent;
+  gap: var(--space-2);
+  padding: var(--space-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  color: var(--text-1);
+  overflow-wrap: anywhere;
   cursor: pointer;
+}
+
+.market-overlay .shop-item:hover {
+  background: var(--surface-2);
+}
+
+.market-overlay .shop-item:focus-visible {
+  outline: none;
+  border-color: var(--focus-color);
+  box-shadow: var(--focus-ring);
 }
 
 .market-overlay .shop-item::before {
   content: "";
   position: absolute;
   left: 50%;
-  bottom: 42px;
-  z-index: 0;
+  bottom: var(--space-8);
+  z-index: var(--z-base);
   width: min(138px, 116%);
   height: 11px;
   transform: translateX(-50%);
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, .62), rgba(70, 70, 70, .22)),
-    repeating-linear-gradient(135deg, rgba(255, 255, 255, .16) 0 5px, rgba(0, 0, 0, .08) 5px 10px);
-  border-bottom: 4px solid rgba(88, 88, 88, .52);
-  box-shadow: 0 11px 15px rgba(0, 0, 0, .16);
+  background: linear-gradient(90deg, var(--surface-1), var(--surface-3));
+  border-bottom: 4px solid var(--border-2);
+  box-shadow: var(--shadow-1);
+}
+
+.market-overlay .shop-item.is-selected {
+  border-color: var(--accent-strong);
+  background: var(--accent-soft);
 }
 
 .market-overlay .shop-item.is-selected::before {
   filter: brightness(1.08);
-  box-shadow: 0 12px 18px rgba(42, 111, 189, .26);
+  box-shadow: var(--shadow-2);
 }
 
 .market-overlay .shop-item:disabled {
@@ -185,21 +260,25 @@
   opacity: .45;
 }
 
+/* Медиачасть карточки: аналог ui-card__media. */
 .market-overlay .shop-art {
   position: relative;
-  z-index: 1;
+  z-index: var(--z-sticky);
   width: 82px;
   height: 82px;
   display: grid;
   place-items: center;
-  filter: drop-shadow(12px 12px 4px rgba(0, 0, 0, .22));
-  transition: transform .15s ease, filter .15s ease;
+  border-radius: var(--radius-md);
+  background: var(--surface-0);
+  filter: drop-shadow(var(--shadow-1));
+  transition: transform var(--dur-fast) var(--ease-out),
+              filter var(--dur-fast) var(--ease-out);
 }
 
 .market-overlay .shop-item:hover .shop-art,
 .market-overlay .shop-item.is-selected .shop-art {
-  transform: translateY(-5px) scale(1.05);
-  filter: drop-shadow(14px 14px 5px rgba(0, 0, 0, .26));
+  transform: translateY(calc(-1 * var(--space-1))) scale(1.05);
+  filter: drop-shadow(var(--shadow-2));
 }
 
 .market-overlay .shop-art img {
@@ -208,26 +287,29 @@
   object-fit: contain;
 }
 
+/* Цена — метаданные карточки; форма ценника сохранена. */
 .market-overlay .shop-price {
   position: relative;
-  z-index: 2;
+  z-index: var(--z-panel);
   width: 92px;
   height: 42px;
   display: grid;
   place-items: center;
-  margin-top: 8px;
-  color: #4d4d4d;
-  font: 900 14px/1 Impact, "Arial Black", Tahoma, sans-serif;
-  text-shadow: 0 1px 0 #fff;
-  background: linear-gradient(#dedede, #adadad);
-  border: 2px solid #898989;
+  margin-top: var(--space-2);
+  color: var(--text-2);
+  font-family: var(--font-sans);
+  font-size: var(--fs-300);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
   clip-path: polygon(0 0, 100% 0, 100% 72%, 50% 100%, 0 72%);
 }
 
 .market-overlay .shop-price img {
   width: 22px;
   height: 22px;
-  margin-top: 2px;
+  margin-top: var(--space-1);
   object-fit: contain;
 }
 
@@ -235,109 +317,181 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: 44px minmax(0, 1fr);
-  background: rgba(194, 194, 194, .7);
+  grid-template-rows: 44px auto;
+  align-content: start;
+  background: var(--surface-0);
 }
 
 .market-overlay .shop-cart h2 {
   margin: 0;
   display: grid;
   place-items: center;
-  border-bottom: 1px solid rgba(79, 83, 88, .35);
-  color: #5a5a5a;
-  font: 900 22px/1 Tahoma, Arial, sans-serif;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text-1);
+  font-family: var(--font-sans);
+  font-size: var(--fs-600);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  text-transform: none;
 }
 
+/* Пустая корзина получает оформление ui-empty. */
 .market-overlay .cart-empty {
   align-self: center;
   justify-self: center;
-  max-width: 230px;
-  color: #6b6b6b;
-  font-weight: 900;
+  box-sizing: border-box;
+  width: min(270px, 100%);
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  padding: var(--space-5);
+  border: 1px dashed var(--border-1);
+  border-radius: var(--radius-lg);
+  background: var(--surface-0);
+  color: var(--text-2);
+  font-weight: var(--fw-bold);
   text-align: center;
 }
 
+/* Выбранный товар: композиция ui-card с прокруткой содержимого. */
 .market-overlay .cart-card {
-  padding: 14px 16px;
+  margin: var(--space-3);
+  padding: var(--space-4);
   display: grid;
   align-content: start;
-  gap: 12px;
+  gap: var(--space-3);
+  min-width: 0;
   min-height: 0;
-  overflow: auto;
-  scrollbar-gutter: stable;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  color: var(--text-1);
+  overflow-wrap: anywhere;
 }
 
 .market-overlay .cart-art {
   height: 126px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(95, 95, 95, .35);
-  background: rgba(255, 255, 255, .25);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-0);
 }
 
 .market-overlay .cart-art img {
   max-width: 108px;
   max-height: 108px;
   object-fit: contain;
-  filter: drop-shadow(10px 10px 5px rgba(0, 0, 0, .2));
+  filter: drop-shadow(var(--shadow-1));
 }
 
 .market-overlay .cart-info h3 {
-  margin: 0 0 6px;
-  color: #3d3d3d;
-  font: 900 19px/1.1 Tahoma, Arial, sans-serif;
+  margin: 0 0 var(--space-2);
+  color: var(--text-1);
+  font-family: var(--font-sans);
+  font-size: var(--fs-500);
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
 }
 
 .market-overlay .cart-info p,
 .market-overlay .cart-info span {
   margin: 0;
-  color: #555;
-  font-size: 13px;
-  font-weight: 700;
+  color: var(--text-2);
+  font-size: var(--fs-200);
+  font-weight: var(--fw-bold);
 }
 
 .market-overlay .cart-info p {
-  max-height: 210px;
-  overflow: auto;
-  padding-right: 4px;
-  line-height: 1.35;
+  padding-right: var(--space-1);
+  line-height: var(--lh-normal);
 }
 
 .market-overlay .cart-count {
   display: grid;
-  gap: 5px;
-  color: #555;
-  font-weight: 900;
+  gap: var(--space-1);
+  color: var(--text-2);
+  font-weight: var(--fw-bold);
 }
 
 .market-overlay .cart-count input {
-  height: 38px;
-  padding: 0 9px;
-  border: 1px solid #9d9d9d;
-  background: rgba(255, 255, 255, .78);
-  color: #29313b;
-  font-weight: 900;
+  min-height: var(--space-8);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-1);
+  font: inherit;
+  font-weight: var(--fw-bold);
 }
 
 .market-overlay .cart-total {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(79, 83, 88, .35);
-  color: #505050;
-  font-weight: 900;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-2);
+  font-weight: var(--fw-bold);
 }
 
 .market-overlay .cart-total b {
-  color: #1f7d52;
+  color: var(--success-text);
 }
 
+/* Пустой каталог, ошибка и загрузка остаются в старых JS-состояниях. */
 .market-overlay .shop-empty {
-  margin: 120px auto;
-  color: #6b6b6b;
-  font-weight: 900;
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  padding: var(--space-7);
+  border: 1px dashed var(--border-1);
+  border-radius: var(--radius-lg);
+  background: var(--surface-0);
+  color: var(--text-2);
+  font-weight: var(--fw-bold);
   text-align: center;
+}
+
+.market-overlay .shop-empty.is-loading {
+  opacity: .75;
+}
+
+.market-overlay .shop-empty.is-error {
+  color: var(--danger-text);
+}
+
+/* Существующее действие сохраняется; обработчик остаётся в JS. */
+.market-overlay .shop-empty-action {
+  justify-self: center;
+}
+
+.market-overlay .shop-empty-action:not(.ui-btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--space-8);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-1);
+  font: inherit;
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+  text-transform: none;
+  cursor: pointer;
+}
+
+.market-overlay .shop-empty-action:not(.ui-btn):hover {
+  background: var(--surface-2);
+}
+
+.market-overlay .shop-empty-action:not(.ui-btn):focus-visible {
+  outline: none;
+  border-color: var(--focus-color);
+  box-shadow: var(--focus-ring);
 }
 
 .market-overlay .is-hidden {
@@ -347,8 +501,8 @@
 .market-overlay .shop-footer {
   display: grid;
   grid-template-columns: 160px minmax(0, 1fr) 160px minmax(288px, 320px);
-  border-top: 1px solid rgba(79, 83, 88, .35);
-  background: rgba(190, 190, 190, .82);
+  border-top: 1px solid var(--border-soft);
+  background: var(--surface-0);
 }
 
 .market-overlay .shop-footer button {
@@ -360,37 +514,47 @@
 .market-overlay .shop-status {
   display: grid;
   place-items: center;
-  padding: 0 10px;
-  color: #286c4d;
-  font-weight: 900;
+  padding: 0 var(--space-3);
+  color: var(--success-text);
+  font-weight: var(--fw-bold);
   text-align: center;
 }
 
 .market-overlay .shop-status.is-bad {
-  color: #a93131;
+  color: var(--danger-text);
 }
 
+/* Основное действие повторяет ui-btn--primary, если класс ещё не добавлен в разметке. */
 .market-overlay .shop-footer .buy-button {
-  border-color: #4ba47a;
-  background: linear-gradient(#69c99c, #45a977);
-  color: #e9fff4;
+  border-radius: var(--radius-md);
+}
+
+.market-overlay .shop-footer .buy-button:not(.ui-btn--primary) {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+  color: var(--text-inverse);
+}
+
+.market-overlay .shop-footer .buy-button:not(.ui-btn--primary):hover {
+  border-color: var(--accent-strong-hover);
+  background: var(--accent-strong-hover);
 }
 
 .market-overlay .shop-footer .buy-button:disabled,
 .market-overlay .shop-footer button:disabled {
-  opacity: .42;
-  cursor: default;
+  opacity: .55;
+  cursor: not-allowed;
 }
 
 @media (max-width: 980px) {
   .market-overlay {
-    padding: 12px;
+    padding: var(--space-3);
     align-items: center;
   }
 
   .market-window {
-    width: calc(100vw - 24px);
-    height: calc(100vh - 24px);
+    width: calc(100vw - var(--space-6));
+    height: calc(100vh - var(--space-6));
   }
 
   .market-overlay .shop-tabs {
@@ -409,14 +573,13 @@
   }
 
   .market-overlay .shop-layout {
-    grid-template-columns: 1fr;
-    overflow: auto;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .market-overlay .shop-catalog {
     min-height: 430px;
     border-right: 0;
-    border-bottom: 1px solid rgba(79, 83, 88, .35);
+    border-bottom: 1px solid var(--border-soft);
   }
 
   .market-overlay .shop-grid {
@@ -429,7 +592,7 @@
 
   .market-overlay .shop-footer .buy-button {
     grid-column: 1 / -1;
-    min-height: 40px;
+    min-height: var(--space-8);
   }
 }
 
@@ -439,6 +602,6 @@
   }
 
   .market-overlay .shop-titlebar h1 {
-    font-size: 22px;
+    font-size: var(--fs-600);
   }
 }

@@ -26,9 +26,10 @@ final class ChatRepository
         $privateFromCondition = $hasAuthorId ? 'c.author_id = :user_id_from' : 'u.id = :user_id_from';
 
         $stmt = $this->db->prepare("
-            SELECT c.*, $authorIdSelect as resolved_author_id, u.login as author_name, ut.login as to_name
+            SELECT c.*, $authorIdSelect as resolved_author_id, u.login as author_name, u.clanid as author_clan_id, viewer.clanid as viewer_clan_id, ut.login as to_name
             FROM chats c
             LEFT JOIN users u ON $authorJoin
+            LEFT JOIN users viewer ON viewer.id = :viewer_id
             LEFT JOIN users ut ON ut.id = c.userto
             WHERE c.id > :after_id
               AND (
@@ -41,6 +42,7 @@ final class ChatRepository
 
         $stmt->bindValue(':after_id', $afterId, PDO::PARAM_INT);
         $stmt->bindValue(':room', $roomId, PDO::PARAM_INT);
+        $stmt->bindValue(':viewer_id', $userId, PDO::PARAM_INT);
         $stmt->bindValue(':user_id_from', $userId, PDO::PARAM_INT);
         $stmt->bindValue(':user_id_to', $userId, PDO::PARAM_INT);
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);

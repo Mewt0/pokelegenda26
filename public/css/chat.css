@@ -1,112 +1,145 @@
-/* Chat styles */
+/* Стили чата. Значения оформления берутся из tokens.css. */
 .chat {
     display: flex;
     flex-direction: column;
-    background: #fff;
-    border-left: 1px solid #c9d5e1;
+    background: var(--surface-1);
+    border-left: 1px solid var(--border-1);
 }
 
 .chat-tabs {
     display: flex;
-    background: #f1f5f9;
-    border-bottom: 1px solid #e2e8f0;
-    padding: 4px;
-    gap: 4px;
+    background: var(--surface-0);
+    border-bottom: 1px solid var(--border-1);
+    padding: var(--space-1);
+    gap: var(--space-1);
     align-items: center;
 }
 
-.chat-tab {
-    flex: 1;
-    border: none;
-    background: none;
-    padding: 6px 4px;
-    font-size: 12px;
-    font-weight: 700;
-    color: #64748b;
+/* Сохраняем селекторы кнопок, используемые существующей разметкой и JS. */
+.chat-tab,
+.chat-tool-btn,
+.chat-pokemon-mention-btn,
+.chat-pokemon-picker-item,
+.chat-user-menu button,
+#pmClearBtn {
+    font-weight: var(--fw-bold);
+    text-transform: none;
     cursor: pointer;
-    border-radius: 4px;
+    transition: background var(--dur-fast) var(--ease-out),
+                border-color var(--dur-fast) var(--ease-out);
+}
+
+.chat-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    flex: 1;
+    border: 1px solid transparent;
+    background: transparent;
+    padding: var(--space-1);
+    font-size: var(--fs-100);
+    color: var(--text-2);
+    border-radius: var(--radius-sm);
     text-align: center;
 }
 
+.chat-tab .icon,
+.chat-tool-btn .icon {
+    width: 18px;
+    height: 18px;
+}
+
 .chat-tab:hover {
-    background: #e2e8f0;
+    background: var(--surface-2);
 }
 
 .chat-tab.active {
-    background: #fff;
-    color: #1d66c2;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    background: var(--surface-1);
+    color: var(--accent-text);
+    box-shadow: var(--shadow-1);
 }
 
 .chat-tools {
     display: inline-flex;
-    gap: 4px;
-    margin-left: 4px;
+    gap: var(--space-1);
+    margin-left: var(--space-1);
 }
 
 .chat-tool-btn {
     width: 26px;
     height: 26px;
-    border: 1px solid #cbd5e1;
-    border-radius: 4px;
-    background: #fff;
-    color: #64748b;
-    font: 800 15px/1 Tahoma, Arial, sans-serif;
-    cursor: pointer;
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-sm);
+    background: var(--surface-1);
+    color: var(--text-2);
+    font: var(--fw-bold) var(--fs-300)/var(--lh-tight) var(--font-sans);
 }
 
 .chat-tool-btn:hover {
-    border-color: #94a3b8;
-    color: #1e293b;
+    border-color: var(--border-2);
+    color: var(--text-1);
+    background: var(--surface-2);
 }
 
 .chat-tool-btn.is-active {
-    border-color: #1d66c2;
-    background: #e8f2ff;
-    color: #1d66c2;
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent-text);
+}
+
+.chat-tab:focus-visible,
+.chat-tool-btn:focus-visible,
+.chat-pokemon-mention-btn:focus-visible,
+.chat-pokemon-picker-item:focus-visible,
+.chat-user-menu button:focus-visible,
+#pmClearBtn:focus-visible {
+    outline: none;
+    border-color: var(--focus-color);
+    box-shadow: var(--focus-ring);
 }
 
 .chat-log {
     flex: 1;
     overflow-y: auto;
-    padding: 8px;
-    font-size: 13px;
-    line-height: 1.4;
+    padding: var(--space-2);
+    font-size: var(--fs-200);
+    line-height: var(--lh-normal);
     display: flex;
     flex-direction: column;
 }
 
 .chat-row {
-    margin-bottom: 4px;
+    margin-bottom: var(--space-1);
     word-break: break-word;
 }
 
 .chat-row.is-mention {
-    margin: 1px -4px 5px;
-    padding: 4px 7px;
-    border-left: 4px solid #f59e0b;
-    border-radius: 5px;
-    background: #fff7d6;
-    box-shadow: inset 0 0 0 1px rgba(245, 158, 11, .22);
+    margin: 0 calc(-1 * var(--space-1)) var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    border-left: var(--space-1) solid var(--warning);
+    border-radius: var(--radius-sm);
+    background: var(--warning-soft);
+    box-shadow: inset 0 0 0 1px var(--border-2);
 }
 
 .chat-row.is-mention .chat-author {
-    color: #92400e;
+    color: var(--warning-text);
 }
 
 .chat-row.is-mention .chat-text {
-    color: #5f370e;
-    font-weight: 800;
+    color: var(--warning-text);
+    font-weight: var(--fw-bold);
 }
 
 .chat-time {
-    color: #94a3b8;
-    font-size: 11px;
+    color: var(--text-3);
+    font-size: var(--fs-100);
 }
 
 .chat-author {
-    font-weight: 700;
-    color: #1e293b;
+    font-weight: var(--fw-bold);
+    color: var(--text-1);
     cursor: pointer;
 }
 
@@ -118,13 +151,13 @@
     position: fixed;
     z-index: 120000;
     min-width: 210px;
-    padding: 0 0 4px;
-    border: 1px solid #8d8d8d;
-    border-radius: 3px;
-    background: #c9c9c9;
-    color: #343434;
-    box-shadow: 0 8px 22px rgba(0,0,0,.28);
-    font: 700 14px/1.2 Tahoma, Arial, sans-serif;
+    padding: 0 0 var(--space-1);
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--text-1);
+    box-shadow: var(--shadow-2);
+    font: var(--fw-bold) var(--fs-300)/var(--lh-tight) var(--font-sans);
 }
 
 .chat-user-menu[hidden] {
@@ -137,11 +170,11 @@
 }
 
 .chat-user-menu-title {
-    padding: 6px 10px 5px;
-    border-bottom: 1px solid #a6a6a6;
-    color: #9b0014;
-    background: #d8d8d8;
-    font-weight: 800;
+    padding: var(--space-2) var(--space-3) var(--space-1);
+    border-bottom: 1px solid var(--border-1);
+    color: var(--danger-text);
+    background: var(--surface-3);
+    font-weight: var(--fw-bold);
 }
 
 .chat-user-menu button {
@@ -149,105 +182,402 @@
     min-height: 25px;
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 3px 10px;
-    border: 0;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
     background: transparent;
-    color: #333;
+    color: var(--text-1);
     font: inherit;
-    font-weight: 700;
+    font-weight: var(--fw-bold);
     text-align: left;
-    cursor: pointer;
 }
 
 .chat-user-menu button:hover {
-    background: #ededed;
-    color: #111;
+    background: var(--surface-1);
+    color: var(--text-1);
 }
 
 .chat-user-menu button::before {
-    width: 14px;
-    text-align: center;
-    color: #222;
-    font-size: 13px;
+    content: none;
 }
 
-.chat-user-menu button[data-action="info"]::before { content: "i"; }
-.chat-user-menu button[data-action="reply"]::before { content: "\270e"; }
-.chat-user-menu button[data-action="private"]::before { content: "\2709"; }
-.chat-user-menu button[data-action="friend"]::before { content: "+"; }
-.chat-user-menu button[data-action="ignore"]::before { content: "\2716"; }
-.chat-user-menu button[data-action="mail"]::before { content: "\25a0"; }
+.chat-user-menu .icon {
+    width: 14px;
+    height: 14px;
+    color: var(--text-1);
+}
 
 .chat-to {
-    color: #64748b;
+    color: var(--text-2);
     font-style: italic;
 }
 
 .chat-row.is-private {
-    background: #fff1f2;
-    padding: 2px 4px;
-    border-radius: 4px;
+    background: var(--danger-soft);
+    padding: var(--space-1);
+    border-radius: var(--radius-sm);
 }
 
 .chat-row.is-private .chat-author {
-    color: #be123c;
+    color: var(--danger-text);
 }
 
 .chat-row.is-system {
-    color: #0369a1;
+    color: var(--accent-text);
     font-style: italic;
 }
 
 .chat-form {
-    padding: 8px;
-    background: #f8fafc;
-    border-top: 1px solid #e2e8f0;
+    padding: var(--space-2);
+    background: var(--surface-0);
+    border-top: 1px solid var(--border-1);
     display: grid;
     grid-template-columns: 100px 1fr auto;
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 .chat-my-login {
     background: transparent;
     border: none;
-    font-weight: 700;
-    color: #64748b;
+    font-weight: var(--fw-bold);
+    color: var(--text-2);
     text-align: center;
-    font-size: 12px;
+    font-size: var(--fs-100);
 }
 
+/* Поле оформлено в соответствии с .ui-field__control. */
 #chatInput {
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
-    padding: 6px 10px;
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface-1);
+    color: var(--text-1);
     font: inherit;
 }
 
 #chatInput:focus {
-    outline: 2px solid #1d66c2;
-    outline-offset: -1px;
+    outline: none;
+    border-color: var(--focus-color);
+    box-shadow: var(--focus-ring);
+}
+
+#chatInput:disabled {
+    background: var(--surface-2);
+    color: var(--text-3);
+    cursor: not-allowed;
+}
+
+.chat-pokemon-mention-btn {
+    width: 38px;
+    min-width: 38px;
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    color: var(--accent-text);
+    font: var(--fw-bold) var(--fs-300)/1 var(--font-sans);
+}
+
+.chat-pokemon-mention-btn:hover {
+    border-color: var(--border-2);
+    background: var(--surface-2);
+}
+
+.chat-pokemon-picker {
+    grid-column: 1 / -1;
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    box-shadow: var(--shadow-2);
+}
+
+.chat-pokemon-picker[hidden] {
+    display: none;
+}
+
+.chat-pokemon-picker-empty {
+    padding: var(--space-2);
+    color: var(--text-2);
+    font-size: var(--fs-100);
+}
+
+.chat-pokemon-picker-item {
+    width: 100%;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-1);
+    padding: var(--space-1) var(--space-2);
+    text-align: left;
+}
+
+.chat-pokemon-picker-item:hover,
+.chat-pokemon-picker-item[aria-selected="true"] {
+    background: var(--surface-1);
+}
+
+.chat-pokemon-picker-item img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+}
+
+.chat-pokemon-card {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: var(--space-2);
+    margin-top: var(--space-1);
+    padding: var(--space-2);
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-sm);
+    background: var(--surface-1);
+    color: var(--text-1);
+    overflow-wrap: anywhere;
+}
+
+.chat-pokemon-card.is-missing {
+    display: block;
+    color: var(--danger-text);
+    background: var(--danger-soft);
+}
+
+.chat-pokemon-card-sprite {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+}
+
+.chat-pokemon-card-body {
+    min-width: 0;
+}
+
+.chat-pokemon-card-title {
+    font-weight: var(--fw-bold);
+    color: var(--text-1);
+}
+
+.chat-pokemon-card-meta,
+.chat-pokemon-card-line,
+.chat-pokemon-card-moves {
+    margin-top: 2px;
+    color: var(--text-2);
+    font-size: var(--fs-100);
+    line-height: var(--lh-normal);
+}
+
+.chat-pokemon-card-moves {
+    color: var(--accent-text);
 }
 
 .pm-target-display {
     grid-column: 1 / -1;
-    background: #fff1f2;
-    border: 1px solid #fecdd3;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
+    background: var(--danger-soft);
+    border: 1px solid var(--danger);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-100);
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
 #pmClearBtn {
-    background: none;
-    border: none;
-    color: #be123c;
-    font-weight: 700;
-    cursor: pointer;
-    font-size: 16px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--danger-text);
+    font-size: var(--fs-400);
     line-height: 1;
 }
 
+#pmClearBtn:hover {
+    background: var(--surface-1);
+}
+
+@media (max-width: 480px) {
+    .chat-form {
+        grid-template-columns: 1fr auto;
+    }
+
+    .chat-my-login {
+        grid-column: 1 / -1;
+    }
+
+    #chatInput {
+        min-width: 0;
+    }
+}
+
+.chat-form { grid-template-columns: 125px minmax(0, 1fr) 44px 44px 44px; }
+
+/* Отправка — единственная акцентная кнопка в строке, квадрат 44px; кнопки
+   упоминаний остаются светлыми, чтобы «@» не выглядел как «отправить». */
+.chat-form .send-btn {
+  width: 44px;
+  min-width: 44px;
+  padding: 0;
+}
+.chat-form .chat-user-mention-btn,
+.chat-form .chat-pokemon-mention-btn {
+  width: 44px;
+  min-width: 44px;
+  padding: 0;
+  background: var(--surface-1);
+  border-color: var(--border-1);
+  color: var(--accent-text);
+}
+
+/* Picker и карточка: только токены темы. */
+.chat-user-mention-btn {
+    min-width: 38px;
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    color: var(--accent-text);
+    font: var(--fw-bold) var(--fs-300)/1 var(--font-sans);
+    cursor: pointer;
+}
+
+.chat-user-picker {
+    grid-column: 1 / -1;
+    min-width: 0;
+    max-height: 240px;
+    overflow-y: auto;
+    padding: var(--space-1);
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    box-shadow: var(--shadow-2);
+}
+
+.chat-user-picker[hidden],
+.chat-pokemon-card[hidden] {
+    display: none;
+}
+
+.chat-user-picker-search {
+    width: 100%;
+    min-width: 0;
+    padding: var(--space-2);
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-sm);
+    background: var(--surface-1);
+    color: var(--text-1);
+}
+
+.chat-user-picker-item {
+    display: block;
+    width: 100%;
+    padding: var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-1);
+    text-align: left;
+    cursor: pointer;
+}
+
+.chat-user-picker-item:hover,
+.chat-user-picker-item[aria-selected="true"] {
+    background: var(--surface-1);
+}
+
+.chat-user-picker-item:focus-visible,
+.chat-user-picker-search:focus-visible,
+.chat-user-mention-btn:focus-visible,
+.chat-pokemon-mention-trigger:focus-visible {
+    outline: none;
+    border-color: var(--focus-color);
+    box-shadow: var(--focus-ring);
+}
+
+.chat-user-mention,
+.chat-pokemon-mention-trigger {
+    color: var(--accent-text);
+    font-weight: var(--fw-bold);
+}
+
+.chat-pokemon-mention-trigger {
+    padding: 0 var(--space-1);
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    cursor: pointer;
+}
+
+.chat-text {
+    overflow-wrap: anywhere;
+}
+
+.chat-text .chat-pokemon-card {
+    width: min(100%, 440px);
+    max-width: 100%;
+    grid-template-columns: 48px minmax(0, 1fr);
+    font-weight: 400;
+}
+
+.chat-pokemon-card-line {
+    overflow-wrap: anywhere;
+}
+
+.chat-pokemon-card-title {
+    overflow-wrap: anywhere;
+}
+
+/* Pokemon references are a small trainer-card preview, not a chat message block. */
+.chat-pokemon-mention-trigger {
+    color: var(--accent-text);
+    background: var(--accent-soft);
+    border-color: var(--border-2);
+    font-weight: var(--fw-semibold);
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+}
+.chat-pokemon-mention-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chat-pokemon-card.chat-pokemon-popover,
+.chat-text .chat-pokemon-card.chat-pokemon-popover {
+    position: fixed;
+    inset: auto;
+    z-index: var(--z-toast);
+    box-sizing: border-box;
+    width: min(360px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+    overflow: auto;
+    margin: 0;
+    padding: var(--space-4);
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: var(--space-3);
+    border: 1px solid var(--border-2);
+    border-top: 3px solid var(--accent-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-3);
+    font: var(--fs-300)/var(--lh-normal) var(--font-sans);
+    text-align: left;
+    background: var(--surface-1);
+    color: var(--text-1);
+}
+.chat-pokemon-card.chat-pokemon-popover[hidden] { display: none !important; }
+.chat-pokemon-popover .chat-pokemon-card-sprite { width: 64px; height: 64px; max-width: 64px; background: var(--accent-soft); border-radius: var(--radius-md); }
+.chat-pokemon-popover .chat-pokemon-card-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; }
+.chat-pokemon-popover .chat-pokemon-card-title { grid-column: 1 / -1; font-size: var(--fs-400); line-height: var(--lh-tight); }
+.chat-pokemon-card-reference { grid-column: 1 / -1; padding-bottom: var(--space-2); color: var(--accent-text); font-size: var(--fs-100); border-bottom: 1px solid var(--border-soft); }
+.chat-pokemon-popover .chat-pokemon-card-line { margin: 0; font-size: var(--fs-100); }
+.chat-pokemon-popover .chat-pokemon-card-line[data-label="Способность"],
+.chat-pokemon-popover .chat-pokemon-card-line[data-label^="Атака "] { grid-column: 1 / -1; }
+.chat-pokemon-popover.is-missing { display: block; }
+
+@media (max-width: 480px) {
+    .chat-tabs { flex-wrap: wrap; }
+    .chat-form { grid-template-columns: minmax(0, 1fr) 44px 44px 44px; }
+    .chat-my-login { grid-column: 1 / -1; }
+    #chatInput { min-width: 0; }
+    .chat-user-picker, .chat-pokemon-picker { grid-column: 1 / -1; }
+    .chat-text .chat-pokemon-card { grid-template-columns: 40px minmax(0, 1fr); }
+    .chat-pokemon-card-sprite { max-width: 40px; }
+}

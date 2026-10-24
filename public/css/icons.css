@@ -1,0 +1,67 @@
+/* PokemonChic: 24px monochrome SVG icon layer. */
+.icon {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  vertical-align: middle;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  background-color: currentColor;
+  -webkit-mask-image: var(--icon-mask, none);
+  mask-image: var(--icon-mask, none);
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
+.icon--ui-pve-off { --icon-mask: url("../img/ui/icons.svg#mask-ui-pve-off"); }
+.icon--ui-pve-on { --icon-mask: url("../img/ui/icons.svg#mask-ui-pve-on"); }
+.icon--ui-mode-general { --icon-mask: url("../img/ui/icons.svg#mask-ui-mode-general"); }
+.icon--ui-settings { --icon-mask: url("../img/ui/icons.svg#mask-ui-settings"); }
+.icon--ui-signal { --icon-mask: url("../img/ui/icons.svg#mask-ui-signal"); }
+.icon--ui-debug-battle { --icon-mask: url("../img/ui/icons.svg#mask-ui-debug-battle"); }
+.icon--chat-send { --icon-mask: url("../img/ui/icons.svg#mask-chat-send"); }
+.icon--chat-clear { --icon-mask: url("../img/ui/icons.svg#mask-chat-clear"); }
+.icon--chat-autoscroll-on { --icon-mask: url("../img/ui/icons.svg#mask-chat-autoscroll-on"); }
+.icon--chat-autoscroll-off { --icon-mask: url("../img/ui/icons.svg#mask-chat-autoscroll-off"); }
+.icon--chat-tab-general { --icon-mask: url("../img/ui/icons.svg#mask-chat-tab-general"); }
+.icon--chat-tab-trade { --icon-mask: url("../img/ui/icons.svg#mask-chat-tab-trade"); }
+.icon--chat-tab-battle { --icon-mask: url("../img/ui/icons.svg#mask-chat-tab-battle"); }
+.icon--chat-tab-clan { --icon-mask: url("../img/ui/icons.svg#mask-chat-tab-clan"); }
+.icon--chat-tab-private { --icon-mask: url("../img/ui/icons.svg#mask-chat-tab-private"); }
+.icon--chat-user-menu-info { --icon-mask: url("../img/ui/icons.svg#mask-chat-user-menu-info"); }
+.icon--chat-user-menu-reply { --icon-mask: url("../img/ui/icons.svg#mask-chat-user-menu-reply"); }
+.icon--chat-user-menu-private { --icon-mask: url("../img/ui/icons.svg#mask-chat-user-menu-private"); }
+.icon--chat-user-menu-friend { --icon-mask: url("../img/ui/icons.svg#mask-chat-user-menu-friend"); }
+.icon--chat-user-menu-ignore { --icon-mask: url("../img/ui/icons.svg#mask-chat-user-menu-ignore"); }
+.icon--chat-user-menu-mail { --icon-mask: url("../img/ui/icons.svg#mask-chat-user-menu-mail"); }
+.icon--location-pin { --icon-mask: url("../img/ui/icons.svg#mask-location-pin"); }
+.icon--route-city { --icon-mask: url("../img/ui/icons.svg#mask-route-city"); }
+.icon--route-forest { --icon-mask: url("../img/ui/icons.svg#mask-route-forest"); }
+.icon--route-road { --icon-mask: url("../img/ui/icons.svg#mask-route-road"); }
+.icon--route-cave { --icon-mask: url("../img/ui/icons.svg#mask-route-cave"); }
+.icon--route-water { --icon-mask: url("../img/ui/icons.svg#mask-route-water"); }
+.icon--npc-look { --icon-mask: url("../img/ui/icons.svg#mask-npc-look"); }
+.icon--npc-person { --icon-mask: url("../img/ui/icons.svg#mask-npc-person"); }
+.icon--npc-shop { --icon-mask: url("../img/ui/icons.svg#mask-npc-shop"); }
+.icon--npc-quest { --icon-mask: url("../img/ui/icons.svg#mask-npc-quest"); }
+.icon--player-avatar-default { --icon-mask: url("../img/ui/icons.svg#mask-player-avatar-default"); }
+.icon--player-online { --icon-mask: url("../img/ui/icons.svg#mask-player-online"); }
+.icon--player-offline { --icon-mask: url("../img/ui/icons.svg#mask-player-offline"); }
+.icon--ui-download { --icon-mask: url("../img/ui/icons.svg#mask-ui-download"); }
+.icon--ui-lock { --icon-mask: url("../img/ui/icons.svg#mask-ui-lock"); }
+.icon--ui-starter { --icon-mask: url("../img/ui/icons.svg#mask-ui-starter"); }
+.icon--ui-shiny { --icon-mask: url("../img/ui/icons.svg#mask-ui-shiny"); }
+.icon--ui-run { --icon-mask: url("../img/ui/icons.svg#mask-ui-run"); }
+.icon--ui-play { --icon-mask: url("../img/ui/icons.svg#mask-ui-play"); }
+.icon--ui-flag { --icon-mask: url("../img/ui/icons.svg#mask-ui-flag"); }
+.icon--battle-tab-switch { --icon-mask: url("../img/ui/icons.svg#mask-battle-tab-switch"); }
+.icon--battle-tab-items { --icon-mask: url("../img/ui/icons.svg#mask-battle-tab-items"); }
+.icon--battle-tab-balls { --icon-mask: url("../img/ui/icons.svg#mask-battle-tab-balls"); }

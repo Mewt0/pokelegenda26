@@ -89,6 +89,8 @@ define('APP_ROOT', dirname(__DIR__));
 
 require APP_ROOT . '/src/Support/Autoload.php';
 
+Pokemon8\Http\ErrorHandler::register(APP_ROOT . '/log_php_errors.txt');
+
 // Загружаем окружение и конфиги до создания сервисов приложения.
 Env::load(APP_ROOT . '/.env');
 
@@ -98,7 +100,7 @@ $mailConfig = require APP_ROOT . '/config/mail.php';
 
 date_default_timezone_set($appConfig['timezone']);
 ini_set('default_charset', 'UTF-8');
-ini_set('display_errors', $appConfig['debug'] ? '1' : '0');
+ini_set('display_errors', $appConfig['debug'] && !Pokemon8\Http\ErrorHandler::isApi() ? '1' : '0');
 error_reporting(E_ALL);
 
 $session = new Session($appConfig['session_name']);
@@ -152,7 +154,7 @@ $mapMoves = new MapMoveService($locations, $locationGraph, $locationState, $ques
 $wildEncounters = new WildEncounterService($db);
 $battleEngine = new BattleEngineService($battleRepository, $rewardRepository, $bossRepository, $safeStorage, $battleReplayRepository, $quests);
 $npcDialogs = new NpcDialogService($db, $locations, $quests, $inventory, $pokemonRepository, $locationContent, $rewardRepository);
-$chatService = new ChatService($chatRepository, $users, $session);
+$chatService = new ChatService($chatRepository, $pokemonRepository, $users, $session);
 $passwords = new PasswordHasher();
 $csrf = new Csrf($session);
 $banGuard = new BanGuard($bans);
@@ -203,6 +205,7 @@ $router->get('/email/verify', fn (Request $request) => $auth->verifyEmail($reque
 $router->post('/profile/email', fn (Request $request) => $auth->updateEmail($request));
 $router->get('/logout', fn (Request $request) => $auth->logout($request));
 $router->get('/game', fn (Request $request) => $game->start($request));
+$router->get('/game/attackdex', fn (Request $request) => Response::redirect('/game?dex=attacks'));
 $router->get('/game/admin', fn (Request $request) => $adminPage->index($request));
 $router->get('/game/items', fn (Request $request) => $inventoryPage->index($request));
 $router->get('/game/pokemon', fn (Request $request) => $pokemonPage->index($request));
@@ -369,6 +372,7 @@ $router->get('/api/location/npc', fn (Request $request) => $npcApi->show($reques
 $router->post('/api/location/npc/action', fn (Request $request) => $npcApi->action($request));
 $router->get('/api/chat/messages', fn (Request $request) => $chatApi->messages($request));
 $router->post('/api/chat/messages', fn (Request $request) => $chatApi->send($request));
+$router->get('/api/chat/team-pokemon', fn (Request $request) => $chatApi->teamPokemon($request));
 $router->get('/api/friends/status', fn (Request $request) => $friendApi->status($request));
 $router->get('/api/friends/requests', fn (Request $request) => $friendApi->requests($request));
 $router->post('/api/friends/request', fn (Request $request) => $friendApi->request($request));

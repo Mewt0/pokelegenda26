@@ -27,6 +27,7 @@ $pokemonId = 0;
 $originalUser = null;
 $originalPokemonHp = null;
 $lockHeld = false;
+$ballItemUserId = 0;
 
 try {
     $userId = userId($db, 'Tacos');
@@ -44,6 +45,7 @@ try {
     $db->prepare('UPDATE pok_user SET hp_my = hp_max, active = 1 WHERE id = :id LIMIT 1')->execute(['id' => $pokemonId]);
     $db->prepare('UPDATE users SET pve = 1, pvp = 0, battleid = :battle WHERE id = :user LIMIT 1')
         ->execute(['battle' => $battleId, 'user' => $userId]);
+    $ballItemUserId = insertTempBattleBall($db, $userId, 2);
 
     $lockRepo = new BattleRepository($db);
     $lockHeld = $lockRepo->acquirePveBattleActionLock($battleId, 0);
@@ -53,6 +55,15 @@ try {
     $blocked = $engine->action($userId, 'escape', []);
     assertTrue($results, 'escape.blocked.by-lock', ($blocked['ok'] ?? true) === false && !empty($blocked['active']), json_encode($blocked, JSON_UNESCAPED_UNICODE));
     assertTrue($results, 'battle.not.finished.while-locked', battleWinner($db, $battleId) === 0, 'winner=' . battleWinner($db, $battleId));
+    $ballCountBefore = itemUserRowCount($db, $ballItemUserId);
+    $blockedBall = $engine->action($userId, 'ball', ['item_user_id' => $ballItemUserId]);
+    $ballCountAfter = itemUserRowCount($db, $ballItemUserId);
+    assertTrue($results, 'ball.blocked.by-lock', ($blockedBall['ok'] ?? true) === false && !empty($blockedBall['active']), json_encode($blockedBall, JSON_UNESCAPED_UNICODE));
+    assertTrue($results, 'ball.not.consumed.while-locked', $ballCountAfter === $ballCountBefore, 'before=' . $ballCountBefore . ', after=' . $ballCountAfter);
+    assertTrue($results, 'battle.not.finished.after-blocked-ball', battleWinner($db, $battleId) === 0, 'winner=' . battleWinner($db, $battleId));
+    $pokemonCountBefore = ownedPokemonCount($db, $userId);
+    $wrongCatch = $lockRepo->catchWildPokemon($userId, 'pve_' . $enemyId, 1, $battleId + 999);
+    assertTrue($results, 'catch.rejects.wrong-battle-row', $wrongCatch === null && ownedPokemonCount($db, $userId) === $pokemonCountBefore, 'caught=' . (string) ($wrongCatch ?? 0));
 
     $lockRepo->releasePveBattleActionLock($battleId);
     $lockHeld = false;
@@ -60,6 +71,11 @@ try {
     $escaped = $engine->action($userId, 'escape', []);
     assertTrue($results, 'escape.after-release', ($escaped['finished'] ?? false) === true && ($escaped['result'] ?? '') === 'escape', json_encode($escaped, JSON_UNESCAPED_UNICODE));
     assertTrue($results, 'battle.finished.once', battleWinner($db, $battleId) === -1, 'winner=' . battleWinner($db, $battleId));
+    $firstAck = $engine->acknowledgeEnd($userId);
+    $secondAck = $engine->acknowledgeEnd($userId);
+    assertTrue($results, 'ack.first.ok', ($firstAck['ok'] ?? false) === true && empty($firstAck['active']), json_encode($firstAck, JSON_UNESCAPED_UNICODE));
+    assertTrue($results, 'ack.second.idempotent', ($secondAck['ok'] ?? false) === true && empty($secondAck['active']), json_encode($secondAck, JSON_UNESCAPED_UNICODE));
+    assertTrue($results, 'ack.clears.battleid.once', currentBattleId($db, $userId) === 0, 'battleid=' . currentBattleId($db, $userId));
 } catch (Throwable $e) {
     $results[] = ['name' => 'exception', 'ok' => false, 'details' => $e->getMessage()];
 } finally {
@@ -161,6 +177,40 @@ function battleWinner(PDO $db, int $battleId): int
     return (int) ($stmt->fetchColumn() ?: 0);
 }
 
+function currentBattleId(PDO $db, int $userId): int
+{
+    $stmt = $db->prepare('SELECT battleid FROM users WHERE id = :id LIMIT 1');
+    $stmt->execute(['id' => $userId]);
+    return (int) ($stmt->fetchColumn() ?: 0);
+}
+
+function insertTempBattleBall(PDO $db, int $userId, int $count): int
+{
+    $stmt = $db->prepare(
+        'INSERT INTO items_users (item_id, user_id, count, dattimer, timers)
+         VALUES (3, :user, :count, "smoke_pve_action_lock", "not")'
+    );
+    $stmt->execute(['user' => $userId, 'count' => $count]);
+    return (int) $db->lastInsertId();
+}
+
+function itemUserRowCount(PDO $db, int $itemUserId): int
+{
+    if ($itemUserId <= 0) {
+        return 0;
+    }
+    $stmt = $db->prepare('SELECT count FROM items_users WHERE id = :id LIMIT 1');
+    $stmt->execute(['id' => $itemUserId]);
+    return (int) ($stmt->fetchColumn() ?: 0);
+}
+
+function ownedPokemonCount(PDO $db, int $userId): int
+{
+    $stmt = $db->prepare('SELECT COUNT(*) FROM pok_user WHERE users = :user');
+    $stmt->execute(['user' => $userId]);
+    return (int) ($stmt->fetchColumn() ?: 0);
+}
+
 function nextId(PDO $db, string $table, string $column): int
 {
     $stmt = $db->query(sprintf('SELECT COALESCE(MAX(%s), 0) + 1 FROM %s', $column, $table));
@@ -178,6 +228,9 @@ function cleanup(PDO $db, int $userId, int $battleId, int $enemyId, int $pokemon
     }
     if ($enemyId > 0) {
         $db->prepare('DELETE FROM pok_pve WHERE id = :id LIMIT 1')->execute(['id' => $enemyId]);
+    }
+    if ($userId > 0) {
+        $db->prepare('DELETE FROM items_users WHERE user_id = :user AND dattimer = "smoke_pve_action_lock"')->execute(['user' => $userId]);
     }
     if ($userId > 0 && $userState !== null) {
         $db->prepare('UPDATE users SET pve = :pve, pvp = :pvp, battleid = :battle, atack_poke = :attack WHERE id = :id LIMIT 1')

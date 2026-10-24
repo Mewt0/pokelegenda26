@@ -95,6 +95,14 @@ final class NpcDialogService
             return $this->secretaryDialog();
         }
 
+        if (($params['npc'] ?? '') === 'flight_status') {
+            return $this->flightStatusDialog();
+        }
+
+        if (($params['npc'] ?? '') === 'flight_exit') {
+            return $this->flightExitDialog();
+        }
+
         if ((int) ($params['quest_npc'] ?? 0) > 0) {
             return $this->questNpcDialog($userId, (int) $params['quest_npc'], $title, $locationId, $params);
         }
@@ -135,12 +143,53 @@ final class NpcDialogService
             return $this->sisterJoyAction($userId, $action);
         }
 
+        // Квест 160 «Сон о ледяном крыле»: шаги обслуживает Старая женщина
+        // (локация 7, quest_npc = 1) — она же знахарка из лора Айрена.
+        if ($locationId === 7
+            && (int) ($params['quest_npc'] ?? 0) === 1
+            && in_array($action, ['airen_ice_dream_start', 'airen_ice_catch', 'airen_ice_turnin'], true)
+        ) {
+            if ($action === 'airen_ice_dream_start') {
+                return $this->airenIceDreamStart($userId);
+            }
+            if ($action === 'airen_ice_catch') {
+                return $this->airenIceCatch($userId);
+            }
+            return $this->airenIceTurnIn($userId);
+        }
+
+        if ($locationId === 11
+            && (int) ($params['quest_npc'] ?? 0) === 1
+            && in_array($action, ['amira_lake_start', 'amira_storm_wins', 'amira_lake_turnin'], true)
+        ) {
+            if ($action === 'amira_lake_start') {
+                return $this->amiraLakeStart($userId);
+            }
+            if ($action === 'amira_storm_wins') {
+                return $this->amiraStormWins($userId);
+            }
+            return $this->amiraLakeTurnIn($userId);
+        }
+
+        if ($locationId === 4
+            && (int) ($params['quest_npc'] ?? 0) === 7
+            && in_array($action, ['billy_feather_start', 'billy_brave_catch', 'billy_feather_turnin'], true)
+        ) {
+            if ($action === 'billy_feather_start') {
+                return $this->billyFeatherStart($userId);
+            }
+            if ($action === 'billy_brave_catch') {
+                return $this->billyBraveCatch($userId);
+            }
+            return $this->billyFeatherTurnIn($userId);
+        }
+
         if (str_starts_with($action, 'quest_start:')) {
-            return $this->questStartAction($userId, $action);
+            return $this->questStartAction($userId, $locationId, $params, $action);
         }
 
         if (str_starts_with($action, 'quest_update:')) {
-            return $this->questUpdateAction($userId, $action);
+            return $this->questUpdateAction($userId, $locationId, $params, $action);
         }
 
         if (str_starts_with($action, 'starter_select:')) {
@@ -165,6 +214,10 @@ final class NpcDialogService
 
         if ($action === 'quest_airen_complete') {
             return $this->completeAirenQuest($userId);
+        }
+
+        if (str_starts_with($action, 'quest_jafit_turnin:')) {
+            return $this->turnInJafitQuest($userId, (int) substr($action, strlen('quest_jafit_turnin:')));
         }
 
         if (str_starts_with($action, 'hippodrome_register:')) {
@@ -208,7 +261,7 @@ final class NpcDialogService
         }
 
         if ($action === 'secretary_clan') {
-            return $this->dialog('Секретарь', 'Захваты кланов будут идти через новый модуль кланов и PvP. Старый вход не запускается, чтобы не ломать логи и состояния игроков.', [
+            return $this->dialog('Секретарь', 'Клановые захваты временно готовятся к новому сезону. Когда регистрация откроется, заявки и правила появятся в отдельном игровом окне.', [
                 ['label' => 'Другой вопрос', 'params' => ['npc' => '1', 'do' => '1']],
                 ['label' => 'Уйти', 'close' => true],
             ]);
@@ -228,7 +281,7 @@ final class NpcDialogService
         }
 
         if ($action === 'npc_ack') {
-            return $this->dialog('NPC', 'Отмечено. Этот персонаж уже работает через новый безопасный NPC engine.', [
+            return $this->dialog('NPC', 'Отмечено. Встреча записана, персонаж останется доступен на этой локации.', [
                 ['label' => 'Закрыть', 'close' => true],
             ]);
         }
@@ -326,14 +379,29 @@ final class NpcDialogService
 
     private function billy(int $userId, int $step): array
     {
+        $featherQuest = $this->quests->findForUser($userId, 162);
+        $featherDone = $featherQuest !== null && (int) ($featherQuest['gotov'] ?? 0) === 1;
+        $featherButtons = [];
+        if (!$featherDone) {
+            $featherProcess = (int) ($featherQuest['process'] ?? 0);
+            if ($featherProcess >= 7) {
+                $featherButtons[] = ['label' => 'Сдать клевер и конфету', 'action' => 'billy_feather_turnin'];
+            } elseif ($featherProcess >= 6) {
+                $featherButtons[] = ['label' => 'Показать смелого покемона', 'action' => 'billy_brave_catch'];
+            } else {
+                $featherButtons[] = ['label' => 'Спросить о пере', 'action' => 'billy_feather_start'];
+            }
+        }
+
         $quest = $this->quests->findForUser($userId, 7);
         $completed = $quest !== null && (int) ($quest['gotov'] ?? 0) === 1;
         $inProgress = $quest !== null && !$completed;
 
         if ($completed) {
-            return $this->dialog('Коллекционер Билли', 'Спасибо за помощь с коллекцией перьев. Твой вклад уже занесен в каталог.', [
-                ['label' => 'Удачи', 'close' => true],
-            ]);
+            return $this->dialog('Коллекционер Билли', 'Спасибо за помощь с коллекцией перьев. Твой вклад уже занесен в каталог.', array_merge(
+                $featherButtons,
+                [['label' => 'Удачи', 'close' => true]]
+            ));
         }
 
         if ($inProgress) {
@@ -341,7 +409,7 @@ final class NpcDialogService
             $spearowFeathers = $this->inventory->countItem($userId, 14);
             $ready = $pidgeottoFeathers >= 10 && $spearowFeathers >= 10;
 
-            return $this->dialog('Коллекционер Билли', 'Нужно 10 перьев Pidgeotto и 10 перьев Spearow.', [
+            return $this->dialog('Коллекционер Билли', 'Нужно 10 перьев Pidgeotto и 10 перьев Spearow.', array_merge([
                 ['label' => 'Пока нет', 'close' => true],
                 [
                     'label' => 'Сдать перья',
@@ -349,7 +417,7 @@ final class NpcDialogService
                     'disabled' => !$ready,
                     'hint' => 'Pidgeotto: ' . $pidgeottoFeathers . '/10, Spearow: ' . $spearowFeathers . '/10',
                 ],
-            ]);
+            ], $featherButtons));
         }
 
         if ($step === 2) {
@@ -359,10 +427,11 @@ final class NpcDialogService
             ]);
         }
 
-        return $this->dialog('Коллекционер Билли', 'Привет. Я наблюдаю за птицами на этой дороге и собираю коллекцию перьев.', [
+        return $this->dialog('Коллекционер Билли', 'Привет. Я наблюдаю за птицами на этой дороге и собираю коллекцию перьев.', array_merge([
             ['label' => 'Почему ты смотришь вдаль?', 'params' => ['quest_npc' => '7', 'do' => '2']],
+        ], $featherButtons, [
             ['label' => 'Просто осматриваюсь', 'close' => true],
-        ]);
+        ]));
     }
 
     private function turnInBilly(int $userId): array
@@ -378,13 +447,411 @@ final class NpcDialogService
             ]);
         }
 
-        $this->inventory->removeItem($userId, 13, 10);
-        $this->inventory->removeItem($userId, 14, 10);
+        $this->db->beginTransaction();
+        try {
+        if (!$this->inventory->removeItem($userId, 13, 10) || !$this->inventory->removeItem($userId, 14, 10)) {
+            $this->db->rollBack();
+            return $this->error('Not enough quest items.');
+        }
         $this->grantRewardItems($userId, [1 => 5000, 9 => 5, 10 => 3], 'Квест: Перья для Билли');
         $this->quests->updateState($userId, 7, 20, 1);
-        $this->addQuestRank($userId, 1);
+        $this->addQuestRank($userId, 2);
+        $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            error_log('[npc_dialog] billy quest failed: ' . $e->getMessage());
+            return $this->error('Quest reward failed.');
+        }
 
         return $this->dialog('Коллекционер Билли', 'Отличные экземпляры. Награда: 5000 монет, красные и фиолетовые конфеты.', [
+            ['label' => 'Спасибо', 'close' => true],
+        ]);
+    }
+
+    /**
+     * Квест 160 «Сон о ледяном крыле» — начало.
+     * NPC: Старая женщина (знахарка), локация 7, quest_npc = 1.
+     */
+    private function airenIceDreamStart(int $userId): array
+    {
+        $quest = $this->quests->findForUser($userId, 160);
+
+        if ($quest !== null && (int) ($quest['gotov'] ?? 0) === 1) {
+            return $this->dialog('Старая женщина', 'Сон Айрена уже разгадан. Ты выполнил это поручение.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ($quest === null) {
+            $this->quests->createIfMissing($userId, 160, 2);
+        } elseif ((int) ($quest['process'] ?? 0) < 2) {
+            $this->quests->updateState($userId, 160, 2, 0);
+        }
+
+        return $this->dialog('Старая женщина', 'Айрену снится странный сон. Огромная птица с ледяными крыльями парит над тёмным озером. Каждую ночь она зовёт его, но он не понимает почему. Возможно, ледяной покемон поможет раскрыть смысл этого сна. Поймай покемона ледяного типа не ниже 15 уровня и возвращайся ко мне.', [
+            ['label' => 'Проверить покемона', 'action' => 'airen_ice_catch'],
+            ['label' => 'Отправиться на поиски', 'close' => true],
+        ]);
+    }
+
+    /**
+     * Шаг 2 квеста 160: у игрока должен быть покемон ледяного типа 15+.
+     * Тип берётся из pokemon.Element (текстовое значение 'Ice'), потому что
+     * числовые tip_a/tip_b не сопоставлены со справочником типов.
+     */
+    private function airenIceCatch(int $userId): array
+    {
+        $quest = $this->quests->findForUser($userId, 160);
+
+        if ($quest === null) {
+            return $this->error('Сначала нужно взять задание у Старой женщины.');
+        }
+
+        if ((int) ($quest['gotov'] ?? 0) === 1) {
+            return $this->dialog('Старая женщина', 'Ты уже помог разгадать сон Айрена. Задание завершено.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ((int) ($quest['process'] ?? 0) < 2) {
+            return $this->error('Сначала нужно выслушать рассказ о сне Айрена.');
+        }
+
+        if ((int) ($quest['process'] ?? 0) >= 3) {
+            return $this->dialog('Старая женщина', 'Ледяной покемон уже найден. Теперь принеси 3 энергетика и 2 пера Pidgeotto или Spearow. Покемон ледяного типа 15 уровня или выше должен оставаться у тебя.', [
+                ['label' => 'Сдать задание', 'action' => 'airen_ice_turnin'],
+                ['label' => 'Вернусь позже', 'close' => true],
+            ]);
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT pu.id
+               FROM pok_user pu
+               INNER JOIN pokemon p ON p.id = pu.basenum
+              WHERE pu.users = :user
+                AND pu.lvl >= :min_level
+                AND FIND_IN_SET("Ice", REPLACE(p.Element, " ", "")) > 0
+              LIMIT 1'
+        );
+        $stmt->execute([
+            'user' => $userId,
+            'min_level' => 15,
+        ]);
+
+        if (!$stmt->fetchColumn()) {
+            return $this->dialog('Старая женщина', 'Я пока не вижу у тебя подходящего покемона. Нужно поймать покемона ледяного типа не ниже 15 уровня. Возвращайся, когда он появится у тебя.', [
+                ['label' => 'Проверить снова', 'action' => 'airen_ice_catch'],
+                ['label' => 'Продолжить поиски', 'close' => true],
+            ]);
+        }
+
+        $this->quests->updateState($userId, 160, 3, 0);
+
+        return $this->dialog('Старая женщина', 'Вот он, холод, похожий на дыхание птицы из сна Айрена! Ты нашёл подходящего ледяного покемона. Для следующего шага мне понадобятся 3 энергетика и 2 пера Pidgeotto или Spearow. Принеси их, не теряя своего ледяного спутника.', [
+            ['label' => 'Сдать предметы', 'action' => 'airen_ice_turnin'],
+            ['label' => 'Собрать необходимое', 'close' => true],
+        ]);
+    }
+
+    /**
+     * Шаг 3 квеста 160: ледяной покемон 15+ (остаётся у игрока) и предметы —
+     * 3 энергетика (#15) и 2 пера (#13/#14 в любой комбинации).
+     */
+    private function airenIceTurnIn(int $userId): array
+    {
+        $quest = $this->quests->findForUser($userId, 160);
+
+        if ($quest === null || (int) ($quest['gotov'] ?? 0) === 1) {
+            return $this->error('Сначала нужно взять задание у Старой женщины.');
+        }
+
+        if ((int) ($quest['process'] ?? 0) < 3) {
+            return $this->dialog('Старая женщина', 'Сначала нужно найти ледяного покемона не ниже 15 уровня и показать мне его.', [
+                ['label' => 'Проверить покемона', 'action' => 'airen_ice_catch'],
+                ['label' => 'Вернусь позже', 'close' => true],
+            ]);
+        }
+
+        // Повторная проверка: покемон остаётся у игрока и не списывается.
+        $stmt = $this->db->prepare(
+            'SELECT pu.id
+               FROM pok_user pu
+               INNER JOIN pokemon p ON p.id = pu.basenum
+              WHERE pu.users = :user
+                AND pu.lvl >= :min_level
+                AND FIND_IN_SET("Ice", REPLACE(p.Element, " ", "")) > 0
+              LIMIT 1'
+        );
+        $stmt->execute([
+            'user' => $userId,
+            'min_level' => 15,
+        ]);
+
+        if (!$stmt->fetchColumn()) {
+            return $this->dialog('Старая женщина', 'Где твой ледяной покемон? Для завершения задания у тебя должен быть хотя бы один покемон ледяного типа не ниже 15 уровня.', [
+                ['label' => 'Вернусь с покемоном', 'close' => true],
+            ]);
+        }
+
+        $energyCount = $this->inventory->countItem($userId, 15);
+        $feather13Count = $this->inventory->countItem($userId, 13);
+        $feather14Count = $this->inventory->countItem($userId, 14);
+
+        if ($energyCount < 3 || ($feather13Count + $feather14Count) < 2) {
+            return $this->dialog('Старая женщина', 'Для ритуала не хватает предметов. Мне нужны 3 энергетика и 2 пера Pidgeotto или Spearow. Перья можно смешивать: главное, чтобы их было две штуки суммарно.', [
+                ['label' => 'Вернусь позже', 'close' => true],
+            ]);
+        }
+
+        // Списываем ровно два пера в любой доступной комбинации.
+        $remove13 = min(2, $feather13Count);
+        $remove14 = 2 - $remove13;
+
+        $this->db->beginTransaction();
+        try {
+            if (
+                !$this->inventory->removeItem($userId, 15, 3)
+                || ($remove13 > 0 && !$this->inventory->removeItem($userId, 13, $remove13))
+                || ($remove14 > 0 && !$this->inventory->removeItem($userId, 14, $remove14))
+            ) {
+                $this->db->rollBack();
+                return $this->error('Not enough quest items.');
+            }
+
+            $this->grantRewardItems($userId, [1 => 8000, 3 => 10, 5 => 5], 'Квест: Сон о ледяном крыле');
+            $this->quests->updateState($userId, 160, 20, 1);
+            $this->addQuestRank($userId, 2);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log('[npc_dialog] airen ice dream quest failed: ' . $e->getMessage());
+            return $this->error('Quest reward failed.');
+        }
+
+        return $this->dialog('Старая женщина', 'Всё готово. Ледяная сила твоего покемона и собранные предметы помогли мне разгадать сон Айрена. Птица с ледяными крыльями была знаком Артикуно. Теперь Айрен сможет понять её зов. Ты отлично справился! Награда: 8000 монет, 10 покеболов и 5 энергетиков, а также +2 к квестовому рангу.', [
+            ['label' => 'Спасибо', 'close' => true],
+        ]);
+    }
+
+    private function amiraLakeStart(int $userId): array
+    {
+        $quest = $this->quests->findForUser($userId, 161);
+        if ($quest !== null && (int) ($quest['gotov'] ?? 0) === 1) {
+            return $this->dialog('Художница Амира', 'Озеро уже услышало твой ответ. Спасибо, тренер.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ($quest === null) {
+            if (!$this->quests->createIfMissing($userId, 161, 4)) {
+                return $this->dialog('Художница Амира', 'Озеро пока молчит. Сначала заверши историю ледяного сна, а потом возвращайся ко мне.', [
+                    ['label' => 'Вернусь позже', 'close' => true],
+                ]);
+            }
+        } elseif ((int) ($quest['process'] ?? 0) < 4) {
+            $this->quests->updateState($userId, 161, 4, 0);
+        }
+
+        return $this->dialog('Художница Амира', 'Вода шепчет перед грозой. Победи пять диких покемонов, чтобы буря услышала тебя, а потом возвращайся к озеру.', [
+            ['label' => 'Рассказать о победах', 'action' => 'amira_storm_wins'],
+            ['label' => 'Я вернусь', 'close' => true],
+        ]);
+    }
+
+    private function amiraStormWins(int $userId): array
+    {
+        $quest = $this->quests->findForUser($userId, 161);
+        if ($quest === null) {
+            return $this->error('Сначала нужно взять задание у Амиры.');
+        }
+        if ((int) ($quest['gotov'] ?? 0) === 1) {
+            return $this->dialog('Художница Амира', 'Ты уже помог озеру пережить бурю.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+        if ((int) ($quest['process'] ?? 0) < 4) {
+            return $this->error('Сначала выслушай просьбу Амиры.');
+        }
+        if ((int) ($quest['process'] ?? 0) >= 5) {
+            return $this->dialog('Художница Амира', 'Гроза уже стихла. Осталось принести 2 энергетика для последнего мазка.', [
+                ['label' => 'Сдать энергетики', 'action' => 'amira_lake_turnin'],
+                ['label' => 'Позже', 'close' => true],
+            ]);
+        }
+
+        $wins = $this->countArchivedPveWins($userId);
+        if ($wins < 5) {
+            return $this->dialog('Художница Амира', 'Я пока не чувствую в твоем следе пяти побед над дикими покемонами. Возвращайся, когда буря признает твою силу.', [
+                ['label' => 'Проверить снова', 'action' => 'amira_storm_wins'],
+                ['label' => 'Вернусь позже', 'close' => true],
+            ]);
+        }
+
+        $this->quests->updateState($userId, 161, 5, 0);
+
+        return $this->dialog('Художница Амира', 'Теперь вода стала тише. Для завершения картины нужны 2 энергетика - они удержат свет над озером.', [
+            ['label' => 'Сдать энергетики', 'action' => 'amira_lake_turnin'],
+            ['label' => 'Собрать предметы', 'close' => true],
+        ]);
+    }
+
+    private function amiraLakeTurnIn(int $userId): array
+    {
+        $quest = $this->quests->findForUser($userId, 161);
+        if ($quest === null || (int) ($quest['gotov'] ?? 0) === 1) {
+            return $this->error('Сначала нужно взять задание у Амиры.');
+        }
+        if ((int) ($quest['process'] ?? 0) < 5) {
+            return $this->dialog('Художница Амира', 'Сначала победи пять диких покемонов и вернись к озеру.', [
+                ['label' => 'Проверить победы', 'action' => 'amira_storm_wins'],
+                ['label' => 'Позже', 'close' => true],
+            ]);
+        }
+        if ($this->inventory->countItem($userId, 15) < 2) {
+            return $this->dialog('Художница Амира', 'Для обряда у озера нужны 2 энергетика. Пока их не хватает.', [
+                ['label' => 'Вернусь с энергетиками', 'close' => true],
+            ]);
+        }
+
+        $this->db->beginTransaction();
+        try {
+            if (!$this->inventory->removeItem($userId, 15, 2)) {
+                $this->db->rollBack();
+                return $this->error('Not enough quest items.');
+            }
+            $this->grantRewardItems($userId, [1 => 12000, 5 => 8, 9 => 2], 'Квест: Шепот озера');
+            $this->quests->updateState($userId, 161, 20, 1);
+            $this->addQuestRank($userId, 3);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log('[npc_dialog] amira lake quest failed: ' . $e->getMessage());
+            return $this->error('Quest reward failed.');
+        }
+
+        return $this->dialog('Художница Амира', 'Озеро успокоилось, а картина наконец задышала. Прими награду.', [
+            ['label' => 'Спасибо', 'close' => true],
+        ]);
+    }
+
+    private function billyFeatherStart(int $userId): array
+    {
+        $quest = $this->quests->findForUser($userId, 162);
+        if ($quest !== null && (int) ($quest['gotov'] ?? 0) === 1) {
+            return $this->dialog('Коллекционер Билли', 'Перо уже лежит в коллекции. Хорошая работа.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ($quest === null) {
+            if (!$this->quests->createIfMissing($userId, 162, 6)) {
+                return $this->dialog('Коллекционер Билли', 'Пока рано искать это перо. Сначала помоги Амире у озера, потом возвращайся на дорогу.', [
+                    ['label' => 'Вернусь позже', 'close' => true],
+                ]);
+            }
+        } elseif ((int) ($quest['process'] ?? 0) < 6) {
+            $this->quests->updateState($userId, 162, 6, 0);
+        }
+
+        return $this->dialog('Коллекционер Билли', 'Мне нужно перо, которое не дрогнет на ветру. Покажи мне покемона со смелым характером, и я пойму, что тебе можно доверить поиск.', [
+            ['label' => 'Показать смелого покемона', 'action' => 'billy_brave_catch'],
+            ['label' => 'Пойду искать', 'close' => true],
+        ]);
+    }
+
+    private function billyBraveCatch(int $userId): array
+    {
+        $quest = $this->quests->findForUser($userId, 162);
+        if ($quest === null) {
+            return $this->error('Сначала нужно взять задание у Билли.');
+        }
+        if ((int) ($quest['gotov'] ?? 0) === 1) {
+            return $this->dialog('Коллекционер Билли', 'Коллекция уже пополнена твоей находкой.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+        if ((int) ($quest['process'] ?? 0) < 6) {
+            return $this->error('Сначала выслушай просьбу Билли.');
+        }
+        if ((int) ($quest['process'] ?? 0) >= 7) {
+            return $this->dialog('Коллекционер Билли', 'Смелость я уже увидел. Теперь нужны 10 сушеных клеверов и 1 конфета.', [
+                ['label' => 'Сдать предметы', 'action' => 'billy_feather_turnin'],
+                ['label' => 'Позже', 'close' => true],
+            ]);
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT id
+               FROM pok_user
+              WHERE users = :user
+                AND active = 1
+                AND har = :nature
+              LIMIT 1'
+        );
+        $stmt->execute([
+            'user' => $userId,
+            'nature' => 7,
+        ]);
+
+        if (!$stmt->fetchColumn()) {
+            return $this->dialog('Коллекционер Билли', 'Я пока не вижу у тебя покемона со смелым характером. Поймай такого и возвращайся.', [
+                ['label' => 'Проверить снова', 'action' => 'billy_brave_catch'],
+                ['label' => 'Пойду искать', 'close' => true],
+            ]);
+        }
+
+        $this->quests->updateState($userId, 162, 7, 0);
+
+        return $this->dialog('Коллекционер Билли', 'Вот это взгляд. Теперь принеси 10 сушеных клеверов и 1 конфету - перо нужно закрепить правильно.', [
+            ['label' => 'Сдать предметы', 'action' => 'billy_feather_turnin'],
+            ['label' => 'Собрать предметы', 'close' => true],
+        ]);
+    }
+
+    private function billyFeatherTurnIn(int $userId): array
+    {
+        $quest = $this->quests->findForUser($userId, 162);
+        if ($quest === null || (int) ($quest['gotov'] ?? 0) === 1) {
+            return $this->error('Сначала нужно взять задание у Билли.');
+        }
+        if ((int) ($quest['process'] ?? 0) < 7) {
+            return $this->dialog('Коллекционер Билли', 'Сначала покажи мне покемона со смелым характером.', [
+                ['label' => 'Показать покемона', 'action' => 'billy_brave_catch'],
+                ['label' => 'Позже', 'close' => true],
+            ]);
+        }
+
+        $clovers = $this->inventory->countItem($userId, 18);
+        $candies = $this->inventory->countItem($userId, 9);
+        if ($clovers < 10 || $candies < 1) {
+            return $this->dialog('Коллекционер Билли', 'Предметов пока не хватает. Нужно 10 сушеных клеверов и 1 конфета.', [
+                ['label' => 'Вернусь позже', 'close' => true],
+            ]);
+        }
+
+        $this->db->beginTransaction();
+        try {
+            if (!$this->inventory->removeItem($userId, 18, 10) || !$this->inventory->removeItem($userId, 9, 1)) {
+                $this->db->rollBack();
+                return $this->error('Not enough quest items.');
+            }
+            $this->grantRewardItems($userId, [1 => 15000, 3 => 15, 9 => 3, 10 => 20], 'Квест: Перо для Билли');
+            $this->quests->updateState($userId, 162, 20, 1);
+            $this->addQuestRank($userId, 4);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log('[npc_dialog] billy feather quest failed: ' . $e->getMessage());
+            return $this->error('Quest reward failed.');
+        }
+
+        return $this->dialog('Коллекционер Билли', 'Отлично. Перо выдержит любую дорогу, а коллекция запомнит твое имя.', [
             ['label' => 'Спасибо', 'close' => true],
         ]);
     }
@@ -446,7 +913,7 @@ final class NpcDialogService
         }
 
         if ($questNpcId === 8) {
-            return $this->flowerStall();
+            return $this->flowerStall($userId);
         }
 
         return $this->genericQuestNpc($title !== '' ? $title : $this->questNpcTitle($questNpcId, $locationId), $locationId);
@@ -494,11 +961,26 @@ final class NpcDialogService
 
     private function artistAmira(int $userId, int $step): array
     {
+        $lakeQuest = $this->quests->findForUser($userId, 161);
+        $lakeDone = $lakeQuest !== null && (int) ($lakeQuest['gotov'] ?? 0) === 1;
+        $lakeButtons = [];
+        if (!$lakeDone) {
+            $lakeProcess = (int) ($lakeQuest['process'] ?? 0);
+            if ($lakeProcess >= 5) {
+                $lakeButtons[] = ['label' => 'Сдать энергетики', 'action' => 'amira_lake_turnin'];
+            } elseif ($lakeProcess >= 4) {
+                $lakeButtons[] = ['label' => 'Рассказать о победах', 'action' => 'amira_storm_wins'];
+            } else {
+                $lakeButtons[] = ['label' => 'Спросить о шепоте озера', 'action' => 'amira_lake_start'];
+            }
+        }
+
         $quest = $this->quests->findForUser($userId, 2);
         if ($quest !== null && (int) ($quest['gotov'] ?? 0) === 1) {
-            return $this->dialog('Художница Амира', 'Озеро снова спокойно. Я все еще пишу его по ночам, но теперь в отражении воды нет тревоги.', [
-                ['label' => 'Уйти', 'close' => true],
-            ]);
+            return $this->dialog('Художница Амира', 'Озеро снова спокойно. Я все еще пишу его по ночам, но теперь в отражении воды нет тревоги.', array_merge(
+                $lakeButtons,
+                [['label' => 'Уйти', 'close' => true]]
+            ));
         }
 
         if ($quest !== null && (int) ($quest['process'] ?? 0) >= 5 && $step <= 1) {
@@ -538,11 +1020,12 @@ final class NpcDialogService
             ]);
         }
 
-        return $this->dialog('Художница Амира', 'Тише... У озера звук разносится далеко. Я пишу воду и стараюсь не спугнуть то, что приходит сюда по ночам.', [
+        return $this->dialog('Художница Амира', 'Тише... У озера звук разносится далеко. Я пишу воду и стараюсь не спугнуть то, что приходит сюда по ночам.', array_merge([
             ['label' => 'Спросить про Айрена', 'params' => ['quest_npc' => '1', 'do' => '2']],
             ['label' => 'Полюбоваться озером', 'params' => ['quest_npc' => '1', 'do' => '4']],
+        ], $lakeButtons, [
             ['label' => 'Уйти', 'close' => true],
-        ]);
+        ]));
     }
 
     private function airen(int $userId, int $step): array
@@ -665,10 +1148,28 @@ final class NpcDialogService
             ]);
         }
 
-        return $this->dialog('Старая женщина', 'Что ты тут делаешь? Сюда опасно заходить. Тёмный лес не любит шумных гостей.', [
+        // Квест 160 идёт поверх старой линии Айрена: знахарка остаётся тем же NPC,
+        // но у неё появляется шаг ледяного сна. Кнопка зависит от того, на каком
+        // шаге игрок: не начал / ищет покемона / несёт предметы.
+        $iceQuest = $this->quests->findForUser($userId, 160);
+        $iceDone = $iceQuest !== null && (int) ($iceQuest['gotov'] ?? 0) === 1;
+
+        $buttons = [
             ['label' => 'Спросить про слухи', 'params' => ['quest_npc' => '1', 'do' => '2']],
-            ['label' => 'Уйти', 'close' => true],
-        ]);
+        ];
+        if (!$iceDone) {
+            $iceProcess = (int) ($iceQuest['process'] ?? 0);
+            if ($iceProcess >= 3) {
+                $buttons[] = ['label' => 'Сдать предметы для обряда', 'action' => 'airen_ice_turnin'];
+            } elseif ($iceProcess >= 2) {
+                $buttons[] = ['label' => 'Показать ледяного покемона', 'action' => 'airen_ice_catch'];
+            } else {
+                $buttons[] = ['label' => 'Спросить о сне Айрена', 'action' => 'airen_ice_dream_start'];
+            }
+        }
+        $buttons[] = ['label' => 'Уйти', 'close' => true];
+
+        return $this->dialog('Старая женщина', 'Что ты тут делаешь? Сюда опасно заходить. Тёмный лес не любит шумных гостей.', $buttons);
     }
 
     private function articuno(int $userId, int $step): array
@@ -687,7 +1188,7 @@ final class NpcDialogService
 
             return $this->dialog(
                 '#144 Articuno',
-                'Ты отметил место встречи в журнале. Для полноценной сцены поимки нужен новый безопасный legendary encounter через PvE API; старый прямой спавн боя больше не запускается.',
+                'Ты отметил место встречи в журнале. Легенда пока не подпускает тебя ближе: нужен особый способ привести Артикуно к озеру, не нарушив связь с Айреном.',
                 [
                     ['label' => 'Записать в журнал', 'action' => 'quest_update:2:' . $nextProcess . ':0'],
                     ['label' => 'Уйти', 'close' => true],
@@ -831,10 +1332,52 @@ final class NpcDialogService
         ]);
     }
 
-    private function flowerStall(): array
+    private function flowerStall(int $userId): array
     {
-        return $this->dialog('Цветочный прилавок', 'Семена, цветы и сезонные ингредиенты перенесены в новый магазин предметов. Покупки больше не идут через старый PHP.', [
-            ['label' => 'Открыть Покемаркет', 'route' => '/game/market/items'],
+        $quest = $this->quests->findForUser($userId, 8);
+        if ($quest === null) {
+            return $this->dialog('Миссис Джафит', 'Мой цветочный прилавок разгромлен, а покемонов-помощников похитили. Если поможешь вернуть помощников, магазин снова сможет радовать посетителей.', [
+                ['label' => 'Помочь с прилавком', 'action' => 'quest_start:8:3'],
+                ['label' => 'Открыть Покемаркет', 'route' => '/game/market/items'],
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ((int) ($quest['gotov'] ?? 0) === 1) {
+            return $this->dialog('Миссис Джафит', 'Прилавок снова ожил. Спасибо за всех помощников: без тебя я бы не решилась открыть его заново.', [
+                ['label' => 'Открыть Покемаркет', 'route' => '/game/market/items'],
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        $process = (int) ($quest['process'] ?? 0);
+        if ($process < 6) {
+            $ready = $this->findActivePokemonForQuest($userId, 43, 1, 16) > 0;
+            return $this->dialog('Миссис Джафит', 'Для начала нужен Oddish с осторожным характером. Он поможет перебрать уцелевшие растения.', [
+                ['label' => 'Сдать Oddish', 'action' => 'quest_jafit_turnin:1', 'disabled' => !$ready, 'hint' => $ready ? null : 'В активной команде нет подходящего Oddish.'],
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ($process < 12) {
+            $ready = $this->findActivePokemonForQuest($userId, 12, 50, 0, 2) > 0;
+            return $this->dialog('Миссис Джафит', 'Теперь нужна Butterfree 50 уровня женского пола. Ее крылья помогут аккуратно рассеять пыльцу.', [
+                ['label' => 'Сдать Butterfree', 'action' => 'quest_jafit_turnin:2', 'disabled' => !$ready, 'hint' => $ready ? null : 'В активной команде нет подходящей Butterfree.'],
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        if ($process < 18) {
+            $ready = $this->findActivePokemonForQuest($userId, 61, 1) > 0;
+            return $this->dialog('Миссис Джафит', 'Полки уже почти разобраны. Принеси Poliwhirl: без воды цветы не восстановятся.', [
+                ['label' => 'Сдать Poliwhirl', 'action' => 'quest_jafit_turnin:3', 'disabled' => !$ready, 'hint' => $ready ? null : 'В активной команде нет Poliwhirl.'],
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        $ready = $this->findActivePokemonForQuest($userId, 70, 45, 5) > 0;
+        return $this->dialog('Миссис Джафит', 'Последний помощник - Weepinbell 45 уровня со спокойным характером. Тогда прилавок можно будет открыть снова.', [
+            ['label' => 'Сдать Weepinbell', 'action' => 'quest_jafit_turnin:4', 'disabled' => !$ready, 'hint' => $ready ? null : 'В активной команде нет подходящего Weepinbell.'],
             ['label' => 'Уйти', 'close' => true],
         ]);
     }
@@ -903,8 +1446,24 @@ final class NpcDialogService
 
     private function stadiumDialog(string $title): array
     {
-        return $this->dialog($title !== '' ? $title : 'Стадион', 'Стадион подключен к новой карте. Турнирные сценарии будут запускаться через модуль PvP и турниров, без legacy iframe.', [
+        return $this->dialog($title !== '' ? $title : 'Стадион', 'Стадион готовит официальные матчи. Турнирные сценарии запускаются через раздел турниров, а обычные вызовы идут из меню игрока.', [
             ['label' => 'Понятно', 'close' => true],
+        ]);
+    }
+
+    private function flightStatusDialog(): array
+    {
+        return $this->dialog('Проводник', 'Рейс выполняется. Подробности о времени прибытия и доступных действиях показаны в транспортном окне.', [
+            ['label' => 'Открыть транспорт', 'route' => '/game/transport'],
+            ['label' => 'Уйти', 'close' => true],
+        ]);
+    }
+
+    private function flightExitDialog(): array
+    {
+        return $this->dialog('Выход', 'Покинуть самолёт можно после прибытия. Если рейс уже завершён, вернись через транспортное окно.', [
+            ['label' => 'Открыть транспорт', 'route' => '/game/transport'],
+            ['label' => 'Закрыть', 'close' => true],
         ]);
     }
 
@@ -922,31 +1481,49 @@ final class NpcDialogService
     {
         $name = $title !== '' ? $title : 'Осмотреться';
         $lower = mb_strtolower($name, 'UTF-8');
-        $text = str_contains($lower, 'выход')
-            ? 'Выход из этой зоны теперь проходит через переходы новой карты, чтобы состояние игрока и чат не расходились.'
-            : 'Вы внимательно осмотрели локацию #' . $locationId . '. Отдельного события здесь пока нет, но точка уже заведена в новый NPC engine.';
+        if (str_contains($lower, 'выход')) {
+            return $this->dialog($name, 'Выход из этой зоны проходит через новую карту и транспорт. Если рейс уже завершён, вернуться можно через транспортное окно.', [
+                ['label' => 'Открыть транспорт', 'route' => '/game/transport'],
+                ['label' => 'Закрыть', 'close' => true],
+            ]);
+        }
+
+        $text = 'Вы осмотрелись: здесь пока нет отдельной сцены, но точка уже отмечена на новой карте и не запускает старые окна.';
 
         return $this->dialog($name, $text, [['label' => 'Закрыть', 'close' => true]]);
     }
 
     private function genericDialog(string $title, int $locationId): array
     {
-        return $this->dialog($title !== '' ? $title : 'NPC', 'Этот персонаж перенесен в новую карту. Для него включен безопасный диалог без запуска legacy PHP. Локация #' . $locationId . '.', [
+        return $this->dialog($title !== '' ? $title : 'NPC', 'Персонаж уже подключен к новой карте. Сейчас у него нет отдельного задания, но он может получить сцену или сервис в следующем обновлении. Локация #' . $locationId . '.', [
             ['label' => 'Закрыть', 'close' => true],
         ]);
     }
 
     private function genericQuestNpc(string $title, int $locationId): array
     {
-        return $this->dialog($title !== '' ? $title : 'Сюжетный NPC', 'Персонаж найден в legacy-карте и отображается в новой версии. Старый PHP не запускается напрямую; сценарий готов к дальнейшему расширению через quest API. Локация #' . $locationId . '.', [
+        return $this->dialog($title !== '' ? $title : 'Сюжетный NPC', 'Этот персонаж уже стоит на новой карте. Пока его история ждёт продолжения, можно отметить встречу и вернуться позже. Локация #' . $locationId . '.', [
             ['label' => 'Отметить как просмотренное', 'action' => 'npc_ack'],
             ['label' => 'Уйти', 'close' => true],
         ]);
     }
 
-    private function questStartAction(int $userId, string $action): array
+    private function questStartAction(int $userId, int $locationId, array $params, string $action): array
     {
-        [, $questId, $process] = array_pad(explode(':', $action), 3, 0);
+        // The wire strings are retained for existing dialogs, but are opaque commands.
+        // Never interpret a client-supplied quest number or initial process.
+        $rule = match ($action) {
+            'quest_start:1:2' => [3, 1, 1, 2],
+            'quest_start:2:2' => [1, 3, 2, 2],
+            'quest_start:3:2' => [5, 4, 3, 2],
+            'quest_start:4:10' => [6, 5, 4, 10],
+            'quest_start:8:3' => [10, 8, 8, 3],
+            default => null,
+        };
+        if ($rule === null || $locationId !== $rule[0] || (int) ($params['quest_npc'] ?? 0) !== $rule[1]) {
+            return $this->error('Это действие недоступно у этого NPC.');
+        }
+        [, , $questId, $process] = $rule;
         if (!$this->quests->canStart($userId, (int) $questId)) {
             return $this->dialog('Задание', 'Это задание пока недоступно: сначала нужно завершить предыдущий связанный квест.', [
                 ['label' => 'Понятно', 'close' => true],
@@ -960,10 +1537,25 @@ final class NpcDialogService
         ]);
     }
 
-    private function questUpdateAction(int $userId, string $action): array
+    private function questUpdateAction(int $userId, int $locationId, array $params, string $action): array
     {
-        [, $questId, $process, $completed] = array_pad(explode(':', $action), 4, 0);
-        $this->quests->createOrUpdate($userId, (int) $questId, (int) $process, (int) $completed);
+        // Only five narrative acknowledgements exist. Completion and turn-in steps
+        // must go through their server-side requirement/reward handlers.
+        $rule = match ($action) {
+            'quest_update:1:3:0' => [1, 2, 1, 2, 3],
+            'quest_update:2:3:0' => [7, 1, 2, 2, 3],
+            'quest_update:2:5:0' => [11, 1, 2, 4, 5],
+            'quest_update:2:6:0' => [11, 2, 2, 5, 6],
+            'quest_update:2:7:0' => [13, 1, 2, 6, 7],
+            default => null,
+        };
+        if ($rule === null || $locationId !== $rule[0] || (int) ($params['quest_npc'] ?? 0) !== $rule[1]) {
+            return $this->error('Это действие недоступно у этого NPC.');
+        }
+        [, , $questId, $expected, $next] = $rule;
+        if (!$this->quests->advanceNarrativeStep($userId, $questId, $expected, $next)) {
+            return $this->error('Сначала выполни предыдущий этап задания.');
+        }
 
         return $this->dialog('Задание', 'Журнал обновлен.', [
             ['label' => 'Закрыть', 'close' => true],
@@ -1039,12 +1631,85 @@ final class NpcDialogService
         }
 
         $this->deleteQuestPokemon($userId, $pokemonIds);
-        $this->grantRewardItems($userId, [1 => 50000, 20 => 3], 'Квест: Цирковая команда');
+        $this->grantRewardItems($userId, [1 => 50000, 3 => 20], 'Квест: Цирковая команда');
         $this->quests->updateState($userId, 3, 10, 1);
         $this->addQuestRank($userId, 2);
 
-        return $this->dialog('Циркач Стив', 'Огромное спасибо! Награда: 50 000 монет и 3 предмета #20.', [
+        return $this->dialog('Циркач Стив', 'Огромное спасибо! Награда: 50 000 монет и 20 покеболов.', [
             ['label' => 'Уйти', 'close' => true],
+        ]);
+    }
+
+    private function turnInJafitQuest(int $userId, int $stage): array
+    {
+        $requirements = [
+            1 => ['base' => 43, 'level' => 1, 'nature' => 16, 'sex' => 0, 'next' => 6, 'completed' => 0, 'reward' => [18 => 1], 'rank' => 0, 'missing' => 'Нужен Oddish с осторожным характером.'],
+            2 => ['base' => 12, 'level' => 50, 'nature' => 0, 'sex' => 2, 'next' => 12, 'completed' => 0, 'reward' => [9 => 5], 'rank' => 0, 'missing' => 'Нужна Butterfree 50 уровня женского пола.'],
+            3 => ['base' => 61, 'level' => 1, 'nature' => 0, 'sex' => 0, 'next' => 18, 'completed' => 0, 'reward' => [15 => 20], 'rank' => 0, 'missing' => 'Нужен Poliwhirl.'],
+            4 => ['base' => 70, 'level' => 45, 'nature' => 5, 'sex' => 0, 'next' => 20, 'completed' => 1, 'reward' => [56 => 1], 'rank' => 4, 'missing' => 'Нужен Weepinbell 45 уровня со спокойным характером.'],
+        ];
+        if (!isset($requirements[$stage])) {
+            return $this->error('Неизвестный этап квеста.');
+        }
+
+        $quest = $this->quests->findForUser($userId, 8);
+        if ($quest === null) {
+            return $this->dialog('Миссис Джафит', 'Сначала нужно принять просьбу о восстановлении прилавка.', [
+                ['label' => 'Принять задание', 'action' => 'quest_start:8:3'],
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+        if ((int) ($quest['gotov'] ?? 0) === 1) {
+            return $this->dialog('Миссис Джафит', 'Прилавок уже восстановлен. Спасибо за помощь.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        $requiredProcess = [1 => 3, 2 => 6, 3 => 12, 4 => 18][$stage];
+        if ((int) ($quest['process'] ?? 0) < $requiredProcess) {
+            return $this->dialog('Миссис Джафит', 'Этот этап еще не открыт.', [
+                ['label' => 'Уйти', 'close' => true],
+            ]);
+        }
+
+        $req = $requirements[$stage];
+        $pokemonId = $this->findActivePokemonForQuest($userId, $req['base'], $req['level'], $req['nature'], $req['sex']);
+        if ($pokemonId <= 0) {
+            return $this->dialog('Миссис Джафит', $req['missing'], [
+                ['label' => 'Вернусь позже', 'close' => true],
+            ]);
+        }
+
+        if ($this->activePokemonCount($userId) <= 1) {
+            return $this->dialog('Миссис Джафит', 'Я не могу забрать последнего покемона в твоей команде. Оставь с собой хотя бы одного помощника.', [
+                ['label' => 'Вернусь позже', 'close' => true],
+            ]);
+        }
+
+        $this->db->beginTransaction();
+        try {
+            $this->deleteQuestPokemon($userId, [$pokemonId]);
+            $this->grantRewardItems($userId, $req['reward'], 'Квест: Прилавок Миссис Джафит');
+            if ($req['rank'] > 0) {
+                $this->addQuestRank($userId, $req['rank']);
+            }
+            $this->quests->updateState($userId, 8, $req['next'], $req['completed']);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            error_log('[npc_dialog] jafit quest failed: ' . $e->getMessage());
+            return $this->error('Не удалось сдать этап квеста.');
+        }
+
+        $messages = [
+            1 => 'Oddish устроился среди уцелевших горшков. Награда: сушеный клевер.',
+            2 => 'Butterfree осторожно очистила прилавок от пыльцы и пыли. Награда: 5 фиолетовых конфет.',
+            3 => 'Poliwhirl наполнил резервуары водой. Награда: 20 энергетиков.',
+            4 => 'Weepinbell спокойно занял место последнего помощника. Прилавок снова открыт. Награда: таинственное яйцо и +4 к рейтингу квестов.',
+        ];
+
+        return $this->dialog('Миссис Джафит', $messages[$stage], [
+            ['label' => $stage < 4 ? 'Продолжить' : 'Спасибо', 'close' => true],
         ]);
     }
 
@@ -1056,12 +1721,23 @@ final class NpcDialogService
             ]);
         }
 
-        $this->inventory->removeItem($userId, 4, 1);
-        $this->grantRewardItems($userId, [1 => 10000, 5 => 3], 'Квест: Игрушка Кэрол');
+        $this->db->beginTransaction();
+        try {
+        if (!$this->inventory->removeItem($userId, 4, 1)) {
+            $this->db->rollBack();
+            return $this->error('Not enough quest items.');
+        }
+        $this->grantRewardItems($userId, [1 => 10000, 3 => 5], 'Квест: Игрушка Кэрол');
         $this->quests->updateState($userId, 4, 11, 1);
         $this->addQuestRank($userId, 3);
+        $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            error_log('[npc_dialog] carol quest failed: ' . $e->getMessage());
+            return $this->error('Quest reward failed.');
+        }
 
-        return $this->dialog('Кэрол', 'Ура! Спасибо, что вернул игрушку. Награда: 10 000 монет и 3 предмета #5.', [
+        return $this->dialog('Кэрол', 'Ура! Спасибо, что вернул игрушку. Награда: 10 000 монет и 5 покеболов.', [
             ['label' => 'Будь осторожна', 'close' => true],
         ]);
     }
@@ -1182,15 +1858,19 @@ final class NpcDialogService
         $this->db->beginTransaction();
         try {
             foreach ($recipe['parts'] as $itemId => $count) {
-                $this->inventory->removeItem($userId, (int) $itemId, (int) $count);
+                if (!$this->inventory->removeItem($userId, (int) $itemId, (int) $count)) {
+                    $this->db->rollBack();
+                    return $this->error('Not enough craft resources.');
+                }
             }
             $success = random_int(0, 10) > 5;
             if ($success) {
                 $this->grantRewardItems($userId, [(int) $recipe['item'] => 1], 'Крафт предмета');
             }
             $this->db->commit();
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
             $this->db->rollBack();
+            error_log('[npc_dialog] craft failed: ' . $e->getMessage());
             return $this->error('Не удалось выполнить крафт.');
         }
 
@@ -1209,10 +1889,21 @@ final class NpcDialogService
             ]);
         }
 
-        $this->inventory->removeItem($userId, 1, 10000);
+        $this->db->beginTransaction();
+        try {
+        if (!$this->inventory->removeItem($userId, 1, 10000)) {
+            $this->db->rollBack();
+            return $this->error('Not enough coins.');
+        }
         $stmt = $this->db->prepare('SELECT rang_a, rang_b, rang_c FROM users WHERE id = :user LIMIT 1');
         $stmt->execute(['user' => $userId]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['rang_a' => 0, 'rang_b' => 0, 'rang_c' => 0];
+        $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            error_log('[npc_dialog] reputation check failed: ' . $e->getMessage());
+            return $this->error('Reputation check failed.');
+        }
 
         return $this->dialog('Секретарь', sprintf(
             'Ранг PvE: %d. Ранг PvP: %d. Квестовые очки: %d.',
@@ -1238,14 +1929,29 @@ final class NpcDialogService
         return implode(', ', $missing);
     }
 
-    private function findActivePokemonForQuest(int $userId, int $baseId, int $level): int
+    private function findActivePokemonForQuest(int $userId, int $baseId, int $level, int $natureId = 0, int $sex = 0): int
     {
-        $stmt = $this->db->prepare(
-            'SELECT id FROM pok_user
-              WHERE users = :user AND active = 1 AND basenum = :base AND lvl >= :level
-              ORDER BY lvl ASC, id ASC LIMIT 1'
-        );
-        $stmt->execute(['user' => $userId, 'base' => $baseId, 'level' => $level]);
+        $sql = 'SELECT id FROM pok_user
+              WHERE users = :user AND active = 1 AND basenum = :base AND lvl >= :level';
+        if ($natureId > 0) {
+            $sql .= ' AND har = :nature';
+        }
+        if ($sex > 0) {
+            $sql .= ' AND sex = :sex';
+        }
+        $sql .= ' ORDER BY lvl ASC, id ASC LIMIT 1';
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':user', $userId, PDO::PARAM_INT);
+        $stmt->bindValue(':base', $baseId, PDO::PARAM_INT);
+        $stmt->bindValue(':level', $level, PDO::PARAM_INT);
+        if ($natureId > 0) {
+            $stmt->bindValue(':nature', $natureId, PDO::PARAM_INT);
+        }
+        if ($sex > 0) {
+            $stmt->bindValue(':sex', $sex, PDO::PARAM_INT);
+        }
+        $stmt->execute();
 
         return (int) ($stmt->fetchColumn() ?: 0);
     }
@@ -1275,6 +1981,20 @@ final class NpcDialogService
     private function activePokemonCount(int $userId): int
     {
         $stmt = $this->db->prepare('SELECT COUNT(*) FROM pok_user WHERE users = :user AND active = 1');
+        $stmt->execute(['user' => $userId]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    private function countArchivedPveWins(int $userId): int
+    {
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*)
+               FROM battle_history_archive
+              WHERE user_id = :user
+                AND mode = "pve"
+                AND result = "win"'
+        );
         $stmt->execute(['user' => $userId]);
 
         return (int) $stmt->fetchColumn();
