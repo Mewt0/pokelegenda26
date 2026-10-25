@@ -63,11 +63,26 @@ final class NpcDialogService
         $npc = $this->findNpc($locationId, $params);
         $title = $this->npcTitle($npc, $params, $locationId);
 
+        if (($params['npc'] ?? '') === 'world_guide') {
+            if (!$this->isRegionalLocation($locationId) || $npc === null || $params !== ['npc' => 'world_guide']) {
+                return $this->error('Проводник недоступен в этой локации.');
+            }
+            $room = $this->content->find($locationId);
+            return $this->dialog((string) $npc['title'], (string) $room['about'], [
+                ['label' => 'Журнал заданий', 'route' => '/game/quests'],
+                ['label' => 'Доступный транспорт', 'route' => '/game/transport'],
+                ['label' => 'Продолжить путь', 'close' => true],
+            ]);
+        }
+
         if ((int) ($params['quest_npc'] ?? 0) === 7) {
             return $this->billy($userId, (int) ($params['do'] ?? 1));
         }
 
         if ($this->isSisterJoy($locationId, $params)) {
+            if (!$this->hasSisterJoy($locationId)) {
+                return $this->error('Сестра Джой доступна только в покецентре.');
+            }
             return $this->sisterJoy($userId, (string) ($params['do_npc'] ?? 'pc'));
         }
 
@@ -118,6 +133,10 @@ final class NpcDialogService
     {
         if (!$this->userIsAtLocation($userId, $locationId)) {
             return $this->error('Это действие доступно только на текущей локации.');
+        }
+
+        if (str_starts_with($action, 'craft_stone:') && !$this->isStoneCraftNpc($locationId, $params)) {
+            return $this->error('Изготовление камней доступно только у мастерового.');
         }
 
         if ((int) ($params['quest_npc'] ?? 0) === 7 && $action === 'accept_billy_quest') {
@@ -193,10 +212,12 @@ final class NpcDialogService
         }
 
         if (str_starts_with($action, 'starter_select:')) {
+            if (!$this->isProfessorOakContext($locationId,$params)) { return $this->error('Выбрать стартера можно только у профессора Оука.'); }
             return $this->selectStarter($userId, (int) substr($action, strlen('starter_select:')));
         }
 
         if ($action === 'oak_finish_starter') {
+            if (!$this->isProfessorOakContext($locationId,$params)) { return $this->error('Получить стартера можно только у профессора Оука.'); }
             return $this->finishOakStarter($userId);
         }
 
@@ -869,6 +890,11 @@ final class NpcDialogService
         }
 
         if ($locationId === 1 && $questNpcId === 3) {
+            if ($step === 3) {
+                return $this->isStoneCraftNpc($locationId, $params)
+                    ? $this->stoneCraftDialog($userId)
+                    : $this->error('Этот мастеровой здесь недоступен.');
+            }
             return $this->strangeSpike($userId, $step);
         }
 
@@ -908,7 +934,7 @@ final class NpcDialogService
             return $this->researcher($userId);
         }
 
-        if (($locationId === 28 && $questNpcId === 3) || ($questNpcId === 3 && $step === 3)) {
+        if ($locationId === 28 && $questNpcId === 3 && $this->isStoneCraftNpc($locationId, $params)) {
             return $this->stoneCraftDialog($userId);
         }
 
@@ -942,6 +968,11 @@ final class NpcDialogService
             ]);
         }
 
+        if ((int) ($quest['process'] ?? 0) < 3) {
+            return $this->dialog('Профессор Оук', 'Сначала вернись в Алабастию и поговори со Случайным прохожим. Он подскажет, где искать покемонов. После разговора возвращайся ко мне.', [
+                ['label' => 'Пойду расспрошу прохожего', 'close' => true],
+            ]);
+        }
         $choices = [];
         foreach (self::STARTERS as $baseId => $name) {
             $choices[] = ['label' => sprintf('#%03d %s', $baseId, $name), 'action' => 'starter_select:' . $baseId];
@@ -1250,7 +1281,7 @@ final class NpcDialogService
             : 'Я видел кое-что странное на рассвете, но мне редко верят.';
 
         return $this->dialog('Странный Спайк', $text, [
-            ['label' => 'Расскажи подробнее', 'params' => ['quest_npc' => '3', 'do' => (string) min(4, $step + 1)]],
+            ['label' => 'Расскажи подробнее', 'params' => ['quest_npc' => '3', 'do' => (string) ($step >= 2 ? 4 : 2)]],
             ['label' => 'Записать рассказ', 'action' => 'quest_start:2:2'],
             ['label' => 'Крафт камней', 'params' => ['quest_npc' => '3', 'do' => '3']],
             ['label' => 'Уйти', 'close' => true],
@@ -1562,13 +1593,25 @@ final class NpcDialogService
         ]);
     }
 
+    private function isProfessorOakContext(int $locationId, array $params): bool
+    {
+        return $locationId === 3 && (string)($params['quest_npc'] ?? '') === '1'
+            && array_diff(array_keys($params),['quest_npc','do']) === []
+            && $this->findNpc(3,['quest_npc'=>'1','do'=>'1']) !== null;
+    }
+
     private function selectStarter(int $userId, int $baseId): array
     {
         if (!isset(self::STARTERS[$baseId])) {
             return $this->error('Такого стартового покемона выбрать нельзя.');
         }
 
-        $this->quests->setStarterChoice($userId, $baseId);
+        $choice = $this->db->prepare('UPDATE quest SET pers=?,process=4 WHERE user_id=? AND quest_id=1 AND gotov=0 AND process=3 AND pers=0 LIMIT 1');
+        $choice->execute([$baseId,$userId]);
+        $quest = $this->quests->findForUser($userId,1);
+        if (!$quest || (int)$quest['gotov'] !== 0 || (int)$quest['process'] !== 4 || (int)$quest['pers'] !== $baseId) {
+            return $this->error('Сначала поговори с прохожим. Выбранного стартера нельзя заменить.');
+        }
 
         return $this->dialog('Пойман стартовый покемон', sprintf('Ты выбрал #%03d %s. Вернись к профессору Оуку, чтобы зарегистрировать покемона.', $baseId, self::STARTERS[$baseId]), [
             ['label' => 'К профессору Оуку', 'params' => ['quest_npc' => '1', 'do' => '1']],
@@ -1579,7 +1622,7 @@ final class NpcDialogService
     private function finishOakStarter(int $userId): array
     {
         $quest = $this->quests->findForUser($userId, 1);
-        if ($quest === null || (int) ($quest['gotov'] ?? 0) === 1) {
+        if ($quest === null || (int) ($quest['gotov'] ?? 0) === 1 || (int)($quest['process'] ?? 0) < 4) {
             return $this->error('Нечего завершать.');
         }
 
@@ -1588,17 +1631,19 @@ final class NpcDialogService
             return $this->error('Сначала выбери стартового покемона.');
         }
 
-        $pokemonId = $this->grantPokemon($userId, $baseId, 5, true);
-        if ($pokemonId <= 0) {
-            return $this->error('Не удалось выдать стартового покемона.');
+        $rewards = $this->quests->starterRewards($this->rewards);
+        try {
+            $claim = $rewards->claim($userId,1,function (array $lockedQuest) use ($userId): int {
+                $base = (int)$lockedQuest['pers'];
+                if (!isset(self::STARTERS[$base])) { throw new \RuntimeException('Invalid starter choice'); }
+                return $this->grantPokemon($userId,$base,5,true);
+            });
+        } catch (\Throwable $e) {
+            error_log('[starter_reward] Oak claim failed');
+            return $this->error('Не удалось получить награду. Ничего не списано — попробуй ещё раз.');
         }
-
-        $this->grantRewardItems($userId, [10 => 3, 1 => 5000], 'Квест: Первый покемон');
-        $this->quests->updateState($userId, 1, 10, 1);
-        $this->addQuestRank($userId, 1);
-        $this->quests->startIfAvailable($userId, 101, 1);
-
-        return $this->dialog('Профессор Оук', 'Готово. Стартовый покемон зарегистрирован, а в инвентарь добавлены покеболы и 5000 монет. Следующий шаг: выйди на Дорогу 1 и проведи первый бой.', [
+        if (empty($claim['claimed'])) { return $this->error('Стартовая награда уже получена или пока недоступна.'); }
+        return $this->dialog('Профессор Оук', 'Стартовый покемон зарегистрирован! Твои припасы: ' . $rewards->summary(1) . '. Теперь выйди на Дорогу 1, включи нападение и проведи первый бой. Покеболы нужны для ловли, а конфеты можно применить к своему покемону.', [
             ['label' => 'Спасибо', 'close' => true],
         ]);
     }
@@ -1839,6 +1884,29 @@ final class NpcDialogService
         return $this->dialog('Исследователь', 'Спасибо. Награда: 10 000 монет и 10 покеболов. Возвращайся завтра.', [
             ['label' => 'Уйти', 'close' => true],
         ]);
+    }
+
+    private function isStoneCraftNpc(int $locationId, array $params): bool
+    {
+        if (!in_array($locationId, [1, 28], true)
+            || (string) ($params['quest_npc'] ?? '') !== '3'
+            || array_diff(array_keys($params), ['quest_npc', 'do']) !== []
+        ) {
+            return false;
+        }
+        foreach (($this->content->find($locationId)['npcs'] ?? []) as $npc) {
+            if ((string) ($npc['params']['quest_npc'] ?? '') === '3') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function isRegionalLocation(int $locationId): bool
+    {
+        return ($locationId >= 30000 && $locationId <= 30011)
+            || ($locationId >= 31000 && $locationId <= 31011)
+            || ($locationId >= 32000 && $locationId <= 32011);
     }
 
     private function craftStone(int $userId, string $key): array

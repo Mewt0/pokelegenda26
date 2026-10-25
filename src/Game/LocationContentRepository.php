@@ -16,14 +16,20 @@ final class LocationContentRepository
         return new self(is_array($locations) ? $locations : []);
     }
 
+    public static function fromDatabase(\PDO $db): self
+    {
+        return new self((new WorldDataRepository($db))->locationContent());
+    }
+
     /** @return array{name:?string,about:?string,image:?string,npcs:list<array<string,mixed>>} */
     public function find(int $locationId): array
     {
         $data = $this->locations[$locationId] ?? [];
         $about = isset($data['about']) && $data['about'] !== '' ? (string) $data['about'] : null;
+        $name = trim((string) ($data['name'] ?? ''));
 
         return [
-            'name' => isset($data['name']) && $data['name'] !== '' ? (string) $data['name'] : null,
+            'name' => $name !== '' ? $name : null,
             'about' => $this->sanitizeAbout($locationId, $about),
             'image' => isset($data['image']) && $data['image'] !== '' ? (string) $data['image'] : null,
             'npcs' => $this->normalizeNpcs($data['npcs'] ?? []),

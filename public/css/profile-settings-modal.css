@@ -121,6 +121,18 @@
   color: var(--text-inverse);
 }
 
+/* Точка у раздела с несохранёнными правками: данные не теряются при переключении. */
+.profile-settings-tab.is-dirty::after {
+  content: '';
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--warning);
+  box-shadow: 0 0 0 1px var(--surface-1);
+}
+
 .profile-settings-future {
   margin-top: auto;
   padding: var(--space-3);

@@ -12,6 +12,11 @@
   let currentSection = 'account';
   let settings = null;
   let onSaved = null;
+  let sectionDirty = false;
+  let loadSerial = 0;
+  let dynamicHint = null;
+  const drafts = new Map();
+  const sectionEditSerial = new Map();
 
   function iconMarkup(name) {
     return '<span class="icon icon--' + name + '" aria-hidden="true"></span>';
@@ -74,6 +79,8 @@
       if (!event.defaultPrevented && event.key === 'Escape' && overlay.classList.contains('is-open')) close();
     });
     saveButton.addEventListener('click', saveCurrentSection);
+    content.addEventListener('input', onFieldEdited);
+    content.addEventListener('change', onFieldEdited);
     renderNav();
   }
 
@@ -93,9 +100,7 @@
       button.setAttribute('aria-pressed', String(key === currentSection));
       button.querySelector('b').textContent = title;
       button.addEventListener('click', () => {
-        currentSection = key;
-        renderNav();
-        renderSection();
+        switchSection(key);
       });
       nav.appendChild(button);
     });
@@ -104,6 +109,76 @@
     future.className = 'profile-settings-future';
     future.textContent = 'Новые разделы можно добавлять сюда без переделки окна.';
     nav.appendChild(future);
+    updateDirtyUi();
+  }
+
+  function captureDraft() {
+    if (!content || !settings || currentSection === 'extra') return;
+    const values = {};
+    content.querySelectorAll('input, select, textarea').forEach(field => {
+      if (!field.name) return;
+      // Пароли не держим в черновике: при смене раздела поля остаются пустыми.
+      if (field.type === 'password') return;
+      values[field.name] = field.type === 'checkbox' ? (field.checked ? '1' : '0') : field.value;
+    });
+    drafts.set(currentSection, { values, dirty: sectionDirty });
+  }
+
+  function applyDraftValues() {
+    if (!content) return;
+    const draft = drafts.get(currentSection);
+    sectionDirty = false;
+    if (!draft) return;
+    content.querySelectorAll('input, select, textarea').forEach(field => {
+      if (!field.name || !Object.prototype.hasOwnProperty.call(draft.values, field.name)) return;
+      if (field.type === 'checkbox') field.checked = draft.values[field.name] === '1';
+      else field.value = draft.values[field.name];
+    });
+    sectionDirty = !!draft.dirty;
+  }
+
+  function anyDirty() {
+    let dirty = false;
+    drafts.forEach(draft => {
+      if (draft && draft.dirty) dirty = true;
+    });
+    return dirty;
+  }
+
+  function updateDirtyUi() {
+    if (!overlay) return;
+    overlay.querySelectorAll('[data-section]').forEach(button => {
+      const draft = drafts.get(button.dataset.section);
+      const dirty = !!(draft && draft.dirty);
+      button.classList.toggle('is-dirty', dirty);
+      const labelNode = button.querySelector('b');
+      const label = labelNode ? labelNode.textContent : '';
+      if (dirty && label) button.setAttribute('aria-label', label + ' — есть несохранённые изменения');
+      else button.removeAttribute('aria-label');
+    });
+  }
+
+  function onFieldEdited(event) {
+    const field = event.target;
+    if (!field || !field.name || !settings || currentSection === 'extra') return;
+    sectionEditSerial.set(currentSection, (sectionEditSerial.get(currentSection) || 0) + 1);
+    sectionDirty = true;
+    captureDraft();
+    updateDirtyUi();
+    if (dynamicHint) dynamicHint();
+  }
+
+  function switchSection(key) {
+    if (key === currentSection) return;
+    captureDraft();
+    const leftDirty = sectionDirty;
+    currentSection = key;
+    sectionDirty = false;
+    renderNav();
+    renderSection();
+    if (leftDirty || anyDirty()) {
+      setStatus('Есть несохранённые изменения — нажмите «Сохранить» в нужном разделе.');
+    }
   }
 
   async function open(options = {}) {
@@ -117,25 +192,29 @@
 
   function close() {
     if (!overlay) return;
+    if (settings) captureDraft();
     overlay.classList.remove('is-open');
     overlay.setAttribute('aria-hidden', 'true');
   }
 
   async function load() {
+    const serial = ++loadSerial;
     try {
       const response = await fetch('/api/profile/settings', {
         credentials: 'same-origin',
         headers: { Accept: 'application/json' },
       });
       const data = await response.json();
+      if (serial !== loadSerial) return;
       if (!data || data.ok !== true) {
         setStatus(data && data.message ? data.message : 'Не удалось загрузить настройки.', 'error');
         return;
       }
       settings = data.settings || {};
       renderSection();
-      setStatus('Готово');
+      setStatus(anyDirty() ? 'Есть несохранённые изменения.' : 'Готово');
     } catch (error) {
+      if (serial !== loadSerial) return;
       console.error('Profile settings load failed:', error);
       setStatus('Не удалось загрузить настройки.', 'error');
     }
@@ -148,12 +227,16 @@
       content.innerHTML = '<h3>Настройки</h3><p class="profile-settings-hint ui-field__hint">Загрузка...</p>';
       return;
     }
-    if (currentSection === 'account') return renderAccount();
-    if (currentSection === 'profile') return renderProfile();
-    if (currentSection === 'privacy') return renderPrivacy();
-    if (currentSection === 'interface') return renderInterface();
-    if (currentSection === 'notifications') return renderNotifications();
-    renderExtra();
+    dynamicHint = null;
+    if (currentSection === 'account') renderAccount();
+    else if (currentSection === 'profile') renderProfile();
+    else if (currentSection === 'privacy') renderPrivacy();
+    else if (currentSection === 'interface') renderInterface();
+    else if (currentSection === 'notifications') renderNotifications();
+    else renderExtra();
+    applyDraftValues();
+    if (dynamicHint) dynamicHint();
+    updateDirtyUi();
   }
 
   function renderAccount() {
@@ -190,6 +273,7 @@
     const hint = document.createElement('div');
     hint.className = 'profile-settings-hint ui-field__hint';
     const updateHint = () => { hint.textContent = 'Символов: ' + textareaNode.value.length + ' / 500'; };
+    dynamicHint = updateHint;
     textareaNode.addEventListener('input', updateHint);
     textareaNode.parentElement.appendChild(hint);
     updateHint();
@@ -246,13 +330,16 @@
 
   async function saveCurrentSection() {
     if (!settings || currentSection === 'extra') return;
+    captureDraft();
+    const section = currentSection;
+    const editedAtStart = sectionEditSerial.get(section) || 0;
     saveButton.disabled = true;
     saveButton.classList.add('is-loading');
     setStatus('Сохраняю...');
     try {
       const body = new URLSearchParams();
       body.set('_csrf', csrf);
-      body.set('section', currentSection);
+      body.set('section', section);
       collectFields(body);
       const response = await fetch('/api/profile/settings', {
         method: 'POST',
@@ -269,8 +356,23 @@
         return;
       }
       settings = data.settings || settings;
-      setStatus('✓ Настройки успешно сохранены', 'ok');
-      renderSection();
+      const editedDuringRequest = (sectionEditSerial.get(section) || 0) !== editedAtStart;
+      if (!editedDuringRequest) {
+        drafts.delete(section);
+        if (section === currentSection) {
+          sectionDirty = false;
+          renderSection();
+        } else {
+          updateDirtyUi();
+        }
+        setStatus('✓ Настройки успешно сохранены', 'ok');
+      } else {
+        const draft = drafts.get(section);
+        if (draft) draft.dirty = true;
+        if (section === currentSection) sectionDirty = true;
+        updateDirtyUi();
+        setStatus('✓ Сохранено, но в форме есть более новые правки — сохраните ещё раз.', 'ok');
+      }
       syncToolbar();
       window.dispatchEvent(new CustomEvent('profile-settings:saved', { detail: { settings } }));
       if (onSaved) onSaved(settings);

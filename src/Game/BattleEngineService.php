@@ -1359,25 +1359,16 @@ final class BattleEngineService
 
     public function completeFirstBattleQuest(int $userId, int $battleId, string $result): ?string
     {
+        if (!in_array($result,['win','catch'],true)) { return null; }
         if ($this->quests === null) {
             return null;
         }
 
         $this->quests->startIfAvailable($userId, 101, 10);
-        if (!$this->quests->completeIfActive($userId, 101, 20)) {
+        $claim = $this->quests->starterRewards($this->rewards)->claim($userId,101);
+        if (empty($claim['claimed'])) {
             return null;
         }
-
-        $this->rewards?->grantItems($userId, [1 => 2000, 10 => 2], 'Квест: Первый бой на Дороге 1');
-        $this->quests->addQuestRank($userId, 1);
-        $this->quests->startIfAvailable($userId, 102, 10);
-        $this->rewards?->notify(
-            $userId,
-            'Квест завершён',
-            'Первый бой засчитан. Следующий шаг: добраться до Вертании через Дорогу 1.',
-            'quest',
-            ['quest_id' => 101, 'battle_id' => $battleId, 'result' => $result]
-        );
 
         return 'Квест завершён: Первый бой на Дороге 1. Открыт следующий шаг пути.';
     }

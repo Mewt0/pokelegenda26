@@ -147,8 +147,8 @@ $transportRepository->setQuestRepository($quests);
 $transportRepository->setRewardRepository($rewardRepository);
 $eventRepository = new GameEventRepository($db, $rewardRepository);
 $bossRepository = new BossRepository($db, $battleRepository, $rewardRepository);
-$locationGraph = LocationGraph::fromLegacyData(APP_ROOT . '/include/data.world.php');
-$locationContent = LocationContentRepository::fromFile(APP_ROOT . '/config/location_content.php');
+$locationGraph = \Pokemon8\Game\WorldDataRepository::runtimeGraph($db, APP_ROOT);
+$locationContent = \Pokemon8\Game\WorldDataRepository::runtimeContent($db, APP_ROOT);
 $locationState = new LocationStateService($locations, $locationGraph, APP_ROOT, $locationContent, $bossRepository, $transportRepository);
 $mapMoves = new MapMoveService($locations, $locationGraph, $locationState, $quests, $rewardRepository);
 $wildEncounters = new WildEncounterService($db);
@@ -161,6 +161,9 @@ $banGuard = new BanGuard($bans);
 $home = new HomeController($rankings, $session, $csrf);
 $adminPage = new AdminController($session, $csrf, $adminRepository);
 $adminApi = new AdminApiController($session, $csrf, $adminRepository, $bossRepository, $battleReplayRepository, $economyGuardRepository, $bugReportRepository);
+$adminGrantApi = new \Pokemon8\Controller\AdminGrantApiController($session, $csrf, $adminRepository,
+    new \Pokemon8\Service\AdminItemGrantV2Service($adminRepository,
+        new \Pokemon8\Repository\AdminGrantReceiptRepository($db, $adminRepository), $session));
 $auth = new AuthController($users, $passwords, $session, $csrf, $adminRepository, $appConfig, $mailer, $mailConfig);
 $game = new GameController($session, $csrf, $users, $adminRepository);
 $inventoryPage = new InventoryController($session, $inventory, $csrf);
@@ -304,6 +307,8 @@ $router->get('/api/admin/legacy-map', fn (Request $request) => $adminApi->legacy
 $router->get('/api/admin/items', fn (Request $request) => $adminApi->items($request));
 $router->post('/api/admin/items/save', fn (Request $request) => $adminApi->saveItem($request));
 $router->post('/api/admin/items/grant', fn (Request $request) => $adminApi->grantItem($request));
+$router->post('/api/admin/grants/items/preview', fn (Request $request) => $adminGrantApi->handle($request, 'preview'));
+$router->post('/api/admin/grants/items/confirm', fn (Request $request) => $adminGrantApi->handle($request, 'confirm'));
 $router->delete('/api/admin/items', fn (Request $request) => $adminApi->deleteItem($request));
 $router->get('/api/admin/drop-rules', fn (Request $request) => $adminApi->dropRules($request));
 $router->post('/api/admin/drop-rules/save', fn (Request $request) => $adminApi->saveDropRule($request));

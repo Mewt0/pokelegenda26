@@ -1,3 +1,0 @@
-node --check public/js/dex-overlay.js: OK
-php -l src/Repository/DexRepository.php: OK
-php -l src/Controller/DexApiController.php: OK

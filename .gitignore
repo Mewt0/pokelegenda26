@@ -69,3 +69,25 @@ render_pdf_pages.py
 # Saved web pages (браузерные сохранения)
 *_files/
 *.html
+
+# Local agent state and publication scratch data
+.codebase-memory/
+.hybrid/
+.cbmignore
+storage/
+!storage/.gitkeep
+docs/agent-tasks/bus/
+docs/agent-tasks/*-shots/
+docs/agent-tasks/queue-run-*.log
+*.bak
+*.bak-*
+*.log
+_qa-*.php
+/probe.js
+/shot.js
+/Rewire_mysql.json
+/LINT_RESULT.txt
+
+# Generated art review pages (the game uses the image assets themselves)
+img/room/generated-*/preview.html
+img/room/generated-*/icons-preview.html

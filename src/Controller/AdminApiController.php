@@ -98,11 +98,17 @@ final class AdminApiController
         }
 
         $rows = $this->admin->legacyModules($request->input('q'));
+        $readiness = array_values(array_filter(
+            array_column($rows, 'readiness'),
+            static fn ($value): bool => $value !== null
+        ));
         $summary = [
             'total' => count($rows),
             'todo' => count(array_filter($rows, static fn (array $row): bool => $row['status'] === 'TODO_REWRITE')),
             'partial' => count(array_filter($rows, static fn (array $row): bool => $row['status'] === 'PARTIAL_NEW')),
             'done' => count(array_filter($rows, static fn (array $row): bool => $row['status'] === 'DONE')),
+            'average_readiness' => $readiness !== [] ? (int) round(array_sum($readiness) / count($readiness)) : null,
+            'verified_at' => '2026-10-25',
         ];
 
         return $this->json([

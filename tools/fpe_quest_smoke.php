@@ -143,6 +143,8 @@ exit(hasFailures($results) ? 1 : 0);
 
 function prepareUser(PDO $db, int $userId): void
 {
+    // Fresh-player fixture inside the enclosing rollback transaction only.
+    $db->prepare('UPDATE pok_user SET active=0, startepoke=0 WHERE users=?')->execute([$userId]);
     $db->prepare('UPDATE users SET buildmy = 1, pve = 0, pvp = 0, trade = 0, battleid = 0, pve_button = 0, atack_poke = 0 WHERE id = :user LIMIT 1')
         ->execute(['user' => $userId]);
     $db->prepare('DELETE FROM quest WHERE user_id = :user AND quest_id IN (1, 101, 102, 103)')

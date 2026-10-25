@@ -13,7 +13,7 @@ $contentWizardJsVersion = @filemtime(__DIR__ . '/../public/js/admin-content-wiza
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Админка - League of Pokemons</title>
   <?php
-    $headStyles = ['/public/css/admin-panel.css', '/public/css/admin-content-wizard.css'];
+    $headStyles = ['/public/css/admin-panel.css', '/public/css/admin-content-wizard.css', '/public/css/admin-item-grant-v2.css'];
     require APP_ROOT . '/views/components/head-styles.php';
   ?>
 </head>
@@ -115,6 +115,7 @@ $contentWizardJsVersion = @filemtime(__DIR__ . '/../public/js/admin-content-wiza
     </section>
   </main>
   <script src="<?= View::e(asset_url('/public/js/admin-content-wizard.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/admin-item-grant-v2.js')) ?>"></script>
   <script src="<?= View::e(asset_url('/public/js/admin-panel.js')) ?>"></script>
 </body>
 </html>

@@ -624,6 +624,25 @@
       return '<span class="icon icon--' + name + '" aria-hidden="true"></span>';
     }
 
+    function decorativeIcon(src, fallbackName) {
+      const img = document.createElement('img');
+      img.alt = '';
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      img.addEventListener('error', () => {
+        const fallback = document.createElement('span');
+        fallback.innerHTML = iconMarkup(fallbackName);
+        const glyph = fallback.firstElementChild;
+        if (glyph) {
+          img.replaceWith(glyph);
+        } else {
+          img.remove();
+        }
+      }, { once: true });
+      img.src = src;
+      return img;
+    }
+
     function routeIconClass(title) {
       const value = String(title || '').toLowerCase();
       if (value.includes('лес')) return 'route-forest';
@@ -655,7 +674,8 @@
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'npc-btn';
-        button.innerHTML = '<span class="npc-icon">' + iconMarkup(npcIconClass(npc)) + '</span><span class="npc-title"></span>';
+        button.innerHTML = '<span class="npc-icon"></span><span class="npc-title"></span>';
+        button.querySelector('.npc-icon').appendChild(decorativeIcon(npcIconSrc(npc), npcIconClass(npc)));
         button.querySelector('.npc-title').textContent = npc.title;
         button.dataset.npcTitle = npc.title || '';
         button.dataset.npcType = npc.type || '';
@@ -666,7 +686,7 @@
       if (!list.children.length) {
         const empty = document.createElement('span');
         empty.className = 'muted';
-        empty.textContent = 'NPC на этой локации пока переносятся.';
+        empty.textContent = 'Здесь сейчас никого нет.';
         list.appendChild(empty);
       }
     }
@@ -694,7 +714,8 @@
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'move-btn route-btn';
-        button.innerHTML = '<span class="route-ico">' + iconMarkup(routeIconClass(move.title)) + '</span><span class="route-title"></span>';
+        button.innerHTML = '<span class="route-ico"></span><span class="route-title"></span>';
+        button.querySelector('.route-ico').appendChild(decorativeIcon(routeIconSrc(move.title), routeIconClass(move.title)));
         button.querySelector('.route-title').textContent = move.title;
         button.dataset.locationId = move.id;
         button.dataset.locationTitle = move.title || '';
@@ -731,8 +752,10 @@
       }
     }
 
+    const WORLD_ICON_VERSION = '20261025-2';
+
     function assetIcon(base, key) {
-      return '/public/img/ui/world/' + base + '/' + key + '.png';
+      return '/public/img/ui/world/' + base + '/' + key + '.png?v=' + WORLD_ICON_VERSION;
     }
 
     function npcIconSrc(npc) {
@@ -760,12 +783,12 @@
     }
 
     function routeIconSrc(title) {
-      const value = String(title || '').toLowerCase();
+      const value = String(title || '').toLowerCase().replace(/ё/g, 'е');
       let key = 'default';
 
       if (value.includes('лес')) key = 'forest';
       else if (value.includes('дорога') || value.includes('маршрут') || value.includes('перевал')) key = 'road';
-      else if (value.includes('пещ') || value.includes('тунель') || value.includes('подвал')) key = 'cave';
+      else if (value.includes('пещ') || value.includes('тунель') || value.includes('туннель') || value.includes('подвал')) key = 'cave';
       else if (value.includes('озеро') || value.includes('вод')) key = 'water';
       else if (value.includes('гора') || value.includes('скал') || value.includes('вершин')) key = 'mountain';
       else if (value.includes('пляж')) key = 'beach';
@@ -778,16 +801,16 @@
       else if (value.includes('электро')) key = 'power';
       else if (value.includes('теплоход') || value.includes('дирижаб')) key = 'ship';
       else if (value.includes('вертолет')) key = 'air';
-      else if (value.includes('пустын')) key = 'desert';
+      else if (value.includes('пустын') || value.includes('пустош')) key = 'desert';
       else if (value.includes('мост')) key = 'bridge';
       else if (value.includes('парк') || value.includes('зона трениров')) key = 'park';
       else if (
         value.includes('алабаст') || value.includes('вертания') || value.includes('пьютер') || value.includes('церулин') ||
         value.includes('целадон') || value.includes('саффрон') || value.includes('фуксия') || value.includes('лавандер') ||
         value.includes('вермилион') || value.includes('экрутек') || value.includes('оливин') || value.includes('азалия') ||
-        value.includes('литтлруд') || value.includes('олдэйл') || value.includes('петалбург') || value.includes('рустборн') ||
+        value.includes('литтлруд') || value.includes('литтлрут') || value.includes('олдэйл') || value.includes('петалбург') || value.includes('рустборн') ||
         value.includes('маувайл') || value.includes('феларбор') || value.includes('лаваридж') || value.includes('фортри') ||
-        value.includes('лилистовн') || value.includes('сити') || value.includes('пригород')
+        value.includes('лилистовн') || value.includes('сити') || value.includes('таун') || value.includes('пригород')
       ) key = 'town';
 
       return assetIcon('locations', key);
@@ -1828,26 +1851,22 @@
       const playerIsShiny = isShinyBattlePokemon(player);
       const enemyIsShiny = isShinyBattlePokemon(enemy);
 
-      // Back sprite for user's pokemon. Try shiny back first when name/tips says Shiny,
-      // then normal back, then front/anim fallbacks so the pokemon never disappears.
+      // Front sprite for the player's battle card too. The card style is
+      // intentionally front-facing, so keep back assets out of the fallback chain.
       const playerCandidates = pokemonSpriteUrls(
         player,
         playerIsShiny
-          ? ['backShiny', 'sback', 'backSprite', 'spriteBack', 'back', 'sprite']
-          : ['backSprite', 'spriteBack', 'back', 'sprite']
+          ? ['frontShiny', 'shiny', 'frontSprite', 'spriteFront', 'sprite', 'front', 'normal']
+          : ['frontSprite', 'spriteFront', 'sprite', 'front', 'normal']
       );
       if (playerIsShiny) {
-        playerCandidates.push(...spriteCandidatesAny('sback', playerBase));
-        playerCandidates.push(...spriteCandidatesAny('Sback', playerBase));
+        playerCandidates.push(...spriteGifCandidates('shiny', playerBase, true));
+        playerCandidates.push(...spritePngCandidates('shine', playerBase));
       }
-      playerCandidates.push(...spriteCandidatesAny('back', playerBase));
-      if (playerIsShiny) {
-        playerCandidates.push(...spriteCandidatesAny('shiny', playerBase));
-        playerCandidates.push(...spriteCandidatesAny('shine', playerBase));
-      }
-      playerCandidates.push(...spriteCandidatesAny('anim', playerBase));
-      playerCandidates.push(...spriteCandidatesAny('pok', playerBase));
-      playerCandidates.push(...spriteCandidatesAny('normal', playerBase));
+      playerCandidates.push(...spriteGifCandidates('spriteanim', playerBase));
+      playerCandidates.push(...spriteGifCandidates('pok', playerBase, true));
+      playerCandidates.push(...spriteGifCandidates('anim', playerBase));
+      playerCandidates.push(...spritePngCandidates('normal', playerBase));
 
       // Front sprite for wild pokemon: prefer animated battle GIFs, keep PNG as fallback.
       const enemyCandidates = pokemonSpriteUrls(
@@ -1865,8 +1884,12 @@
       enemyCandidates.push(...spriteGifCandidates('anim', enemyBase));
       enemyCandidates.push(...spritePngCandidates('normal', enemyBase));
 
-      setSpriteWithFallback(playerImg, playerCandidates, 'player:' + playerBase + ':' + (playerIsShiny ? 'shiny' : 'normal') + ':' + playerCandidates.join('|'));
-      setSpriteWithFallback(enemyImg, enemyCandidates, 'enemy:' + enemyBase + ':' + (enemyIsShiny ? 'shiny' : 'normal') + ':' + enemyCandidates.join('|'));
+      // Keep the battle cards front-facing even if a payload supplies back sprites.
+      const playerFrontCandidates = playerCandidates.filter(url => !/\/(?:s?back)\//i.test(String(url)));
+      const enemyFrontCandidates = enemyCandidates.filter(url => !/\/(?:s?back)\//i.test(String(url)));
+
+      setSpriteWithFallback(playerImg, playerFrontCandidates, 'player:' + playerBase + ':' + (playerIsShiny ? 'shiny' : 'normal') + ':' + playerFrontCandidates.join('|'));
+      setSpriteWithFallback(enemyImg, enemyFrontCandidates, 'enemy:' + enemyBase + ':' + (enemyIsShiny ? 'shiny' : 'normal') + ':' + enemyFrontCandidates.join('|'));
     }
 
     function renderBattleSpritesFromDebug(debug) {
@@ -1879,14 +1902,14 @@
       const enemyImg = document.getElementById('battleEnemySpriteImg');
 
       setSpriteWithFallback(playerImg, [
-        '/Pok/sback/' + pad3(playerId) + '.gif',
-        '/Pok/sback/' + playerId + '.gif',
-        '/Pok/back/' + pad3(playerId) + '.gif',
-        '/Pok/back/' + playerId + '.gif',
-        '/Pok/normal/' + playerId + '.png',
+        '/Pok/spriteanim/' + playerId + '.gif',
+        '/Pok/pok/' + pad3(playerId) + '.gif',
+        '/Pok/pok/' + playerId + '.gif',
         '/Pok/anim/' + pad3(playerId) + '.gif',
         '/Pok/anim/' + playerId + '.gif',
-        '/Pok/back/001.gif',
+        '/Pok/normal/' + playerId + '.png',
+        '/Pok/normal/' + pad3(playerId) + '.png',
+        '/Pok/anim/001.gif',
       ]);
       setSpriteWithFallback(enemyImg, [
         '/Pok/spriteanim/' + enemyId + '.gif',

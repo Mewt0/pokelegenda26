@@ -1,0 +1,17 @@
+name: Feature request / Предложение
+description: Suggest a focused improvement to the game or tooling.
+title: '[Idea] '
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the player or maintainer workflow.
+    validations:
+      required: true

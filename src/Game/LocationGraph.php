@@ -26,6 +26,17 @@ final class LocationGraph
         return new self($edges);
     }
 
+    public static function fromDatabase(\PDO $db): self
+    {
+        return new self((new WorldDataRepository($db))->graphEdges());
+    }
+
+    /** @return array<int, list<int>> */
+    public function allEdges(): array
+    {
+        return $this->edges;
+    }
+
     /** @return list<int> */
     public function movesFrom(int $locationId): array
     {

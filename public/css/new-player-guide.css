@@ -1,0 +1,467 @@
+/* Guided new-player onboarding.
+   Lives in the normal flow inside .location-info: no overlay, no fixed positioning,
+   no scroll traps. Visual language: a trainer's route card in the existing
+   light-blue shell (tokens.css), not a second design system. */
+
+.new-player-guide {
+  position: relative;
+  min-width: 0;
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-3);
+  border: 1px solid var(--border-2);
+  border-left: var(--space-1) solid var(--accent-strong);
+  border-radius: var(--radius-md) var(--radius-lg) var(--radius-lg) var(--radius-md);
+  background: linear-gradient(125deg, var(--accent-soft), var(--surface-1) 58%);
+  box-shadow: var(--shadow-1);
+  color: var(--text-1);
+}
+
+.new-player-guide[hidden] {
+  display: none !important;
+}
+
+.new-player-guide.is-complete {
+  border-left-color: var(--success);
+  background: linear-gradient(125deg, var(--success-soft), var(--surface-1) 58%);
+}
+
+.new-player-guide__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  min-width: 0;
+}
+
+.new-player-guide__step {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-1);
+  color: var(--accent-text);
+  font-size: var(--fs-100);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.new-player-guide.is-complete .new-player-guide__step {
+  border-color: var(--success);
+  color: var(--success-text);
+}
+
+.new-player-guide__place {
+  min-width: 0;
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--border-2);
+  color: var(--text-2);
+  font-size: var(--fs-100);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  overflow-wrap: anywhere;
+}
+
+.new-player-guide__title {
+  margin: var(--space-2) 0 var(--space-1);
+  color: var(--text-1);
+  font: var(--fw-semibold) var(--fs-500)/1.25 var(--font-sans);
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.new-player-guide__title:focus-visible {
+  outline: 2px solid var(--focus-color);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.new-player-guide__text {
+  max-width: 64ch;
+  margin: 0;
+  color: var(--text-1);
+  font-size: var(--fs-400);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.new-player-guide__path {
+  max-width: 70ch;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  color: var(--text-2);
+  font-size: var(--fs-200);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-normal);
+  overflow-wrap: anywhere;
+}
+
+.new-player-guide__ticks {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+}
+
+.new-player-guide__tick {
+  flex: 1 1 0;
+  height: var(--space-1);
+  min-width: 0;
+  border-radius: var(--radius-pill);
+  background: var(--border-1);
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.new-player-guide__tick.is-done {
+  background: var(--success);
+}
+
+.new-player-guide__tick.is-current {
+  background: var(--accent-strong);
+}
+
+.new-player-guide__rewards {
+  margin-top: var(--space-3);
+}
+
+.new-player-guide__rewards-label {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--text-2);
+  font-size: var(--fs-100);
+  font-weight: var(--fw-semibold);
+}
+
+.new-player-guide__reward-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.new-player-guide__reward {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-1);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-pill);
+  background: var(--surface-1);
+  color: var(--text-1);
+  font-size: var(--fs-100);
+  line-height: 1.3;
+}
+
+.new-player-guide__reward img {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.new-player-guide__reward-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.new-player-guide__reward-amount {
+  flex: 0 0 auto;
+  color: var(--accent-text);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+
+.new-player-guide__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--border-2);
+}
+
+.new-player-guide .ui-btn {
+  min-height: 44px;
+  min-width: 0;
+}
+
+.new-player-guide__primary {
+  flex: 1 1 190px;
+}
+
+.new-player-guide__journal {
+  flex: 0 1 auto;
+}
+
+.new-player-guide__hide {
+  flex: 0 1 auto;
+  margin-left: auto;
+}
+
+.new-player-guide.is-complete .new-player-guide__hide {
+  display: none;
+}
+
+.new-player-guide__status {
+  margin: var(--space-2) 0 0;
+  color: var(--text-2);
+  font-size: var(--fs-200);
+  line-height: var(--lh-normal);
+  overflow-wrap: anywhere;
+}
+
+.new-player-guide__status:empty {
+  display: none;
+}
+
+/* In-place restore after "Скрыть": stays exactly where the card was, so the
+   player does not have to hunt the bottom toolbar on a phone. */
+.new-player-guide-inline-restore {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 44px;
+  margin: 0 0 var(--space-3);
+  padding: 0 var(--space-3);
+  border: 1px dashed var(--border-2);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: var(--fs-300);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  text-align: left;
+  cursor: pointer;
+}
+
+.new-player-guide-inline-restore[hidden] {
+  display: none !important;
+}
+
+.new-player-guide-inline-restore:hover {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+
+.new-player-guide-inline-restore .icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+/* Compact, non-blocking guidance inside the battle dock. It sits above the
+   battle layout and only points at the existing "Атаки" controls. */
+.new-player-guide-battle-hint {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--border-2);
+  background: var(--accent-soft);
+  color: var(--text-1);
+  font-size: var(--fs-200);
+  line-height: 1.35;
+}
+
+.new-player-guide-battle-hint[hidden] {
+  display: none !important;
+}
+
+.new-player-guide-battle-hint__copy {
+  flex: 1 1 240px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.new-player-guide-battle-hint__copy b {
+  color: var(--accent-text);
+}
+
+.new-player-guide-battle-hint__btn {
+  flex: 0 0 auto;
+  min-height: 44px;
+}
+
+@media (max-width: 620px) {
+  .new-player-guide-battle-hint {
+    align-items: stretch;
+  }
+
+  .new-player-guide-battle-hint__btn {
+    width: 100%;
+  }
+}
+
+/* A user-triggered "where exactly" spotlight. Static, removed after 7-8 seconds. */
+.new-player-guide-spotlight {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+  box-shadow: var(--shadow-2);
+}
+
+.inv-slot.new-player-guide-ticket {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  z-index: 2;
+}
+
+/* Restore entry in the bottom system group. The label stays discoverable on phones. */
+.actionbar .new-player-guide-restore {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: var(--fs-200);
+  font-weight: var(--fw-bold);
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: var(--shadow-1);
+}
+
+.actionbar .new-player-guide-restore:hover {
+  border-color: var(--accent);
+  background: var(--surface-2);
+  color: var(--accent-text);
+}
+
+.actionbar .new-player-guide-restore .icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+/* Journal entry appended next to the existing quest actions. */
+.quest-side-actions .new-player-guide-journal-restore {
+  border-style: dashed;
+  color: var(--accent-text);
+}
+
+@media (max-width: 760px) {
+  .new-player-guide {
+    margin-bottom: var(--space-2);
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+  }
+
+  .new-player-guide__title {
+    margin-top: var(--space-2);
+    font-size: var(--fs-500);
+  }
+
+  .new-player-guide__text {
+    font-size: var(--fs-400);
+    line-height: 1.55;
+  }
+
+  .new-player-guide__actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .new-player-guide__actions .ui-btn {
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
+  }
+
+  .new-player-guide__primary {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .new-player-guide__journal,
+  .new-player-guide__hide {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .new-player-guide__hide {
+    justify-self: stretch;
+  }
+
+  .new-player-guide__journal[hidden] + .new-player-guide__hide {
+    grid-column: 1 / -1;
+  }
+
+  .new-player-guide.is-complete .new-player-guide__journal {
+    grid-column: 1 / -1;
+  }
+
+  .actionbar .new-player-guide-restore {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 390px) {
+  .new-player-guide__meta {
+    gap: var(--space-1);
+  }
+
+  .new-player-guide__place {
+    padding-left: var(--space-1);
+  }
+
+  .new-player-guide__reward {
+    max-width: 100%;
+  }
+
+  .actionbar .new-player-guide-restore {
+    padding: 0 var(--space-2);
+    font-size: var(--fs-100);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .new-player-guide *,
+  .new-player-guide *::before,
+  .new-player-guide *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .quest-guide-target {
+    animation: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .new-player-guide,
+  .new-player-guide-inline-restore {
+    border: 2px solid CanvasText;
+    background: Canvas;
+  }
+
+  .new-player-guide__tick {
+    border: 1px solid CanvasText;
+  }
+
+  .new-player-guide__tick.is-done,
+  .new-player-guide__tick.is-current {
+    background: Highlight;
+  }
+
+  .new-player-guide-spotlight,
+  .inv-slot.new-player-guide-ticket {
+    outline: 3px solid Highlight;
+  }
+}

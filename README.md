@@ -1,205 +1,103 @@
-# PokemonChic / Pokemon Legend 8.0
+<!-- Repository cover is local and renders without third-party image services. -->
+<p align="center"><img src="docs/media/github-banner.svg" alt="PokemonChic — a browser RPG in the Pokémon world" width="100%"></p>
 
-Актуальный релизный baseline (2026-10-24): PHP 8.5.11, миграции 87/87, full regression 29/29. Источник текущих проверок и оставшихся условий: [release candidate](docs/reports/RELEASE_CANDIDATE_2026-10-24.md). Старые числа ниже сохранены как история.
+<p align="center">
+  <a href="https://github.com/Mewt0/pokelegenda26/actions/workflows/ci.yml"><img src="https://github.com/Mewt0/pokelegenda26/actions/workflows/ci.yml/badge.svg?branch=main" alt="Source checks"></a>
+  <img src="https://img.shields.io/badge/PHP-8.5-777BB4?style=flat-square&logo=php&logoColor=white" alt="PHP 8.5">
+  <img src="https://img.shields.io/badge/MySQL-5.5_compatible-4479A1?style=flat-square&logo=mysql&logoColor=white" alt="MySQL 5.5 compatible">
+  <img src="https://img.shields.io/badge/JavaScript-vanilla-F7DF1E?style=flat-square&logo=javascript&logoColor=222" alt="Vanilla JavaScript">
+  <img src="https://img.shields.io/badge/status-active_development-537A4D?style=flat-square" alt="Active development">
+</p>
 
-Modern rewrite of the legacy browser Pokemon MMORPG for PHP, MySQL and a JSON API driven frontend.
+<p align="center">
+  <a href="README_RU.md">Русский</a> ·
+  <a href="docs/GETTING_STARTED.md">Local setup</a> ·
+  <a href="docs/TESTING.md">Testing</a> ·
+  <a href="PROJECT_MAP_RU.md">Project map</a> ·
+  <a href="https://github.com/Mewt0/pokelegenda26/issues">Issues</a>
+</p>
 
-The project is being prepared for open testing. Legacy PHP files are still kept as compatibility/reference material, but the active game flow is moving to `public/index.php`, controllers, repositories, services and modern game overlays.
+PokemonChic is a browser RPG with Pokémon teams, PvE and PvP battles, quests, trading and a connected world. This repository contains the PHP/MySQL game and its ongoing migration from legacy pages to a JSON API and a responsive JavaScript interface.
 
-## Current Status
+## A look around the world
 
-Last project audit: 2026-10-07. The current source of truth is [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md); older reports are historical unless they match live code and current smoke results.
+<table>
+  <tr>
+    <td width="50%"><img src="img/room/generated-20261025/alabastia.webp" alt="Alabastia, the starting town"><br><strong>A place to begin</strong><br>Alabastia and the professor’s laboratory.</td>
+    <td width="50%"><img src="img/room/generated-20261025/forest.webp" alt="A wooded route"><br><strong>Beyond the town</strong><br>Forests, caves, coastal routes and regional towns.</td>
+  </tr>
+  <tr>
+    <td><img src="img/room/generated-20261025/arena-water.webp" alt="A water-type battle arena"><br><strong>Battle arenas</strong><br>Distinct environments for eight gym types.</td>
+    <td><img src="img/room/generated-20261025/port.webp" alt="A sunny harbor"><br><strong>Travel between regions</strong><br>Ports, ferries and flights connect the world.</td>
+  </tr>
+</table>
 
-Current verification snapshot:
+## What you can do
 
-| Area | Status | Evidence |
-| --- | --- | --- |
-| Site availability | OK | `http://pokemonchic.com` returns 200 in the 2026-10-07 gate. |
-| Quick regression | OK | `tools/open_test_regression.php --profile=quick` = 24/24 in the 2026-10-07 gate. |
-| Read smoke | OK | `tools/http_smoke.php` = 52/52 in the 2026-10-07 gate. |
-| Migrations | OK | `79/79`, `pending=0`, `dirty=0`, `failed=0` in `PROJECT_CONTEXT.md`. |
-| Integrity | OK with accepted historical rows | `P0=0`, `P1=0`, `WARN=0`, `ACCEPTED=4` in `PROJECT_CONTEXT.md`. |
-| Item gameplay metadata | Mixed | `implemented=42`, `visual_only=17`, `todo=11` in the 2026-10-07 gate. |
+| System | In the game |
+| --- | --- |
+| Explore | Move between locations, meet NPCs, follow quests and travel by ship or plane. |
+| Build a team | Catch Pokémon, manage the team and nursery, hatch eggs and use breeding systems. |
+| Battle | Fight wild Pokémon or other trainers, use moves and items, and review battle history. |
+| Trade | Use the inventory, shops and commission market for items, Pokémon and eggs. |
+| Stay connected | Chat, mail, friends, trainer cards, tournaments and game events. |
+| Run the world | A Game Master Center provides content, moderation, grants and QA tools. |
 
-See [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for the short current architecture summary and [REWRITE_STATUS.md](REWRITE_STATUS.md) for the migration journal.
+The latest art refresh connects **155 locations** to illustrated backgrounds and adds **42 NPC, route and reference icons**. Shared biomes reuse suitable art. Pokémon sprites and inventory artwork stay unchanged.
 
-## Implemented Systems
+## Under the hood
 
-### Core
-
-- Front controller: `public/index.php`.
-- Lightweight router and request/response layer.
-- Session auth, CSRF protection and maintenance mode.
-- PDO database access with repository classes.
-- Modern `/game` shell without legacy frameset navigation.
-- New `/game/admin` Game Master Center.
-
-### Auth And Account Flow
-
-- Login with legacy/password-hash compatibility.
-- Registration without mandatory email for the current transition period.
-- Password reset scaffolding with SMTP config.
-- Techwork/maintenance gate for non-admin users.
-- Admin access checks through the new admin repository layer.
-
-### Game World
-
-- `/api/game/state` for player state, location, transitions, NPC and battle state.
-- `/api/map/move` for map movement.
-- New NPC dialog flow through JSON APIs.
-- Transport support for ship routes and airplane flights.
-- Flight ticket flow: route selection, onboard location, 15-minute flight, conductor status and exit after arrival.
-
-### Battles
-
-- PvE battle API: `/api/battle/pve/state`, `/action`, `/ack-end`, `/force`.
-- PvP battle API: invite, reject, timeout, accept, force, status, refresh sync, surrender and history.
-- PvP smoke covers invite/reject/timeout/accept/refresh/anti-double-click/switch/items/history.
-- Pokeballs are blocked in PvP.
-- PvE catch/finish/ack smoke tests are available.
-- Battle transformations are supported for Primal/Mega forms through battle-only state.
-- Primal Kyogre, Primal Groudon and Mega Rayquaza support is seeded with weather abilities.
-
-### Pokemon, Eggs And Breeding
-
-- `/game/pokemon` for active team, daycare/nursery and breeding UI.
-- Active team is separated from daycare storage.
-- Held item icons are displayed on Pokemon cards.
-- `/api/pokemon/moves`, `/training`, `/nursery`.
-- `/api/eggs`, `/incubate`, `/hatch`.
-- Incubators reduce remaining hatch time.
-- Breeding flow with compatibility letters, gender rules, Ditto and Ditto Extract.
-- Egg parent metadata, inherited IV logic and egg move inheritance are implemented.
-
-### Inventory And Items
-
-- `/api/inventory/page` with categories, search and pagination.
-- `/api/inventory/battle` for battle inventory.
-- Target item use, held item equip/unequip and gift opening.
-- Temporary items use legacy `items_users.dattimer`.
-- Held/lore metadata is stored in `item_gameplay_metadata`.
-- Blue Orb, Red Orb, Soul Dew, Thick Club and type-boost compatibility rules are enforced.
-- Gift boxes open through server-side loot tables and reward flow.
-
-### Markets And Economy
-
-- Legacy compatible item market and Pokemon market routes remain available.
-- New Commission Shop:
-  - `/game/commission`;
-  - embedded overlay on `/game`;
-  - `/api/commission/lots`;
-  - `/api/commission/sellable`;
-  - `/api/commission/my`;
-  - create, buy and cancel lot endpoints.
-- Supports item, Pokemon and egg lots.
-- Reserves objects before sale and returns them safely on cancel/expire.
-- Blocks potions, berries, quest items, bound items, temporary items and equipped items.
-- Uses 5% default commission.
-- Market logs, return storage and risky deal review are available in admin.
-
-### Trainer Card And Social
-
-- `/api/profile/card` returns UID, avatar, rank, clan, active team, gifts, rewards and gym badges.
-- Trainer Card opens as a modal on the current page.
-- Gym badge reward type exists and badges persist.
-- Friends, chat, private/system notifications and messages have modern API coverage.
-
-### Admin / GM Center
-
-- `/game/admin` is the current Game Master Center.
-- Sections cover users, items, Pokemon, attacks, locations, drop rules, bosses, events, tournaments, medals, moderation, audit and commission market.
-- Admin Pokemon granting supports user lookup, base Pokemon lookup, IV/EV, nature, level, shiny, stats, HP and starter move reporting.
-- Commission admin shows lots, logs, returns, price history, suspicious deals, review status and seller/buyer details.
-- Legacy map is available only as its own tab.
-
-## Main Open-Test Risks
-
-These are the highest-priority remaining tasks before open testing. Battle replay, background jobs, migration status and GM Center health views already exist in the current layer; remaining work is hardening and broader QA, not initial implementation.
-
-1. Finish long real 6v6 PvP testing with two sessions.
-2. Finish rare battle item/status/weather edge-case QA.
-3. Finish first-player path validation across quests, NPCs, location transitions and rewards.
-4. Harden economy safety through more market, commission and reward edge-case checks.
-5. Run desktop and mobile browser regression before inviting open testers.
-6. Keep production operations documented: backup cadence, smoke cadence, background job monitoring and incident handling.
-
-## QA Accounts
-
-The current project uses these permanent QA/system accounts:
-
-- `Tacos` - main admin/QA player.
-- `NIGA` - second player for two-session PvP/trading/breeding tests.
-- `Система` - system account for market/system operations and future system notifications.
-
-## Smoke Scripts
-
-Run from the project root with the configured PHP binary:
-
-```bash
-php tools/http_smoke.php --login=Tacos --password=REDACTED_USE_SMOKE_PASSWORD
-php tools/pvp_qa_smoke.php --login1=Tacos --login2=NIGA --password1=REDACTED_USE_SMOKE_PASSWORD --password2=REDACTED_USE_SMOKE_PASSWORD
-php tools/legacy_core_qa_smoke.php
-php tools/breeding_qa_smoke.php --password=REDACTED_USE_SMOKE_PASSWORD
-php tools/commission_market_smoke.php
+```text
+Browser /game
+    │
+    ├── PHP views + vanilla JavaScript / CSS
+    │
+    └── JSON API → Controllers → Game services → Repositories → MySQL
 ```
 
-Useful optional scripts:
+| Path | Purpose |
+| --- | --- |
+| `public/index.php` | API and game front controller |
+| `src/Controller/` | HTTP endpoints |
+| `src/Game/`, `src/Service/` | Battles, NPCs, rewards and gameplay services |
+| `src/Repository/` | Database access |
+| `views/`, `public/js/`, `public/css/` | Game interface |
+| `database/migrations/` | Incremental schema and content migrations |
+| `tools/` | Backup, migration, audit and regression commands |
+| `img/`, `pok/`, `public/img/` | World, Pokémon and interface assets |
+
+The root landing page and some compatibility paths still use legacy files. Keep `include/`, `admin/` and root PHP files until their runtime dependencies have been retired.
+
+## Work on the project
+
+Use **PHP 8.5**, Apache with `mod_rewrite`, and a MySQL-compatible database. The current local installation uses MySQL 5.5. PDO MySQL and mbstring are required; QA and art tooling also use curl, GD and zip.
 
 ```bash
-php tools/prepare_qa_teams.php
-php tools/qa_drop_mode.php
-```
-
-## Local Setup
-
-Requirements:
-
-- PHP 8.3+ for the target runtime.
-- MySQL/MariaDB with `pdo_mysql`.
-- Apache or PHP built-in server.
-- `mbstring`.
-
-Create `.env` from `.env.example` and configure the database:
-
-```bash
+git clone https://github.com/Mewt0/pokelegenda26.git
+cd pokelegenda26
 cp .env.example .env
 ```
 
-Run with the PHP built-in server:
+Configure a private `.env` and an authorized game database, then follow [local setup](docs/GETTING_STARTED.md). Migrations extend the existing game schema; the repository does not distribute player databases or credentials.
+
+For checks that need no database:
 
 ```bash
-php -S 127.0.0.1:8000 -t public public/index.php
+php tools/ci_lint.php
+php tools/encoding_guard.php
+php tools/pdo_param_audit.php --self-test
 ```
 
-With OSPanel, point the domain root at this repository and route traffic through `public/index.php`.
+Database-backed suites, backups and QA accounts are covered in [Testing](docs/TESTING.md).
 
-## Project Structure
+## Current scope
 
-```text
-public/                  Front controller, public assets, JS/CSS
-src/Controller/          HTTP controllers
-src/Repository/          Database access and domain persistence
-src/Game/                Battle, NPC, routing and gameplay services
-src/Http/                Request/Response/Router layer
-src/Security/            Auth/session/CSRF helpers
-src/Support/             Env, autoload, mailer and utilities
-views/                   PHP views and reusable components
-database/migrations/     Idempotent SQL migrations
-tools/                   QA/smoke/seed scripts
-REWRITE_STATUS.md        Detailed rewrite status journal
-PROJECT_CONTEXT.md       Short current architecture map
-```
+This is an active development snapshot. Source checks in GitHub Actions validate syntax and selected static safeguards. They do not certify a production deployment, all quest stories, economy balance or long PvP sessions.
 
-## Development Rules
+See [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for architecture, [the project map](PROJECT_MAP_RU.md) for editing locations, and [the October update](docs/RELEASE_NOTES_2026-10-25.md) for this publication.
 
-- Prefer the new JSON API and repository/service layer.
-- Keep legacy files as reference/compatibility unless a migration explicitly removes them.
-- Use CSRF for every mutating endpoint.
-- Do not write direct random SQL mutations in game code when a repository flow exists.
-- Keep migrations idempotent and apply them to the live dev database.
-- After meaningful changes, run relevant PHP lint, JS syntax checks and smoke scripts.
-- Do not commit local logs, browser screenshots, archives, debug dumps or temporary workspace folders.
+## Contributing
 
-## License
+Open an issue with the page or location, steps to reproduce, expected behavior and a screenshot when useful. Include the checks you ran in a pull request. [Contribution notes](CONTRIBUTING.md) describe the code and data boundaries.
 
-Private project during rewrite and test preparation.
+Third-party artwork, characters and bundled components retain their respective rights and licenses.

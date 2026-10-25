@@ -83,15 +83,27 @@ final class TransportRepository
             return ['ok' => false, 'message' => 'В административную локацию транспорт не ходит.'];
         }
 
+        $ownsTransaction = !$this->db->inTransaction();
+        if ($ownsTransaction) { $this->db->beginTransaction(); }
+        else { $this->db->exec('SAVEPOINT fpe_transport'); }
+        try {
+        $locked = $this->db->prepare('SELECT buildmy,pve,pvp,trade FROM users WHERE id=? FOR UPDATE');
+        $locked->execute([$userId]);
+        $current = $locked->fetch();
+        if (!$current || (int)$current['buildmy'] !== $locationId || (int)$current['pve'] > 0 || (int)$current['pvp'] > 0 || (int)$current['trade'] > 0) {
+            throw new \DomainException('Сначала закончите бой или обмен и выберите рейс из текущей локации.');
+        }
         $priceItemId = (int) ($route['price_item_id'] ?? self::COIN_ITEM_ID);
         $priceCount = max(0, (int) ($route['price_count'] ?? 0));
         if ($priceCount > 0 && !$this->inventory->removeItem($userId, $priceItemId, $priceCount)) {
-            return ['ok' => false, 'message' => $priceItemId === self::COIN_ITEM_ID ? 'Не хватает монет на билет.' : 'Не хватает предметов для поездки.'];
+            throw new \DomainException($priceItemId === self::COIN_ITEM_ID ? 'Не хватает монет на билет.' : 'Не хватает предметов для поездки.');
         }
 
         $this->db->prepare('UPDATE users SET buildmy = :location WHERE id = :user LIMIT 1')
             ->execute(['location' => (int) $route['to_location_id'], 'user' => $userId]);
         $questMessage = $this->completeFirstTransportQuest($userId, (string) ($route['title'] ?? 'рейс'));
+        if ($ownsTransaction) { $this->db->commit(); }
+        else { $this->db->exec('RELEASE SAVEPOINT fpe_transport'); }
 
         return [
             'ok' => true,
@@ -99,6 +111,16 @@ final class TransportRepository
             'route' => $this->formatRoute($route),
             'locationId' => (int) $route['to_location_id'],
         ];
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                if ($ownsTransaction) { $this->db->rollBack(); }
+                else {
+                    $this->db->exec('ROLLBACK TO SAVEPOINT fpe_transport');
+                    $this->db->exec('RELEASE SAVEPOINT fpe_transport');
+                }
+            }
+            return ['ok'=>false,'message'=>$e instanceof \DomainException ? $e->getMessage() : 'Не удалось оформить поездку. Попробуйте ещё раз.'];
+        }
     }
 
     public function planeDestinationsForUser(int $userId): array
@@ -232,8 +254,8 @@ final class TransportRepository
                 ->execute(['location' => self::PLANE_LOCATION_ID, 'user' => $userId]);
 
             $flight = $this->activeFlight($userId, true);
-            $this->db->commit();
             $questMessage = $this->completeFirstTransportQuest($userId, (string) ($route['title'] ?? 'рейс'));
+            $this->db->commit();
 
             return [
                 'ok' => true,
@@ -451,19 +473,10 @@ final class TransportRepository
         }
 
         $this->quests->startIfAvailable($userId, 103, 10);
-        if (!$this->quests->completeIfActive($userId, 103, 20)) {
+        $claim = $this->quests->starterRewards($this->rewards)->claim($userId,103);
+        if (empty($claim['claimed'])) {
             return null;
         }
-
-        $this->rewards?->grantItems($userId, [1 => 2000], 'Квест: Первый транспорт');
-        $this->quests->addQuestRank($userId, 1);
-        $this->rewards?->notify(
-            $userId,
-            'Квест завершён',
-            'Первый транспортный маршрут засчитан: ' . $routeTitle . '.',
-            'quest',
-            ['quest_id' => 103, 'route' => $routeTitle]
-        );
 
         return 'Квест завершён: Первый транспорт.';
     }

@@ -36,6 +36,7 @@
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;'
   }[c]));
   const iconMarkup = (name) => '<span class="icon icon--' + name + '" aria-hidden="true"></span>';
+  const DEX_SECTION_ICON_VERSION = '20261025';
 
   const endpoint = () => state.mode === 'pokemon' ? '/api/dex/pokemon' : '/api/dex/attacks';
   const detailEndpoint = (id) => state.mode === 'pokemon'
@@ -184,7 +185,7 @@
   }
 
   function sectionTitle(icon, title) {
-    return `<span class="dex-section-title">${iconImg(`/public/img/ui/dex/${icon}.png`, title, 'dex-section-icon')}<span>${esc(title)}</span></span>`;
+    return `<span class="dex-section-title">${iconImg(`/public/img/ui/dex/${icon}.png?v=${DEX_SECTION_ICON_VERSION}`, title, 'dex-section-icon')}<span>${esc(title)}</span></span>`;
   }
 
   function typeBadge(type, mini = false) {

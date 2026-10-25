@@ -51,6 +51,8 @@
       mutating: false,
       loadVersion: 0,
       controller: null,
+      composePeerKey: '',
+      composePeerLabel: '',
     };
     const els = {
       unread: root.querySelector('[data-mail-unread]'),
@@ -68,6 +70,109 @@
 
     if (els.recipient && root.dataset.prefillRecipient) {
       els.recipient.value = root.dataset.prefillRecipient;
+    }
+
+    // Черновик письма принадлежит получателю: при смене адресата старый текст
+    // уходит в свой слот, а в поле подставляется черновик нового получателя.
+    const composeDrafts = new Map();
+    state.composePeerKey = normalize(els.recipient ? els.recipient.value : '');
+    state.composePeerLabel = els.recipient ? String(els.recipient.value || '').trim() : '';
+
+    function composeField(name) {
+      return els.compose ? els.compose.querySelector('[name="' + name + '"]') : null;
+    }
+
+    function composePeerKeyNow() {
+      const recipient = composeField('recipient');
+      return normalize(recipient ? recipient.value : '');
+    }
+
+    function composePeerLabelNow() {
+      const recipient = composeField('recipient');
+      return recipient ? String(recipient.value || '').trim() : '';
+    }
+
+    function composeHasBody() {
+      const body = composeField('text');
+      return !!(body && String(body.value || '').trim() !== '');
+    }
+
+    function adoptComposePeer() {
+      state.composePeerKey = composePeerKeyNow();
+      state.composePeerLabel = composePeerLabelNow();
+    }
+
+    function stashComposeDraft() {
+      if (!els.compose || !state.composePeerKey) return;
+      const body = composeField('text');
+      const text = body ? String(body.value || '') : '';
+      if (text.trim() === '') composeDrafts.delete(state.composePeerKey);
+      else composeDrafts.set(state.composePeerKey, text);
+    }
+
+    function restoreComposeDraft(key) {
+      const body = composeField('text');
+      if (body) body.value = composeDrafts.get(key) || '';
+    }
+
+    function switchComposePeer(nextValue) {
+      const nextKey = normalize(nextValue);
+      if (nextKey === state.composePeerKey) {
+        state.composePeerLabel = String(nextValue || '').trim() || state.composePeerLabel;
+        return 'same';
+      }
+      const previousKey = state.composePeerKey;
+      const previousLabel = state.composePeerLabel || previousKey;
+      const hadBody = composeHasBody();
+      const unboundBody = !previousKey && hadBody;
+      stashComposeDraft();
+      state.composePeerKey = nextKey;
+      state.composePeerLabel = String(nextValue || '').trim();
+      const recipient = composeField('recipient');
+      if (recipient && String(recipient.value || '') !== String(nextValue || '')) {
+        recipient.value = String(nextValue || '');
+      }
+      if (unboundBody) {
+        setStatus('Текст остался в поле — проверьте, что он адресован получателю «' + state.composePeerLabel + '».');
+        return 'kept';
+      }
+      if (composeDrafts.has(nextKey)) {
+        restoreComposeDraft(nextKey);
+        setStatus('Восстановлен черновик для получателя «' + state.composePeerLabel + '».');
+        return 'restored';
+      }
+      restoreComposeDraft(nextKey);
+      if (previousKey && hadBody) {
+        setStatus('Прошлый текст относился к «' + previousLabel + '» и сохранён как черновик. Поле очищено для нового получателя.');
+        return 'cleared';
+      }
+      return 'same';
+    }
+
+    function onRecipientChanged() {
+      const recipient = composeField('recipient');
+      if (!recipient) return;
+      if (normalize(recipient.value) === state.composePeerKey) {
+        state.composePeerLabel = String(recipient.value || '').trim();
+        return;
+      }
+      switchComposePeer(recipient.value);
+    }
+
+    function beginNewCompose() {
+      if (composeHasBody()) {
+        const confirmed = window.confirm('Очистить текущий черновик и начать новое письмо? Текст сохранится и вернётся при выборе того же получателя.');
+        if (!confirmed) return false;
+      }
+      stashComposeDraft();
+      if (els.compose) els.compose.reset();
+      ['recipient', 'subject', 'text'].forEach((name) => {
+        const field = composeField(name);
+        if (field) field.value = '';
+      });
+      state.composePeerKey = '';
+      state.composePeerLabel = '';
+      return true;
     }
 
     function setStatus(text, bad = false) {
@@ -342,6 +447,14 @@
     async function submitCompose(event) {
       event.preventDefault();
       if (!els.compose || state.submitting) return;
+      if (composePeerKeyNow() !== state.composePeerKey && composeHasBody()) {
+        const confirmed = window.confirm('Получатель изменён вручную. Отправить текущий текст новому получателю?');
+        if (!confirmed) {
+          setStatus('Отправка отменена: проверьте получателя и текст.', true);
+          return;
+        }
+      }
+      adoptComposePeer();
       const submit = els.compose.querySelector('button[type="submit"]');
       state.submitting = true;
       if (submit) submit.disabled = true;
@@ -350,7 +463,12 @@
         const data = await post('/api/messages/send', payload);
         setStatus(data.message || (data.ok ? 'Письмо отправлено.' : 'Ошибка отправки.'), !data.ok);
         if (data.ok) {
+          const sentKey = state.composePeerKey;
+          if (sentKey) composeDrafts.delete(sentKey);
           els.compose.reset();
+          const body = composeField('text');
+          if (body) body.value = '';
+          adoptComposePeer();
           state.tab = 'sent';
           state.query = '';
           if (els.search) els.search.value = '';
@@ -375,14 +493,14 @@
       if (action === 'reply') {
         setView('compose');
         const peer = peerLabel(selected.folder, selected.row);
-        if (els.recipient) els.recipient.value = peer;
+        const outcome = switchComposePeer(peer);
         const subjectInput = els.compose?.querySelector('[name="subject"]');
         if (subjectInput) {
           const subject = displayText(selected.row.tema) || '';
           subjectInput.value = subject.toLowerCase().startsWith('re:') ? subject : `Re: ${subject}`;
         }
         els.recipient?.focus();
-        setStatus('Получатель подставлен для ответа.');
+        if (outcome === 'same') setStatus('Получатель подставлен для ответа.');
         return;
       }
       const endpoint = action === 'delete' ? '/api/messages/delete' : '/api/messages/read';
@@ -408,7 +526,7 @@
 
     function open(options = {}) {
       if (options.recipient && els.recipient) {
-        els.recipient.value = String(options.recipient);
+        switchComposePeer(String(options.recipient));
         setView('compose');
       }
       if (overlay) {
@@ -437,6 +555,7 @@
     }
 
     root.querySelector('[data-mail-new]')?.addEventListener('click', () => {
+      if (!beginNewCompose()) return;
       setView('compose');
       els.recipient?.focus();
     });
@@ -451,6 +570,20 @@
     overlay?.addEventListener('ui-overlay:closed', close);
 
     els.compose?.addEventListener('submit', submitCompose);
+    els.compose?.addEventListener('input', (event) => {
+      if (!event.target || event.target.name !== 'text') return;
+      if (composeHasBody()) adoptComposePeer();
+    });
+    els.compose?.addEventListener('reset', () => {
+      if (state.composePeerKey) composeDrafts.delete(state.composePeerKey);
+      window.setTimeout(() => {
+        adoptComposePeer();
+        const body = composeField('text');
+        if (body) body.value = '';
+        setStatus('Поле очищено.');
+      }, 0);
+    });
+    els.recipient?.addEventListener('change', onRecipientChanged);
     els.tabs?.addEventListener('click', (event) => {
       const button = event.target.closest('[data-mail-tab]');
       if (!button) return;

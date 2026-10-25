@@ -1,5 +1,0 @@
-Доработал rework по TASK-047 и записал отчёт: [TASK-047-battle-engine-decomposition.rework.report.md](E:/OSPanel/domains/pokemonchic.com/docs/agent-tasks/TASK-047-battle-engine-decomposition.rework.report.md).
-
-Что сделано: физически вынесены тела `attackLocked`/PvE-flow, `damageMove`, `applyStartOfTurnStatus` и PvE reward-блок в новые классы `src/Game/**`. `BattleEngineService.php` стал короче порога: `3072` строки против исходных `3217`.
-
-Проверки: `php -l` по 5 затронутым PHP-файлам прошёл; профильные battle smoke по PvE lock, reward idempotency, replay, transformation stats/weather проходят. Обязательный gate `open_test_regression --profile=quick` у меня не прошёл: `20/25`, падения идут через HTTP/auth `401/403`, это внесено в отчёт дословно по последнему выводу. Коммитов и откатов не делал.

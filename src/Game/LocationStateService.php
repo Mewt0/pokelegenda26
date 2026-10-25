@@ -9,6 +9,8 @@ use Pokemon8\Repository\TransportRepository;
 
 final class LocationStateService
 {
+    private LocationImageCatalog $imageCatalog;
+
     public function __construct(
         private LocationRepository $locations,
         private LocationGraph $graph,
@@ -17,6 +19,7 @@ final class LocationStateService
         private ?BossRepository $bosses = null,
         private ?TransportRepository $transport = null,
     ) {
+        $this->imageCatalog = new LocationImageCatalog($this->appRoot);
     }
 
     public function currentStateForUser(int $userId): array
@@ -105,7 +108,7 @@ final class LocationStateService
             'id' => (int) $location['id'],
             'title' => $this->toUtf8((string) $location['title']),
             'type' => (int) ($location['tipe'] ?? 0),
-            'image' => '/img/room/001.png',
+            'image' => $this->imageFor((int) $location['id'], null),
             'description' => $description,
             'npcs' => [
                 [
@@ -124,6 +127,11 @@ final class LocationStateService
 
     private function imageFor(int $locationId, ?string $legacyImage): string
     {
+        $generatedImage = $this->imageCatalog->pathFor($locationId);
+        if ($generatedImage !== null) {
+            return $generatedImage;
+        }
+
         if ($legacyImage !== null && is_file($this->appRoot . '/' . ltrim($legacyImage, '/'))) {
             return $legacyImage;
         }

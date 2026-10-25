@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Two-session breeding QA smoke for Tacos/NIGA.
  *
  * Usage:
- *   php tools/breeding_qa_smoke.php --password=REDACTED_USE_SMOKE_PASSWORD
+ *   php tools/breeding_qa_smoke.php --password=jungheinrick
  */
 
 if (PHP_SAPI !== 'cli') {

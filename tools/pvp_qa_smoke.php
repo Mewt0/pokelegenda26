@@ -8,7 +8,7 @@ declare(strict_types=1);
  * anti-double-click, history and final-state cleanup through the real HTTP API.
  *
  * Usage:
- *   php tools/pvp_qa_smoke.php --password=REDACTED_USE_SMOKE_PASSWORD
+ *   php tools/pvp_qa_smoke.php --password=jungheinrick
  *   php tools/pvp_qa_smoke.php --login1=Tacos --login2=NIGA --password1=... --password2=...
  */
 

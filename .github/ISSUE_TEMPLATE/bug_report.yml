@@ -1,0 +1,32 @@
+name: Bug report / Ошибка
+description: Describe a reproducible game or interface issue.
+title: '[Bug] '
+body:
+  - type: markdown
+    attributes:
+      value: 'Include steps and the affected page. Keep passwords, session cookies, player data and database dumps out of public issues.'
+  - type: input
+    id: page
+    attributes:
+      label: Page, module or location ID
+      placeholder: '/game, location 13, NPC dialog'
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do before the issue appeared?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and evidence
+      description: 'Browser, viewport, revision and relevant screenshots or redacted errors.'

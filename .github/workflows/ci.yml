@@ -1,0 +1,47 @@
+name: Source checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source:
+    name: PHP 8.5 and JavaScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Set up PHP
+        uses: shivammathur/setup-php@d52fc211a0436f8839a587b3b5b8efddab4744ea # v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_mysql, mbstring, curl, gd, zip
+          coverage: none
+      - name: Lint maintained PHP
+        run: php tools/ci_lint.php
+      - name: Guard Russian text encoding
+        run: php tools/encoding_guard.php
+      - name: Test PDO placeholder auditor
+        run: php tools/pdo_param_audit.php --self-test
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          count=0
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+            count=$((count + 1))
+          done < <(find public/js -type f -name '*.js' -print0)
+          echo "JavaScript syntax: ${count} files passed"

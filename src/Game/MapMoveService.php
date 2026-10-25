@@ -80,17 +80,8 @@ final class MapMoveService
 
         if ($targetLocationId === 16) {
             $this->quests->startIfAvailable($userId, 102, 10);
-            if ($this->quests->completeIfActive($userId, 102, 20)) {
-                $this->rewards?->grantItems($userId, [1 => 3000, 90111 => 1], 'Квест: Путь в Вертанию');
-                $this->quests->addQuestRank($userId, 1);
-                $this->quests->startIfAvailable($userId, 103, 10);
-                $this->rewards?->notify(
-                    $userId,
-                    'Квест завершён',
-                    'Путь в Вертанию завершён. В инвентарь добавлен билет на самолёт для проверки транспорта.',
-                    'quest',
-                    ['quest_id' => 102, 'next_quest_id' => 103]
-                );
+            $claim = $this->quests->starterRewards($this->rewards)->claim($userId,102);
+            if (!empty($claim['claimed'])) {
 
                 return [
                     'questId' => 102,

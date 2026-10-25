@@ -7,6 +7,10 @@ use PDO;
 
 final class QuestRepository
 {
+    private ?array $worldEdges = null;
+    private ?array $worldContent = null;
+    private array $worldTitles = [];
+
     public function __construct(private PDO $db)
     {
     }
@@ -22,6 +26,18 @@ final class QuestRepository
         ]);
 
         return $stmt->fetch() ?: null;
+    }
+
+    public function findForUpdate(int $userId, int $questId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT user_id,quest_id,process,gotov,pers,time FROM quest WHERE user_id=? AND quest_id=? LIMIT 1 FOR UPDATE');
+        $stmt->execute([$userId,$questId]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function starterRewards(?RewardRepository $rewards = null): \Pokemon8\Game\StarterQuestRewardService
+    {
+        return new \Pokemon8\Game\StarterQuestRewardService($this->db,$this,$rewards);
     }
 
     public function createIfMissing(int $userId, int $questId, int $process): bool
@@ -789,24 +805,15 @@ final class QuestRepository
      */
     private function legacyLocationEdges(): array
     {
-        static $edges = null;
-        if (is_array($edges)) {
-            return $edges;
+        if ($this->worldEdges !== null) {
+            return $this->worldEdges;
         }
-
-        $dataLoc = [];
-        $path = defined('APP_ROOT') ? APP_ROOT . '/include/data.world.php' : dirname(__DIR__, 2) . '/include/data.world.php';
-        if (is_file($path)) {
-            require $path;
+        $root = defined('APP_ROOT') ? APP_ROOT : dirname(__DIR__, 2);
+        $this->worldEdges = [];
+        foreach (\Pokemon8\Game\WorldDataRepository::runtimeGraph($this->db, $root)->allEdges() as $from => $targets) {
+            $this->worldEdges[$from] = array_values(array_filter($targets, static fn (int $id): bool => $id > 0));
         }
-
-        $edges = [];
-        foreach ((array) $dataLoc as $from => $targets) {
-            $from = (int) $from;
-            $edges[$from] = array_values(array_filter(array_unique(array_map('intval', (array) $targets)), static fn (int $id): bool => $id > 0));
-        }
-
-        return $edges;
+        return $this->worldEdges;
     }
 
     /**
@@ -849,23 +856,23 @@ final class QuestRepository
 
     private function locationTitle(int $locationId): string
     {
-        static $cache = [];
         if ($locationId <= 0) {
             return '';
         }
-        if (array_key_exists($locationId, $cache)) {
-            return $cache[$locationId];
+        if (array_key_exists($locationId, $this->worldTitles)) {
+            return $this->worldTitles[$locationId];
         }
 
         $content = $this->locationContent();
-        if (isset($content[$locationId]['name']) && (string) $content[$locationId]['name'] !== '') {
-            return $cache[$locationId] = (string) $content[$locationId]['name'];
+        $name = trim((string) ($content[$locationId]['name'] ?? ''));
+        if ($name !== '') {
+            return $this->worldTitles[$locationId] = $name;
         }
 
         $stmt = $this->db->prepare('SELECT title FROM build WHERE id = :id LIMIT 1');
         $stmt->execute(['id' => $locationId]);
         $title = (string) ($stmt->fetchColumn() ?: ('Локация #' . $locationId));
-        return $cache[$locationId] = $this->toUtf8($title);
+        return $this->worldTitles[$locationId] = $this->toUtf8($title);
     }
 
     /**
@@ -873,15 +880,11 @@ final class QuestRepository
      */
     private function locationContent(): array
     {
-        static $content = null;
-        if (is_array($content)) {
-            return $content;
+        if ($this->worldContent !== null) {
+            return $this->worldContent;
         }
-
-        $path = defined('APP_ROOT') ? APP_ROOT . '/config/location_content.php' : dirname(__DIR__, 2) . '/config/location_content.php';
-        $data = is_file($path) ? require $path : [];
-        $content = is_array($data) ? $data : [];
-        return $content;
+        $root = defined('APP_ROOT') ? APP_ROOT : dirname(__DIR__, 2);
+        return $this->worldContent = \Pokemon8\Game\WorldDataRepository::runtimeContentData($this->db, $root);
     }
 
     private function toUtf8(string $value): string

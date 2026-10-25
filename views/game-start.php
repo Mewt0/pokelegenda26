@@ -25,6 +25,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
       '/public/css/commission-market.css',
       '/public/css/mail-overlay.css',
       '/public/css/quest-journal.css',
+      '/public/css/new-player-guide.css',
     ];
     require APP_ROOT . '/views/components/head-styles.php';
   ?>
@@ -41,6 +42,30 @@ $itemIconIndex = is_file($itemIconIndexPath)
           <h1 class="location-title" id="locationTitle">Загрузка...</h1>
         </div>
         <div class="decor-line"><span class="decor-dot"></span></div>
+        <section class="new-player-guide" id="newPlayerGuide" hidden aria-labelledby="newPlayerGuideTitle">
+          <p class="new-player-guide__meta">
+            <span class="new-player-guide__step" id="newPlayerGuideKicker">Шаг 1 из 7</span>
+            <span class="new-player-guide__place" id="newPlayerGuidePlace"></span>
+          </p>
+          <h2 class="new-player-guide__title" id="newPlayerGuideTitle" tabindex="-1">Ваш первый покемон</h2>
+          <p class="new-player-guide__text" id="newPlayerGuideText"></p>
+          <p class="new-player-guide__path" id="newPlayerGuidePath" hidden></p>
+          <div class="new-player-guide__ticks" id="newPlayerGuideTicks" aria-hidden="true"></div>
+          <div class="new-player-guide__rewards" id="newPlayerGuideRewards" hidden>
+            <span class="new-player-guide__rewards-label">Награда за квест</span>
+            <ul class="new-player-guide__reward-list" id="newPlayerGuideRewardList"></ul>
+          </div>
+          <div class="new-player-guide__actions">
+            <button type="button" class="ui-btn ui-btn--primary new-player-guide__primary" id="newPlayerGuidePrimary">Показать лабораторию</button>
+            <button type="button" class="ui-btn new-player-guide__journal" id="newPlayerGuideJournal">Открыть журнал</button>
+            <button type="button" class="ui-btn ui-btn--ghost new-player-guide__hide" id="newPlayerGuideHide" aria-label="Скрыть подсказки новичка">Скрыть</button>
+          </div>
+          <p class="new-player-guide__status" id="newPlayerGuideStatus"></p>
+        </section>
+        <button type="button" class="new-player-guide-inline-restore" id="newPlayerGuideInlineRestore" hidden>
+          <span class="icon icon--npc-quest" aria-hidden="true"></span>
+          <span>Подсказки новичка</span>
+        </button>
         <div class="location-text location-description" id="locationText"></div>
         <div class="npc-strip npc-actions" id="npcs"></div>
         <div class="npc-strip boss-actions" id="bosses"></div>
@@ -93,8 +118,8 @@ $itemIconIndex = is_file($itemIconIndexPath)
           <b class="commission-menu-badge" data-commission-badge>NEW</b>
         </a>
         <a href="/game/profile"><img src="/public/img/ui/menu-profile.png" alt="">Профиль</a>
-        <a href="#" data-open-dex="pokemon"><img src="/public/img/ui/menu-pokedex.png" alt="">Покедекс</a>
-        <a href="#" data-open-dex="attacks"><img src="/public/img/ui/menu-attackdex.png" alt="">Атакадекс</a>
+        <a href="#" data-open-dex="pokemon"><img src="<?= View::e(asset_url('/public/img/ui/menu-pokedex.png')) ?>" alt="">Покедекс</a>
+        <a href="#" data-open-dex="attacks"><img src="<?= View::e(asset_url('/public/img/ui/menu-attackdex.png')) ?>" alt="">Атакадекс</a>
         <a href="/game/quests" data-open-quests><img src="/public/img/ui/menu-quests.png" alt="">Квесты</a>
         <a href="/game/battle/pvp"><img src="/public/img/ui/menu-battle.png" alt="">Бои</a>
         <a href="/game/tournaments"><img src="/public/img/ui/menu-tournaments.png" alt="">Турниры</a>
@@ -107,6 +132,10 @@ $itemIconIndex = is_file($itemIconIndexPath)
           <button type="button" id="debugForceBattleBtn" class="status-pill debug" style="display:none" title="QA: принудительный бой на Дороге 1" aria-label="QA: принудительный бой на Дороге 1"><span class="icon icon--ui-debug-battle" aria-hidden="true"></span><span>QA</span></button>
           <a href="/game/admin" class="admin-entry" title="Админпанель" aria-label="Админпанель">Админ</a>
         <?php endif; ?>
+        <button type="button" class="new-player-guide-restore" id="newPlayerGuideRestore" hidden>
+          <span class="icon icon--npc-quest" aria-hidden="true"></span>
+          <span>Подсказки новичка</span>
+        </button>
         <div class="game-tools-menu" id="gameToolsMenu">
           <button type="button" class="settings-btn" id="gameToolsBtn" aria-label="Настройки" aria-haspopup="true" aria-expanded="false"><span class="icon icon--ui-settings" aria-hidden="true"></span></button>
           <div class="game-tools-dropdown" id="gameToolsDropdown" role="menu" aria-hidden="true">
@@ -496,6 +525,7 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <script src="<?= View::e(asset_url('/public/js/commission-market.js')) ?>"></script>
   <script src="<?= View::e(asset_url('/public/js/mail-overlay.js')) ?>"></script>
   <script src="<?= View::e(asset_url('/public/js/quest-journal.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/new-player-guide.js')) ?>"></script>
 
 </body>
 </html>

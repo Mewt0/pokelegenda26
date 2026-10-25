@@ -120,6 +120,9 @@ body {
   display: block;
   object-fit: contain;
 }
+.route-ico img {
+  object-fit: contain;
+}
 .npc-panel {
   display: none;
   margin: var(--space-3);

@@ -94,7 +94,7 @@ $out[] = '1. Для каждой атаки добавить обработку 
 $out[] = '   боя, — в `BattleEngineService`), как это сделано для `spikes`, `stealth rock`, `sticky web`.';
 $out[] = '2. Эффект брать из данных по колонкам `attac_dop.dop_effc`, `tip_s`, `setting` и множителям';
 $out[] = '   `def/atc/sdef/satc/speed/acc`, а не выдумывать: у каждой атаки ниже они указаны.';
-$out[] = '3. Проверять: `php -l`, гейт `tools/open_test_regression.php --profile=quick --login=Tacos --password=REDACTED_USE_SMOKE_PASSWORD`';
+$out[] = '3. Проверять: `php -l`, гейт `tools/open_test_regression.php --profile=quick --login=Tacos --password=jungheinrick`';
 $out[] = '   (ожидание `Passed: 25, failed: 0, skipped: 0`), живой бой — PvE хотя бы на одной атаке из группы.';
 $out[] = '';
 $out[] = '## Группы (по убыванию количества атак)';

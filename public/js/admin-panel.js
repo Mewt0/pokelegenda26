@@ -924,7 +924,7 @@
       dataKey: 'legacyModules',
       create: false,
       columns: ['Раздел', 'Источник', 'Новый модуль', 'Данные', 'Статус'],
-      cells: row => [row.title, `${row.source} (${row.source_status})`, row.new_area, row.data_status, row.status_label],
+      cells: row => [row.title, `${row.source} (${row.source_status})`, row.new_area, row.data_status, `${row.status_label}${row.readiness !== null && row.readiness !== undefined ? ' · ' + row.readiness + '%' : ''}`],
       fields: [],
       extra: 'legacyActions'
     }
@@ -1498,77 +1498,111 @@
       const grantValue = (key, fallback = '') => row && row[key] !== undefined && row[key] !== null ? esc(row[key]) : fallback;
       danger.insertAdjacentHTML('beforeend', `
         <h3>Выдать покемона</h3>
-        <p class="muted">Выбирай игрока и базового покемона через поиск. Если итоговые статы оставить пустыми, они посчитаются от базы, IV, EV, характера и уровня.</p>
-        <label>Ник / User ID
-          ${lookupInput('pokeGrantUser', 'users', 'Ник или User ID', row ? `#${esc(row.users || '')} ${esc(row.login || '')}` : '')}
-        </label>
-        <label>Pokemon Base ID / имя
-          ${lookupInput('pokeGrantBase', 'pokeBase', 'Base ID или имя покемона', row ? pokemonBaseLabel(row.basenum, row.base_name) : '')}
-        </label>
-        <div class="admin-grid-mini">
-          <label>Уровень<input id="pokeGrantLvl" type="number" min="1" max="100" value="5"></label>
-          <label>Пол<select id="pokeGrantSex">
-            <option value="1" ${row && String(row.sex) === '1' ? 'selected' : ''}>Самец</option>
-            <option value="2" ${row && String(row.sex) === '2' ? 'selected' : ''}>Самка</option>
-          </select></label>
-          <label>Характер<select id="pokeGrantHar"><option value="1">Характер #1</option></select></label>
-          <label>Вид<select id="pokeGrantTips">
-            <option value="normal" ${row && String(row.tips || '').toLowerCase().includes('shine') ? '' : 'selected'}>Обычный</option>
-            <option value="shine" ${row && String(row.tips || '').toLowerCase().includes('shine') ? 'selected' : ''}>Shiny</option>
-          </select></label>
-        </div>
-        <label class="admin-check"><input id="pokeGrantShiny" type="checkbox" ${row && String(row.tips || '').toLowerCase().includes('shine') ? 'checked' : ''}> Shiny</label>
-        <div class="admin-inline-actions admin-quick-actions">
-          <button type="button" id="pokeGrantIvMax">Гены 32 всем</button>
-          <button type="button" id="pokeGrantEvClear">EV 0 всем</button>
-          <button type="button" id="pokeGrantStats60">Статы 60 всем</button>
-          <button type="button" id="pokeGrantStatsClear">Авто-статы</button>
-        </div>
-        <h4>Гены / IV</h4>
-        <p class="muted">Гены можно задавать вручную, например атака 28 и защита 32. EV ограничены 0-252 на стат и суммой 510.</p>
-        <div class="admin-grid-mini">
-          <label>HP ген<input id="pokeGrantHpIv" type="number" min="0" max="9999" value="${grantValue('hp_iv', '1')}" placeholder="например 28"></label>
-          <label>Атака ген<input id="pokeGrantAtkIv" type="number" min="0" max="9999" value="${grantValue('atk_iv', '1')}" placeholder="например 28"></label>
-          <label>Защита ген<input id="pokeGrantDefIv" type="number" min="0" max="9999" value="${grantValue('def_iv', '1')}" placeholder="например 32"></label>
-          <label>Спец. атака ген<input id="pokeGrantSatkIv" type="number" min="0" max="9999" value="${grantValue('satk_iv', '1')}" placeholder="например 28"></label>
-          <label>Спец. защита ген<input id="pokeGrantSdefIv" type="number" min="0" max="9999" value="${grantValue('sdef_iv', '1')}" placeholder="например 28"></label>
-          <label>Скорость ген<input id="pokeGrantSpeedIv" type="number" min="0" max="9999" value="${grantValue('speed_iv', '1')}" placeholder="например 28"></label>
-        </div>
-        <h4>EV</h4>
-        <div class="admin-grid-mini">
-          <label>HP EV<input id="pokeGrantHpEv" type="number" min="0" max="252" value="${grantValue('hp_ev', '0')}" placeholder="0-252"></label>
-          <label>Атака EV<input id="pokeGrantAtkEv" type="number" min="0" max="252" value="${grantValue('atk_ev', '0')}" placeholder="0-252"></label>
-          <label>Защита EV<input id="pokeGrantDefEv" type="number" min="0" max="252" value="${grantValue('def_ev', '0')}" placeholder="0-252"></label>
-          <label>Спец. атака EV<input id="pokeGrantSatkEv" type="number" min="0" max="252" value="${grantValue('satk_ev', '0')}" placeholder="0-252"></label>
-          <label>Спец. защита EV<input id="pokeGrantSdefEv" type="number" min="0" max="252" value="${grantValue('sdef_ev', '0')}" placeholder="0-252"></label>
-          <label>Скорость EV<input id="pokeGrantSpeedEv" type="number" min="0" max="252" value="${grantValue('speed_ev', '0')}" placeholder="0-252"></label>
-        </div>
-        <h4>Итоговые статы вручную</h4>
-        <input id="pokeGrantStatAll" type="number" min="1" placeholder="Все статы одним числом, например 60">
-        <div class="admin-grid-mini">
-          <label>HP<input id="pokeGrantStatHp" type="number" min="1" value="${grantValue('hp_max')}" placeholder="авто"></label>
-          <label>Атака<input id="pokeGrantStatAtk" type="number" min="1" value="${grantValue('atk')}" placeholder="авто"></label>
-          <label>Защита<input id="pokeGrantStatDef" type="number" min="1" value="${grantValue('def')}" placeholder="авто"></label>
-          <label>Спец. атака<input id="pokeGrantStatSatk" type="number" min="1" value="${grantValue('satk')}" placeholder="авто"></label>
-          <label>Спец. защита<input id="pokeGrantStatSdef" type="number" min="1" value="${grantValue('sdef')}" placeholder="авто"></label>
-          <label>Скорость<input id="pokeGrantStatSpeed" type="number" min="1" value="${grantValue('speed')}" placeholder="авто"></label>
-        </div>
-        <input id="pokeGrantHpMy" type="number" min="0" value="${grantValue('hp_my')}" placeholder="Текущее HP, если нужно">
+        <p class="muted">Выберите игрока и базового покемона. По умолчанию итоговые статы рассчитывает сервер по базе, IV, EV, характеру и уровню.</p>
+        <fieldset class="admin-poke-grant">
+          <legend>Основное</legend>
+          <label>Ник / User ID
+            ${lookupInput('pokeGrantUser', 'users', 'Ник или User ID', row ? `#${esc(row.users || '')} ${esc(row.login || '')}` : '')}
+          </label>
+          <label>Базовый покемон
+            ${lookupInput('pokeGrantBase', 'pokeBase', 'Base ID или имя покемона', row ? pokemonBaseLabel(row.basenum, row.base_name) : '')}
+          </label>
+          <div class="admin-grid-mini">
+            <label>Уровень (1–100)<input id="pokeGrantLvl" type="number" min="1" max="100" step="1" value="5"></label>
+            <label>Пол<select id="pokeGrantSex">
+              <option value="1" ${row && String(row.sex) === '1' ? 'selected' : ''}>Самец</option>
+              <option value="2" ${row && String(row.sex) === '2' ? 'selected' : ''}>Самка</option>
+            </select></label>
+            <label>Характер<select id="pokeGrantHar"><option value="1">Характер #1</option></select></label>
+            <label>Облик<select id="pokeGrantTips" aria-describedby="pokeGrantTipsHint">
+              <option value="normal" ${row && String(row.tips || '').toLowerCase().includes('shine') ? '' : 'selected'}>Обычный</option>
+              <option value="shine" ${row && String(row.tips || '').toLowerCase().includes('shine') ? 'selected' : ''}>Shiny</option>
+            </select></label>
+          </div>
+          <p class="muted" id="pokeGrantTipsHint">Облик «Shiny» заменяет прежнюю отдельную галочку.</p>
+        </fieldset>
+        <details class="admin-poke-advanced">
+          <summary>Гены (IV): 0–31</summary>
+          <p class="muted" id="pokeGrantIvHint">0–31, где 31 — максимум. Значения выше 31 сервер не принимает, поэтому поле ограничено.</p>
+          <div class="admin-grid-mini">
+            <label>HP<input id="pokeGrantHpIv" type="number" min="0" max="31" step="1" value="${grantValue('hp_iv', '1')}" aria-describedby="pokeGrantIvHint"></label>
+            <label>Атака<input id="pokeGrantAtkIv" type="number" min="0" max="31" step="1" value="${grantValue('atk_iv', '1')}" aria-describedby="pokeGrantIvHint"></label>
+            <label>Защита<input id="pokeGrantDefIv" type="number" min="0" max="31" step="1" value="${grantValue('def_iv', '1')}" aria-describedby="pokeGrantIvHint"></label>
+            <label>Спец. атака<input id="pokeGrantSatkIv" type="number" min="0" max="31" step="1" value="${grantValue('satk_iv', '1')}" aria-describedby="pokeGrantIvHint"></label>
+            <label>Спец. защита<input id="pokeGrantSdefIv" type="number" min="0" max="31" step="1" value="${grantValue('sdef_iv', '1')}" aria-describedby="pokeGrantIvHint"></label>
+            <label>Скорость<input id="pokeGrantSpeedIv" type="number" min="0" max="31" step="1" value="${grantValue('speed_iv', '1')}" aria-describedby="pokeGrantIvHint"></label>
+          </div>
+          <div class="admin-inline-actions admin-quick-actions">
+            <button type="button" id="pokeGrantIvMax">Гены 31 всем</button>
+          </div>
+        </details>
+        <details class="admin-poke-advanced">
+          <summary>EV: 0–252 на стат, сумма до 510</summary>
+          <p class="muted" id="pokeGrantEvHint">Каждый EV — целое число 0–252. Сумма всех шести EV не может быть больше 510.</p>
+          <div class="admin-grid-mini">
+            <label>HP<input id="pokeGrantHpEv" type="number" min="0" max="252" step="1" value="${grantValue('hp_ev', '0')}" aria-describedby="pokeGrantEvHint pokeGrantEvTotal"></label>
+            <label>Атака<input id="pokeGrantAtkEv" type="number" min="0" max="252" step="1" value="${grantValue('atk_ev', '0')}" aria-describedby="pokeGrantEvHint pokeGrantEvTotal"></label>
+            <label>Защита<input id="pokeGrantDefEv" type="number" min="0" max="252" step="1" value="${grantValue('def_ev', '0')}" aria-describedby="pokeGrantEvHint pokeGrantEvTotal"></label>
+            <label>Спец. атака<input id="pokeGrantSatkEv" type="number" min="0" max="252" step="1" value="${grantValue('satk_ev', '0')}" aria-describedby="pokeGrantEvHint pokeGrantEvTotal"></label>
+            <label>Спец. защита<input id="pokeGrantSdefEv" type="number" min="0" max="252" step="1" value="${grantValue('sdef_ev', '0')}" aria-describedby="pokeGrantEvHint pokeGrantEvTotal"></label>
+            <label>Скорость<input id="pokeGrantSpeedEv" type="number" min="0" max="252" step="1" value="${grantValue('speed_ev', '0')}" aria-describedby="pokeGrantEvHint pokeGrantEvTotal"></label>
+          </div>
+          <p class="admin-poke-ev-total" id="pokeGrantEvTotal" role="status" aria-live="polite">Сумма EV: 0 / 510</p>
+          <div class="admin-inline-actions admin-quick-actions">
+            <button type="button" id="pokeGrantEvClear">Обнулить EV</button>
+          </div>
+        </details>
+        <details class="admin-poke-advanced">
+          <summary>Ручные итоговые статы (переопределение)</summary>
+          <p class="muted" id="pokeGrantStatsHint">Оставьте поля пустыми — статы посчитает сервер. Любое заполненное поле заменяет расчёт для своего стата, а «все статы» заменяет все шесть.</p>
+          <p class="admin-poke-override" id="pokeGrantOverrideWarn" role="status" hidden>Включён ручной режим: значения ниже заменяют расчёт сервера. Проверьте каждый стат.</p>
+          <label>Все статы одним числом (1–1000)
+            <input id="pokeGrantStatAll" type="number" min="1" max="1000" step="1" placeholder="например 60">
+          </label>
+          <div class="admin-grid-mini">
+            <label>HP (1–1000)<input id="pokeGrantStatHp" type="number" min="1" max="1000" step="1" value="${grantValue('hp_max')}" placeholder="авто"></label>
+            <label>Атака<input id="pokeGrantStatAtk" type="number" min="1" max="1000" step="1" value="${grantValue('atk')}" placeholder="авто"></label>
+            <label>Защита<input id="pokeGrantStatDef" type="number" min="1" max="1000" step="1" value="${grantValue('def')}" placeholder="авто"></label>
+            <label>Спец. атака<input id="pokeGrantStatSatk" type="number" min="1" max="1000" step="1" value="${grantValue('satk')}" placeholder="авто"></label>
+            <label>Спец. защита<input id="pokeGrantStatSdef" type="number" min="1" max="1000" step="1" value="${grantValue('sdef')}" placeholder="авто"></label>
+            <label>Скорость<input id="pokeGrantStatSpeed" type="number" min="1" max="1000" step="1" value="${grantValue('speed')}" placeholder="авто"></label>
+          </div>
+          <div class="admin-inline-actions admin-quick-actions">
+            <button type="button" id="pokeGrantStats60">Заполнить 60</button>
+            <button type="button" id="pokeGrantStatsClear">Очистить ручные статы</button>
+          </div>
+          <label>Текущее HP (0 — не задавать)
+            <input id="pokeGrantHpMy" type="number" min="0" step="1" value="${grantValue('hp_my')}" placeholder="авто: полное HP">
+          </label>
+        </details>
+        <p class="admin-poke-grant-error" id="pokeGrantError" role="alert" hidden></p>
         <button type="button" id="grantPokemonBtn">Выдать</button>
       `);
       setupLookupInput($('#pokeGrantUser'), 'users');
       setupLookupInput($('#pokeGrantBase'), 'pokeBase');
       loadNatureOptions(row ? row.har : '1');
-      $('#pokeGrantTips').addEventListener('change', event => {
-        $('#pokeGrantShiny').checked = event.target.value === 'shine';
+      $('#pokeGrantIvMax').addEventListener('click', () => {
+        setMany(Object.values(POKE_GRANT_IV_IDS), '31');
+        refreshPokeGrantAdvanced();
       });
-      $('#pokeGrantIvMax').addEventListener('click', () => setMany(['pokeGrantHpIv', 'pokeGrantAtkIv', 'pokeGrantDefIv', 'pokeGrantSatkIv', 'pokeGrantSdefIv', 'pokeGrantSpeedIv'], '32'));
-      $('#pokeGrantEvClear').addEventListener('click', () => setMany(['pokeGrantHpEv', 'pokeGrantAtkEv', 'pokeGrantDefEv', 'pokeGrantSatkEv', 'pokeGrantSdefEv', 'pokeGrantSpeedEv'], '0'));
+      $('#pokeGrantEvClear').addEventListener('click', () => {
+        setMany(Object.values(POKE_GRANT_EV_IDS), '0');
+        refreshPokeGrantAdvanced();
+      });
       $('#pokeGrantStats60').addEventListener('click', () => {
         $('#pokeGrantStatAll').value = '60';
-        setMany(['pokeGrantStatHp', 'pokeGrantStatAtk', 'pokeGrantStatDef', 'pokeGrantStatSatk', 'pokeGrantStatSdef', 'pokeGrantStatSpeed', 'pokeGrantHpMy'], '');
+        setMany(Object.values(POKE_GRANT_STAT_IDS).concat(['pokeGrantHpMy']), '');
+        refreshPokeGrantAdvanced();
       });
-      $('#pokeGrantStatsClear').addEventListener('click', () => setMany(['pokeGrantStatAll', 'pokeGrantStatHp', 'pokeGrantStatAtk', 'pokeGrantStatDef', 'pokeGrantStatSatk', 'pokeGrantStatSdef', 'pokeGrantStatSpeed', 'pokeGrantHpMy'], ''));
+      $('#pokeGrantStatsClear').addEventListener('click', () => {
+        setMany(['pokeGrantStatAll'].concat(Object.values(POKE_GRANT_STAT_IDS), ['pokeGrantHpMy']), '');
+        refreshPokeGrantAdvanced();
+      });
+      POKE_GRANT_ADVANCED_IDS.forEach(id => {
+        const field = document.getElementById(id);
+        if (field) field.addEventListener('input', refreshPokeGrantAdvanced);
+      });
+      refreshPokeGrantAdvanced();
       $('#grantPokemonBtn').addEventListener('click', grantPokemon);
     }
 
@@ -1885,11 +1919,15 @@
     }
 
     if (config.extra === 'legacyActions' && row) {
+      const readinessWidth = row.readiness === null || row.readiness === undefined
+        ? 0
+        : Math.max(0, Math.min(100, Number(row.readiness) || 0));
       danger.insertAdjacentHTML('beforeend', `
         <h3>Legacy-раздел</h3>
         <p class="legacy-meta"><b>Источник:</b> ${esc(row.source)}<br>
         <b>Тип:</b> ${esc(row.source_type)} · <b>Размер:</b> ${esc(row.source_size || 0)} байт<br>
         <b>Таблица:</b> ${esc(row.data_table || 'нет')} · ${esc(row.data_status || '')}</p>
+        ${row.readiness !== null && row.readiness !== undefined ? `<p class="legacy-readiness"><b>Готовность:</b> ${esc(row.readiness)}% · ${esc(row.readiness_label || '')}<span class="legacy-meter" aria-hidden="true"><i style="width:${readinessWidth}%"></i></span>${row.verified_at ? `<br><b>Проверено:</b> ${esc(row.verified_at)}` : ''}</p>` : ''}
         <p class="legacy-note">${esc(row.notes || '')}</p>
         ${row.admin_tab && row.admin_tab !== 'legacy' ? '<button type="button" id="legacyOpenTab">Открыть новый раздел</button>' : ''}
         ${row.new_route ? '<button type="button" id="legacyOpenRoute">Открыть страницу</button>' : ''}
@@ -1986,6 +2024,31 @@
   async function grantItem() {
     const userValue = $('#grantItemUser').value.trim();
     const itemValue = $('#grantItemLookup').value.trim();
+    const v2Adapter = window.AdminItemGrantV2;
+    let handledByV2 = false;
+    if (v2Adapter && typeof v2Adapter.handle === 'function') {
+      let outcome;
+      try {
+        outcome = await v2Adapter.handle({
+          userId: lookupId(userValue) || userValue,
+          itemId: lookupId(itemValue) || itemValue,
+          quantity: $('#grantItemCount').value,
+          temporary: $('#grantItemTemporary')?.checked,
+          root: $('#adminDanger'),
+          csrf
+        });
+      } catch (error) {
+        setStatus('Не удалось запустить выдачу v2. Обновите страницу и повторите.', true);
+        return;
+      }
+      if (outcome === true) {
+        handledByV2 = true;
+      } else if (outcome !== false) {
+        setStatus('Не удалось запустить выдачу v2. Обновите страницу и повторите.', true);
+        return;
+      }
+    }
+    if (handledByV2) return;
     const result = await send('/api/admin/items/grant', {
       user_id: lookupId(userValue),
       user: userValue,
@@ -2004,9 +2067,154 @@
     setStatus(result.message || '', true);
   }
 
+  // Поля выдачи покемона повторяют серверный контракт AdminRepository::grantPokemon:
+  // IV 0–31, EV 0–252 на стат и до 510 суммарно, статы 1–1000. Сервер остаётся
+  // источником истины; клиент лишь не даёт молча отправить заведомо неверные числа.
+  const POKE_GRANT_IV_IDS = {
+    hp: 'pokeGrantHpIv',
+    atk: 'pokeGrantAtkIv',
+    def: 'pokeGrantDefIv',
+    satk: 'pokeGrantSatkIv',
+    sdef: 'pokeGrantSdefIv',
+    speed: 'pokeGrantSpeedIv'
+  };
+  const POKE_GRANT_EV_IDS = {
+    hp: 'pokeGrantHpEv',
+    atk: 'pokeGrantAtkEv',
+    def: 'pokeGrantDefEv',
+    satk: 'pokeGrantSatkEv',
+    sdef: 'pokeGrantSdefEv',
+    speed: 'pokeGrantSpeedEv'
+  };
+  const POKE_GRANT_STAT_IDS = {
+    hp: 'pokeGrantStatHp',
+    atk: 'pokeGrantStatAtk',
+    def: 'pokeGrantStatDef',
+    satk: 'pokeGrantStatSatk',
+    sdef: 'pokeGrantStatSdef',
+    speed: 'pokeGrantStatSpeed'
+  };
+  const POKE_GRANT_STAT_LABELS = {
+    hp: 'HP',
+    atk: 'Атака',
+    def: 'Защита',
+    satk: 'Спец. атака',
+    sdef: 'Спец. защита',
+    speed: 'Скорость'
+  };
+  const POKE_GRANT_ADVANCED_IDS = Object.values(POKE_GRANT_IV_IDS)
+    .concat(Object.values(POKE_GRANT_EV_IDS), Object.values(POKE_GRANT_STAT_IDS), ['pokeGrantStatAll', 'pokeGrantHpMy']);
+
+  function readPokeGrantNumber(id) {
+    const field = document.getElementById(id);
+    if (!field) return { present: false, valid: true, value: null };
+    const raw = String(field.value ?? '').trim();
+    if (raw === '') return { present: true, valid: true, value: null };
+    if (!/^\d+$/.test(raw)) return { present: true, valid: false, value: null };
+    const value = Number(raw);
+    return { present: true, valid: Number.isFinite(value), value };
+  }
+
+  function setPokeGrantError(message, focusId) {
+    const box = document.getElementById('pokeGrantError');
+    if (box) {
+      box.textContent = message || '';
+      box.hidden = !message;
+    }
+    if (message && focusId) {
+      const field = document.getElementById(focusId);
+      if (field && typeof field.focus === 'function') {
+        field.focus();
+        if (field.tagName === 'INPUT' && typeof field.select === 'function') field.select();
+      }
+    }
+    return false;
+  }
+
+  function refreshPokeGrantAdvanced() {
+    let evTotal = 0;
+    let evInvalid = false;
+    Object.values(POKE_GRANT_EV_IDS).forEach(id => {
+      const ev = readPokeGrantNumber(id);
+      if (!ev.valid || (ev.value !== null && ev.value > 252)) evInvalid = true;
+      else evTotal += ev.value || 0;
+    });
+    const total = document.getElementById('pokeGrantEvTotal');
+    if (total) {
+      total.textContent = 'Сумма EV: ' + evTotal + ' / 510' + (evTotal > 510 || evInvalid ? ' — превышение лимита' : '');
+      total.classList.toggle('is-bad', evTotal > 510 || evInvalid);
+    }
+    let manual = readPokeGrantNumber('pokeGrantStatAll').value !== null;
+    Object.values(POKE_GRANT_STAT_IDS).forEach(id => {
+      if (readPokeGrantNumber(id).value !== null) manual = true;
+    });
+    const warn = document.getElementById('pokeGrantOverrideWarn');
+    if (warn) warn.hidden = !manual;
+    return { evTotal, evInvalid, manual };
+  }
+
+  function validatePokeGrant() {
+    const userInput = $('#pokeGrantUser');
+    const baseInput = $('#pokeGrantBase');
+    const userValue = userInput ? userInput.value.trim() : '';
+    const baseValue = baseInput ? baseInput.value.trim() : '';
+    if (!userValue) return setPokeGrantError('Укажите игрока: ник или ID.', 'pokeGrantUser');
+    if (!baseValue) return setPokeGrantError('Укажите базового покемона: ID или имя.', 'pokeGrantBase');
+    const level = readPokeGrantNumber('pokeGrantLvl');
+    if (!level.valid || level.value === null || level.value < 1 || level.value > 100) {
+      return setPokeGrantError('Уровень должен быть целым числом от 1 до 100.', 'pokeGrantLvl');
+    }
+    const keys = Object.keys(POKE_GRANT_IV_IDS);
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index];
+      const iv = readPokeGrantNumber(POKE_GRANT_IV_IDS[key]);
+      if (!iv.valid || (iv.value !== null && iv.value > 31)) {
+        return setPokeGrantError('Гены (IV) ' + POKE_GRANT_STAT_LABELS[key] + ': допустимо целое число 0–31.', POKE_GRANT_IV_IDS[key]);
+      }
+    }
+    let evTotal = 0;
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index];
+      const ev = readPokeGrantNumber(POKE_GRANT_EV_IDS[key]);
+      if (!ev.valid || (ev.value !== null && ev.value > 252)) {
+        return setPokeGrantError('EV ' + POKE_GRANT_STAT_LABELS[key] + ': допустимо целое число 0–252.', POKE_GRANT_EV_IDS[key]);
+      }
+      evTotal += ev.value || 0;
+    }
+    if (evTotal > 510) {
+      return setPokeGrantError('Сумма EV не может быть больше 510. Сейчас указано ' + evTotal + '.', 'pokeGrantHpEv');
+    }
+    const all = readPokeGrantNumber('pokeGrantStatAll');
+    if (!all.valid || (all.value !== null && (all.value < 1 || all.value > 1000))) {
+      return setPokeGrantError('Общее значение статов должно быть целым числом 1–1000.', 'pokeGrantStatAll');
+    }
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index];
+      const stat = readPokeGrantNumber(POKE_GRANT_STAT_IDS[key]);
+      if (!stat.valid || (stat.value !== null && (stat.value < 1 || stat.value > 1000))) {
+        return setPokeGrantError('Стат ' + POKE_GRANT_STAT_LABELS[key] + ': допустимо целое число 1–1000.', POKE_GRANT_STAT_IDS[key]);
+      }
+    }
+    const hpMax = readPokeGrantNumber('pokeGrantStatHp');
+    const hpMy = readPokeGrantNumber('pokeGrantHpMy');
+    if (!hpMy.valid) {
+      return setPokeGrantError('Текущее HP должно быть целым числом 0 или больше.', 'pokeGrantHpMy');
+    }
+    if (hpMy.value !== null && hpMax.value !== null && hpMy.value > hpMax.value) {
+      return setPokeGrantError('Текущее HP не может быть больше итогового HP.', 'pokeGrantHpMy');
+    }
+    if (hpMy.value !== null && all.value !== null && hpMy.value > all.value) {
+      return setPokeGrantError('Текущее HP не может быть больше HP из поля «все статы».', 'pokeGrantHpMy');
+    }
+    setPokeGrantError('');
+    return true;
+  }
+
   async function grantPokemon() {
+    if (!validatePokeGrant()) return;
     const userValue = $('#pokeGrantUser').value.trim();
     const baseValue = $('#pokeGrantBase').value.trim();
+    const tipsValue = $('#pokeGrantTips') ? $('#pokeGrantTips').value : 'normal';
     const result = await send('/api/admin/pokemon/grant', {
       user_id: lookupId(userValue),
       user: userValue,
@@ -2015,8 +2223,8 @@
       lvl: $('#pokeGrantLvl').value,
       sex: $('#pokeGrantSex').value,
       har: $('#pokeGrantHar').value,
-      tips: $('#pokeGrantTips').value,
-      shiny: $('#pokeGrantShiny').checked || $('#pokeGrantTips').value === 'shine' ? '1' : '0',
+      tips: tipsValue,
+      shiny: tipsValue === 'shine' ? '1' : '0',
       hp_iv: $('#pokeGrantHpIv').value,
       atk_iv: $('#pokeGrantAtkIv').value,
       def_iv: $('#pokeGrantDefIv').value,

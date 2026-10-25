@@ -106,29 +106,40 @@ final class AdminRepository
     public function legacyModules(string $search = ''): array
     {
         $rows = [
-            $this->legacyModule('admin_dashboard', 'Главная старая админка', 'admin/admin.php', 'file', 'PARTIAL_NEW', 'dashboard', '/game/admin', '/api/admin/dashboard', 'admin_audit_log', 'Новый центр управления уже открывается отдельной страницей. Старый файл оставлен только как справочник.'),
+            $this->legacyModule('admin_dashboard', 'Главная старая админка', 'admin/admin.php', 'file', 'DONE', 'dashboard', '/game/admin', '/api/admin/dashboard', 'admin_audit_log', 'Новый GM Center полностью заменил старую главную админки; проверены все 22 вкладки. Старый файл — только справочник.'),
             $this->legacyModule('news', 'Новости и оповещения', 'admin/bb_news_admin.php', 'file', 'PARTIAL_NEW', 'news', '/game/admin', '/api/admin/news', 'news', 'CRUD новостей перенесён в новый API и вкладку Новости.'),
             $this->legacyModule('pokemon_grant', 'Выдача покемонов', 'admin/poke.php', 'file', 'PARTIAL_NEW', 'pokemon', '/game/admin', '/api/admin/pokemon', 'pok_user', 'Выдача и правка покемонов перенесены в раздел Покемоны игроков.'),
             $this->legacyModule('attack_learn', 'Выдача атак и яйцевые атаки', 'admin/attak_pokes.php', 'file', 'PARTIAL_NEW', 'attacks', '/game/admin', '/api/admin/attacks', 'attac_poke', 'Привязка level-up и egg атак доступна в инспекторе вкладки Атаки.'),
             $this->legacyModule('items_grant', 'Выдача предметов', 'admin/gitem.php', 'file', 'PARTIAL_NEW', 'items', '/game/admin', '/api/admin/items', 'items_users', 'Выдача предметов работает, включая временные предметы через dattimer.'),
             $this->legacyModule('diamonds_grant', 'Выдача алмазов', 'admin/alm.php', 'file', 'SKIPPED_BY_DESIGN', 'users', '/game/admin', '/api/admin/users', 'items_users', 'Отдельную выдачу алмазов не переносим: экономические награды должны идти через награды, магазин и аудит.'),
             $this->legacyModule('bans', 'Баны и banip', 'admin/bans.php', 'file', 'PARTIAL_NEW', 'moderation', '/game/admin', '/api/admin/moderation', 'banip', 'Бан и разбан IP доступны из карточки игрока и модерации.'),
-            $this->legacyModule('drop_rules', 'Предметы и дроп', 'items_drop', 'table', 'PARTIAL_NEW', 'drops', '/game/admin', '/api/admin/drop-rules', 'admin_drop_rules', 'Новая таблица правил дропа работает отдельно от legacy items_drop.'),
+            $this->legacyModule('drop_rules', 'Предметы и дроп', 'items_drop', 'table', 'DONE', 'drops', '/game/admin', '/api/admin/drop-rules', 'admin_drop_rules', 'Боевой слой читает дроп из admin_drop_rules; items_drop остаётся историческим срезом для сверки.'),
             $this->legacyModule('logs', 'Логи обмена, продаж и действий', 'admin/logs.php', 'file', 'PARTIAL_NEW', 'commission', '/game/admin', '/api/admin/commission/logs', 'market_logs/admin_audit_log', 'Продажи и подозрительные сделки смотрим во вкладке Комиссионная лавка, админ-действия остаются в audit.'),
             $this->legacyModule('locations', 'Локации и карта мира', 'include/data.world.php', 'file', 'PARTIAL_NEW', 'locations', '/game/admin', '/api/admin/locations', 'build', 'Локации редактируются через вкладку Локации, граф переходов читается из legacy data.world.php.'),
             $this->legacyModule('market', 'Покемаркет и товары', 'game.php?go=rinok', 'virtual', 'PARTIAL_NEW', 'market', '/game/market/items', '/api/market/items', 'market_shop_items', 'Игровой магазин и админский список товаров работают через новые API.'),
-            $this->legacyModule('inventory', 'Инвентарь', 'game.php?go=items', 'virtual', 'PARTIAL_NEW', 'items', '/game/items', '/api/inventory/page', 'items_users', 'Инвентарь перенесён в новый overlay/API, legacy используется только как ориентир поведения.'),
-            $this->legacyModule('pokedex', 'Покедекс', 'game.php?go=pokedex', 'virtual', 'PARTIAL_NEW', 'attacks', '/game/pokedex', '/api/dex/pokemon', 'pokemon', 'Покедекс работает через новые dex API.'),
-            $this->legacyModule('attackdex', 'Атакадекс', 'game.php?go=atk', 'virtual', 'PARTIAL_NEW', 'attacks', '/game/attacks', '/api/dex/attacks', 'attac_power', 'Атаки грузятся постранично через новый API.'),
+            $this->legacyModule('inventory', 'Инвентарь', 'game.php?go=items', 'virtual', 'DONE', 'items', '/game/items', '/api/inventory/page', 'items_users', 'Инвентарь полностью работает через новый overlay/API; legacy — только ориентир поведения.'),
+            $this->legacyModule('pokedex', 'Покедекс', 'game.php?go=pokedex', 'virtual', 'DONE', 'attacks', '/game/pokedex', '/api/dex/pokemon', 'pokemon', 'Покедекс полностью работает через новый dex API (smoke 27/27).'),
+            $this->legacyModule('attackdex', 'Атакадекс', 'game.php?go=atk', 'virtual', 'DONE', 'attacks', '/game/attacks', '/api/dex/attacks', 'attac_power', 'Атакадекс полностью работает через новый dex API (smoke 27/27).'),
             $this->legacyModule('pve_battle', 'PvE бой', 'game.php?go=fight_pve', 'virtual', 'PARTIAL_NEW', 'dashboard', '/game/battle/pve', '/api/battle/pve/state', 'battles', 'Боёвка перенесена в новый battle dock, логика ещё расширяется.'),
             $this->legacyModule('pvp_battle', 'PvP бой', 'game.php?go=fight_pvp', 'virtual', 'PARTIAL_NEW', 'dashboard', '/game/battle/pvp', '/api/battle/pvp/status', 'pvp_battle_requests', 'Вызовы и принудительные бои вынесены в новые PvP API.'),
-            $this->legacyModule('transport', 'Самолёт, пароход и транспорт', 'game.php?go=transport', 'virtual', 'PARTIAL_NEW', 'locations', '/game/transport', '/api/transport/routes', 'transport_routes', 'Транспорт подключён отдельными API и связан с локациями.'),
+            $this->legacyModule('transport', 'Самолёт, пароход и транспорт', 'game.php?go=transport', 'virtual', 'DONE', 'locations', '/game/transport', '/api/transport/routes', 'transport_routes', 'Транспорт полностью обслуживается новыми API и связан с локациями (smoke 24/24).'),
             $this->legacyModule('friends', 'Друзья и заявки', 'game.php?go=friends', 'virtual', 'DONE', 'users', '/game/friends', '/api/friends/status', 'friends', 'Базовая система друзей перенесена в новый API.'),
             $this->legacyModule('messages', 'Почта и сообщения', 'game.php?go=sends', 'virtual', 'PARTIAL_NEW', 'moderation', '/game/messages', '', 'chats', 'Страница есть, бизнес-логика почты ещё требует отдельного полного переноса.'),
             $this->legacyModule('tournaments', 'Турниры и медали', 'admin/info_tur.php, admin/info_tur_user.php, admin/medal.php', 'missing_file', 'PARTIAL_NEW', 'tournaments', '/game/admin', '/api/admin/tournaments', 'admin_tournaments', 'Старых файлов нет в дереве проекта, поэтому модуль переписывается с нуля. Старые упоминания в меню и NPC-кураторе используются только как источник бизнес-смысла.'),
         ];
 
         $rows = array_merge($rows, $this->legacySupportFiles(array_column($rows, 'source')));
+
+        // Готовность — оценка покрытия нового слоя на дату проверки, а не юридическая гарантия.
+        // Для файлов-справочников (SOURCE_ONLY) и осознанных отказов она не применяется.
+        $readiness = $this->legacyReadiness();
+        foreach ($rows as &$row) {
+            $meta = $readiness[$row['key']] ?? null;
+            $row['readiness'] = $meta[0] ?? null;
+            $row['readiness_label'] = $this->readinessLabel($row['readiness']);
+            $row['verified_at'] = $meta[1] ?? '';
+        }
+        unset($row);
 
         if ($search !== '') {
             $needle = mb_strtolower($search);
@@ -137,13 +148,67 @@ final class AdminRepository
                     || str_contains(mb_strtolower((string) $row['title']), $needle)
                     || str_contains(mb_strtolower((string) $row['source']), $needle)
                     || str_contains(mb_strtolower((string) $row['status']), $needle)
+                    || str_contains(mb_strtolower((string) $row['readiness_label']), $needle)
                     || str_contains(mb_strtolower((string) $row['notes']), $needle);
             }));
         }
 
-        usort($rows, static fn (array $a, array $b): int => [$a['status_order'], $a['title']] <=> [$b['status_order'], $b['title']]);
+        usort($rows, static fn (array $a, array $b): int => [
+            $a['status_order'],
+            -($a['readiness'] ?? -1),
+            $a['title'],
+        ] <=> [
+            $b['status_order'],
+            -($b['readiness'] ?? -1),
+            $b['title'],
+        ]);
         return $rows;
     }
+
+    /**
+     * Оценка готовности legacy-раздела: [процент 0–100|null, дата проверки].
+     * null — раздел не является целью переноса (справочник или осознанный отказ).
+     */
+    private function legacyReadiness(): array
+    {
+        return [
+            'admin_dashboard' => [100, '2026-10-25'],
+            'news' => [85, '2026-10-25'],
+            'pokemon_grant' => [80, '2026-10-25'],
+            'attack_learn' => [75, '2026-10-25'],
+            'items_grant' => [85, '2026-10-25'],
+            'diamonds_grant' => [null, '2026-10-25'],
+            'bans' => [80, '2026-10-25'],
+            'drop_rules' => [90, '2026-10-25'],
+            'logs' => [70, '2026-10-25'],
+            'locations' => [65, '2026-10-25'],
+            'market' => [85, '2026-10-25'],
+            'inventory' => [100, '2026-10-25'],
+            'pokedex' => [100, '2026-10-25'],
+            'attackdex' => [100, '2026-10-25'],
+            'pve_battle' => [75, '2026-10-25'],
+            'pvp_battle' => [85, '2026-10-25'],
+            'transport' => [95, '2026-10-25'],
+            'friends' => [100, '2026-10-25'],
+            'messages' => [85, '2026-10-25'],
+            'tournaments' => [85, '2026-10-25'],
+        ];
+    }
+
+    private function readinessLabel(?int $readiness): string
+    {
+        if ($readiness === null) {
+            return '—';
+        }
+        return match (true) {
+            $readiness >= 100 => 'полная',
+            $readiness >= 85 => 'высокая',
+            $readiness >= 70 => 'хорошая',
+            $readiness >= 40 => 'средняя',
+            default => 'низкая',
+        };
+    }
+
 
     public function items(string $search = '', int $limit = 60): array
     {
@@ -582,6 +647,17 @@ final class AdminRepository
 
     public function grantItem(int $adminId, array $payload): array
     {
+        $grant = $this->grantItemCore($payload);
+        if (empty($grant['ok'])) {
+            return $grant;
+        }
+        $this->audit($adminId, 'item.grant', 'items_users', $grant['row_id'], $grant['grant']);
+        return ['ok' => true, 'message' => $grant['grant']['expires_at'] === null ? 'Предмет выдан.' : 'Временный предмет выдан.'];
+    }
+
+    /** Shared validation only; safe for read-only previews. */
+    public function validateItemGrant(array $payload): array
+    {
         $userId = (int) ($payload['user_id'] ?? 0);
         $itemId = (int) ($payload['item_id'] ?? 0);
         $count = max(1, (int) ($payload['count'] ?? 1));
@@ -594,15 +670,25 @@ final class AdminRepository
             return ['ok' => false, 'message' => 'Укажи будущую дату или количество секунд для временного предмета.'];
         }
 
-        $rowId = $this->addItemToUser($userId, $itemId, $count, $expiresAt);
-        $this->audit($adminId, 'item.grant', 'items_users', $rowId, [
+        return ['ok' => true, 'grant' => [
             'user_id' => $userId,
             'item_id' => $itemId,
             'count' => $count,
             'temporary' => $expiresAt !== null,
             'expires_at' => $expiresAt,
-        ]);
-        return ['ok' => true, 'message' => $expiresAt === null ? 'Предмет выдан.' : 'Временный предмет выдан.'];
+        ]];
+    }
+
+    /** Internal grant core: caller owns the transaction and audit. */
+    public function grantItemCore(array $payload, bool $inventoryLockHeld = false): array
+    {
+        $validated = $this->validateItemGrant($payload);
+        if (empty($validated['ok'])) {
+            return $validated;
+        }
+        $grant = $validated['grant'];
+        $rowId = $this->addItemToUser($grant['user_id'], $grant['item_id'], $grant['count'], $grant['expires_at'], $inventoryLockHeld);
+        return $validated + ['row_id' => $rowId];
     }
 
     public function deleteItem(int $adminId, int $id, string $confirm): array
@@ -1908,11 +1994,11 @@ final class AdminRepository
         return $timestamp !== false && $timestamp > time() ? $timestamp : false;
     }
 
-    private function addItemToUser(int $userId, int $itemId, int $count, ?int $expiresAt = null): int
+    private function addItemToUser(int $userId, int $itemId, int $count, ?int $expiresAt = null, bool $inventoryLockHeld = false): int
     {
         $dattimer = $expiresAt === null ? 'not' : (string) $expiresAt;
         $rowId = 0;
-        $this->withItemsUsersLock(function () use ($userId, $itemId, $count, $dattimer, &$rowId): void {
+        $write = function () use ($userId, $itemId, $count, $dattimer, &$rowId): void {
             $existing = $this->db->prepare('SELECT id FROM items_users WHERE user_id = :user AND item_id = :item AND dattimer = :dattimer LIMIT 1');
             $existing->execute(['user' => $userId, 'item' => $itemId, 'dattimer' => $dattimer]);
             $rowId = (int) ($existing->fetchColumn() ?: 0);
@@ -1932,7 +2018,12 @@ final class AdminRepository
                 'count' => $count,
                 'dattimer' => $dattimer,
             ]);
-        });
+        };
+        if ($inventoryLockHeld) {
+            $write();
+        } else {
+            $this->withItemsUsersLock($write);
+        }
         return $rowId;
     }
 

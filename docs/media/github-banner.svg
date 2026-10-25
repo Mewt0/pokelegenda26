@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="460" viewBox="0 0 1440 460" role="img" aria-labelledby="title desc">
+  <title id="title">PokemonChic</title>
+  <desc id="desc">A browser RPG. Green hills, a village, and a winding path toward the mountains.</desc>
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#cfe7e5"/><stop offset="1" stop-color="#fff7de"/></linearGradient>
+    <linearGradient id="field" x2="0" y2="1"><stop stop-color="#8fbb8c"/><stop offset="1" stop-color="#3d7556"/></linearGradient>
+    <clipPath id="scene"><rect x="750" y="24" width="666" height="412" rx="22"/></clipPath>
+  </defs>
+  <rect width="1440" height="460" rx="24" fill="#f5f2e8"/>
+  <g clip-path="url(#scene)">
+    <rect x="750" y="24" width="666" height="412" fill="url(#sky)"/>
+    <circle cx="1276" cy="102" r="40" fill="#f8d484"/>
+    <path d="m740 280 130-134 86 69 128-154 141 160 75-65 140 135v190H740z" fill="#93b6ac"/>
+    <path d="m1014 142 70-81 70 80-53-20-18 17-23-25z" fill="#f1f6e9"/>
+    <path d="M740 304q154-101 307-37t393-37v231H740z" fill="#a9ca98"/>
+    <path d="M740 363q211-125 391-34t309-28v160H740z" fill="url(#field)"/>
+    <path d="M1053 279q-88 31-4 70t-76 111h134q103-79 13-117t-61-64" fill="#ead2a1"/>
+    <g stroke="#53674d" stroke-width="3" stroke-linejoin="round">
+      <path d="M890 299v-52h83v52z" fill="#f6e4bf"/><path d="m879 248 52-41 55 41z" fill="#b85b43"/>
+      <path d="M1005 274v-48h71v48z" fill="#faf0d5"/><path d="m994 227 46-36 47 36z" fill="#b85b43"/>
+      <path d="M1196 315v-60h88v60z" fill="#f6e4bf"/><path d="m1183 257 56-44 58 44z" fill="#ad5140"/>
+      <path d="M926 299v-27h19v27m88-25v-23h15v23m-335 41" fill="#8c6a46"/>
+      <path d="M907 259h13v14h-13zm46 0h13v14h-13zm264 10h15v16h-15zm39 0h15v16h-15z" fill="#91bdb6"/>
+    </g>
+    <g fill="#326149"><path d="m786 326 39-99 39 99h-23v42h-32v-42z"/><path d="m1291 357 42-116 45 116h-29v56h-31v-56z"/><path d="m1351 310 37-102 41 102h-25v48h-28v-48z"/></g>
+    <g fill="#e9c985"><circle cx="850" cy="397" r="4"/><circle cx="1173" cy="375" r="4"/><circle cx="1217" cy="398" r="4"/><circle cx="894" cy="364" r="3"/></g>
+  </g>
+  <circle cx="76" cy="78" r="15" fill="#b86146"/>
+  <path d="M61 78h30" stroke="#f5f2e8" stroke-width="3"/><circle cx="76" cy="78" r="5" fill="#f5f2e8"/>
+  <text x="106" y="86" fill="#47634e" font-family="Arial,sans-serif" font-size="19" font-weight="700" letter-spacing="2">POKELEGENDA / 26</text>
+  <text x="58" y="218" fill="#254834" font-family="Arial,sans-serif" font-size="82" font-weight="700" letter-spacing="-3">PokemonChic</text>
+  <text x="62" y="270" fill="#526657" font-family="Arial,sans-serif" font-size="27">A browser RPG in the Pokémon world.</text>
+  <path d="M62 315h610" stroke="#d4dccb" stroke-width="2"/>
+  <text x="62" y="361" fill="#61705d" font-family="Arial,sans-serif" font-size="20">PHP 8.5  /  MySQL  /  Vanilla JavaScript</text>
+  <text x="62" y="398" fill="#8b957f" font-family="Arial,sans-serif" font-size="16">An active modernization of a classic browser game.</text>
+</svg>
