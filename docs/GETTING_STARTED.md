@@ -40,3 +40,11 @@ php tools/pdo_param_audit.php --self-test
 ```
 
 Continue with [the QA guide](TESTING.md). Account creation and QA passwords are explicit operator steps; the public repository provides no reusable credentials.
+
+## Development
+
+Add gameplay to services and repositories under `src/`, and HTTP endpoints through the current front controller. Keep interface work in `views/` and `public/`. Preserve authorization, CSRF protection, transactions and reward idempotency. Verify dependencies before removing legacy files.
+
+Use an isolated QA database for mutating checks, back up before data changes, and run mutating suites sequentially. Never commit credentials, player dumps, logs or local agent state.
+
+Keep pull requests focused and include relevant check results. For interface changes, show desktop/mobile results and keyboard behavior; for migrations, document backup and rollback steps.

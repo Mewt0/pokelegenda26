@@ -1,6 +1,6 @@
 <p align="center"><img src="docs/media/github-banner.svg" alt="PokemonChic — браузерная RPG" width="100%"></p>
 
-<p align="center"><a href="README.md">English</a> · <a href="docs/GETTING_STARTED.md">Запуск</a> · <a href="docs/TESTING.md">Проверки</a> · <a href="PROJECT_MAP_RU.md">Карта проекта</a></p>
+<p align="center"><a href="README.md">English</a> · <a href="docs/GETTING_STARTED.md">Запуск</a> · <a href="docs/TESTING.md">Проверки</a> · <a href="#технологии">Технологии</a></p>
 
 # PokemonChic
 
@@ -51,16 +51,16 @@ cp .env.example .env
 
 Укажите свои настройки БД и сессий в `.env`. Миграции расширяют существующую схему игры; рабочие дампы игроков и пароли в репозиторий не входят.
 
-Подробности: [запуск и окружение](docs/GETTING_STARTED.md), [QA и регрессия](docs/TESTING.md), [заметки к обновлению](docs/RELEASE_NOTES_2026-10-25.md).
+Подробности: [запуск и окружение](docs/GETTING_STARTED.md), [QA и регрессия](docs/TESTING.md).
 
 ## Статус
 
 Проект развивается. GitHub Actions проверяет синтаксис и отдельные статические ограничения. Зелёный CI не подтверждает готовность production, все сюжетные ветки и длительные PvP-сессии.
 
-[PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) описывает архитектуру; [PROJECT_MAP_RU.md](PROJECT_MAP_RU.md) помогает найти файлы для изменений. Старые числовые отчёты следует читать с учётом их даты.
+Архитектура описана в разделе [«Технологии»](#технологии), порядок разработки — в [инструкции](docs/GETTING_STARTED.md#development).
 
 ## Участие
 
-В задаче укажите страницу или ID локации, шаги, ожидаемый результат и скриншот. В pull request приложите результаты релевантных проверок. Правила работы с кодом и данными: [CONTRIBUTING.md](CONTRIBUTING.md).
+В задаче укажите страницу или ID локации, шаги, ожидаемый результат и скриншот. В pull request приложите результаты релевантных проверок. Правила работы с кодом и данными: [разработка](docs/GETTING_STARTED.md#development).
 
 Права и лицензии сторонних персонажей, графики и компонентов сохраняются за их правообладателями.

@@ -5,9 +5,10 @@ $publishRoot = [IO.Path]::GetFullPath($Destination).TrimEnd('\', '/')
 if ($publishRoot -eq $sourceRoot -or $publishRoot.StartsWith($sourceRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Use an isolated checkout outside the live project' }
 if (!(Test-Path -LiteralPath (Join-Path $publishRoot '.git'))) { throw 'Destination must be an existing isolated Git checkout' }
 $runtimeRoots = @('admin','app','config','css','database','images','img','include','new_diz','new_diz4','pok','public','script','src','views','tools','sql','.github')
-$rootFiles = @('.editorconfig','.gitignore','.env.example','.htaccess','composer.json','favicon.ico','AGENTS.md','README.md','README_RU.md','CONTRIBUTING.md','PROJECT_CONTEXT.md','PROJECT_MAP_RU.md','PROJECT_STRUCTURE_RU.md','REWRITE_STATUS.md','DESIGN_REFRESH_AND_BUGFIX_PLAN.md')
+$rootFiles = @('.editorconfig','.gitignore','.env.example','.htaccess','composer.json','favicon.ico','README.md','README_RU.md')
 function Test-PublishPath([string]$Relative) {
     $path = $Relative.Replace('\','/')
+    if ($path -match '(?i)\.md$' -and $path -notin @('README.md','README_RU.md','docs/GETTING_STARTED.md','docs/TESTING.md','.github/PULL_REQUEST_TEMPLATE.md')) { return $false }
     if ($path -match '(?i)(?:^|/)(?:\.git|\.hybrid|\.codebase-memory|node_modules|storage|tmp|prototypes|backups?)(?:/|$)') { return $false }
     if ($path -match '(?i)(?:^|/)\.env(?:\..*)?$' -and $path -ne '.env.example') { return $false }
     if ($path -match '(?i)\.bak(?:-|$)|\.(?:zip|rar|7z|gz|tar|log|xlsx|pyc)$') { return $false }
@@ -15,7 +16,7 @@ function Test-PublishPath([string]$Relative) {
     if ($path -match '^tools/mysql84' -or $path -match '^tools/mysql_84') { return $false } # separate unfinished compatibility task
     if ($path -match '\.sql$' -and $path -notmatch '^database/migrations/' -and $path -notmatch '^sql/OPTIONAL_[A-Z_]+\.sql$') { return $false }
     if ($path.StartsWith('docs/')) {
-        return $path -match '^docs/(?:README\.md|GETTING_STARTED\.md|TESTING\.md|RELEASE_NOTES_2026-10-25\.md|media/[^/]+\.(?:svg|png|webp))$'
+        return $path -match '^docs/(?:GETTING_STARTED\.md|TESTING\.md|media/[^/]+\.(?:svg|png|webp))$'
     }
     if ($path.Contains('/')) { return $runtimeRoots -contains $path.Split('/')[0] }
     if ($rootFiles -contains $path) { return $true }

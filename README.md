@@ -13,7 +13,7 @@
   <a href="README_RU.md">Русский</a> ·
   <a href="docs/GETTING_STARTED.md">Local setup</a> ·
   <a href="docs/TESTING.md">Testing</a> ·
-  <a href="PROJECT_MAP_RU.md">Project map</a> ·
+  <a href="#under-the-hood">Architecture</a> ·
   <a href="https://github.com/Mewt0/pokelegenda26/issues">Issues</a>
 </p>
 
@@ -94,10 +94,10 @@ Database-backed suites, backups and QA accounts are covered in [Testing](docs/TE
 
 This is an active development snapshot. Source checks in GitHub Actions validate syntax and selected static safeguards. They do not certify a production deployment, all quest stories, economy balance or long PvP sessions.
 
-See [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for architecture, [the project map](PROJECT_MAP_RU.md) for editing locations, and [the October update](docs/RELEASE_NOTES_2026-10-25.md) for this publication.
+See [the architecture overview](#under-the-hood), [local setup](docs/GETTING_STARTED.md) and [testing instructions](docs/TESTING.md) to work on the game.
 
 ## Contributing
 
-Open an issue with the page or location, steps to reproduce, expected behavior and a screenshot when useful. Include the checks you ran in a pull request. [Contribution notes](CONTRIBUTING.md) describe the code and data boundaries.
+Open an issue with the page or location, steps to reproduce, expected behavior and a screenshot when useful. Include the checks you ran in a pull request. [Development notes](docs/GETTING_STARTED.md#development) describe the code and data boundaries.
 
 Third-party artwork, characters and bundled components retain their respective rights and licenses.
