@@ -226,6 +226,56 @@ textarea.ui-field__control {
   transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
 
+.game-toast-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Длинная награда: текст прокручивается внутри, close остаётся
+   отдельным элементом сетки и всегда виден. */
+.game-toast.game-toast--long {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2);
+  max-height: min(60vh, 320px);
+  pointer-events: none;
+}
+
+.game-toast--long .game-toast-message {
+  max-height: min(26vh, 180px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: var(--space-1);
+  scrollbar-width: thin;
+  pointer-events: auto;
+}
+
+.game-toast--long .game-toast-action {
+  grid-column: 1 / -1;
+  justify-self: end;
+}
+
+.game-toast-close {
+  pointer-events: auto;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font: var(--fw-bold) var(--fs-500) / 1 var(--font-sans);
+  cursor: pointer;
+}
+
+.game-toast-close:hover {
+  background: var(--surface-3);
+}
+
 .game-toast.is-visible {
   transform: translateY(0);
   opacity: 1;

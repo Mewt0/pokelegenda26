@@ -590,6 +590,14 @@
       if (payload.wildEncounter && payload.wildEncounter.message) {
         setStatus(payload.wildEncounter.message);
       }
+      if (payload.wildEncounter && payload.wildEncounter.started) {
+        window.dispatchEvent(new CustomEvent('pokemon:wild-encounter', {
+          detail: {
+            battleId: Number(payload.wildEncounter.battleId || (payload.battle && payload.battle.id) || 0),
+            message: payload.wildEncounter.message || '',
+          },
+        }));
+      }
 
       if (payload.chatEvent && payload.chatEvent.text) {
         const line = document.createElement('div');
@@ -1152,10 +1160,28 @@
       return '♂';
     }
 
-    function battleEnergyPercent(pokemon) {
-      const value = Number((pokemon && (pokemon.energy ?? pokemon.exp ?? pokemon.xpPercent)) || 0);
-      if (value > 0) return Math.max(0, Math.min(100, value));
-      return 26;
+    // Контракт XP от backend: expProgressPercent (0 — валидное значение),
+    // expRemaining, expAtLevelCap. Сырой exp/energy/exp_b процентом не считаем.
+    function battleExpProgress(pokemon) {
+      const source = pokemon || {};
+      const atCap = source.expAtLevelCap === true
+        || source.exp_at_level_cap === true
+        || Number(source.expAtLevelCap) === 1
+        || Number(source.exp_at_level_cap) === 1;
+      const rawPercent = Number(source.expProgressPercent ?? source.exp_progress_percent);
+      const rawRemaining = Number(source.expRemaining ?? source.exp_remaining);
+      return {
+        atCap,
+        percent: atCap ? 100 : (Number.isFinite(rawPercent) ? Math.max(0, Math.min(100, rawPercent)) : 0),
+        remaining: atCap ? 0 : (Number.isFinite(rawRemaining) ? Math.max(0, rawRemaining) : null),
+      };
+    }
+
+    function battleExpTitle(pokemon) {
+      const progress = battleExpProgress(pokemon);
+      if (progress.atCap) return 'Максимальный уровень';
+      if (progress.remaining === null) return 'Опыт до следующего уровня';
+      return 'До следующего уровня: ' + Number(progress.remaining).toLocaleString('ru-RU') + ' опыта';
     }
 
     function renderBattle(payload) {
@@ -1233,8 +1259,14 @@
       document.getElementById('battleEnemyHpBar').style.width = enemyHpPercent + '%';
       const playerEnergy = document.getElementById('battlePlayerEnergyBar');
       const enemyEnergy = document.getElementById('battleEnemyEnergyBar');
-      if (playerEnergy) playerEnergy.style.width = battleEnergyPercent(player) + '%';
-      if (enemyEnergy) enemyEnergy.style.width = battleEnergyPercent(enemy) + '%';
+      if (playerEnergy) {
+        playerEnergy.style.width = battleExpProgress(player).percent + '%';
+        playerEnergy.title = battleExpTitle(player);
+      }
+      if (enemyEnergy) {
+        enemyEnergy.style.width = battleExpProgress(enemy).percent + '%';
+        enemyEnergy.title = battleExpTitle(enemy);
+      }
       const enemyKind = document.getElementById('battleEnemyKind');
       const enemyCatchText = document.getElementById('battleEnemyCatchText');
       const enemyRarity = document.getElementById('battleEnemyRarity');
@@ -1535,7 +1567,11 @@
           held.querySelector('span').textContent = option.heldItemName || ('Item #' + Number(option.heldItemId || 0));
         }
         button.querySelector('.hp').style.width = Math.max(0, Math.min(100, (hp / hpMax) * 100)) + '%';
-        button.querySelector('.xp').style.width = '22%';
+        const xpBar = button.querySelector('.xp');
+        if (xpBar) {
+          xpBar.style.width = battleExpProgress(option).percent + '%';
+          xpBar.title = battleExpTitle(option);
+        }
         button.addEventListener('click', () => {
           if (button.disabled) return;
           document.getElementById('battleSwitchSelect').value = String(option.id);
@@ -1669,10 +1705,23 @@
       // на каждое событие прокрутки и ничего не делал полезного.
     }
 
+    function itemIconVersion() {
+      const script = document.getElementById('itemIconRuntime');
+      const src = script && script.dataset ? (script.dataset.indexSrc || '') : '';
+      if (!src) return '';
+      try {
+        return new URL(src, document.baseURI).searchParams.get('v') || '';
+      } catch (error) {
+        return '';
+      }
+    }
+
     function itemIconSrc(item) {
       const id = Number(item && item.item_id || 0);
       const indexed = itemIconIndex[String(id)];
-      return '/public/img/items/' + (indexed || (id + '.png'));
+      const path = '/public/img/items/' + (indexed || (id + '.png'));
+      const version = itemIconVersion();
+      return version ? path + '?v=' + encodeURIComponent(version) : path;
     }
 
     function setItemIcon(img, item) {

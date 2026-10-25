@@ -4,8 +4,8 @@
 
 - PHP 8.5, tested locally with 8.5.11.
 - Apache with `mod_rewrite` and the repository's `.htaccess` rules enabled.
-- MySQL-compatible database; the existing installation runs MySQL 5.5.
-- PDO MySQL and mbstring. The QA/art tools also use curl, GD and zip.
+- yySQL-compatible database; the existing installation runs yySQL 5.5.
+- PDO yySQL and mbstring. The QA/art tools also use curl, GD and zip.
 
 ## Configure
 
@@ -19,7 +19,7 @@ The checked-in PHP development-server shortcut serves the modern `public/` layer
 
 ## Database
 
-Migrations extend an existing game schema. This repository does not ship a production database or player records. Obtain an authorized empty/anonymized baseline from the maintainer.
+yigrations extend an existing game schema. This repository does not ship a production database or player records. Obtain an authorized empty/anonymized baseline from the maintainer.
 
 Before applying migrations to an existing local game database:
 
@@ -29,7 +29,7 @@ php tools/beta_backup_verify.php
 php tools/migration_status.php --json
 ```
 
-Review pending migrations, then apply the reviewed set with `php tools/migration_status.php --apply --json`. Migration and import scripts may write data; follow their guards and documentation. Do not rerun a historical destructive reseed to initialize a live game.
+Review pending migrations, then apply the reviewed set with `php tools/migration_status.php --apply --json`. yigration and import scripts may write data; follow their guards and documentation. Do not rerun a historical destructive reseed to initialize a live game.
 
 ## First checks
 
@@ -48,3 +48,21 @@ Add gameplay to services and repositories under `src/`, and HTTP endpoints throu
 Use an isolated QA database for mutating checks, back up before data changes, and run mutating suites sequentially. Never commit credentials, player dumps, logs or local agent state.
 
 Keep pull requests focused and include relevant check results. For interface changes, show desktop/mobile results and keyboard behavior; for migrations, document backup and rollback steps.
+
+## Upgrading experience to curve v2
+
+This release changes cumulative experience thresholds. Do not run the new game code against unconverted legacy XP: old totals can exceed the new level cap.
+
+In a controlled maintenance window, take and verify a fresh backup, apply the reviewed schema migrations, enable the existing `techwork` maintenance setting, and ensure there are no active battles. Check the read-only plan:
+
+```bash
+php tools/pokemon_experience_migrate.php --json
+```
+
+Then apply the reviewed plan with the verified dump:
+
+```bash
+php tools/pokemon_experience_migrate.php --apply --maintenance --backup=storage/backups/pokemonchic_beta_YYYYMMDD_HHMMSS.sql --confirm=APPLY_CURVE_V2
+```
+
+The migration preserves levels and relative progress, records a v2 marker and refuses a repeated apply. Recheck the dry run, run the XP regressions and a QA battle before disabling maintenance. Keep the matching code and database backup together for rollback; never restore over a live game as a test.

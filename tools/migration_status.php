@@ -12,37 +12,46 @@ if (PHP_SAPI !== 'cli') {
 define('APP_ROOT', dirname(__DIR__));
 require APP_ROOT . '/src/Support/Autoload.php';
 
-Env::load(APP_ROOT . '/.env');
-$db = Connection::make(require APP_ROOT . '/config/database.php');
-$options = parseOptions($argv);
+// Regression tools include this file as a library to exercise the real executor
+// (see tools/migration_executor_regression.php) instead of a copied implementation.
+if (!defined('POKEMON8_MIGRATION_STATUS_LIBRARY')) {
+    exit(runMigrationStatus($argv));
+}
 
-try {
-    bootstrapMigrationTables($db);
-    $files = migrationFiles(APP_ROOT . '/database/migrations');
+function runMigrationStatus(array $argv): int
+{
+    Env::load(APP_ROOT . '/.env');
+    $db = Connection::make(require APP_ROOT . '/config/database.php');
+    $options = parseOptions($argv);
 
-    if (isset($options['baseline'])) {
-        baselineMigrations($db, $files);
+    try {
+        bootstrapMigrationTables($db);
+        $files = migrationFiles(APP_ROOT . '/database/migrations');
+
+        if (isset($options['baseline'])) {
+            baselineMigrations($db, $files);
+        }
+
+        if (isset($options['apply'])) {
+            applyPendingMigrations($db, $files);
+        }
+
+        $snapshot = buildSnapshot($db, $files);
+        if (isset($options['record-status'])) {
+            recordSnapshot($db, $snapshot);
+        }
+
+        if (isset($options['json'])) {
+            echo json_encode($snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
+        } else {
+            printSnapshot($snapshot);
+        }
+
+        return (($snapshot['dirty_migrations'] ?? 0) > 0 || ($snapshot['failed_migrations'] ?? 0) > 0) ? 1 : 0;
+    } catch (Throwable $e) {
+        fwrite(STDERR, '[migration_status] ' . $e->getMessage() . PHP_EOL);
+        return 1;
     }
-
-    if (isset($options['apply'])) {
-        applyPendingMigrations($db, $files);
-    }
-
-    $snapshot = buildSnapshot($db, $files);
-    if (isset($options['record-status'])) {
-        recordSnapshot($db, $snapshot);
-    }
-
-    if (isset($options['json'])) {
-        echo json_encode($snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
-    } else {
-        printSnapshot($snapshot);
-    }
-
-    exit(($snapshot['dirty_migrations'] ?? 0) > 0 || ($snapshot['failed_migrations'] ?? 0) > 0 ? 1 : 0);
-} catch (Throwable $e) {
-    fwrite(STDERR, '[migration_status] ' . $e->getMessage() . PHP_EOL);
-    exit(1);
 }
 
 function parseOptions(array $argv): array
@@ -136,13 +145,44 @@ function applyPendingMigrations(PDO $db, array $files): void
         $started = microtime(true);
         try {
             foreach (splitSqlStatements((string) file_get_contents($file['path'])) as $statement) {
-                $db->exec($statement);
+                executeMigrationStatement($db, $statement);
             }
             recordMigration($db, $file['name'], $file['checksum'], $batch, (int) round((microtime(true) - $started) * 1000), 'applied', '');
         } catch (Throwable $e) {
             recordMigration($db, $file['name'], $file['checksum'], $batch, (int) round((microtime(true) - $started) * 1000), 'failed', substr($e->getMessage(), 0, 255));
             throw $e;
         }
+    }
+}
+
+/**
+ * Execute one migration statement and leave the connection reusable.
+ *
+ * Migration files use conditional `PREPARE`/`EXECUTE` guards. The no-op branch
+ * executes a `SELECT "already applied"` through `EXECUTE`, so the statement
+ * produces a result set even though it changes nothing. `PDO::exec()` leaves that
+ * result pending and the next statement fails with `SQLSTATE[HY000]` /
+ * `error 2014 Cannot execute queries while other unbuffered queries are active`.
+ *
+ * `prepare()/execute()` plus draining every rowset and `closeCursor()` in `finally`
+ * keeps the connection clean for the next statement, including statements such as
+ * `CALL` that return more than one result set. Exceptions still propagate so a
+ * genuinely broken migration is recorded as `failed` by the caller.
+ */
+function executeMigrationStatement(PDO $db, string $statement): void
+{
+    $stmt = $db->prepare($statement);
+    if (!$stmt instanceof PDOStatement) {
+        throw new RuntimeException('Unable to prepare migration statement.');
+    }
+
+    try {
+        $stmt->execute();
+        while ($stmt->nextRowset()) {
+            // Advancing is the drain. Migration statements never need the returned rows.
+        }
+    } finally {
+        $stmt->closeCursor();
     }
 }
 

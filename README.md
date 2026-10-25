@@ -4,7 +4,7 @@
 <p align="center">
   <a href="https://github.com/Mewt0/pokelegenda26/actions/workflows/ci.yml"><img src="https://github.com/Mewt0/pokelegenda26/actions/workflows/ci.yml/badge.svg?branch=main" alt="Source checks"></a>
   <img src="https://img.shields.io/badge/PHP-8.5-777BB4?style=flat-square&logo=php&logoColor=white" alt="PHP 8.5">
-  <img src="https://img.shields.io/badge/MySQL-5.5_compatible-4479A1?style=flat-square&logo=mysql&logoColor=white" alt="MySQL 5.5 compatible">
+  <img src="https://img.shields.io/badge/MySQL-8.4-4479A1?style=flat-square&logo=mysql&logoColor=white" alt="MySQL 8.4">
   <img src="https://img.shields.io/badge/JavaScript-vanilla-F7DF1E?style=flat-square&logo=javascript&logoColor=222" alt="Vanilla JavaScript">
   <img src="https://img.shields.io/badge/status-active_development-537A4D?style=flat-square" alt="Active development">
 </p>
@@ -43,7 +43,7 @@ PokemonChic is a browser RPG with Pokémon teams, PvE and PvP battles, quests, t
 | Stay connected | Chat, mail, friends, trainer cards, tournaments and game events. |
 | Run the world | A Game Master Center provides content, moderation, grants and QA tools. |
 
-The latest art refresh connects **155 locations** to illustrated backgrounds and adds **42 NPC, route and reference icons**. Shared biomes reuse suitable art. Pokémon sprites and inventory artwork stay unchanged.
+The latest art refresh connects **155 locations** to illustrated backgrounds and adds **42 NPC, route and reference icons**. Shared biomes reuse suitable art. Pokémon sprites are preserved. New item artwork is installed for 176 item IDs; the remaining items retain compatible existing images. Six experience growth groups now share consistent battle, inventory and team progress.
 
 ## Under the hood
 
@@ -70,7 +70,7 @@ The root landing page and some compatibility paths still use legacy files. Keep 
 
 ## Work on the project
 
-Use **PHP 8.5**, Apache with `mod_rewrite`, and a MySQL-compatible database. The current local installation uses MySQL 5.5. PDO MySQL and mbstring are required; QA and art tooling also use curl, GD and zip.
+Use **PHP 8.5**, Apache with `mod_rewrite`, and a MySQL-compatible database. The current local installation uses MySQL 8.4.13; the former MySQL 5.5 instance is retained only for rollback. PDO MySQL and mbstring are required; QA and art tooling also use curl, GD and zip.
 
 ```bash
 git clone https://github.com/Mewt0/pokelegenda26.git

@@ -302,7 +302,7 @@
         toggle('animations', 'Анимации', settings.animations !== false),
         toggle('sounds', 'Звуки интерфейса', settings.sounds !== false),
       '</div>',
-      '<div class="profile-settings-hint ui-field__hint">Тема, размер интерфейса и анимации применяются после сохранения. Звуки пока не влияют на игру: звуковой системы ещё нет.</div>',
+      '<div class="profile-settings-hint ui-field__hint">Тема, размер интерфейса и анимации применяются после сохранения. Звуки включают короткий сигнал, когда на игрока нападает дикий покемон.</div>',
     ].join('');
   }
 

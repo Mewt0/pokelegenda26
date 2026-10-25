@@ -18,7 +18,7 @@ final class UserRepository
     public function findActiveByLogin(string $login): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, login, password, groups, activation, email, email_verified_at FROM users WHERE login = :login AND activation = 1 LIMIT 1'
+            'SELECT id, login, password, `groups`, activation, email, email_verified_at FROM users WHERE login = :login AND activation = 1 LIMIT 1'
         );
         $stmt->execute(['login' => $login]);
 
@@ -30,7 +30,7 @@ final class UserRepository
      */
     public function findStateByLogin(string $login): ?array
     {
-        $stmt = $this->db->prepare('SELECT id, activation, groups FROM users WHERE login = :login LIMIT 1');
+        $stmt = $this->db->prepare('SELECT id, activation, `groups` FROM users WHERE login = :login LIMIT 1');
         $stmt->execute(['login' => $login]);
 
         return $stmt->fetch() ?: null;
@@ -70,7 +70,7 @@ final class UserRepository
         }
 
         $stmt = $this->db->prepare(
-            'SELECT id, login, password, groups, activation, email, email_verified_at
+            'SELECT id, login, password, `groups`, activation, email, email_verified_at
                FROM users
               WHERE LOWER(email) = LOWER(:email)
                 AND activation = 1
@@ -86,7 +86,7 @@ final class UserRepository
      */
     public function findStateById(int $id): ?array
     {
-        $stmt = $this->db->prepare('SELECT id, activation, groups FROM users WHERE id = :id LIMIT 1');
+        $stmt = $this->db->prepare('SELECT id, activation, `groups` FROM users WHERE id = :id LIMIT 1');
         $stmt->execute(['id' => $id]);
 
         return $stmt->fetch() ?: null;
@@ -122,7 +122,7 @@ final class UserRepository
         try {
             $stmt = $this->db->prepare(
                 'INSERT INTO users
-                    (login, password, email, email_verified_at, online, onlinetime, activation, groups, moderation, police,
+                    (login, password, email, email_verified_at, online, onlinetime, activation, `groups`, moderation, police,
                      datereg, avatars, clanid, clan_point, clan_adm, pve, pvp, trade, info, gender, ip, rang,
                      rang_a, rang_b, rang_c, karma_score, count_poke, count_poke_s, buildmy, mychat, newuser,
                      battleid, pve_button, atack_poke, status_klan, youtuber, prefics, timepoke)

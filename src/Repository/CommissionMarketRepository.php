@@ -376,8 +376,14 @@ final class CommissionMarketRepository
                 return ['ok' => false, 'message' => 'Активный лот не найден.'];
             }
             $this->freezeLockedLot($lot, $userId, 'cancel');
-            $this->returnLotToSeller($lot, 'cancelled');
-            $this->db->prepare('UPDATE market_lots SET status = "cancelled" WHERE id = :id LIMIT 1')->execute(['id' => $lotId]);
+            if (!$this->returnLotToSeller($lot, 'cancelled')) {
+                throw new \RuntimeException('Не удалось вернуть объект продавцу.');
+            }
+            $update = $this->db->prepare('UPDATE market_lots SET status = "cancelled" WHERE id = :id AND status = "active" LIMIT 1');
+            $update->execute(['id' => $lotId]);
+            if ($update->rowCount() !== 1) {
+                throw new \RuntimeException('Лот уже изменён другой операцией.');
+            }
             $this->syncLegacyAfterFinalStatus($lot);
             $this->releaseObjectLock($lot);
             $this->log('cancel', $userId, $lotId, []);
@@ -579,7 +585,7 @@ final class CommissionMarketRepository
         throw new \RuntimeException('Неизвестный тип лота.');
     }
 
-    private function returnLotToSeller(array $lot, string $reason): void
+    private function returnLotToSeller(array $lot, string $reason): bool
     {
         $sellerId = (int) ($lot['seller_id'] ?? 0);
         try {
@@ -587,23 +593,46 @@ final class CommissionMarketRepository
             $objectId = (int) ($lot['object_id'] ?? 0);
             if ($type === 'item') {
                 $this->inventory->addItem($sellerId, $objectId, max(1, (int) ($lot['quantity'] ?? 1)));
-            } elseif ($type === 'pokemon') {
+                return true;
+            }
+            if ($type === 'pokemon') {
                 $active = $this->activePokemonCount($sellerId) < 6 ? 1 : 0;
                 $stmt = $this->db->prepare('UPDATE pok_user SET users = :seller, active = :active, startepoke = 0 WHERE id = :pokemon AND users = :reserve LIMIT 1');
                 $stmt->execute(['seller' => $sellerId, 'active' => $active, 'pokemon' => $objectId, 'reserve' => $this->reserveUserId()]);
-                if ($stmt->rowCount() !== 1) {
-                    throw new \RuntimeException('Покемон в резерве не найден.');
+                if ($stmt->rowCount() === 1 || $this->objectOwnedBy($objectId, 'pokemon', $sellerId)) {
+                    return true;
                 }
-            } elseif ($type === 'egg') {
+                throw new \RuntimeException('Покемон в резерве не найден.');
+            }
+            if ($type === 'egg') {
                 $stmt = $this->db->prepare('UPDATE eggs SET users_egg = :seller WHERE id_egg = :egg AND users_egg = :reserve LIMIT 1');
                 $stmt->execute(['seller' => $sellerId, 'egg' => $objectId, 'reserve' => $this->reserveUserId()]);
-                if ($stmt->rowCount() !== 1) {
-                    throw new \RuntimeException('Яйцо в резерве не найдено.');
+                if ($stmt->rowCount() === 1 || $this->objectOwnedBy($objectId, 'egg', $sellerId)) {
+                    return true;
                 }
+                throw new \RuntimeException('Яйцо в резерве не найдено.');
             }
+            throw new \RuntimeException('Неизвестный тип лота.');
         } catch (Throwable $e) {
             $this->storeReturn($sellerId, (int) ($lot['id'] ?? 0), (string) ($lot['object_type'] ?? ''), (int) ($lot['object_id'] ?? 0), (int) ($lot['quantity'] ?? 1), $reason, $e->getMessage());
+            return false;
         }
+    }
+
+    private function objectOwnedBy(int $objectId, string $type, int $userId): bool
+    {
+        if ($objectId <= 0 || $userId <= 0) {
+            return false;
+        }
+        if ($type === 'pokemon') {
+            $stmt = $this->db->prepare('SELECT 1 FROM pok_user WHERE id = :id AND users = :user LIMIT 1');
+        } elseif ($type === 'egg') {
+            $stmt = $this->db->prepare('SELECT 1 FROM eggs WHERE id_egg = :id AND users_egg = :user LIMIT 1');
+        } else {
+            return false;
+        }
+        $stmt->execute(['id' => $objectId, 'user' => $userId]);
+        return (bool) $stmt->fetchColumn();
     }
 
     private function expireDueLots(): void
@@ -653,8 +682,14 @@ final class CommissionMarketRepository
     private function expireLockedLot(array $lot, int $actorId): void
     {
         $this->freezeLockedLot($lot, $actorId, 'expire');
-        $this->returnLotToSeller($lot, 'expired');
-        $this->db->prepare('UPDATE market_lots SET status = "expired" WHERE id = :id LIMIT 1')->execute(['id' => (int) $lot['id']]);
+        if (!$this->returnLotToSeller($lot, 'expired')) {
+            throw new \RuntimeException('Не удалось вернуть объект продавцу.');
+        }
+        $update = $this->db->prepare('UPDATE market_lots SET status = "expired" WHERE id = :id AND status = "active" LIMIT 1');
+        $update->execute(['id' => (int) $lot['id']]);
+        if ($update->rowCount() !== 1) {
+            throw new \RuntimeException('Лот уже изменён другой операцией.');
+        }
         $this->syncLegacyAfterFinalStatus($lot);
         $this->releaseObjectLock($lot);
         $this->log('expire', $actorId, (int) $lot['id'], []);
@@ -1425,6 +1460,35 @@ final class CommissionMarketRepository
 
     private function storeReturn(int $userId, int $lotId, string $type, int $objectId, int $quantity, string $reason, string $error): void
     {
+        $insert = $this->db->prepare(
+            'INSERT INTO market_return_storage (user_id, lot_id, object_type, object_id, quantity, payload_json, status, created_at, resolved_at)
+             SELECT :user, :lot, :type, :object, :qty, :payload, "pending", :time, 0
+               FROM DUAL
+              WHERE NOT EXISTS (
+                    SELECT 1
+                      FROM market_return_storage
+                     WHERE lot_id = :pending_lot
+                       AND object_type = :pending_type
+                       AND object_id = :pending_object
+                       AND status = "pending"
+                    )'
+        );
+        $insert->execute([
+            'user' => $userId,
+            'lot' => $lotId,
+            'type' => $type,
+            'object' => $objectId,
+            'qty' => max(1, $quantity),
+            'payload' => $this->jsonEncode(['reason' => $reason, 'error' => $error]),
+            'time' => time(),
+            'pending_lot' => $lotId,
+            'pending_type' => $type,
+            'pending_object' => $objectId,
+        ]);
+        if ($insert->rowCount() < 1) {
+            return;
+        }
+
         $this->safeStorage()?->storeObject($userId, $type, $objectId, max(1, $quantity), 'commission', $lotId, [
             'lot_id' => $lotId,
             'reason' => $reason,
@@ -1437,19 +1501,6 @@ final class CommissionMarketRepository
             'quantity' => max(1, $quantity),
             'reason' => $reason,
             'error' => $error,
-        ]);
-
-        $this->db->prepare(
-            'INSERT INTO market_return_storage (user_id, lot_id, object_type, object_id, quantity, payload_json, status, created_at, resolved_at)
-             VALUES (:user, :lot, :type, :object, :qty, :payload, "pending", :time, 0)'
-        )->execute([
-            'user' => $userId,
-            'lot' => $lotId,
-            'type' => $type,
-            'object' => $objectId,
-            'qty' => max(1, $quantity),
-            'payload' => $this->jsonEncode(['reason' => $reason, 'error' => $error]),
-            'time' => time(),
         ]);
     }
 

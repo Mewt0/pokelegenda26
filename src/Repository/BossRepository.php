@@ -5,6 +5,8 @@ namespace Pokemon8\Repository;
 
 use PDO;
 use Throwable;
+use Pokemon8\Game\PokemonGrowthCurve;
+use Pokemon8\Game\PokemonGrowthGroup;
 
 final class BossRepository
 {
@@ -530,6 +532,9 @@ final class BossRepository
         }
 
         $id = $this->nextTableIdLocked('pok_pve', 'id');
+        $growthGroup = PokemonGrowthGroup::forBaseId($baseId);
+        $enemyExp = PokemonGrowthCurve::cumulative($level, $growthGroup);
+        $enemyExpNext = PokemonGrowthCurve::progress($level, $enemyExp, $growthGroup)['expNextLevel'];
         $stmt = $this->db->prepare(
             'INSERT INTO pok_pve
                 (id, users, basenum, names, evcount, lvl, sex, har, hp_my, hp_max, exp, exp_b,
@@ -537,7 +542,7 @@ final class BossRepository
                  hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv, tips, poimka, startepoke,
                  reproduction, happy, battleid, sprz, ability_key)
              VALUES
-                (:id, :users, :basenum, :names, 0, :lvl, :sex, :har, :hp_my, :hp_max, 0, 0,
+                (:id, :users, :basenum, :names, 0, :lvl, :sex, :har, :hp_my, :hp_max, :exp, :exp_b,
                  :atk, :def, :satk, :sdef, :speed, :hp_ev, :atk_ev, :def_ev, :satk_ev, :sdef_ev, :speed_ev,
                  :hp_iv, :atk_iv, :def_iv, :satk_iv, :sdef_iv, :speed_iv, :tips, 0, :startepoke,
                  0, 0, 0, :sprz, :ability_key)'
@@ -552,6 +557,8 @@ final class BossRepository
             'har' => max(1, (int) ($row['nature_id'] ?? 1)),
             'hp_my' => $stats['hp'],
             'hp_max' => $stats['hp'],
+            'exp' => $enemyExp,
+            'exp_b' => $enemyExpNext,
             'atk' => $stats['atk'],
             'def' => $stats['def'],
             'satk' => $stats['satk'],

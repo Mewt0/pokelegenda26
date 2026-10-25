@@ -360,7 +360,7 @@
       save: '/api/admin/items/save',
       delete: { url: '/api/admin/items', id: 'id', confirm: true },
       columns: ['ID', 'Иконка', 'Название', 'Категория', 'Uses', 'Battle'],
-      cells: row => [row.id, `<img src="${esc(row.icon)}" alt="">`, row.name, row.category, row.uses, row.battleuse],
+      cells: row => [row.id, ({ html: `<img src="${esc(row.icon)}" alt="">` }), row.name, row.category, row.uses, row.battleuse],
       fields: [
         ['id', 'ID', 'number'],
         ['name', 'Название', 'text'],
@@ -385,7 +385,7 @@
       save: '/api/admin/market-items',
       delete: { url: '/api/admin/market-items', id: 'item_id' },
       columns: ['ID', 'Иконка', 'Товар', 'Цена', 'Валюта', 'Лимит', 'Вкл'],
-      cells: row => [row.item_id, `<img src="${esc(row.icon)}" alt="">`, row.name, row.price, row.currency_name || row.currency_item_id, `${row.min_count}-${row.max_count}`, row.enabled],
+      cells: row => [row.item_id, ({ html: `<img src="${esc(row.icon)}" alt="">` }), row.name, row.price, row.currency_name || row.currency_item_id, `${row.min_count}-${row.max_count}`, row.enabled],
       fields: [
         ['item_id', 'Item ID', 'number'],
         ['currency_item_id', 'Валюта item_id', 'number'],
@@ -716,7 +716,7 @@
       save: '/api/admin/medals',
       delete: { url: '/api/admin/medals', id: 'id', confirm: true },
       columns: ['ID', 'Иконка', 'Медаль', 'Тип', 'Турнир', 'Выдано', 'Вкл'],
-      cells: row => [row.id, `<img src="${esc(row.icon)}" alt="">`, row.title, row.medal_type, row.tournament_title || row.tournament_id || '', row.awarded_count || 0, row.enabled],
+      cells: row => [row.id, ({ html: `<img src="${esc(row.icon)}" alt="">` }), row.title, row.medal_type, row.tournament_title || row.tournament_id || '', row.awarded_count || 0, row.enabled],
       fields: [
         ['id', 'ID', 'number', true],
         ['title', 'Название', 'text'],
@@ -1059,8 +1059,49 @@
 
   function renderStats(overview) {
     if (!overview) return;
+    // Сырые ключи API остаются в data-key для диагностики, а владельцу игры
+    // показываем человеческие подписи и формат чисел/даты.
+    const labels = {
+      users: 'Пользователи',
+      items: 'Предметы',
+      dropRules: 'Правила дропа',
+      enabledDropRules: 'Включённые правила дропа',
+      legacyDropRules: 'Старые правила дропа',
+      locations: 'Локации',
+      marketItems: 'Товары магазина',
+      activeBattles: 'Активные бои',
+      auditRows: 'Записи аудита',
+      activeEvents: 'Активные события',
+      tournaments: 'Турниры',
+      medals: 'Медали',
+      commissionActiveLots: 'Активные лоты',
+      commissionPendingReturns: 'Возвраты в ожидании',
+      commissionRiskDeals: 'Рискованные сделки',
+      safeStoragePending: 'Ожидают в безопасном хранилище',
+      safeRollbackOpen: 'Открытые откаты',
+      backgroundJobFailed: 'Ошибки фоновых задач',
+      backgroundJobLastRunAt: 'Последний запуск фоновых задач',
+    };
+    const formatValue = (key, value) => {
+      if (key === 'backgroundJobLastRunAt') {
+        const timestamp = Number(value || 0);
+        if (!timestamp) return 'ещё не запускались';
+        return new Date(timestamp * 1000).toLocaleString('ru-RU', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+      }
+      const numeric = Number(value);
+      if (String(value ?? '').trim() !== '' && Number.isFinite(numeric)) {
+        return numeric.toLocaleString('ru-RU');
+      }
+      return String(value ?? '—');
+    };
     $('#adminStats').innerHTML = Object.keys(overview).map(key => `
-      <article><span>${esc(key)}</span><b>${esc(overview[key])}</b></article>
+      <article data-key="${esc(key)}"><span>${esc(labels[key] || key)}</span><b>${esc(formatValue(key, overview[key]))}</b></article>
     `).join('');
   }
 
@@ -1126,7 +1167,7 @@
     const table = $('#adminTable');
     table.querySelector('thead').innerHTML = '<tr>' + (config.columns || []).map(col => `<th>${esc(col)}</th>`).join('') + '</tr>';
     table.querySelector('tbody').innerHTML = rows.map((row, index) => {
-      const cells = (config.cells ? config.cells(row) : Object.values(row)).map(cell => `<td>${cell && String(cell).startsWith('<img') ? cell : esc(cell)}</td>`).join('');
+      const cells = (config.cells ? config.cells(row) : Object.values(row)).map(cell => `<td>${cell && typeof cell === 'object' && typeof cell.html === 'string' ? cell.html : esc(cell)}</td>`).join('');
       const rowClass = config.rowClass ? String(config.rowClass(row) || '').replace(/[^a-zA-Z0-9_ -]/g, '') : '';
       return `<tr data-row="${index}" class="${esc(rowClass)}">${cells}</tr>`;
     }).join('') || `<tr><td colspan="${(config.columns || []).length || 1}">Нет данных</td></tr>`;

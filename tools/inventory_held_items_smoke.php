@@ -119,7 +119,7 @@ function cloneUser(PDO $db, string $login): int
     }
 
     $id = nextId($db, 'users', 'id');
-    $unique = 'CodexInventorySmoke_' . time() . '_' . random_int(1000, 9999);
+    $unique = 'Q84I' . bin2hex(random_bytes(5));
     $source['id'] = $id;
     foreach (['login' => $unique, 'name' => $unique, 'email' => $unique . '@example.test', 'mail' => $unique . '@example.test', 'pve' => 0, 'pvp' => 0, 'trade' => 0, 'battleid' => 0] as $key => $value) {
         if (array_key_exists($key, $source)) {

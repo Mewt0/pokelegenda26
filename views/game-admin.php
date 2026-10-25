@@ -1,6 +1,29 @@
 <?php
 use Pokemon8\View\View;
 
+$overviewLabels = [
+    'users' => 'Пользователи',
+    'items' => 'Предметы',
+    'dropRules' => 'Правила дропа',
+    'enabledDropRules' => 'Включённые правила дропа',
+    'legacyDropRules' => 'Старые правила дропа',
+    'locations' => 'Локации',
+    'marketItems' => 'Товары магазина',
+    'activeBattles' => 'Активные бои',
+    'auditRows' => 'Записи аудита',
+    'activeEvents' => 'Активные события',
+    'tournaments' => 'Турниры',
+    'medals' => 'Медали',
+    'commissionActiveLots' => 'Активные лоты',
+    'commissionPendingReturns' => 'Возвраты в ожидании',
+    'commissionRiskDeals' => 'Рискованные сделки',
+    'safeStoragePending' => 'Ожидают в безопасном хранилище',
+    'safeRollbackOpen' => 'Открытые откаты',
+    'backgroundJobFailed' => 'Ошибки фоновых задач',
+    'backgroundJobLastRunAt' => 'Последний запуск фоновых задач',
+];
+
+
 $adminCssVersion = @filemtime(__DIR__ . '/../public/css/admin-panel.css') ?: time();
 $adminJsVersion = @filemtime(__DIR__ . '/../public/js/admin-panel.js') ?: time();
 $contentWizardCssVersion = @filemtime(__DIR__ . '/../public/css/admin-content-wizard.css') ?: time();
@@ -33,8 +56,8 @@ $contentWizardJsVersion = @filemtime(__DIR__ . '/../public/js/admin-content-wiza
 
     <section class="admin-stats" id="adminStats">
       <?php foreach ($overview as $key => $value): ?>
-        <article>
-          <span><?= View::e((string) $key) ?></span>
+        <article data-key="<?= View::e((string) $key) ?>">
+          <span><?= View::e($overviewLabels[$key] ?? 'Показатель') ?></span>
           <b><?= number_format((int) $value, 0, ',', ' ') ?></b>
         </article>
       <?php endforeach; ?>

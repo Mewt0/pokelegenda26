@@ -4,12 +4,13 @@ declare(strict_types=1);
 namespace Pokemon8\Repository;
 
 use PDO;
+use Closure;
 use Pokemon8\Game\PokemonFormCatalog;
 use Throwable;
 
 final class PokemonEvolutionRepository
 {
-    public function __construct(private PDO $db)
+    public function __construct(private PDO $db, private ?Closure $hourProvider = null)
     {
     }
 
@@ -99,44 +100,86 @@ final class PokemonEvolutionRepository
 
     public function evolveOwnedPokemon(int $userId, int $pokemonId, int $targetBaseId, string $source = 'manual', array $rule = []): ?array
     {
-        $pokemon = $this->ownedPokemon($userId, $pokemonId);
-        if ($pokemon === null || $targetBaseId <= 0 || (int) $pokemon['basenum'] === $targetBaseId) {
-            return null;
+        $ownsTransaction = !$this->db->inTransaction();
+        if ($ownsTransaction) {
+            $this->db->beginTransaction();
         }
 
-        $targetName = $this->basePokemonName($targetBaseId);
-        $oldBaseId = (int) $pokemon['basenum'];
-        $oldName = trim((string) ($pokemon['names'] ?? '')) ?: $this->basePokemonName($oldBaseId);
-        $isFormChange = $this->isSameSpeciesFormChange($oldBaseId, $targetBaseId);
+        try {
+            // Lock the row so a concurrent item/level evolution cannot evolve the
+            // same pokemon twice (last-write-wins) while both callers spend an item.
+            $pokemon = $this->ownedPokemon($userId, $pokemonId, true);
+            if ($pokemon === null || $targetBaseId <= 0 || (int) $pokemon['basenum'] === $targetBaseId) {
+                if ($ownsTransaction) {
+                    $this->db->rollBack();
+                }
+                return null;
+            }
 
-        $this->db->prepare(
-            'UPDATE pok_user
-                SET basenum = :base, names = :name
-              WHERE id = :pokemon AND users = :user
-              LIMIT 1'
-        )->execute([
-            'base' => $targetBaseId,
-            'name' => $targetName,
-            'pokemon' => $pokemonId,
-            'user' => $userId,
-        ]);
+            $oldBaseId = (int) $pokemon['basenum'];
+            // The caller may have resolved the rule before we got the lock. If the
+            // pokemon already changed species in between, that rule is stale.
+            $expectedFromBaseId = (int) ($rule['fromBaseId'] ?? 0);
+            if ($expectedFromBaseId > 0 && $expectedFromBaseId !== $oldBaseId) {
+                if ($ownsTransaction) {
+                    $this->db->rollBack();
+                }
+                return null;
+            }
 
-        if (!$isFormChange) {
-            $this->recalculatePokemonStats($pokemonId, $userId);
+            $targetName = $this->basePokemonName($targetBaseId);
+            $oldName = trim((string) ($pokemon['names'] ?? '')) ?: $this->basePokemonName($oldBaseId);
+            $isFormChange = $this->isSameSpeciesFormChange($oldBaseId, $targetBaseId);
+
+            // Conditional UPDATE is the idempotency boundary: if another request
+            // already evolved this pokemon, rowCount is 0 and the caller rolls the
+            // item consumption back.
+            $stmt = $this->db->prepare(
+                'UPDATE pok_user
+                    SET basenum = :base, names = :name
+                  WHERE id = :pokemon AND users = :user AND basenum = :expected_base
+                  LIMIT 1'
+            );
+            $stmt->execute([
+                'base' => $targetBaseId,
+                'name' => $targetName,
+                'pokemon' => $pokemonId,
+                'user' => $userId,
+                'expected_base' => $oldBaseId,
+            ]);
+            if ($stmt->rowCount() !== 1) {
+                if ($ownsTransaction) {
+                    $this->db->rollBack();
+                }
+                return null;
+            }
+
+            if (!$isFormChange) {
+                $this->recalculatePokemonStats($pokemonId, $userId);
+            }
+
+            if ($ownsTransaction) {
+                $this->db->commit();
+            }
+
+            return [
+                'pokemonId' => $pokemonId,
+                'source' => $source,
+                'fromBaseId' => $oldBaseId,
+                'toBaseId' => $targetBaseId,
+                'displayFromBaseId' => PokemonFormCatalog::displayBaseId($oldBaseId),
+                'displayToBaseId' => PokemonFormCatalog::displayBaseId($targetBaseId),
+                'formChange' => $isFormChange,
+                'fromName' => $oldName,
+                'toName' => $targetName,
+                'condition' => (string) ($rule['condition'] ?? ''),
+            ];
+        } catch (Throwable $e) {
+            if ($ownsTransaction && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
         }
-
-        return [
-            'pokemonId' => $pokemonId,
-            'source' => $source,
-            'fromBaseId' => $oldBaseId,
-            'toBaseId' => $targetBaseId,
-            'displayFromBaseId' => PokemonFormCatalog::displayBaseId($oldBaseId),
-            'displayToBaseId' => PokemonFormCatalog::displayBaseId($targetBaseId),
-            'formChange' => $isFormChange,
-            'fromName' => $oldName,
-            'toName' => $targetName,
-            'condition' => (string) ($rule['condition'] ?? ''),
-        ];
     }
 
     public function basePokemonName(int $baseId): string
@@ -196,13 +239,13 @@ final class PokemonEvolutionRepository
         }
     }
 
-    private function ownedPokemon(int $userId, int $pokemonId): ?array
+    private function ownedPokemon(int $userId, int $pokemonId, bool $forUpdate = false): ?array
     {
         $stmt = $this->db->prepare(
             'SELECT *
                FROM pok_user
               WHERE id = :pokemon AND users = :user AND active = 1
-              LIMIT 1'
+              LIMIT 1' . ($forUpdate ? ' FOR UPDATE' : '')
         );
         $stmt->execute(['pokemon' => $pokemonId, 'user' => $userId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -246,8 +289,10 @@ final class PokemonEvolutionRepository
         }
 
         foreach ($rules as $rule) {
-            $condition = mb_strtolower((string)($rule['condition_text'] ?? ''), 'UTF-8');
-            if ($this->conditionRequiresAncientPower($condition) && $this->pokemonKnowsAncientPower($pokemonId)) {
+            if ((int)($rule['level_required'] ?? 0) > (int)($pokemon['lvl'] ?? 0)) {
+                continue;
+            }
+            if ($this->matchesEvolutionCondition($pokemon, (string)($rule['condition_text'] ?? ''))) {
                 return $this->formatRule($rule);
             }
         }
@@ -255,11 +300,38 @@ final class PokemonEvolutionRepository
         return null;
     }
 
-    private function conditionRequiresAncientPower(string $condition): bool
+    private function matchesEvolutionCondition(array $pokemon, string $condition): bool
     {
-        return str_contains($condition, 'ancient')
-            || str_contains($condition, 'древн')
-            || str_contains($condition, '246');
+        $condition = mb_strtolower(trim($condition), 'UTF-8');
+        if ($condition === '') {
+            return false;
+        }
+        $hour = $this->hourProvider !== null ? (int)($this->hourProvider)() : (int)date('G');
+        foreach (explode('+', $condition) as $part) {
+            $part = trim($part);
+            if (preg_match('/^(\d{1,3})%\s+счастья$/u', $part, $match)) {
+                if ((int)$match[1] > 100 || (int)($pokemon['happy'] ?? 0) < (int)$match[1]) {
+                    return false;
+                }
+            } elseif (in_array($part, ['дневное время', 'дневное время (13:00–18:59)'], true)) {
+                // Preserve the game's existing day window (legacy unic_evol).
+                if ($hour <= 12 || $hour > 18) {
+                    return false;
+                }
+            } elseif (in_array($part, ['ночное время', 'ночное время (19:00–23:59)'], true)) {
+                if ($hour <= 18 || $hour > 23) {
+                    return false;
+                }
+            } elseif (in_array($part, ['ancient power', 'нужно знать ancient power', 'древняя сила', 'нужно знать древнюю силу', '246'], true)) {
+                if (!$this->pokemonKnowsAncientPower((int)($pokemon['id'] ?? 0))) {
+                    return false;
+                }
+            } else {
+                // Unknown requirements must never silently grant an evolution.
+                return false;
+            }
+        }
+        return true;
     }
 
     private function pokemonKnowsAncientPower(int $pokemonId): bool

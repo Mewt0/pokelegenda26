@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/include/function/config.php';
+require_once __DIR__ . '/app/security_headers.php';
+app_send_security_headers();
 require_once __DIR__ . '/include/function/db3.php';
 require_once __DIR__ . '/include/function/globfanction.php';
 require_once __DIR__ . '/include/function/functionusers.php';
@@ -38,7 +40,7 @@ $myrow = false;
 if (!empty($_SESSION['login']) && !empty($_SESSION['password']) && !empty($_SESSION['browse'])) {
     if ($_SESSION['browse'] === getBrowserSign()) {
         $myrow = first(
-            'SELECT id,login,activation,password,groups FROM users WHERE login="%s" AND password="%s" AND activation=1',
+            'SELECT id,login,activation,password,`groups` FROM users WHERE login="%s" AND password="%s" AND activation=1',
             (string) $_SESSION['login'],
             (string) $_SESSION['password']
         );
@@ -46,23 +48,36 @@ if (!empty($_SESSION['login']) && !empty($_SESSION['password']) && !empty($_SESS
     }
 }
 
-$news = [
-    [
-        'date' => '3 мая 2026',
-        'title' => 'Новая навигация игрового мира',
-        'text' => 'Главный вход в игру переведен на новый маршрут /game. Старые переходы game.php?go=... постепенно уходят из интерфейса, а логика переносится в сервисы и JSON API.',
-    ],
-    [
-        'date' => '3 мая 2026',
-        'title' => 'Обновление главной страницы',
-        'text' => 'Главная страница теперь сохранена в нормальном UTF-8, без битых символов. Интерфейс стал чище: быстрый вход, новости проекта и рейтинги видны сразу.',
-    ],
-    [
-        'date' => '2 мая 2026',
-        'title' => 'Переписываем проект без костылей',
-        'text' => 'Новая версия строится вокруг front controller, контроллеров, репозиториев, CSRF-защиты и отдельных игровых сервисов. Legacy-файлы остаются только как источник бизнес-логики на время переноса.',
-    ],
-];
+$news = [];
+$newsMonths = [1 => 'января', 2 => 'февраля', 3 => 'марта', 4 => 'апреля', 5 => 'мая', 6 => 'июня', 7 => 'июля', 8 => 'августа', 9 => 'сентября', 10 => 'октября', 11 => 'ноября', 12 => 'декабря'];
+try {
+    $newsRows = select('SELECT subject, news, date FROM news ORDER BY date DESC, id ASC LIMIT 6') ?: [];
+    foreach ($newsRows as $row) {
+        $text = trim((string) ($row['news'] ?? ''));
+        if ($text === '') {
+            continue;
+        }
+        $stamp = !empty($row['date']) ? strtotime((string) $row['date']) : false;
+        $dateText = $stamp
+            ? date('j', $stamp) . ' ' . $newsMonths[(int) date('n', $stamp)] . ' ' . date('Y', $stamp)
+            : 'Без даты';
+        $title = trim((string) ($row['subject'] ?? ''));
+        $news[] = [
+            'date' => $dateText,
+            'title' => $title !== '' ? $title : 'Новость проекта',
+            'text' => $text,
+        ];
+    }
+} catch (Throwable $e) {
+    $news = [];
+}
+if ($news === []) {
+    $news = [[
+        'date' => '25 октября 2026',
+        'title' => 'Новости уже здесь',
+        'text' => 'Свежие новости проекта появятся на этой странице совсем скоро.',
+    ]];
+}
 
 if (empty($_SESSION['_csrf']) || !is_string($_SESSION['_csrf'])) {
     $_SESSION['_csrf'] = bin2hex(random_bytes(32));

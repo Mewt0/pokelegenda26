@@ -329,7 +329,7 @@ function ensurePokemon(PDO $db, int $userId, array &$createdIds, string $name): 
 
 function grantItem(PDO $db, int $userId, int $itemId, int $count): void
 {
-    $db->prepare('INSERT INTO items_users (item_id, user_id, count, dattimer, timers) VALUES (:item, :user, :count, "smoke_tournament", "not")')
+    $db->prepare('INSERT INTO items_users (item_id, user_id, count, dattimer, timers) VALUES (:item, :user, :count, "not", "not")')
         ->execute(['item' => $itemId, 'user' => $userId, 'count' => $count]);
 }
 

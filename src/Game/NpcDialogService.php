@@ -135,6 +135,32 @@ final class NpcDialogService
             return $this->error('Это действие доступно только на текущей локации.');
         }
 
+        // NPC-экшены включают turn-in квестов, которые выдают награды и
+        // удаляют предметы/покемонов. Сериализуем их на уровне игрока, чтобы
+        // два конкурентных запроса не прошли проверку требований до списания
+        // и не выдали награду дважды. Второй запрос после ожидания заново
+        // читает состояние квеста/инвентаря и получает отказ.
+        $lockName = 'pokemon8_npc_action_' . $userId;
+        $lock = $this->db->prepare('SELECT GET_LOCK(:name, 5)');
+        $lock->execute(['name' => $lockName]);
+        if ((int) ($lock->fetchColumn() ?: 0) !== 1) {
+            return $this->error('Предыдущее действие ещё обрабатывается. Повторите через секунду.');
+        }
+
+        try {
+            return $this->actionLocked($userId, $locationId, $params, $action);
+        } finally {
+            $release = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
+            $release->execute(['name' => $lockName]);
+        }
+    }
+
+    private function actionLocked(int $userId, int $locationId, array $params, string $action): array
+    {
+        if (!$this->userIsAtLocation($userId, $locationId)) {
+            return $this->error('Это действие доступно только на текущей локации.');
+        }
+
         if (str_starts_with($action, 'craft_stone:') && !$this->isStoneCraftNpc($locationId, $params)) {
             return $this->error('Изготовление камней доступно только у мастерового.');
         }
@@ -2106,6 +2132,7 @@ final class NpcDialogService
         if (!$base) {
             return 0;
         }
+        $level = max(1, min(100, $level));
 
         $nature = $this->rowById('har', 'id_har', 16) ?: ['atk' => 1, 'def' => 1, 'satk' => 1, 'sdef' => 1, 'speed' => 1];
         $iv = 1;
@@ -2121,6 +2148,10 @@ final class NpcDialogService
 
         $pokemonId = $this->nextTableId('pok_user', 'id');
         $name = (string) ($base['title'] ?? ('Pokemon #' . $baseId));
+        $grantLevel = max(1, min(100, $level));
+        $growthGroup = PokemonGrowthGroup::forBaseId($baseId);
+        $grantedExp = PokemonGrowthCurve::cumulative($grantLevel, $growthGroup);
+        $grantedExpNext = PokemonGrowthCurve::progress($grantLevel, $grantedExp, $growthGroup)['expNextLevel'];
         $stmt = $this->db->prepare(
             'INSERT INTO pok_user
                 (id, users, basenum, names, active, evcount, lvl, sex, har, hp_my, hp_max, exp, exp_b,
@@ -2128,7 +2159,7 @@ final class NpcDialogService
                  hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv, tips, startone, startepoke,
                  reproduction, happy, datemay, usersone, sprz, item, ability_key)
              VALUES
-                (:id, :users, :base, :name, 1, 0, :lvl, 1, 16, :hp_my, :hp_max, 0, 100,
+                (:id, :users, :base, :name, 1, 0, :lvl, 1, 16, :hp_my, :hp_max, :exp, :exp_b,
                  :atk, :def, :satk, :sdef, :speed, 0, 0, 0, 0, 0, 0,
                  1, 1, 1, 1, 1, 1, "normal", :startone, :starter,
                  0, 0, NOW(), :usersone, 0, 0, :ability)'
@@ -2138,9 +2169,11 @@ final class NpcDialogService
             'users' => $userId,
             'base' => $baseId,
             'name' => $name,
-            'lvl' => $level,
+            'lvl' => $grantLevel,
             'hp_my' => $stats['hp'],
             'hp_max' => $stats['hp'],
+            'exp' => $grantedExp,
+            'exp_b' => $grantedExpNext,
             'atk' => $stats['atk'],
             'def' => $stats['def'],
             'satk' => $stats['satk'],

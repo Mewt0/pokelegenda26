@@ -304,7 +304,7 @@ final class BugReportRepository
             return ['id' => $userId];
         }
         $stmt = $this->db->prepare(
-            'SELECT id, login, groups, activation, buildmy, battleid, pve, pvp, trade, online, onlinetime, karma_score
+            'SELECT id, login, `groups`, activation, buildmy, battleid, pve, pvp, trade, online, onlinetime, karma_score
                FROM users
               WHERE id = :id
               LIMIT 1'

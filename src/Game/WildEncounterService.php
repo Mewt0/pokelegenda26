@@ -266,16 +266,20 @@ final class WildEncounterService
             return null;
         }
 
+        $growthGroup = PokemonGrowthGroup::forBaseId($baseId);
+        $enemyExp = PokemonGrowthCurve::cumulative($level, $growthGroup);
+        $enemyExpNext = PokemonGrowthCurve::progress($level, $enemyExp, $growthGroup)['expNextLevel'];
+
         $stmt = $this->db->prepare(
             'INSERT INTO pok_pve (
                 id, users, basenum, names, lvl, sex,
-                hp_my, hp_max, atk, def, satk, sdef, speed,
+                hp_my, hp_max, exp, exp_b, battleid, atk, def, satk, sdef, speed,
                 hp_ev, atk_ev, def_ev, satk_ev, sdef_ev, speed_ev,
                 hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv,
                 tips, startepoke, reproduction, sprz, poimka
             ) VALUES (
                 :id, :users, :basenum, :names, :lvl, :sex,
-                :hp_my, :hp_max, :atk, :def, :satk, :sdef, :speed,
+                :hp_my, :hp_max, :exp, :exp_b, 0, :atk, :def, :satk, :sdef, :speed,
                 :hp_ev, :atk_ev, :def_ev, :satk_ev, :sdef_ev, :speed_ev,
                 :hp_iv, :atk_iv, :def_iv, :satk_iv, :sdef_iv, :speed_iv,
                 :tips, :startepoke, :reproduction, :sprz, :poimka
@@ -291,6 +295,8 @@ final class WildEncounterService
             'sex' => random_int(1, 2),
             'hp_my' => $stats['hp'],
             'hp_max' => $stats['hp'],
+            'exp' => $enemyExp,
+            'exp_b' => $enemyExpNext,
             'atk' => $stats['atk'],
             'def' => $stats['def'],
             'satk' => $stats['satk'],
@@ -387,8 +393,12 @@ final class WildEncounterService
         if ($this->battleIdIsAutoIncrement()) {
             try {
                 $stmt = $this->db->prepare(
-                    'INSERT INTO battles (user_1, user_2, poke_1, poke_2, batl_tip, times)
-                     VALUES (:user_1, :user_2, :poke_1, :poke_2, :batl_tip, :times)'
+                    'INSERT INTO battles
+                        (user_1, user_2, poke_1, poke_2, attac_1, attac_2, item_1, item_2,
+                         batl_tip, time, times, dates)
+                     VALUES
+                        (:user_1, :user_2, :poke_1, :poke_2, 0, 0, 0, 0,
+                         :batl_tip, :time, :times, "")'
                 );
                 $stmt->execute([
                     'user_1' => $userId,
@@ -397,6 +407,7 @@ final class WildEncounterService
                     'poke_1' => $playerBattlePokemon,
                     'poke_2' => $enemyBattlePokemon,
                     'batl_tip' => 'pve',
+                    'time' => time(),
                     'times' => time() + 3600,
                 ]);
                 $battleId = (int) $this->db->lastInsertId();
@@ -415,8 +426,12 @@ final class WildEncounterService
 
             try {
                 $stmt = $this->db->prepare(
-                    'INSERT INTO battles (id, user_1, user_2, poke_1, poke_2, batl_tip, times)
-                     VALUES (:id, :user_1, :user_2, :poke_1, :poke_2, :batl_tip, :times)'
+                    'INSERT INTO battles
+                        (id, user_1, user_2, poke_1, poke_2, attac_1, attac_2, item_1, item_2,
+                         batl_tip, time, times, dates)
+                     VALUES
+                        (:id, :user_1, :user_2, :poke_1, :poke_2, 0, 0, 0, 0,
+                         :batl_tip, :time, :times, "")'
                 );
                 $stmt->execute([
                     'id' => $manualBattleId,
@@ -425,6 +440,7 @@ final class WildEncounterService
                     'poke_1' => $playerBattlePokemon,
                     'poke_2' => $enemyBattlePokemon,
                     'batl_tip' => 'pve',
+                    'time' => time(),
                     'times' => time() + 3600,
                 ]);
                 $battleId = $manualBattleId;
@@ -442,6 +458,20 @@ final class WildEncounterService
             $colsText = $cols ? (' cols=' . implode(',', $cols)) : '';
             $this->lastBattleCreateError = '(battleId=0 after insert' . $colsText . ')';
             return 0;
+        }
+
+        // Синхронизируем wild-строку с боем: catchWildPokemon фильтрует по battleid.
+        // Без этого pok_pve.battleid оставался 0 и любая ловля падала.
+        try {
+            $this->db->prepare(
+                'UPDATE pok_pve SET battleid = :battle WHERE id = :id AND users = :user LIMIT 1'
+            )->execute([
+                'battle' => $battleId,
+                'id' => $enemyPokemonId,
+                'user' => $userId,
+            ]);
+        } catch (\Throwable $e) {
+            error_log('[PVE_FORCE] cannot link pok_pve.battleid: ' . $e->getMessage());
         }
 
         // statpokemonbatle — это состояние модификаторов боя.

@@ -32,6 +32,7 @@ $questCsrf = (string) ($csrf ?? '');
         </div>
         <div class="quest-filter-row" data-quest-filters>
           <button type="button" class="is-active" data-quest-filter="all">Все</button>
+          <button type="button" data-quest-filter="story">Сюжет</button>
           <button type="button" data-quest-filter="active">В процессе</button>
           <button type="button" data-quest-filter="available">Новые</button>
           <button type="button" data-quest-filter="completed">Выполнен</button>

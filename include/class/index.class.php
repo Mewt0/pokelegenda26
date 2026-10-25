@@ -96,7 +96,7 @@ class OnlineIndex
 class RankingsIndex
 {
    public function getTopRang(){
-    return select('SELECT id, rang_b FROM users WHERE rang_b > 0 AND activation=1 AND groups NOT IN (1,7) ORDER BY rang_b DESC LIMIT 10');
+    return select('SELECT id, rang_b FROM users WHERE rang_b > 0 AND activation=1 AND `groups` NOT IN (1,7) ORDER BY rang_b DESC LIMIT 10');
 }
 
 
@@ -115,7 +115,7 @@ class RankingsIndex
     {
         return select('SELECT count_poke, id 
                        FROM users 
-                       WHERE activation = 1 AND id != 3 AND groups != 1 AND groups != 7 
+                       WHERE activation = 1 AND id != 3 AND `groups` != 1 AND `groups` != 7 
                        AND count_poke > 1 
                        ORDER BY count_poke DESC LIMIT 10');
     }
@@ -124,7 +124,7 @@ class RankingsIndex
     {
         return select('SELECT count_poke_s, id 
                        FROM users 
-                       WHERE activation = 1 AND id != 3 AND groups != 1 AND groups != 7 
+                       WHERE activation = 1 AND id != 3 AND `groups` != 1 AND `groups` != 7 
                        AND count_poke_s > 0 
                        ORDER BY count_poke_s DESC LIMIT 10');
     }

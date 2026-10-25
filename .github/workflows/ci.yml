@@ -34,6 +34,11 @@ jobs:
         run: php tools/encoding_guard.php
       - name: Test PDO placeholder auditor
         run: php tools/pdo_param_audit.php --self-test
+      - name: Check growth curves, experience and evolution
+        run: |
+          php tools/pokemon_growth_curve_regression.php
+          php tools/pokemon_experience_regression.php
+          php tools/evolution_rules_regression.php
       - name: Check JavaScript syntax
         shell: bash
         run: |

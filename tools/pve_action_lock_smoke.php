@@ -188,7 +188,7 @@ function insertTempBattleBall(PDO $db, int $userId, int $count): int
 {
     $stmt = $db->prepare(
         'INSERT INTO items_users (item_id, user_id, count, dattimer, timers)
-         VALUES (3, :user, :count, "smoke_pve_action_lock", "not")'
+         VALUES (3, :user, :count, "q84lock", "not")'
     );
     $stmt->execute(['user' => $userId, 'count' => $count]);
     return (int) $db->lastInsertId();
@@ -230,7 +230,7 @@ function cleanup(PDO $db, int $userId, int $battleId, int $enemyId, int $pokemon
         $db->prepare('DELETE FROM pok_pve WHERE id = :id LIMIT 1')->execute(['id' => $enemyId]);
     }
     if ($userId > 0) {
-        $db->prepare('DELETE FROM items_users WHERE user_id = :user AND dattimer = "smoke_pve_action_lock"')->execute(['user' => $userId]);
+        $db->prepare('DELETE FROM items_users WHERE user_id = :user AND dattimer = "q84lock"')->execute(['user' => $userId]);
     }
     if ($userId > 0 && $userState !== null) {
         $db->prepare('UPDATE users SET pve = :pve, pvp = :pvp, battleid = :battle, atack_poke = :attack WHERE id = :id LIMIT 1')

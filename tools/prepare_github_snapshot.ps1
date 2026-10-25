@@ -8,6 +8,8 @@ $runtimeRoots = @('admin','app','config','css','database','images','img','includ
 $rootFiles = @('.editorconfig','.gitignore','.env.example','.htaccess','composer.json','favicon.ico','README.md','README_RU.md')
 function Test-PublishPath([string]$Relative) {
     $path = $Relative.Replace('\','/')
+    # Ship installed artwork, not generation inputs or local review galleries.
+    if ($path -match '^public/img/items/(?:ai-|normalized-)[^/]+/(?:raw|original)(?:/|$)' -or $path -match '^public/img/items/[^/]+/preview\.(?:html|css|js)$') { return $false }
     if ($path -match '(?i)\.md$' -and $path -notin @('README.md','README_RU.md','docs/GETTING_STARTED.md','docs/TESTING.md','.github/PULL_REQUEST_TEMPLATE.md')) { return $false }
     if ($path -match '(?i)(?:^|/)(?:\.git|\.hybrid|\.codebase-memory|node_modules|storage|tmp|prototypes|backups?)(?:/|$)') { return $false }
     if ($path -match '(?i)(?:^|/)\.env(?:\..*)?$' -and $path -ne '.env.example') { return $false }
@@ -16,6 +18,8 @@ function Test-PublishPath([string]$Relative) {
     if ($path -match '^tools/mysql84' -or $path -match '^tools/mysql_84') { return $false } # separate unfinished compatibility task
     if ($path -match '\.sql$' -and $path -notmatch '^database/migrations/' -and $path -notmatch '^sql/OPTIONAL_[A-Z_]+\.sql$') { return $false }
     if ($path.StartsWith('docs/')) {
+        # Required reproducible inputs for build_pokemon_growth_data.php.
+        if ($path -match '^docs/reports/data/pokemon_growth_2026-10-25/(?:species-list|growth-[^/]+|bulbapedia-crosscheck-1-701)\.json$') { return $true }
         return $path -match '^docs/(?:GETTING_STARTED\.md|TESTING\.md|media/[^/]+\.(?:svg|png|webp))$'
     }
     if ($path.Contains('/')) { return $runtimeRoots -contains $path.Split('/')[0] }

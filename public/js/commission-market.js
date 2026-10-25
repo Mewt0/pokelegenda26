@@ -1,4 +1,11 @@
 (() => {
+  document.addEventListener('error', (event) => {
+    const image = event.target;
+    if (!image || image.tagName !== 'IMG' || !image.dataset.fallbackSrc) return;
+    const fallback = image.dataset.fallbackSrc;
+    image.removeAttribute('data-fallback-src');
+    image.src = fallback;
+  }, true);
   const fallbackCategories = [
     { key: 'all', label: 'Все' },
     { key: 'pokemon', label: 'Покемоны' },
@@ -15,6 +22,7 @@
   ];
 
   const bannedCategoryLabels = ['зель', 'ягод', 'potion', 'berry'];
+  const narrowPreviewQuery = window.matchMedia('(max-width: 560px)');
   const roots = [...document.querySelectorAll('[data-commission-root]')];
   if (roots.length === 0) return;
 
@@ -91,6 +99,7 @@
       loadedMy: false,
       searchTimer: 0,
       sellableQ: '',
+      previewOpen: false,
     };
 
     const els = {
@@ -109,6 +118,10 @@
       lots: root.querySelector('[data-commission-lots]'),
       empty: root.querySelector('[data-commission-empty]'),
       status: root.querySelector('[data-commission-status]'),
+      layout: root.querySelector('.commission-layout'),
+      center: root.querySelector('.commission-center'),
+      listWrap: root.querySelector('.commission-list-wrap'),
+      previewPanel: root.querySelector('.commission-preview'),
       preview: root.querySelector('[data-commission-preview]'),
       form: root.querySelector('[data-commission-sell-form]'),
       sellType: root.querySelector('[data-commission-sell-type]'),
@@ -116,6 +129,13 @@
       sellQty: root.querySelector('[data-commission-sell-qty]'),
       closeButtons: [...root.querySelectorAll('[data-commission-close]')],
     };
+
+    const previewCloseButton = document.createElement('button');
+    previewCloseButton.type = 'button';
+    previewCloseButton.className = 'commission-preview-close ui-btn ui-btn--ghost';
+    previewCloseButton.setAttribute('aria-label', 'Закрыть предпросмотр');
+    previewCloseButton.textContent = '×';
+    els.previewPanel?.querySelector('h2')?.appendChild(previewCloseButton);
 
     // Подключаем общие стили, не изменяя селекторы обработчиков.
     normalizeButtonCase(root);
@@ -258,7 +278,7 @@
           <td>
             <div class="commission-lot ui-card">
               <span class="commission-lot-icon ui-card__media">
-                <img src="${escapeHtml(lot.object_icon || '/public/img/ui/chatgpt-pokeball.png')}" alt="" onerror="this.src='/public/img/ui/chatgpt-pokeball.png'">
+                <img src="${escapeHtml(lot.object_icon || '/public/img/ui/chatgpt-pokeball.png')}" alt="" data-fallback-src="/public/img/ui/chatgpt-pokeball.png">
                 <b class="commission-lot-count">${formatNumber(lot.quantity)}</b>
               </span>
               <span>
@@ -293,7 +313,7 @@
       els.sellableGrid.innerHTML = rows.length > 0 ? rows.map((row) => `
         <button type="button" class="commission-sellable-card ui-card${row.blocked ? ' is-blocked' : ''}" data-commission-sellable-type="${escapeHtml(row.type || 'item')}" data-commission-sellable-id="${Number(row.id || 0)}" ${row.blocked ? 'disabled' : ''} title="${escapeHtml(row.blocked_reason || row.name || '')}">
           <span class="commission-sellable-media ui-card__media">
-            <img src="${escapeHtml(row.icon || '/public/img/ui/chatgpt-pokeball.png')}" alt="" onerror="this.src='/public/img/ui/chatgpt-pokeball.png'">
+            <img src="${escapeHtml(row.icon || '/public/img/ui/chatgpt-pokeball.png')}" alt="" data-fallback-src="/public/img/ui/chatgpt-pokeball.png">
             ${row.count ? `<b class="commission-sellable-count ui-card__meta">${formatNumber(row.count)}</b>` : ''}
           </span>
           <span class="commission-sellable-title ui-card__title">${escapeHtml(row.name || 'Объект')}</span>
@@ -346,12 +366,52 @@
       if (preview.remaining_seconds != null) addPreviewField(rows, 'До вылупления', `${formatNumber(Math.max(0, Math.ceil(Number(preview.remaining_seconds) / 3600)))} ч.`);
       addPreviewField(rows, 'Статус эффекта', preview.effect_status);
       addPreviewField(rows, 'Правило применения', preview.target_use_rule);
-      addPreviewField(rows, 'Совместимость', preview.compatibility);
+      // Бэкенд отдаёт техническое значение "none" для предметов без правила
+      // совместимости. Игроку такая строка ничего не объясняет — скрываем её.
+      const compatibility = String(preview.compatibility ?? '').trim();
+      addPreviewField(rows, 'Совместимость', /^none$/i.test(compatibility) ? '' : compatibility);
       if (preview.equippable != null) addPreviewField(rows, 'Можно экипировать', preview.equippable ? 'да' : 'нет');
 
       els.preview.innerHTML = rows.length
         ? rows.map(([key, value]) => `<li><b>${escapeHtml(key)}:</b> ${escapeHtml(value)}</li>`).join('')
         : '<li>Нет дополнительных данных.</li>';
+    }
+
+    // На узком экране предпросмотр — отдельная секция-аккордеон под списком
+    // лотов (в обычном потоке), а не панель поверх строк. На desktop он
+    // возвращается третьей колонкой .commission-layout.
+    function applyPreviewLayout() {
+      if (!els.previewPanel) return;
+      if (narrowPreviewQuery.matches) {
+        if (els.listWrap && els.listWrap.nextElementSibling !== els.previewPanel) {
+          els.listWrap.after(els.previewPanel);
+        }
+        els.previewPanel.hidden = !state.previewOpen;
+        root.classList.toggle('is-preview-open', state.previewOpen);
+        return;
+      }
+      if (els.layout && els.previewPanel.parentElement !== els.layout) {
+        els.layout.appendChild(els.previewPanel);
+      }
+      els.previewPanel.hidden = false;
+      state.previewOpen = false;
+      root.classList.remove('is-preview-open');
+    }
+
+    function openPreview(lot) {
+      renderPreview(lot || null);
+      if (!narrowPreviewQuery.matches || !els.previewPanel) return;
+      state.previewOpen = true;
+      applyPreviewLayout();
+      window.requestAnimationFrame(() => {
+        els.previewPanel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        previewCloseButton.focus({ preventScroll: true });
+      });
+    }
+
+    function closePreview() {
+      state.previewOpen = false;
+      applyPreviewLayout();
     }
 
     function currentSellSource() {
@@ -511,6 +571,8 @@
 
     function close() {
       if (!overlay) return;
+      state.previewOpen = false;
+      applyPreviewLayout();
       overlay.classList.remove('is-open');
       overlay.setAttribute('aria-hidden', 'true');
       document.body.classList.remove('has-commission-overlay');
@@ -563,7 +625,7 @@
       const previewButton = event.target.closest('[data-commission-preview-lot]');
       if (previewButton) {
         const lot = lotRows().find((row) => Number(row.id) === Number(previewButton.dataset.commissionPreviewLot));
-        renderPreview(lot || null);
+        openPreview(lot || null);
       }
 
       const buyButton = event.target.closest('[data-commission-buy]');
@@ -634,6 +696,12 @@
     });
 
     els.closeButtons.forEach((button) => button.addEventListener('click', close));
+    previewCloseButton.addEventListener('click', closePreview);
+    if (typeof narrowPreviewQuery.addEventListener === 'function') {
+      narrowPreviewQuery.addEventListener('change', applyPreviewLayout);
+    } else if (typeof narrowPreviewQuery.addListener === 'function') {
+      narrowPreviewQuery.addListener(applyPreviewLayout);
+    }
     overlay?.addEventListener('click', (event) => {
       if (event.target === overlay) {
         close();
@@ -644,6 +712,7 @@
     renderSellObjects();
     setView(state.view);
     renderLots();
+    applyPreviewLayout();
 
     if (mode === 'standalone') {
       loadAll(true);
@@ -651,7 +720,15 @@
       loadLots(true);
     }
 
-    return { open, close, reload: () => loadAll(true), root, overlay };
+    return {
+      open,
+      close,
+      reload: () => loadAll(true),
+      isPreviewOpen: () => narrowPreviewQuery.matches && state.previewOpen,
+      closePreview,
+      root,
+      overlay,
+    };
   }
 
   const markets = roots.map(createMarket).filter(Boolean);
@@ -666,9 +743,12 @@
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      overlayMarket?.close();
+    if (event.key !== 'Escape') return;
+    if (overlayMarket?.isPreviewOpen?.()) {
+      overlayMarket.closePreview();
+      return;
     }
+    overlayMarket?.close();
   });
 
   window.GameCommissionOverlay = {

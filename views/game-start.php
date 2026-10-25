@@ -28,6 +28,17 @@ $itemIconIndex = is_file($itemIconIndexPath)
       '/public/css/new-player-guide.css',
     ];
     require APP_ROOT . '/views/components/head-styles.php';
+
+    $currencyIcons = [];
+    foreach ([1, 2] as $currencyItemId) {
+        $indexedIcon = $itemIconIndex[(string) $currencyItemId] ?? ($currencyItemId . '.png');
+        $iconPath = '/public/img/items/' . ltrim((string) $indexedIcon, '/');
+        if (is_file(APP_ROOT . $iconPath)) {
+            $currencyIcons[(string) $currencyItemId] = asset_url($iconPath);
+        }
+    }
+    $coinIcon = $currencyIcons['1'] ?? '/public/img/items/1.png';
+    $diamondIcon = $currencyIcons['2'] ?? '/public/img/items/2.png';
   ?>
 </head>
 <body>
@@ -216,8 +227,8 @@ $itemIconIndex = is_file($itemIconIndexPath)
           <input type="search" aria-label="Поиск по магазину" data-market-search placeholder="Название или ID">
         </label>
         <div class="shop-wallet">
-          <span><b data-wallet-coins>0</b> монет</span>
-          <span><b data-wallet-diamonds>0</b> алмазов</span>
+          <span><img class="shop-wallet-icon" data-wallet-coins-icon src="<?= View::e($coinIcon) ?>" alt=""><b data-wallet-coins>0</b> монет</span>
+          <span><img class="shop-wallet-icon" data-wallet-diamonds-icon src="<?= View::e($diamondIcon) ?>" alt=""><b data-wallet-diamonds>0</b> алмазов</span>
         </div>
       </div>
 
@@ -510,10 +521,15 @@ $itemIconIndex = is_file($itemIconIndexPath)
   <div class="battle-move-tooltip" id="battleMoveTooltip"></div>
 
   <script type="application/json" id="gameRuntimeConfig">
-    <?= json_encode(['itemIconIndex' => $itemIconIndex], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}' ?>
+    <?= json_encode([
+      'itemIconIndex' => $itemIconIndex,
+      'currencyIcons' => $currencyIcons,
+      'defaultCurrencyItemId' => 1,
+    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}' ?>
   </script>
   <script src="<?= View::e(asset_url('/public/js/ui-preferences.js')) ?>"></script>
   <script src="<?= View::e(asset_url('/public/js/ui-overlay.js')) ?>"></script>
+  <script src="<?= View::e(asset_url('/public/js/wild-encounter-alert.js')) ?>"></script>
   <script src="<?= View::e(asset_url('/public/js/game-start-runtime.js')) ?>"></script>
   <script src="<?= View::e(asset_url('/public/js/trainer-profile-window.js')) ?>"></script>
   <script src="<?= View::e(asset_url('/public/js/profile-settings-modal.js')) ?>"></script>

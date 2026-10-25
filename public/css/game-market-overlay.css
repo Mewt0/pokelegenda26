@@ -28,7 +28,7 @@
   box-shadow: var(--shadow-3);
   color: var(--text-1);
   display: grid;
-  grid-template-rows: 44px auto minmax(0, 1fr) 44px;
+  grid-template-rows: 44px auto minmax(0, 1fr) auto;
 }
 
 .market-overlay .shop-titlebar {
@@ -175,6 +175,20 @@
   color: var(--success-text);
 }
 
+.market-overlay .shop-wallet > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.market-overlay .shop-wallet img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  image-rendering: auto;
+  flex: 0 0 auto;
+}
+
 .market-overlay .shop-layout {
   min-height: 0;
   overflow-y: auto;
@@ -197,19 +211,21 @@
 
 .market-overlay .shop-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
-  grid-auto-rows: 132px;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  grid-auto-rows: minmax(280px, auto);
   gap: var(--space-7) var(--space-2);
-  align-items: end;
+  align-items: stretch;
   padding-bottom: var(--space-3);
 }
 
 /* Карточка предмета повторяет основу ui-card; старый класс остаётся рабочим. */
 .market-overlay .shop-item {
   position: relative;
-  min-height: 132px;
+  min-height: 0;
   min-width: 0;
   display: grid;
+  grid-template-rows: auto auto auto;
+  align-content: end;
   place-items: end center;
   gap: var(--space-2);
   padding: var(--space-1);
@@ -217,8 +233,22 @@
   border-radius: var(--radius-lg);
   background: var(--surface-1);
   color: var(--text-1);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: auto;
   cursor: pointer;
+}
+
+/* Название переносится по словам, а не посреди слова; 18px не влезали
+   в колонку 112–122px и давали «Фиолетова / я». */
+.market-overlay .shop-item-title {
+  max-width: 100%;
+  font-size: var(--fs-300);
+  line-height: 1.25;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: auto;
+  text-align: center;
 }
 
 .market-overlay .shop-item:hover {
@@ -264,8 +294,11 @@
 .market-overlay .shop-art {
   position: relative;
   z-index: var(--z-sticky);
-  width: 82px;
-  height: 82px;
+  width: 100%;
+  max-width: 128px;
+  height: auto;
+  aspect-ratio: 1;
+  min-height: 0;
   display: grid;
   place-items: center;
   border-radius: var(--radius-md);
@@ -282,8 +315,10 @@
 }
 
 .market-overlay .shop-art img {
-  max-width: 82px;
-  max-height: 82px;
+  width: 96%;
+  height: 96%;
+  max-width: none;
+  max-height: none;
   object-fit: contain;
 }
 
@@ -311,6 +346,9 @@
   height: 22px;
   margin-top: var(--space-1);
   object-fit: contain;
+  image-rendering: auto;
+  flex: 0 0 auto;
+  display: block;
 }
 
 .market-overlay .shop-cart {
@@ -439,7 +477,7 @@
   color: var(--success-text);
 }
 
-/* Пустой каталог, ошибка и загрузка остаются в старых JS-состояниях. */
+/* Пустой каталог, загрузка и ошибка: классы выставляет JS магазина. */
 .market-overlay .shop-empty {
   display: grid;
   gap: var(--space-3);
@@ -454,10 +492,32 @@
 }
 
 .market-overlay .shop-empty.is-loading {
-  opacity: .75;
+  color: var(--text-1);
+  opacity: 1;
+}
+
+.market-overlay .shop-empty.is-loading::before {
+  content: "";
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border-2);
+  border-top-color: var(--accent-strong);
+  border-radius: 50%;
+  animation: shop-empty-spin .8s linear infinite;
+}
+
+@keyframes shop-empty-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .market-overlay .shop-empty.is-loading::before {
+    animation: none;
+  }
 }
 
 .market-overlay .shop-empty.is-error {
+  border-color: var(--danger-text);
   color: var(--danger-text);
 }
 
@@ -498,22 +558,48 @@
   display: none !important;
 }
 
+/* Шесть элементов футера были свёрстаны в четыре колонки и обрезались
+   фиксированной строкой 44px. Раскладываем их по именованным областям,
+   а высоту футера отдаём содержимому. */
 .market-overlay .shop-footer {
   display: grid;
-  grid-template-columns: 160px minmax(0, 1fr) 160px minmax(288px, 320px);
+  grid-template-columns: 160px minmax(0, 1fr) auto auto 160px minmax(288px, 320px);
+  grid-template-areas: "prev status page slots next buy";
+  gap: 0;
+  min-height: 44px;
+  padding: 0;
   border-top: 1px solid var(--border-soft);
   background: var(--surface-0);
 }
 
+.market-overlay .shop-footer [data-shop-prev] { grid-area: prev; }
+.market-overlay .shop-footer .shop-status { grid-area: status; }
+.market-overlay .shop-footer .shop-page-info { grid-area: page; }
+.market-overlay .shop-footer .shop-slots { grid-area: slots; }
+.market-overlay .shop-footer [data-shop-next] { grid-area: next; }
+.market-overlay .shop-footer .buy-button { grid-area: buy; }
+
 .market-overlay .shop-footer button {
   width: 100%;
-  height: 100%;
+  min-height: 44px;
   border-width: 0 1px 0 0;
+}
+
+.market-overlay .shop-page-info,
+.market-overlay .shop-slots {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  color: var(--text-2);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
 }
 
 .market-overlay .shop-status {
   display: grid;
   place-items: center;
+  min-height: 44px;
   padding: 0 var(--space-3);
   color: var(--success-text);
   font-weight: var(--fw-bold);
@@ -587,18 +673,25 @@
   }
 
   .market-overlay .shop-footer {
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "prev page next"
+      "status status buy"
+      "slots slots slots";
   }
 
   .market-overlay .shop-footer .buy-button {
-    grid-column: 1 / -1;
-    min-height: var(--space-8);
+    min-height: 44px;
   }
 }
 
 @media (max-width: 560px) {
   .market-overlay .shop-grid {
     grid-template-columns: repeat(3, minmax(70px, 1fr));
+  }
+
+  .market-overlay .shop-item-title {
+    font-size: var(--fs-200);
   }
 
   .market-overlay .shop-titlebar h1 {

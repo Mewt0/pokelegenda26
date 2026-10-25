@@ -1,11 +1,7 @@
 <?php
 use Pokemon8\View\View;
 
-$statusLabels = [
-    'done' => 'готово',
-    'partial' => 'частично',
-    'todo' => 'нужно перенести',
-];
+$isBattle = in_array($slug, ['battle/pvp', 'battle/pve'], true);
 ?>
 <!doctype html>
 <html lang="ru">
@@ -26,29 +22,23 @@ $statusLabels = [
       <strong><?= View::e($module['title']) ?></strong>
     </nav>
 
-    <section class="panel">
+    <section class="panel module-empty">
       <h1><?= View::e($module['title']) ?></h1>
-      <p>
-        <span class="badge <?= View::e($module['status']) ?>">
-          <?= View::e($statusLabels[$module['status']] ?? $module['status']) ?>
-        </span>
-      </p>
-      <p>
-        Раздел уже имеет новый маршрут <code>/game/<?= View::e($slug) ?></code>.
-        Legacy-вход <code>game.php?go=<?= View::e($module['legacy']) ?></code> больше не должен быть основным источником логики.
-      </p>
-      <p>
-        Следующий шаг переноса: вынести бизнес-логику этого раздела из legacy PHP в сервисы, репозитории и JSON API.
-      </p>
-    </section>
-
-    <section class="grid">
-      <?php foreach ($modules as $path => $item): ?>
-        <a class="card" href="/game/<?= View::e($path) ?>">
-          <?= View::e($item['title']) ?><br>
-          <small><?= View::e($statusLabels[$item['status']] ?? $item['status']) ?></small>
-        </a>
-      <?php endforeach; ?>
+      <?php if ($isBattle): ?>
+        <p class="module-lead">Бои доступны в игровом мире.</p>
+        <p class="module-text">
+          Бои начинаются в игровом мире: при встрече с диким покемоном или когда другой тренер
+          вызывает тебя на PvP. Если бой уже идёт, он открывается на главном экране.
+        </p>
+      <?php else: ?>
+        <p class="module-lead">Этот раздел пока недоступен.</p>
+        <p class="module-text">
+          Мы уже работаем над ним. Вернись в игровой мир — там доступны основные занятия тренера.
+        </p>
+      <?php endif; ?>
+      <div class="module-actions">
+        <a class="module-button module-button--primary" href="/game">Вернуться в игровой мир</a>
+      </div>
     </section>
   </main>
 </body>

@@ -100,6 +100,9 @@
   min-height: 0;
   display: grid;
   grid-template-columns: clamp(220px, 18vw, 270px) minmax(0, 1fr) clamp(280px, 24vw, 360px);
+  /* Ряды не сжимаются под фиксированную высоту окна: иначе таблица лотов
+     вылезает из своей области и накрывает предпросмотр. */
+  grid-auto-rows: max-content;
   align-content: start;
   overflow-y: auto;
   background: linear-gradient(180deg, var(--surface-0), var(--surface-2));
@@ -196,8 +199,10 @@
 }
 
 .commission-sellable-card img {
-  max-width: 72%;
-  max-height: 72%;
+  width: 96%;
+  height: 96%;
+  max-width: 96%;
+  max-height: 96%;
   object-fit: contain;
 }
 
@@ -332,8 +337,10 @@
 }
 
 .commission-lot-icon img {
-  max-width: 46px;
-  max-height: 46px;
+  width: 96%;
+  height: 96%;
+  max-width: 96%;
+  max-height: 96%;
   object-fit: contain;
 }
 
@@ -367,12 +374,18 @@
   justify-content: center;
 }
 
+.commission-lot > span {
+  min-width: 0;
+}
+
 .commission-preview-button {
   width: 40px;
   padding: 0;
 }
 
 .commission-price {
+  min-width: 0;
+  overflow-wrap: anywhere;
   text-align: center;
   color: var(--text-1);
   font-weight: var(--fw-bold);
@@ -387,10 +400,14 @@
 }
 
 .commission-seller b {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   color: var(--text-1);
 }
 
 .commission-seller small {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   color: var(--text-2);
   font-size: var(--fs-100);
 }
@@ -399,6 +416,7 @@
   min-width: 78px;
 }
 
+.commission-preview[hidden],
 .commission-empty[hidden] {
   display: none !important;
 }
@@ -414,6 +432,24 @@
   margin: 0 0 var(--space-2);
   color: var(--text-1);
   font-size: var(--fs-400);
+}
+
+.commission-preview h2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.commission-preview-close {
+  display: none;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  font-size: var(--fs-500);
 }
 
 .commission-sell form {
@@ -433,6 +469,7 @@
 }
 
 .commission-preview {
+  position: relative;
   padding: var(--space-3);
   border-left: 1px solid var(--border-soft);
   background: var(--surface-0);
@@ -537,8 +574,16 @@ body.has-commission-overlay {
     min-height: 0;
   }
 
+  /* Одна колонка: обычный поток вместо grid. Иначе при фиксированной
+     высоте окна auto-ряды сжимаются, таблица лотов вылезает из своей
+     области и пересекается с предпросмотром. */
   .commission-layout {
-    grid-template-columns: minmax(0, 1fr);
+    display: block;
+    overflow-y: auto;
+  }
+
+  .commission-center {
+    display: block;
   }
 
   .commission-side {
@@ -607,6 +652,17 @@ body.has-commission-overlay {
     grid-template-columns: 1fr;
   }
 
+  .commission-preview {
+    border-left: 0;
+    border-top: 1px solid var(--border-soft);
+    background: var(--surface-2);
+  }
+
+  .commission-preview-close {
+    display: inline-grid;
+    place-items: center;
+  }
+
   .commission-table th:nth-child(3),
   .commission-table td:nth-child(3) {
     display: none;
@@ -616,11 +672,24 @@ body.has-commission-overlay {
   .commission-table th:nth-child(2) { width: 22%; }
   .commission-table th:nth-child(4) { width: 28%; }
 
+  .commission-price,
+  .commission-seller {
+    font-size: var(--fs-200);
+  }
+
   .commission-lot {
-    grid-template-columns: 54px minmax(0, 1fr);
+    grid-template-columns: 54px minmax(0, 1fr) 40px;
+    gap: var(--space-1);
   }
 
   .commission-lot-actions {
-    display: none;
+    display: flex;
+    justify-content: center;
+  }
+
+  .commission-preview-button {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
   }
 }

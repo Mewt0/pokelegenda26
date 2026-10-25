@@ -88,6 +88,8 @@ use Pokemon8\View\View;
 define('APP_ROOT', dirname(__DIR__));
 
 require APP_ROOT . '/src/Support/Autoload.php';
+require APP_ROOT . '/app/security_headers.php';
+app_send_security_headers();
 
 Pokemon8\Http\ErrorHandler::register(APP_ROOT . '/log_php_errors.txt');
 

@@ -46,3 +46,15 @@ The location art check formats live database locations without player movement o
 ## Reporting
 
 Record the revision, environment, exact commands, passed/failed/skipped counts and remaining limitations. For UI changes, check narrow screens, image loading, keyboard controls and error fallback. For gameplay, include the actual action path; aggregate counts do not prove every quest story.
+
+## Experience and gameplay regressions
+
+The growth-group and XP contract checks need no database and run in CI:
+
+```bash
+php tools/pokemon_growth_curve_regression.php
+php tools/pokemon_experience_regression.php
+php tools/evolution_rules_regression.php
+```
+
+The 4–6 hour target is a model for one medium-growth Pokemon from level 5 to 100, assuming suitable encounters and 45–60 second battle cycles. It is not a timed full-playthrough result. Growth groups differ; no team-wide EXP share is enabled. Run database-backed catching, drops and concurrency checks sequentially on dedicated QA accounts after a verified backup.

@@ -5,6 +5,7 @@ namespace Pokemon8\Repository;
 
 use PDO;
 use Pokemon8\Game\PokemonFormCatalog;
+use Pokemon8\Game\PokemonExperience;
 
 final class PokemonRepository
 {
@@ -327,7 +328,7 @@ final class PokemonRepository
     private function listPokemonByActive(int $userId, int $active, int $limit): array
     {
         $stmt = $this->db->prepare(
-            'SELECT pu.id, pu.names, pu.basenum, pu.lvl, pu.hp_my, pu.hp_max, pu.happy, pu.startepoke,
+            'SELECT pu.id, pu.names, pu.basenum, pu.lvl, pu.exp, pu.hp_my, pu.hp_max, pu.happy, pu.startepoke,
                     pu.atk, pu.def, pu.satk, pu.sdef, pu.speed,
                     pu.hp_ev, pu.atk_ev, pu.def_ev, pu.satk_ev, pu.sdef_ev, pu.speed_ev,
                     pu.training_stage, pu.training_stat, pu.training_named_effect, pu.training_tamed,
@@ -376,6 +377,7 @@ final class PokemonRepository
                 'formKey' => PokemonFormCatalog::formKey((int) $row['basenum'], (string) $row['names']),
                 'isForm' => PokemonFormCatalog::isForm((int) $row['basenum']),
                 'level' => (int) $row['lvl'],
+                ...PokemonExperience::progressForBaseId((int) $row['basenum'], (int) $row['lvl'], (int) ($row['exp'] ?? 0)),
                 'hp' => (int) $row['hp_my'],
                 'hpMax' => (int) $row['hp_max'],
                 'happiness' => max(0, min(100, (int) ($row['happy'] ?? 0))),

@@ -48,10 +48,10 @@ try {
 
     $battleId = (int) $db->query('SELECT COALESCE(MAX(id), 0) + 100000 FROM battles')->fetchColumn();
     $db->prepare(
-        'INSERT INTO battles (id, user_1, user_2, poke_1, poke_2, batl_tip, time, pobeda, raund, times)
-         VALUES (:id, :user, 0, "smoke", "smoke", "pve", :now, 0, 1, :stale)'
+        'INSERT INTO battles (id, user_1, user_2, poke_1, poke_2, attac_1, attac_2, item_1, item_2, batl_tip, time, pobeda, raund, times, dates)
+         VALUES (:id, :user, 0, "smoke", "smoke", 0, 0, 0, 0, "pve", :now, 0, 1, :stale, "")'
     )->execute(['id' => $battleId, 'user' => $userId, 'now' => time(), 'stale' => time() - 9000]);
-    $fixture = $db->prepare('INSERT INTO battles (id, user_1, user_2, poke_1, poke_2, batl_tip, time, pobeda, raund, times) VALUES (:id, :user, 0, "smoke", "smoke", "pve", :created, 0, 1, :deadline)');
+    $fixture = $db->prepare('INSERT INTO battles (id, user_1, user_2, poke_1, poke_2, attac_1, attac_2, item_1, item_2, batl_tip, time, pobeda, raund, times, dates) VALUES (:id, :user, 0, "smoke", "smoke", 0, 0, 0, 0, "pve", :created, 0, 1, :deadline, "")');
     $fixture->execute(['id' => $battleId + 1, 'user' => $userId, 'created' => time(), 'deadline' => time() + 3600]);
     $fixture->execute(['id' => $battleId + 2, 'user' => $userId, 'created' => time(), 'deadline' => time()]);
     $fixture->execute(['id' => $battleId + 3, 'user' => $userId, 'created' => time(), 'deadline' => 0]);

@@ -1,73 +1,103 @@
-/* Заглушка модуля («раздел переносится») — список плиток со статусом.
-   Разметка даёт .module-page на <body>. Значения только из tokens.css. */
-
+/* Человеческое пустое состояние модуля вместо служебной заглушки.
+   Значения только из tokens.css. */
 .module-page {
   margin: 0;
-  background: var(--surface-2);
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 15% 10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 34%),
+    var(--surface-2);
   color: var(--text-1);
   font: var(--fs-300) / var(--lh-normal) var(--font-sans);
 }
 
 .module-page .wrap {
-  max-width: 1120px;
+  max-width: 760px;
   margin: 0 auto;
-  padding: var(--space-6);
+  padding: var(--space-6) var(--space-4);
 }
 
 .module-page .top {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-3);
   align-items: center;
   margin-bottom: var(--space-5);
 }
 
-.module-page .top a,
-.module-page .grid a {
+.module-page .top a {
   color: var(--accent-text);
   text-decoration: none;
   font-weight: var(--fw-bold);
 }
 
+.module-page .top a:hover {
+  text-decoration: underline;
+}
+
 .module-page .panel {
   background: var(--surface-1);
   border: 1px solid var(--border-1);
-  border-radius: var(--radius-md);
-  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+  padding: var(--space-6);
 }
 
-.module-page .badge {
-  display: inline-block;
-  padding: 3px var(--space-2);
-  border-radius: var(--radius-pill);
-  background: var(--accent-soft);
-  color: var(--accent-text);
+.module-page h1 {
+  margin: 0 0 var(--space-4);
+  font-size: var(--fs-700);
+  line-height: var(--lh-tight);
+}
+
+.module-page .module-lead {
+  margin: 0 0 var(--space-2);
+  font-size: var(--fs-500);
   font-weight: var(--fw-bold);
 }
 
-.module-page .badge.todo {
-  background: var(--warning-soft);
-  color: var(--warning-text);
+.module-page .module-text {
+  max-width: 56ch;
+  margin: 0;
+  color: var(--text-2);
 }
 
-.module-page .badge.done {
-  background: var(--success-soft);
-  color: var(--success-text);
+.module-page .module-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
 }
 
-.module-page .grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-}
-
-.module-page .card {
-  background: var(--surface-1);
+.module-page .module-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--space-4);
   border: 1px solid var(--border-1);
   border-radius: var(--radius-md);
-  padding: var(--space-3);
+  background: var(--surface-0);
+  color: var(--accent-text);
+  font-weight: var(--fw-bold);
+  text-decoration: none;
 }
 
-.module-page .card small {
-  color: var(--text-2);
+.module-page .module-button:hover {
+  background: var(--accent-soft);
+}
+
+.module-page .module-button--primary {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+  color: var(--text-inverse);
+}
+
+.module-page .module-button--primary:hover {
+  background: var(--accent-strong-hover);
+  border-color: var(--accent-strong-hover);
+}
+
+.module-page .module-button:focus-visible {
+  outline: none;
+  border-color: var(--focus-color);
+  box-shadow: var(--focus-ring);
 }

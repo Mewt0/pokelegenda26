@@ -1,0 +1,3067 @@
+{
+    "version": "ai-20261025",
+    "generated_at": "2026-10-25T15:42:37+00:00",
+    "jobs_source": "docs\/reports\/harness-item-art-jobs-20261025.json",
+    "raw_directory": "public\/img\/items\/ai-20261025\/raw",
+    "generated_directory": "ai-20261025",
+    "index": "public\/img\/items\/index.json",
+    "backup_directory": "E:\/OSPanel\/maintenance\/item-icons-before-ai-20261025-20261025-184236",
+    "cache": "E:\/OSPanel\/maintenance\/item-icons-ai-20261025-normalize-cache.json",
+    "canvas": [
+        128,
+        128
+    ],
+    "visible_long_side": 108,
+    "job_count": 213,
+    "assigned_id_count": 247,
+    "installed_id_count": 176,
+    "this_run_installed_count": 176,
+    "reused_job_count": 158,
+    "normalized_job_count": 0,
+    "unchanged_copy_count": 352,
+    "installed": [
+        {
+            "id": 1,
+            "job_key": "item-1",
+            "name": "Coin",
+            "file": "ai-20261025\/1.png",
+            "numeric": "public\/img\/items\/1.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                106,
+                108
+            ]
+        },
+        {
+            "id": 2,
+            "job_key": "item-2",
+            "name": "Diamond",
+            "file": "ai-20261025\/2.png",
+            "numeric": "public\/img\/items\/2.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                92
+            ]
+        },
+        {
+            "id": 3,
+            "job_key": "item-3",
+            "name": "Pokeball",
+            "file": "ai-20261025\/3.png",
+            "numeric": "public\/img\/items\/3.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                107,
+                108
+            ]
+        },
+        {
+            "id": 4,
+            "job_key": "item-4",
+            "name": "Snorlax Plush Toy",
+            "file": "ai-20261025\/4.png",
+            "numeric": "public\/img\/items\/4.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                104,
+                108
+            ]
+        },
+        {
+            "id": 5,
+            "job_key": "item-5",
+            "name": "Mail Gift",
+            "file": "ai-20261025\/5.png",
+            "numeric": "public\/img\/items\/5.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                107
+            ]
+        },
+        {
+            "id": 6,
+            "job_key": "item-6",
+            "name": "Yellow Candy",
+            "file": "ai-20261025\/6.png",
+            "numeric": "public\/img\/items\/6.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                96
+            ]
+        },
+        {
+            "id": 7,
+            "job_key": "item-7",
+            "name": "Green Candy",
+            "file": "ai-20261025\/7.png",
+            "numeric": "public\/img\/items\/7.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                98
+            ]
+        },
+        {
+            "id": 8,
+            "job_key": "item-8",
+            "name": "Blue Candy",
+            "file": "ai-20261025\/8.png",
+            "numeric": "public\/img\/items\/8.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                94
+            ]
+        },
+        {
+            "id": 9,
+            "job_key": "item-9",
+            "name": "Purple Candy",
+            "file": "ai-20261025\/9.png",
+            "numeric": "public\/img\/items\/9.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                101
+            ]
+        },
+        {
+            "id": 10,
+            "job_key": "item-10",
+            "name": "Pink Candy",
+            "file": "ai-20261025\/10.png",
+            "numeric": "public\/img\/items\/10.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                104
+            ]
+        },
+        {
+            "id": 11,
+            "job_key": "item-11",
+            "name": "Red Candy",
+            "file": "ai-20261025\/11.png",
+            "numeric": "public\/img\/items\/11.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                96
+            ]
+        },
+        {
+            "id": 12,
+            "job_key": "item-12",
+            "name": "Black Candy",
+            "file": "ai-20261025\/12.png",
+            "numeric": "public\/img\/items\/12.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                97
+            ]
+        },
+        {
+            "id": 13,
+            "job_key": "item-13",
+            "name": "Pidgeotto Feather",
+            "file": "ai-20261025\/13.png",
+            "numeric": "public\/img\/items\/13.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                103,
+                108
+            ]
+        },
+        {
+            "id": 14,
+            "job_key": "item-14",
+            "name": "Spearow Feather",
+            "file": "ai-20261025\/14.png",
+            "numeric": "public\/img\/items\/14.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                106,
+                108
+            ]
+        },
+        {
+            "id": 15,
+            "job_key": "item-15",
+            "name": "Energy Drink",
+            "file": "ai-20261025\/15.png",
+            "numeric": "public\/img\/items\/15.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                54,
+                108
+            ]
+        },
+        {
+            "id": 16,
+            "job_key": "item-16",
+            "name": "Old Fishing Rod",
+            "file": "ai-20261025\/16.png",
+            "numeric": "public\/img\/items\/16.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                108
+            ]
+        },
+        {
+            "id": 17,
+            "job_key": "item-17",
+            "name": "Chocolate Candy",
+            "file": "ai-20261025\/17.png",
+            "numeric": "public\/img\/items\/17.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                90
+            ]
+        },
+        {
+            "id": 18,
+            "job_key": "item-18",
+            "name": "Dried Clover",
+            "file": "ai-20261025\/18.png",
+            "numeric": "public\/img\/items\/18.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                91,
+                108
+            ]
+        },
+        {
+            "id": 19,
+            "job_key": "item-19",
+            "name": "Clover",
+            "file": "ai-20261025\/19.png",
+            "numeric": "public\/img\/items\/19.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                101,
+                108
+            ]
+        },
+        {
+            "id": 20,
+            "job_key": "item-20",
+            "name": "Fresh Clover",
+            "file": "ai-20261025\/20.png",
+            "numeric": "public\/img\/items\/20.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                103,
+                108
+            ]
+        },
+        {
+            "id": 21,
+            "job_key": "item-21",
+            "name": "Kanto-Johto Ferry Ticket",
+            "file": "ai-20261025\/21.png",
+            "numeric": "public\/img\/items\/21.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                81
+            ]
+        },
+        {
+            "id": 22,
+            "job_key": "item-22",
+            "name": "Flashlight",
+            "file": "ai-20261025\/22.png",
+            "numeric": "public\/img\/items\/22.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                86
+            ]
+        },
+        {
+            "id": 23,
+            "job_key": "item-23",
+            "name": "Stone Pickaxe",
+            "file": "ai-20261025\/23.png",
+            "numeric": "public\/img\/items\/23.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                103,
+                108
+            ]
+        },
+        {
+            "id": 24,
+            "job_key": "item-24",
+            "name": "Small Thunder Stone Shard",
+            "file": "ai-20261025\/24.png",
+            "numeric": "public\/img\/items\/24.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                101,
+                108
+            ]
+        },
+        {
+            "id": 25,
+            "job_key": "item-25",
+            "name": "Small Fire Stone Shard",
+            "file": "ai-20261025\/25.png",
+            "numeric": "public\/img\/items\/25.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                100,
+                108
+            ]
+        },
+        {
+            "id": 26,
+            "job_key": "item-26",
+            "name": "Small Water Stone Shard",
+            "file": "ai-20261025\/26.png",
+            "numeric": "public\/img\/items\/26.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                89,
+                108
+            ]
+        },
+        {
+            "id": 27,
+            "job_key": "item-27",
+            "name": "Small Leaf Stone Shard",
+            "file": "ai-20261025\/27.png",
+            "numeric": "public\/img\/items\/27.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                82,
+                108
+            ]
+        },
+        {
+            "id": 28,
+            "job_key": "item-28",
+            "name": "Small Moon Stone Shard",
+            "file": "ai-20261025\/28.png",
+            "numeric": "public\/img\/items\/28.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                96,
+                108
+            ]
+        },
+        {
+            "id": 29,
+            "job_key": "item-29",
+            "name": "Medium Thunder Stone Shard",
+            "file": "ai-20261025\/29.png",
+            "numeric": "public\/img\/items\/29.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                98,
+                108
+            ]
+        },
+        {
+            "id": 30,
+            "job_key": "item-30",
+            "name": "Medium Fire Stone Shard",
+            "file": "ai-20261025\/30.png",
+            "numeric": "public\/img\/items\/30.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                96,
+                108
+            ]
+        },
+        {
+            "id": 31,
+            "job_key": "item-31",
+            "name": "Medium Water Stone Shard",
+            "file": "ai-20261025\/31.png",
+            "numeric": "public\/img\/items\/31.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                92,
+                108
+            ]
+        },
+        {
+            "id": 32,
+            "job_key": "item-32",
+            "name": "Medium Leaf Stone Shard",
+            "file": "ai-20261025\/32.png",
+            "numeric": "public\/img\/items\/32.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                98,
+                108
+            ]
+        },
+        {
+            "id": 33,
+            "job_key": "item-33",
+            "name": "Medium Moon Stone Shard",
+            "file": "ai-20261025\/33.png",
+            "numeric": "public\/img\/items\/33.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                95,
+                108
+            ]
+        },
+        {
+            "id": 34,
+            "job_key": "item-34",
+            "name": "Huge Thunder Stone Shard",
+            "file": "ai-20261025\/34.png",
+            "numeric": "public\/img\/items\/34.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                106
+            ]
+        },
+        {
+            "id": 35,
+            "job_key": "item-35",
+            "name": "Huge Fire Stone Shard",
+            "file": "ai-20261025\/35.png",
+            "numeric": "public\/img\/items\/35.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                106,
+                108
+            ]
+        },
+        {
+            "id": 36,
+            "job_key": "item-36",
+            "name": "Huge Water Stone Shard",
+            "file": "ai-20261025\/36.png",
+            "numeric": "public\/img\/items\/36.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                106,
+                108
+            ]
+        },
+        {
+            "id": 37,
+            "job_key": "item-37",
+            "name": "Huge Leaf Stone Shard",
+            "file": "ai-20261025\/37.png",
+            "numeric": "public\/img\/items\/37.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                106,
+                108
+            ]
+        },
+        {
+            "id": 38,
+            "job_key": "item-38",
+            "name": "Huge Moon Stone Shard",
+            "file": "ai-20261025\/38.png",
+            "numeric": "public\/img\/items\/38.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                106,
+                108
+            ]
+        },
+        {
+            "id": 39,
+            "job_key": "item-39",
+            "name": "Solvent Spray",
+            "file": "ai-20261025\/39.png",
+            "numeric": "public\/img\/items\/39.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                92,
+                108
+            ]
+        },
+        {
+            "id": 40,
+            "job_key": "item-40",
+            "name": "Thunder Stone",
+            "file": "ai-20261025\/40.png",
+            "numeric": "public\/img\/items\/40.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                104,
+                108
+            ]
+        },
+        {
+            "id": 41,
+            "job_key": "item-41",
+            "name": "Fire Stone",
+            "file": "ai-20261025\/41.png",
+            "numeric": "public\/img\/items\/41.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                101,
+                108
+            ]
+        },
+        {
+            "id": 42,
+            "job_key": "item-42",
+            "name": "Water Stone",
+            "file": "ai-20261025\/42.png",
+            "numeric": "public\/img\/items\/42.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                106,
+                108
+            ]
+        },
+        {
+            "id": 43,
+            "job_key": "item-43",
+            "name": "Leaf Stone",
+            "file": "ai-20261025\/43.png",
+            "numeric": "public\/img\/items\/43.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                105,
+                108
+            ]
+        },
+        {
+            "id": 44,
+            "job_key": "item-44",
+            "name": "Moon Stone",
+            "file": "ai-20261025\/44.png",
+            "numeric": "public\/img\/items\/44.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                108
+            ]
+        },
+        {
+            "id": 45,
+            "job_key": "item-45",
+            "name": "Unique Gift",
+            "file": "ai-20261025\/45.png",
+            "numeric": "public\/img\/items\/45.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                103,
+                108
+            ]
+        },
+        {
+            "id": 46,
+            "job_key": "item-46",
+            "name": "Ice Pokeball",
+            "file": "ai-20261025\/46.png",
+            "numeric": "public\/img\/items\/46.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                107,
+                108
+            ]
+        },
+        {
+            "id": 47,
+            "job_key": "item-47",
+            "name": "Ice Pokeball with Articuno",
+            "file": "ai-20261025\/47.png",
+            "numeric": "public\/img\/items\/47.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                105
+            ]
+        },
+        {
+            "id": 48,
+            "job_key": "item-48",
+            "name": "Party Balloon",
+            "file": "ai-20261025\/48.png",
+            "numeric": "public\/img\/items\/48.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                70,
+                108
+            ]
+        },
+        {
+            "id": 49,
+            "job_key": "item-49",
+            "name": "Serpentine Ribbon",
+            "file": "ai-20261025\/49.png",
+            "numeric": "public\/img\/items\/49.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                103
+            ]
+        },
+        {
+            "id": 50,
+            "job_key": "item-50",
+            "name": "Invitation Envelope",
+            "file": "ai-20261025\/50.png",
+            "numeric": "public\/img\/items\/50.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                94
+            ]
+        },
+        {
+            "id": 51,
+            "job_key": "item-51",
+            "name": "Water Bottle",
+            "file": "ai-20261025\/51.png",
+            "numeric": "public\/img\/items\/51.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                87,
+                108
+            ]
+        },
+        {
+            "id": 52,
+            "job_key": "item-52",
+            "name": "Flour Sack",
+            "file": "ai-20261025\/52.png",
+            "numeric": "public\/img\/items\/52.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                104
+            ]
+        },
+        {
+            "id": 53,
+            "job_key": "item-53",
+            "name": "Honey Jar",
+            "file": "ai-20261025\/53.png",
+            "numeric": "public\/img\/items\/53.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                96,
+                108
+            ]
+        },
+        {
+            "id": 54,
+            "job_key": "item-54",
+            "name": "Milk Can",
+            "file": "ai-20261025\/54.png",
+            "numeric": "public\/img\/items\/54.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                91,
+                108
+            ]
+        },
+        {
+            "id": 55,
+            "job_key": "item-55",
+            "name": "Berry",
+            "file": "ai-20261025\/55.png",
+            "numeric": "public\/img\/items\/55.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                107
+            ]
+        },
+        {
+            "id": 56,
+            "job_key": "item-56",
+            "name": "Egg",
+            "file": "ai-20261025\/56.png",
+            "numeric": "public\/img\/items\/56.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                93,
+                108
+            ]
+        },
+        {
+            "id": 57,
+            "job_key": "item-57",
+            "name": "Holiday Cake",
+            "file": "ai-20261025\/57.png",
+            "numeric": "public\/img\/items\/57.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                95,
+                108
+            ]
+        },
+        {
+            "id": 58,
+            "job_key": "item-58",
+            "name": "Small Gift",
+            "file": "ai-20261025\/58.png",
+            "numeric": "public\/img\/items\/58.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                102,
+                108
+            ]
+        },
+        {
+            "id": 59,
+            "job_key": "item-59",
+            "name": "Gift",
+            "file": "ai-20261025\/59.png",
+            "numeric": "public\/img\/items\/59.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                105,
+                108
+            ]
+        },
+        {
+            "id": 60,
+            "job_key": "item-60",
+            "name": "Large Gift",
+            "file": "ai-20261025\/60.png",
+            "numeric": "public\/img\/items\/60.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                104,
+                108
+            ]
+        },
+        {
+            "id": 61,
+            "job_key": "item-61",
+            "name": "Small Supplement Bag",
+            "file": "ai-20261025\/61.png",
+            "numeric": "public\/img\/items\/61.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                94,
+                108
+            ]
+        },
+        {
+            "id": 62,
+            "job_key": "item-62",
+            "name": "Supplement Bag",
+            "file": "ai-20261025\/62.png",
+            "numeric": "public\/img\/items\/62.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                101,
+                108
+            ]
+        },
+        {
+            "id": 63,
+            "job_key": "item-63",
+            "name": "Large Supplement Bag",
+            "file": "ai-20261025\/63.png",
+            "numeric": "public\/img\/items\/63.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                107
+            ]
+        },
+        {
+            "id": 64,
+            "job_key": "item-64",
+            "name": "Dawn Stone",
+            "file": "ai-20261025\/64.png",
+            "numeric": "public\/img\/items\/64.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                107,
+                108
+            ]
+        },
+        {
+            "id": 65,
+            "job_key": "item-65",
+            "name": "Flute",
+            "file": "ai-20261025\/65.png",
+            "numeric": "public\/img\/items\/65.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                103,
+                108
+            ]
+        },
+        {
+            "id": 66,
+            "job_key": "item-66",
+            "name": "Dusk Stone",
+            "file": "ai-20261025\/66.png",
+            "numeric": "public\/img\/items\/66.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                105,
+                108
+            ]
+        },
+        {
+            "id": 67,
+            "job_key": "item-41",
+            "name": "Fire Stone",
+            "file": "ai-20261025\/67.png",
+            "numeric": "public\/img\/items\/67.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                101,
+                108
+            ]
+        },
+        {
+            "id": 68,
+            "job_key": "item-43",
+            "name": "Leaf Stone",
+            "file": "ai-20261025\/68.png",
+            "numeric": "public\/img\/items\/68.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                105,
+                108
+            ]
+        },
+        {
+            "id": 69,
+            "job_key": "item-44",
+            "name": "Moon Stone",
+            "file": "ai-20261025\/69.png",
+            "numeric": "public\/img\/items\/69.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                108
+            ]
+        },
+        {
+            "id": 70,
+            "job_key": "item-66",
+            "name": "Dusk Stone",
+            "file": "ai-20261025\/70.png",
+            "numeric": "public\/img\/items\/70.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                105,
+                108
+            ]
+        },
+        {
+            "id": 71,
+            "job_key": "item-64",
+            "name": "Dawn Stone",
+            "file": "ai-20261025\/71.png",
+            "numeric": "public\/img\/items\/71.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                107,
+                108
+            ]
+        },
+        {
+            "id": 72,
+            "job_key": "item-72",
+            "name": "Macho Brace",
+            "file": "ai-20261025\/72.png",
+            "numeric": "public\/img\/items\/72.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                105,
+                108
+            ]
+        },
+        {
+            "id": 74,
+            "job_key": "item-74",
+            "name": "Sun Stone",
+            "file": "ai-20261025\/74.png",
+            "numeric": "public\/img\/items\/74.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                108
+            ]
+        },
+        {
+            "id": 75,
+            "job_key": "item-40",
+            "name": "Thunder Stone",
+            "file": "ai-20261025\/75.png",
+            "numeric": "public\/img\/items\/75.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                104,
+                108
+            ]
+        },
+        {
+            "id": 76,
+            "job_key": "item-76",
+            "name": "Ice Stone",
+            "file": "ai-20261025\/76.png",
+            "numeric": "public\/img\/items\/76.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                105,
+                108
+            ]
+        },
+        {
+            "id": 77,
+            "job_key": "item-42",
+            "name": "Water Stone",
+            "file": "ai-20261025\/77.png",
+            "numeric": "public\/img\/items\/77.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                106,
+                108
+            ]
+        },
+        {
+            "id": 78,
+            "job_key": "item-78",
+            "name": "Random TM",
+            "file": "ai-20261025\/78.png",
+            "numeric": "public\/img\/items\/78.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                103
+            ]
+        },
+        {
+            "id": 80,
+            "job_key": "item-80",
+            "name": "Quick Claw",
+            "file": "ai-20261025\/80.png",
+            "numeric": "public\/img\/items\/80.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                98,
+                108
+            ]
+        },
+        {
+            "id": 81,
+            "job_key": "item-81",
+            "name": "Razor Claw",
+            "file": "ai-20261025\/81.png",
+            "numeric": "public\/img\/items\/81.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                104,
+                108
+            ]
+        },
+        {
+            "id": 82,
+            "job_key": "item-82",
+            "name": "Spell Tag",
+            "file": "ai-20261025\/82.png",
+            "numeric": "public\/img\/items\/82.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                105
+            ]
+        },
+        {
+            "id": 83,
+            "job_key": "item-83",
+            "name": "Pink Scarf",
+            "file": "ai-20261025\/83.png",
+            "numeric": "public\/img\/items\/83.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                102,
+                108
+            ]
+        },
+        {
+            "id": 85,
+            "job_key": "item-85",
+            "name": "Silk Scarf",
+            "file": "ai-20261025\/85.png",
+            "numeric": "public\/img\/items\/85.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                105
+            ]
+        },
+        {
+            "id": 86,
+            "job_key": "item-86",
+            "name": "Charcoal",
+            "file": "ai-20261025\/86.png",
+            "numeric": "public\/img\/items\/86.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                98
+            ]
+        },
+        {
+            "id": 87,
+            "job_key": "item-87",
+            "name": "Zap Plate",
+            "file": "ai-20261025\/87.png",
+            "numeric": "public\/img\/items\/87.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                104
+            ]
+        },
+        {
+            "id": 88,
+            "job_key": "item-88",
+            "name": "Metal Coat",
+            "file": "ai-20261025\/88.png",
+            "numeric": "public\/img\/items\/88.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                99
+            ]
+        },
+        {
+            "id": 89,
+            "job_key": "item-89",
+            "name": "Hard Stone",
+            "file": "ai-20261025\/89.png",
+            "numeric": "public\/img\/items\/89.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                104
+            ]
+        },
+        {
+            "id": 90,
+            "job_key": "item-90",
+            "name": "Twisted Spoon",
+            "file": "ai-20261025\/90.png",
+            "numeric": "public\/img\/items\/90.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                95,
+                108
+            ]
+        },
+        {
+            "id": 91,
+            "job_key": "item-91",
+            "name": "Poison Barb",
+            "file": "ai-20261025\/91.png",
+            "numeric": "public\/img\/items\/91.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                89,
+                108
+            ]
+        },
+        {
+            "id": 92,
+            "job_key": "item-92",
+            "name": "Power Bracer",
+            "file": "ai-20261025\/92.png",
+            "numeric": "public\/img\/items\/92.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                103,
+                108
+            ]
+        },
+        {
+            "id": 93,
+            "job_key": "item-93",
+            "name": "Dragon Fang",
+            "file": "ai-20261025\/93.png",
+            "numeric": "public\/img\/items\/93.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                107
+            ]
+        },
+        {
+            "id": 147,
+            "job_key": "item-147",
+            "name": "Trainer Photo",
+            "file": "ai-20261025\/147.png",
+            "numeric": "public\/img\/items\/147.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                95,
+                108
+            ]
+        },
+        {
+            "id": 152,
+            "job_key": "item-152",
+            "name": "Pokebilet",
+            "file": "ai-20261025\/152.png",
+            "numeric": "public\/img\/items\/152.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                78
+            ]
+        },
+        {
+            "id": 153,
+            "job_key": "item-153",
+            "name": "Gold Ticket",
+            "file": "ai-20261025\/153.png",
+            "numeric": "public\/img\/items\/153.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                90
+            ]
+        },
+        {
+            "id": 154,
+            "job_key": "item-59",
+            "name": "Gift",
+            "file": "ai-20261025\/154.png",
+            "numeric": "public\/img\/items\/154.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                105,
+                108
+            ]
+        },
+        {
+            "id": 181,
+            "job_key": "item-181",
+            "name": "Dread Plate",
+            "file": "ai-20261025\/181.png",
+            "numeric": "public\/img\/items\/181.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                97
+            ]
+        },
+        {
+            "id": 189,
+            "job_key": "item-189",
+            "name": "Diamond Currency",
+            "file": "ai-20261025\/189.png",
+            "numeric": "public\/img\/items\/189.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                99
+            ]
+        },
+        {
+            "id": 210,
+            "job_key": "item-210",
+            "name": "Moomoo Milk",
+            "file": "ai-20261025\/210.png",
+            "numeric": "public\/img\/items\/210.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                87,
+                108
+            ]
+        },
+        {
+            "id": 217,
+            "job_key": "item-217",
+            "name": "PP Vitamins",
+            "file": "ai-20261025\/217.png",
+            "numeric": "public\/img\/items\/217.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                87,
+                108
+            ]
+        },
+        {
+            "id": 219,
+            "job_key": "item-219",
+            "name": "Vitamin Set",
+            "file": "ai-20261025\/219.png",
+            "numeric": "public\/img\/items\/219.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                99,
+                108
+            ]
+        },
+        {
+            "id": 234,
+            "job_key": "item-234",
+            "name": "Item Finder",
+            "file": "ai-20261025\/234.png",
+            "numeric": "public\/img\/items\/234.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                103,
+                108
+            ]
+        },
+        {
+            "id": 235,
+            "job_key": "item-235",
+            "name": "Super Rod",
+            "file": "ai-20261025\/235.png",
+            "numeric": "public\/img\/items\/235.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                103
+            ]
+        },
+        {
+            "id": 320,
+            "job_key": "item-320",
+            "name": "Absorb Bulb",
+            "file": "ai-20261025\/320.png",
+            "numeric": "public\/img\/items\/320.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                82,
+                108
+            ]
+        },
+        {
+            "id": 321,
+            "job_key": "item-321",
+            "name": "Beautiful Feather",
+            "file": "ai-20261025\/321.png",
+            "numeric": "public\/img\/items\/321.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                106
+            ]
+        },
+        {
+            "id": 322,
+            "job_key": "item-322",
+            "name": "Metronome",
+            "file": "ai-20261025\/322.png",
+            "numeric": "public\/img\/items\/322.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                80,
+                108
+            ]
+        },
+        {
+            "id": 323,
+            "job_key": "item-93",
+            "name": "Dragon Fang",
+            "file": "ai-20261025\/323.png",
+            "numeric": "public\/img\/items\/323.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                107
+            ]
+        },
+        {
+            "id": 325,
+            "job_key": "item-325",
+            "name": "Light Feather",
+            "file": "ai-20261025\/325.png",
+            "numeric": "public\/img\/items\/325.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                108
+            ]
+        },
+        {
+            "id": 326,
+            "job_key": "item-326",
+            "name": "Binding Band",
+            "file": "ai-20261025\/326.png",
+            "numeric": "public\/img\/items\/326.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                79
+            ]
+        },
+        {
+            "id": 327,
+            "job_key": "item-327",
+            "name": "Stardust",
+            "file": "ai-20261025\/327.png",
+            "numeric": "public\/img\/items\/327.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                76
+            ]
+        },
+        {
+            "id": 328,
+            "job_key": "item-328",
+            "name": "Shock Drive",
+            "file": "ai-20261025\/328.png",
+            "numeric": "public\/img\/items\/328.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                97
+            ]
+        },
+        {
+            "id": 330,
+            "job_key": "item-330",
+            "name": "Trainer Case",
+            "file": "ai-20261025\/330.png",
+            "numeric": "public\/img\/items\/330.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                107,
+                108
+            ]
+        },
+        {
+            "id": 332,
+            "job_key": "item-44",
+            "name": "Moon Stone",
+            "file": "ai-20261025\/332.png",
+            "numeric": "public\/img\/items\/332.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                108
+            ]
+        },
+        {
+            "id": 333,
+            "job_key": "item-333",
+            "name": "Flame Orb",
+            "file": "ai-20261025\/333.png",
+            "numeric": "public\/img\/items\/333.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                103,
+                108
+            ]
+        },
+        {
+            "id": 337,
+            "job_key": "item-337",
+            "name": "Pixie Plate",
+            "file": "ai-20261025\/337.png",
+            "numeric": "public\/img\/items\/337.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                106
+            ]
+        },
+        {
+            "id": 338,
+            "job_key": "item-338",
+            "name": "Dream Mist",
+            "file": "ai-20261025\/338.png",
+            "numeric": "public\/img\/items\/338.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                94,
+                108
+            ]
+        },
+        {
+            "id": 339,
+            "job_key": "item-89",
+            "name": "Hard Stone",
+            "file": "ai-20261025\/339.png",
+            "numeric": "public\/img\/items\/339.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                104
+            ]
+        },
+        {
+            "id": 342,
+            "job_key": "item-342",
+            "name": "Black Belt",
+            "file": "ai-20261025\/342.png",
+            "numeric": "public\/img\/items\/342.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                91
+            ]
+        },
+        {
+            "id": 344,
+            "job_key": "item-344",
+            "name": "Soul Dew",
+            "file": "ai-20261025\/344.png",
+            "numeric": "public\/img\/items\/344.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                86,
+                108
+            ]
+        },
+        {
+            "id": 349,
+            "job_key": "item-90",
+            "name": "Twisted Spoon",
+            "file": "ai-20261025\/349.png",
+            "numeric": "public\/img\/items\/349.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                95,
+                108
+            ]
+        },
+        {
+            "id": 350,
+            "job_key": "item-86",
+            "name": "Charcoal",
+            "file": "ai-20261025\/350.png",
+            "numeric": "public\/img\/items\/350.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                98
+            ]
+        },
+        {
+            "id": 356,
+            "job_key": "item-356",
+            "name": "Mechanical Part",
+            "file": "ai-20261025\/356.png",
+            "numeric": "public\/img\/items\/356.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                104
+            ]
+        },
+        {
+            "id": 358,
+            "job_key": "item-358",
+            "name": "Thick Club",
+            "file": "ai-20261025\/358.png",
+            "numeric": "public\/img\/items\/358.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                104
+            ]
+        },
+        {
+            "id": 360,
+            "job_key": "item-360",
+            "name": "Upgrade",
+            "file": "ai-20261025\/360.png",
+            "numeric": "public\/img\/items\/360.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                88
+            ]
+        },
+        {
+            "id": 361,
+            "job_key": "item-361",
+            "name": "Ring Target",
+            "file": "ai-20261025\/361.png",
+            "numeric": "public\/img\/items\/361.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                108
+            ]
+        },
+        {
+            "id": 365,
+            "job_key": "item-365",
+            "name": "Dubious Disc",
+            "file": "ai-20261025\/365.png",
+            "numeric": "public\/img\/items\/365.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                98
+            ]
+        },
+        {
+            "id": 366,
+            "job_key": "item-366",
+            "name": "Red Scarf",
+            "file": "ai-20261025\/366.png",
+            "numeric": "public\/img\/items\/366.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                104,
+                108
+            ]
+        },
+        {
+            "id": 370,
+            "job_key": "item-370",
+            "name": "Focus Band",
+            "file": "ai-20261025\/370.png",
+            "numeric": "public\/img\/items\/370.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                102
+            ]
+        },
+        {
+            "id": 371,
+            "job_key": "item-371",
+            "name": "Scope Lens",
+            "file": "ai-20261025\/371.png",
+            "numeric": "public\/img\/items\/371.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                106,
+                108
+            ]
+        },
+        {
+            "id": 372,
+            "job_key": "item-322",
+            "name": "Metronome",
+            "file": "ai-20261025\/372.png",
+            "numeric": "public\/img\/items\/372.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                80,
+                108
+            ]
+        },
+        {
+            "id": 373,
+            "job_key": "item-373",
+            "name": "Iron Ball",
+            "file": "ai-20261025\/373.png",
+            "numeric": "public\/img\/items\/373.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                99
+            ]
+        },
+        {
+            "id": 374,
+            "job_key": "item-374",
+            "name": "Metal Powder",
+            "file": "ai-20261025\/374.png",
+            "numeric": "public\/img\/items\/374.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                71
+            ]
+        },
+        {
+            "id": 375,
+            "job_key": "item-375",
+            "name": "Fluffy Tail",
+            "file": "ai-20261025\/375.png",
+            "numeric": "public\/img\/items\/375.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                106,
+                108
+            ]
+        },
+        {
+            "id": 376,
+            "job_key": "item-376",
+            "name": "Soft Sand",
+            "file": "ai-20261025\/376.png",
+            "numeric": "public\/img\/items\/376.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                69
+            ]
+        },
+        {
+            "id": 377,
+            "job_key": "item-377",
+            "name": "Never-Melt Ice",
+            "file": "ai-20261025\/377.png",
+            "numeric": "public\/img\/items\/377.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                94,
+                108
+            ]
+        },
+        {
+            "id": 378,
+            "job_key": "item-378",
+            "name": "Icicle Plate",
+            "file": "ai-20261025\/378.png",
+            "numeric": "public\/img\/items\/378.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                92
+            ]
+        },
+        {
+            "id": 380,
+            "job_key": "item-380",
+            "name": "Ice Gem",
+            "file": "ai-20261025\/380.png",
+            "numeric": "public\/img\/items\/380.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                98,
+                108
+            ]
+        },
+        {
+            "id": 386,
+            "job_key": "item-386",
+            "name": "Choice Specs",
+            "file": "ai-20261025\/386.png",
+            "numeric": "public\/img\/items\/386.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                62
+            ]
+        },
+        {
+            "id": 489,
+            "job_key": "item-489",
+            "name": "Light Clay",
+            "file": "ai-20261025\/489.png",
+            "numeric": "public\/img\/items\/489.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                96,
+                108
+            ]
+        },
+        {
+            "id": 491,
+            "job_key": "item-85",
+            "name": "Silk Scarf",
+            "file": "ai-20261025\/491.png",
+            "numeric": "public\/img\/items\/491.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                105
+            ]
+        },
+        {
+            "id": 492,
+            "job_key": "item-492",
+            "name": "Wide Lens",
+            "file": "ai-20261025\/492.png",
+            "numeric": "public\/img\/items\/492.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                105
+            ]
+        },
+        {
+            "id": 496,
+            "job_key": "item-496",
+            "name": "Everstone",
+            "file": "ai-20261025\/496.png",
+            "numeric": "public\/img\/items\/496.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                104
+            ]
+        },
+        {
+            "id": 517,
+            "job_key": "item-517",
+            "name": "Assault Vest",
+            "file": "ai-20261025\/517.png",
+            "numeric": "public\/img\/items\/517.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                101,
+                108
+            ]
+        },
+        {
+            "id": 520,
+            "job_key": "item-520",
+            "name": "Safety Goggles",
+            "file": "ai-20261025\/520.png",
+            "numeric": "public\/img\/items\/520.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                70
+            ]
+        },
+        {
+            "id": 651,
+            "job_key": "item-11",
+            "name": "Red Candy",
+            "file": "ai-20261025\/651.png",
+            "numeric": "public\/img\/items\/651.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                96
+            ]
+        },
+        {
+            "id": 652,
+            "job_key": "item-10",
+            "name": "Pink Candy",
+            "file": "ai-20261025\/652.png",
+            "numeric": "public\/img\/items\/652.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                104
+            ]
+        },
+        {
+            "id": 653,
+            "job_key": "item-17",
+            "name": "Chocolate Candy",
+            "file": "ai-20261025\/653.png",
+            "numeric": "public\/img\/items\/653.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                90
+            ]
+        },
+        {
+            "id": 654,
+            "job_key": "item-654",
+            "name": "Gray Candy",
+            "file": "ai-20261025\/654.png",
+            "numeric": "public\/img\/items\/654.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                103
+            ]
+        },
+        {
+            "id": 655,
+            "job_key": "item-655",
+            "name": "Unusual Candy",
+            "file": "ai-20261025\/655.png",
+            "numeric": "public\/img\/items\/655.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                106
+            ]
+        },
+        {
+            "id": 678,
+            "job_key": "item-678",
+            "name": "Weakening Set",
+            "file": "ai-20261025\/678.png",
+            "numeric": "public\/img\/items\/678.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                106,
+                108
+            ]
+        },
+        {
+            "id": 861,
+            "job_key": "item-861",
+            "name": "Cerugo Berry Cupcake",
+            "file": "ai-20261025\/861.png",
+            "numeric": "public\/img\/items\/861.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                96,
+                108
+            ]
+        },
+        {
+            "id": 1401,
+            "job_key": "item-1401",
+            "name": "Gold Candy",
+            "file": "ai-20261025\/1401.png",
+            "numeric": "public\/img\/items\/1401.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                100
+            ]
+        },
+        {
+            "id": 90001,
+            "job_key": "item-90001",
+            "name": "Team Rocket Order I",
+            "file": "ai-20261025\/90001.png",
+            "numeric": "public\/img\/items\/90001.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                95
+            ]
+        },
+        {
+            "id": 90002,
+            "job_key": "item-90002",
+            "name": "Team Rocket Order II",
+            "file": "ai-20261025\/90002.png",
+            "numeric": "public\/img\/items\/90002.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                93
+            ]
+        },
+        {
+            "id": 90003,
+            "job_key": "item-90003",
+            "name": "Protection Order",
+            "file": "ai-20261025\/90003.png",
+            "numeric": "public\/img\/items\/90003.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                108
+            ]
+        },
+        {
+            "id": 90004,
+            "job_key": "item-90004",
+            "name": "Masterball",
+            "file": "ai-20261025\/90004.png",
+            "numeric": "public\/img\/items\/90004.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                106
+            ]
+        },
+        {
+            "id": 90005,
+            "job_key": "item-90005",
+            "name": "Premium Ball",
+            "file": "ai-20261025\/90005.png",
+            "numeric": "public\/img\/items\/90005.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                107
+            ]
+        },
+        {
+            "id": 90020,
+            "job_key": "item-90020",
+            "name": "Battle Set",
+            "file": "ai-20261025\/90020.png",
+            "numeric": "public\/img\/items\/90020.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                104,
+                108
+            ]
+        },
+        {
+            "id": 90021,
+            "job_key": "item-90021",
+            "name": "Held Items Set",
+            "file": "ai-20261025\/90021.png",
+            "numeric": "public\/img\/items\/90021.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                97,
+                108
+            ]
+        },
+        {
+            "id": 90022,
+            "job_key": "item-90022",
+            "name": "Evolution Set",
+            "file": "ai-20261025\/90022.png",
+            "numeric": "public\/img\/items\/90022.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                106,
+                108
+            ]
+        },
+        {
+            "id": 90023,
+            "job_key": "item-90023",
+            "name": "Primal and Mega Set",
+            "file": "ai-20261025\/90023.png",
+            "numeric": "public\/img\/items\/90023.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                97,
+                108
+            ]
+        },
+        {
+            "id": 90024,
+            "job_key": "item-90024",
+            "name": "Premium Test Gift",
+            "file": "ai-20261025\/90024.png",
+            "numeric": "public\/img\/items\/90024.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                107
+            ]
+        },
+        {
+            "id": 90110,
+            "job_key": "item-90110",
+            "name": "Ship Ticket",
+            "file": "ai-20261025\/90110.png",
+            "numeric": "public\/img\/items\/90110.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                89
+            ]
+        },
+        {
+            "id": 90111,
+            "job_key": "item-90111",
+            "name": "Plane Ticket",
+            "file": "ai-20261025\/90111.png",
+            "numeric": "public\/img\/items\/90111.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                88
+            ]
+        },
+        {
+            "id": 90200,
+            "job_key": "item-90200",
+            "name": "Blue Orb",
+            "file": "ai-20261025\/90200.png",
+            "numeric": "public\/img\/items\/90200.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                107
+            ]
+        },
+        {
+            "id": 90201,
+            "job_key": "item-90201",
+            "name": "Red Orb",
+            "file": "ai-20261025\/90201.png",
+            "numeric": "public\/img\/items\/90201.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                106
+            ]
+        },
+        {
+            "id": 90202,
+            "job_key": "item-90202",
+            "name": "Venusaurite",
+            "file": "ai-20261025\/90202.png",
+            "numeric": "public\/img\/items\/90202.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                92,
+                108
+            ]
+        },
+        {
+            "id": 90203,
+            "job_key": "item-90203",
+            "name": "Charizardite X",
+            "file": "ai-20261025\/90203.png",
+            "numeric": "public\/img\/items\/90203.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                91,
+                108
+            ]
+        },
+        {
+            "id": 90204,
+            "job_key": "item-90204",
+            "name": "Charizardite Y",
+            "file": "ai-20261025\/90204.png",
+            "numeric": "public\/img\/items\/90204.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                85,
+                108
+            ]
+        },
+        {
+            "id": 90205,
+            "job_key": "item-90205",
+            "name": "Blastoisinite",
+            "file": "ai-20261025\/90205.png",
+            "numeric": "public\/img\/items\/90205.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                108,
+                106
+            ]
+        },
+        {
+            "id": 90206,
+            "job_key": "item-90206",
+            "name": "Beedrillite",
+            "file": "ai-20261025\/90206.png",
+            "numeric": "public\/img\/items\/90206.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                86,
+                108
+            ]
+        },
+        {
+            "id": 90207,
+            "job_key": "item-90207",
+            "name": "Pidgeotite",
+            "file": "ai-20261025\/90207.png",
+            "numeric": "public\/img\/items\/90207.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                96,
+                108
+            ]
+        },
+        {
+            "id": 90208,
+            "job_key": "item-90208",
+            "name": "Alakazite",
+            "file": "ai-20261025\/90208.png",
+            "numeric": "public\/img\/items\/90208.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                90,
+                108
+            ]
+        },
+        {
+            "id": 90209,
+            "job_key": "item-90209",
+            "name": "Slowbronite",
+            "file": "ai-20261025\/90209.png",
+            "numeric": "public\/img\/items\/90209.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                86,
+                108
+            ]
+        },
+        {
+            "id": 90210,
+            "job_key": "item-90210",
+            "name": "Gengarite",
+            "file": "ai-20261025\/90210.png",
+            "numeric": "public\/img\/items\/90210.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                96,
+                108
+            ]
+        },
+        {
+            "id": 90213,
+            "job_key": "item-90213",
+            "name": "Gyaradosite",
+            "file": "ai-20261025\/90213.png",
+            "numeric": "public\/img\/items\/90213.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                82,
+                108
+            ]
+        },
+        {
+            "id": 90310,
+            "job_key": "item-90310",
+            "name": "Ditto Extract",
+            "file": "ai-20261025\/90310.png",
+            "numeric": "public\/img\/items\/90310.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                98,
+                108
+            ]
+        },
+        {
+            "id": 90311,
+            "job_key": "item-90311",
+            "name": "Incubator",
+            "file": "ai-20261025\/90311.png",
+            "numeric": "public\/img\/items\/90311.png",
+            "canvas": [
+                128,
+                128
+            ],
+            "visible_size": [
+                92,
+                108
+            ]
+        }
+    ],
+    "skipped": [
+        {
+            "key": "item-90211",
+            "ids": [
+                90211
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90212",
+            "ids": [
+                90212
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90214",
+            "ids": [
+                90214
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90215",
+            "ids": [
+                90215
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90216",
+            "ids": [
+                90216
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90217",
+            "ids": [
+                90217
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90218",
+            "ids": [
+                90218
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90219",
+            "ids": [
+                90219
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90220",
+            "ids": [
+                90220
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90221",
+            "ids": [
+                90221
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90222",
+            "ids": [
+                90222
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90223",
+            "ids": [
+                90223
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90224",
+            "ids": [
+                90224
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90225",
+            "ids": [
+                90225
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90226",
+            "ids": [
+                90226
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90227",
+            "ids": [
+                90227
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90228",
+            "ids": [
+                90228
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90229",
+            "ids": [
+                90229
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90230",
+            "ids": [
+                90230
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90231",
+            "ids": [
+                90231
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90232",
+            "ids": [
+                90232
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90233",
+            "ids": [
+                90233
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90234",
+            "ids": [
+                90234
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90235",
+            "ids": [
+                90235
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90236",
+            "ids": [
+                90236
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90237",
+            "ids": [
+                90237
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90238",
+            "ids": [
+                90238
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90239",
+            "ids": [
+                90239
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90240",
+            "ids": [
+                90240
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90241",
+            "ids": [
+                90241
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90242",
+            "ids": [
+                90242
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90243",
+            "ids": [
+                90243
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90244",
+            "ids": [
+                90244
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90245",
+            "ids": [
+                90245
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90246",
+            "ids": [
+                90246
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90247",
+            "ids": [
+                90247
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-90248",
+            "ids": [
+                90248
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8500",
+            "ids": [
+                8500,
+                8516
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8501",
+            "ids": [
+                8501,
+                8517
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8502",
+            "ids": [
+                8502,
+                8518
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8503",
+            "ids": [
+                8503,
+                8519
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8504",
+            "ids": [
+                8504,
+                8520
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8505",
+            "ids": [
+                8505,
+                8521
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8506",
+            "ids": [
+                8506,
+                8522
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8507",
+            "ids": [
+                8507,
+                8523
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8508",
+            "ids": [
+                8508,
+                8524
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8509",
+            "ids": [
+                8509,
+                8525
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8510",
+            "ids": [
+                8510,
+                8526
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8511",
+            "ids": [
+                8511,
+                8527
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8512",
+            "ids": [
+                8512,
+                8528
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8513",
+            "ids": [
+                8513,
+                8529
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8514",
+            "ids": [
+                8514,
+                8530
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8515",
+            "ids": [
+                8515,
+                8531
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8532",
+            "ids": [
+                8532
+            ],
+            "reason": "raw file not found"
+        },
+        {
+            "key": "item-8533",
+            "ids": [
+                8533
+            ],
+            "reason": "raw file not found"
+        }
+    ]
+}

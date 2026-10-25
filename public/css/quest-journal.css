@@ -141,6 +141,15 @@
   background: var(--surface-2);
 }
 
+.quest-summary-pill.is-story {
+  border-color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.quest-summary-pill.is-story i {
+  color: var(--accent-strong);
+}
+
 .quest-close {
   width: 52px;
   height: 52px;
@@ -280,6 +289,27 @@
   right: var(--space-7);
   color: var(--accent-strong);
   font-size: var(--fs-200);
+}
+
+.quest-list-card.is-story {
+  border-left: 3px solid var(--accent-strong);
+}
+
+.quest-story-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: var(--fs-200);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+
+.quest-detail-title {
+  flex-wrap: wrap;
 }
 
 .quest-list-card-icon {

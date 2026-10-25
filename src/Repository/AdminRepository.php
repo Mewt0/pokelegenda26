@@ -5,6 +5,8 @@ namespace Pokemon8\Repository;
 
 use PDO;
 use Throwable;
+use Pokemon8\Game\PokemonGrowthCurve;
+use Pokemon8\Game\PokemonGrowthGroup;
 
 final class AdminRepository
 {
@@ -305,7 +307,7 @@ final class AdminRepository
                FROM admin_drop_rules r
           LEFT JOIN items i ON i.id = r.item_id
           LEFT JOIN build b ON b.id = r.location_id
-          LEFT JOIN pokebuild pb ON pb.id = r.pokebuild_id
+          LEFT JOIN pokebuild pb ON r.pokebuild_id > 0 AND pb.id = r.pokebuild_id
           LEFT JOIN pokemon p ON p.id = r.pokemon_base_id
               ORDER BY r.id DESC
               LIMIT ' . $limit
@@ -581,7 +583,7 @@ final class AdminRepository
 
         $stmt = $this->db->prepare(
             'UPDATE users
-                SET groups = :groups, activation = :activation, moderation = :moderation,
+                SET `groups` = :groups, activation = :activation, moderation = :moderation,
                     police = :police, buildmy = :buildmy, karma_score = :karma_score,
                     rang_a = :rang_a, rang_b = :rang_b, battleid = :battleid, pve = :pve, pvp = :pvp
               WHERE id = :id
@@ -974,9 +976,29 @@ final class AdminRepository
         if (!$before) {
             return ['ok' => false, 'message' => 'Покемон не найден.'];
         }
+        $level = max(1, min(100, (int) ($payload['lvl'] ?? $before['lvl'])));
+        $growthGroup = PokemonGrowthGroup::forBaseId((int) ($before['basenum'] ?? 0));
+        $oldLevel = max(1, min(100, (int) ($before['lvl'] ?? 1)));
+        $storedExp = PokemonGrowthCurve::normalizeStoredExperience($oldLevel, (int) ($before['exp'] ?? 0), $growthGroup);
+        if ($level > $oldLevel) {
+            $exp = max($storedExp, PokemonGrowthCurve::cumulative($level, $growthGroup));
+        } elseif ($level < $oldLevel) {
+            $exp = PokemonGrowthCurve::cumulative($level, $growthGroup);
+        } else {
+            $exp = $storedExp;
+        }
+        if ($level < 100) {
+            $exp = min($exp, PokemonGrowthCurve::cumulative($level + 1, $growthGroup) - 1);
+        } else {
+            $exp = PokemonGrowthCurve::cumulative(100, $growthGroup);
+        }
+        $exp = max(PokemonGrowthCurve::cumulative($level, $growthGroup), $exp);
+        $progress = PokemonGrowthCurve::progress($level, $exp, $growthGroup);
         $data = [
             'id' => $id,
-            'lvl' => max(1, min(100, (int) ($payload['lvl'] ?? $before['lvl']))),
+            'lvl' => $level,
+            'exp' => $exp,
+            'exp_b' => $progress['expNextLevel'],
             'active' => (int) ($payload['active'] ?? $before['active']),
             'hp_my' => max(0, (int) ($payload['hp_my'] ?? $before['hp_my'])),
             'hp_max' => max(1, (int) ($payload['hp_max'] ?? $before['hp_max'])),
@@ -988,7 +1010,8 @@ final class AdminRepository
         ];
         $stmt = $this->db->prepare(
             'UPDATE pok_user
-                SET lvl = :lvl, active = :active, hp_my = :hp_my, hp_max = :hp_max,
+                SET lvl = :lvl, exp = :exp, exp_b = :exp_b, active = :active,
+                    hp_my = :hp_my, hp_max = :hp_max,
                     training_stage = :training_stage, training_stat = :training_stat,
                     training_named_effect = :training_named_effect, training_tamed = :training_tamed,
                     training_updated_at = :training_updated_at
@@ -1063,6 +1086,9 @@ final class AdminRepository
         if ($tips === '') {
             $tips = 'normal';
         }
+        $growthGroup = PokemonGrowthGroup::forBaseId($baseId);
+        $grantedExp = PokemonGrowthCurve::cumulative($level, $growthGroup);
+        $grantedExpNext = PokemonGrowthCurve::progress($level, $grantedExp, $growthGroup)['expNextLevel'];
         $pokemonId = $this->nextTableId('pok_user', 'id');
         $name = $this->cleanPokemonGrantName($base, $baseId) . ($shiny ? ' - Shiny' : '');
 
@@ -1079,7 +1105,7 @@ final class AdminRepository
                      hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv, tips, startone, startepoke,
                      reproduction, happy, datemay, usersone, sprz, item, ability_key)
                  VALUES
-                    (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 0, 100,
+                    (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?,
                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                      ?, ?, ?, ?, ?, ?, ?, 0, 0,
                      0, 0, NOW(), ?, 0, 0, ?)'
@@ -1095,6 +1121,8 @@ final class AdminRepository
                 $har,
                 $hpCurrent,
                 $stats['hp'],
+                $grantedExp,
+                $grantedExpNext,
                 $stats['atk'],
                 $stats['def'],
                 $stats['satk'],

@@ -246,9 +246,19 @@ final class BattleEngineService
 
     public function pvpStatus(int $userId, int $targetUserId): array
     {
+        $active = $this->battles->findActivePvpBattleForUser($userId);
+        $opponentId = 0;
+        if ($active !== null) {
+            $opponentId = (int) ($active['user_1'] ?? 0) === $userId
+                ? (int) ($active['user_2'] ?? 0)
+                : (int) ($active['user_1'] ?? 0);
+        }
+
         return [
             'ok' => true,
             'status' => $this->battles->pvpRequestStatus($userId, $targetUserId),
+            'battleId' => (int) ($active['id'] ?? 0),
+            'opponentId' => $opponentId,
             'permission' => $this->battles->pvpAttackPermission($userId, $targetUserId),
         ];
     }
@@ -269,6 +279,7 @@ final class BattleEngineService
             'isForm' => PokemonFormCatalog::isForm($baseNum),
             'code' => $code,
             'level' => (int) ($pokemon['lvl'] ?? 0),
+            ...PokemonExperience::progressForBaseId($baseNum, (int) ($pokemon['lvl'] ?? 1), (int) ($pokemon['exp'] ?? 0)),
             'hp' => (int) ($pokemon['hp_my'] ?? 0),
             'hpMax' => (int) ($pokemon['hp_max'] ?? 0),
             'starter' => (int) ($pokemon['startepoke'] ?? 0) === 1,
@@ -485,6 +496,25 @@ final class BattleEngineService
 
     private function pvpAction(int $userId, string $action, array $payload): array
     {
+        $active = $this->battles->findActivePvpBattleForUser($userId);
+        $battleId = (int) ($active['id'] ?? 0);
+        if ($battleId <= 0) {
+            return $this->dispatchPvpAction($userId, $action, $payload);
+        }
+
+        if (!$this->battles->acquirePvpBattleActionLock($battleId)) {
+            return ['ok' => false, 'active' => true, 'message' => 'Предыдущее действие ещё обрабатывается.'];
+        }
+
+        try {
+            return $this->dispatchPvpAction($userId, $action, $payload);
+        } finally {
+            $this->battles->releasePvpBattleActionLock($battleId);
+        }
+    }
+
+    private function dispatchPvpAction(int $userId, string $action, array $payload): array
+    {
         return match ($action) {
             'attack' => $this->pvpAttack($userId, (int) ($payload['move_id'] ?? 0)),
             'switch' => $this->pvpSwitchPokemon($userId, (int) ($payload['pokemon_id'] ?? 0)),
@@ -537,10 +567,14 @@ final class BattleEngineService
             return ['ok' => false, 'active' => true, 'message' => 'У этой атаки закончились PP.', 'battle' => $this->state($userId)['battle'] ?? []];
         }
 
+        if (!$this->battles->setPvpBattleAction($battleId, $side, (int) ($playerMove['id'] ?? 0))) {
+            $state = $this->pvpService->pvpState($userId, $battleId);
+            $state['messages'] = ['Ход уже выбран. Ждем соперника.'];
+            return $state;
+        }
         if (isset($playerMove['pp_min'], $playerMove['pp_max'])) {
             $this->battles->decrementSelectedMovePp((int) ($player['id'] ?? 0), (int) ($playerMove['id'] ?? 0));
         }
-        $this->battles->setPvpBattleAction($battleId, $side, (int) ($playerMove['id'] ?? 0));
 
         $battle = $this->battles->findPvpBattleForUser($userId, $battleId);
         if ($battle === null) {
@@ -600,17 +634,19 @@ final class BattleEngineService
         }
 
         if ((int) ($first['hp_my'] ?? 0) <= 0) {
-            $this->battles->finishPvpBattle($battleId, (int) ($battle['user_2'] ?? 0));
-            $this->battles->insertBattleLog($battleId, $round, 'Победа тренера ' . $this->battles->findUserLoginById((int) ($battle['user_2'] ?? 0)) . '.');
+            if ($this->battles->finishPvpBattle($battleId, (int) ($battle['user_2'] ?? 0))) {
+                $this->battles->insertBattleLog($battleId, $round, 'Победа тренера ' . $this->battles->findUserLoginById((int) ($battle['user_2'] ?? 0)) . '.');
+            }
             return;
         }
         if ((int) ($second['hp_my'] ?? 0) <= 0) {
-            $this->battles->finishPvpBattle($battleId, (int) ($battle['user_1'] ?? 0));
-            $this->battles->insertBattleLog($battleId, $round, 'Победа тренера ' . $this->battles->findUserLoginById((int) ($battle['user_1'] ?? 0)) . '.');
+            if ($this->battles->finishPvpBattle($battleId, (int) ($battle['user_1'] ?? 0))) {
+                $this->battles->insertBattleLog($battleId, $round, 'Победа тренера ' . $this->battles->findUserLoginById((int) ($battle['user_1'] ?? 0)) . '.');
+            }
             return;
         }
 
-        $this->battles->resetPvpBattleActionsAndIncrementRound($battleId);
+        $this->battles->resetPvpBattleActionsAndIncrementRound($battleId, $round);
     }
 
     private function pvpSwitchPokemon(int $userId, int $pokemonId): array
@@ -793,8 +829,9 @@ final class BattleEngineService
         }
 
         $winner = (int) ($battle['user_1'] ?? 0) === $userId ? (int) ($battle['user_2'] ?? 0) : (int) ($battle['user_1'] ?? 0);
-        $this->battles->insertBattleLog($battleId, (int) ($battle['raund'] ?? 1), $this->battles->findUserLoginById($userId) . ' сдается.');
-        $this->battles->finishPvpBattle($battleId, $winner);
+        if ($this->battles->finishPvpBattle($battleId, $winner)) {
+            $this->battles->insertBattleLog($battleId, (int) ($battle['raund'] ?? 1), $this->battles->findUserLoginById($userId) . ' сдается.');
+        }
 
         return $this->pvpService->pvpState($userId, $battleId);
     }
@@ -1310,13 +1347,28 @@ final class BattleEngineService
             return $this->resolvePveEnemyResponseAfterPlayerAction($userId, $battleId, [$message], true);
         }
 
-        if (!$this->battles->claimPveBattleFinish((int) $battle['id'], $userId, $userId)) {
-            return $this->alreadyFinishedPveResponse($userId, 'Бой уже завершён, ловля уже была обработана.');
-        }
-        $this->battles->decrementInventoryItemRow($userId, $itemUserId);
         $active = $this->battles->countActivePokemon($userId) >= 6 ? 0 : 1;
-        $newPokemonId = $this->battles->catchWildPokemon($userId, (string) ($enemy['battle_pokemon'] ?? $battle['poke_2']), $active, (int) $battle['id']);
-        if ($newPokemonId === null) {
+        $catchResult = $this->battles->completePveCatch(
+            $userId,
+            $itemUserId,
+            (string) ($enemy['battle_pokemon'] ?? $battle['poke_2']),
+            $active,
+            (int) $battle['id']
+        );
+        if (!$catchResult['ok']) {
+            if (($catchResult['reason'] ?? '') === 'already_finished') {
+                return $this->alreadyFinishedPveResponse($userId, 'Бой уже завершён, ловля уже была обработана.');
+            }
+            if (($catchResult['reason'] ?? '') === 'item_missing') {
+                return ['ok' => false, 'active' => true, 'message' => 'Покебол недоступен. Покемон не пойман.'];
+            }
+
+            $message = 'Не удалось сохранить покемона. Покебол не списан, попробуйте ещё раз.';
+            $this->battles->insertBattleLog((int) $battle['id'], $round, $message);
+            return ['ok' => false, 'active' => true, 'message' => $message];
+        }
+        $newPokemonId = (int) ($catchResult['pokemonId'] ?? 0);
+        if ($newPokemonId <= 0) {
             $message = sprintf('Покемон #%s вырвался из шара: не удалось добавить его в команду.', $enemyName);
             $this->battles->insertBattleLog((int) $battle['id'], $round, $message);
             return ['ok' => false, 'active' => true, 'message' => $message];
@@ -2477,6 +2529,7 @@ final class BattleEngineService
             ],
             'name' => strip_tags((string) ($pokemon['names'] ?? 'Pokemon')),
             'level' => (int) ($pokemon['lvl'] ?? 1),
+            ...PokemonExperience::progressForBaseId($baseNum, (int) ($pokemon['lvl'] ?? 1), (int) ($pokemon['exp'] ?? 0)),
             'hp' => max(0, (int) ($pokemon['hp_my'] ?? 0)),
             'hpMax' => max(1, (int) ($pokemon['hp_max'] ?? 1)),
             'tips' => (string) ($pokemon['tips'] ?? 'normal'),
@@ -2752,6 +2805,7 @@ final class BattleEngineService
                 'displayBaseNum' => PokemonFormCatalog::displayBaseId((int) ($pokemon['basenum'] ?? 0)),
                 'name' => strip_tags((string) ($pokemon['names'] ?? ('Pokemon #' . $id))),
                 'level' => (int) ($pokemon['lvl'] ?? 1),
+                ...PokemonExperience::progressForBaseId((int) ($pokemon['basenum'] ?? 0), (int) ($pokemon['lvl'] ?? 1), (int) ($pokemon['exp'] ?? 0)),
                 'tips' => (string) ($pokemon['tips'] ?? ''),
                 'gender' => (string) ($pokemon['sex'] ?? ''),
                 'hp' => $hp,

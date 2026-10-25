@@ -1493,3 +1493,27 @@ POST /api/pokemon/nursery: существующее действие take; уд�
 Вместимость 2000 взята из ТЗ; активные плитки и renderTile() не менялись.
 Проверено: PHP/JS/CSS синтаксис, поиск, уровень, сброс фильтров, открытие карточки и адаптивная раскладка.
 */
+
+/* Actual server XP progress, shared by team and nursery details. */
+.experience-progress {
+  min-width: 0;
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-1);
+  overflow-wrap: break-word;
+}
+.experience-progress progress {
+  display: block;
+  width: 100%;
+  height: 12px;
+  margin-top: var(--space-2);
+  accent-color: var(--accent-strong);
+}
+
+/* Keep the starter badge clear of the species name and HP on narrow tiles. */
+.team-list.is-overview .poke-tile { height: auto; min-height: 164px; padding-top: 32px; }
+.team-list.is-overview .tile-status { top: var(--space-2); bottom: auto; max-width: calc(100% - 44px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.team-list.is-overview .poke-tile:has(.tile-held:not([hidden])) .tile-status { right: 40px; max-width: calc(100% - 76px); }

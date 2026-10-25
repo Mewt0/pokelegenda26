@@ -35,6 +35,16 @@
   const esc = (v) => String(v ?? '').replace(/[&<>'"]/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;'
   }[c]));
+  // В базе у части импортированных атак остались служебные пометки для
+  // разработчиков. Игроку они не нужны, поэтому вырезаем их на выводе.
+  const cleanAttackText = (value) => String(value ?? '')
+    .replace(/Импортировано из pokemon_moves_by_gen\.xlsx\.?/giu, '')
+    .replace(/Проверка дублей выполнена по имени атаки\.?/giu, '')
+    .replace(/Особый эффект поздних поколений:\s*требует точной настройки в боевом движке\.?/giu, '')
+    .replace(/требует точной настройки в боевом движке\.?/giu, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([.,;:])/g, '$1')
+    .trim();
   const iconMarkup = (name) => '<span class="icon icon--' + name + '" aria-hidden="true"></span>';
   const DEX_SECTION_ICON_VERSION = '20261025';
 
@@ -477,7 +487,7 @@
               <span>${esc(category)}</span>
               <span>PP ${Number(a.pp || 0)}</span>
             </div>
-            <p>${esc(a.description || a.short || 'Описание атаки не заполнено.')}</p>
+            <p>${esc(cleanAttackText(a.description || a.short) || 'Описание атаки не заполнено.')}</p>
           </div>
         </div>
 
@@ -505,7 +515,7 @@
         <div class="attack-info-grid">
           <div class="attack-info-card">
             <h3>${sectionTitle('info', 'Детали')}</h3>
-            <p>${esc(a.details || a.effectText || a.description || 'Дополнительные детали отсутствуют.')}</p>
+            <p>${esc(cleanAttackText(a.details || a.effectText || a.description) || 'Дополнительные детали отсутствуют.')}</p>
             <div class="attack-code-lines">
               ${flags.dopEffect && flags.dopEffect !== '0' ? `<span>DOP: ${esc(flags.dopEffect)}</span>` : ''}
               ${Number(flags.status || 0) > 0 ? `<span>Статус: #${Number(flags.status)}</span>` : ''}

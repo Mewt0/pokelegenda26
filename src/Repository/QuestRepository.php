@@ -301,6 +301,11 @@ final class QuestRepository
                 && $cooldownUntil > 0
                 && $cooldownUntil <= $now;
             $canStart = $this->canStart($userId, $questId);
+            $startTarget = $this->navigationTargetForKey((string) ($steps[0]['action_key'] ?? ''));
+            $startLocationId = (string) ($startTarget['kind'] ?? '') === 'npc'
+                ? max(0, (int) ($startTarget['target_location_id'] ?? 0))
+                : 0;
+            $onStartLocation = $startLocationId <= 0 || $currentLocationId === $startLocationId;
             $status = 'available';
             if (!$canStart) {
                 $status = 'locked';
@@ -324,10 +329,13 @@ final class QuestRepository
                 'type' => $this->questType($definition),
                 'status' => $status,
                 'tracked' => $trackedQuestId === $questId,
-                'can_start' => $canStart && (
+                'can_start' => $canStart && $onStartLocation && (
                     $state === null
                     || ($repeatable && ($completed || $repeatableReady) && !$onCooldown)
                 ),
+                'start_location_id' => $startLocationId,
+                'start_location_title' => $startLocationId > 0 ? $this->locationTitle($startLocationId) : '',
+                'start_on_location' => $onStartLocation,
                 'repeatable' => $repeatable,
                 'depends_on_quest_id' => (int) ($definition['depends_on_quest_id'] ?? 0),
                 'process' => $process,
@@ -413,6 +421,21 @@ final class QuestRepository
             return ['ok' => false, 'message' => 'Сначала нужно завершить связанный квест.'];
         }
 
+        $steps = $this->steps($questId);
+        $startTarget = $this->navigationTargetForKey((string) ($steps[0]['action_key'] ?? ''));
+        $startLocationId = (string) ($startTarget['kind'] ?? '') === 'npc'
+            ? max(0, (int) ($startTarget['target_location_id'] ?? 0))
+            : 0;
+        if ($startLocationId > 0 && $this->currentLocationId($userId) !== $startLocationId) {
+            $title = $this->locationTitle($startLocationId);
+            return [
+                'ok' => false,
+                'message' => $title !== ''
+                    ? 'Этот квест начинается в локации «' . $title . '».'
+                    : 'Этот квест начинается в другой локации.',
+            ];
+        }
+
         $state = $this->findForUser($userId, $questId);
         if ($state !== null) {
             $completed = (int) ($state['gotov'] ?? 0) === 1;
@@ -428,7 +451,6 @@ final class QuestRepository
             }
         }
 
-        $steps = $this->steps($questId);
         $firstProcess = $steps !== [] ? max(1, (int) ($steps[0]['required_process'] ?? 1)) : 1;
         if ($state !== null) {
             $stmt = $this->db->prepare(
@@ -581,6 +603,20 @@ final class QuestRepository
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private function navigationTargetForKey(string $actionKey): array
+    {
+        $actionKey = trim($actionKey);
+        if ($actionKey === '') {
+            return [];
+        }
+
+        $targets = $this->questNavigationTargets();
+        return is_array($targets[$actionKey] ?? null) ? $targets[$actionKey] : [];
+    }
+
+    /**
      * @return array<string, array<string, mixed>>
      */
     private function questNavigationTargets(): array
@@ -667,6 +703,57 @@ final class QuestRepository
                 'target_location_id' => 7,
                 'target_npc_title' => 'Старая женщина',
                 'hint' => 'Принесите старой женщине трёх Venonat 25+ уровня с нахальным характером.',
+            ],
+            // Точки старта сюжетных квестов: журнал не должен позволять
+            // принять задание вдали от NPC, который его выдаёт.
+            'oak_start' => [
+                'kind' => 'npc',
+                'label' => 'Профессор Оук',
+                'target_location_id' => 3,
+                'target_npc_title' => 'Профессор Оук',
+                'hint' => 'Поговорите с профессором Оуком в лаборатории.',
+            ],
+            'billy_start' => [
+                'kind' => 'npc',
+                'label' => 'Коллекционер Билли',
+                'target_location_id' => 4,
+                'target_npc_title' => 'Коллекционер Билли',
+                'hint' => 'Найдите коллекционера Билли на Дороге 1.',
+            ],
+            'circus_start' => [
+                'kind' => 'npc',
+                'label' => 'Циркач Стив',
+                'target_location_id' => 5,
+                'target_npc_title' => 'Циркач Стив',
+                'hint' => 'Поговорите с циркачом Стивом.',
+            ],
+            'carol_start' => [
+                'kind' => 'npc',
+                'label' => 'Кэрол',
+                'target_location_id' => 6,
+                'target_npc_title' => 'Кэрол',
+                'hint' => 'Найдите Кэрол и расспросите об игрушке.',
+            ],
+            'horsea_start' => [
+                'kind' => 'npc',
+                'label' => 'Исследователь',
+                'target_location_id' => 3,
+                'target_npc_title' => 'Исследователь',
+                'hint' => 'Поговорите с исследователем.',
+            ],
+            'metapod_start' => [
+                'kind' => 'npc',
+                'label' => 'Исследователь',
+                'target_location_id' => 3,
+                'target_npc_title' => 'Исследователь',
+                'hint' => 'Возьмите ежедневное задание у исследователя.',
+            ],
+            'jafit_oddish_turnin' => [
+                'kind' => 'npc',
+                'label' => 'Миссис Джафит',
+                'target_location_id' => 10,
+                'target_npc_title' => 'Миссис Джафит',
+                'hint' => 'Найдите Миссис Джафит у цветочного прилавка.',
             ],
             'amira_lake' => [
                 'kind' => 'npc',

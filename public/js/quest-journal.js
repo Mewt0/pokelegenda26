@@ -1,4 +1,11 @@
 (() => {
+  document.addEventListener('error', (event) => {
+    const image = event.target;
+    if (!image || image.tagName !== 'IMG' || !image.dataset.fallbackSrc) return;
+    const fallback = image.dataset.fallbackSrc;
+    image.removeAttribute('data-fallback-src');
+    image.src = fallback;
+  }, true);
   const roots = [...document.querySelectorAll('[data-quest-root]')];
   if (roots.length === 0) return;
 
@@ -17,6 +24,11 @@
     event: 'Ивентовый',
     chain: 'Цепочка',
   };
+  // Основная сюжетная линия: старт Оука -> история Спайка -> первая дорога ->
+  // ледяное крыло. Побочные истории с type=story остаются в общем списке, но
+  // не размывают счётчик и подсказку основной линии.
+  const storyQuestIds = new Set([1, 2, 7, 101, 102, 103, 160, 161, 162]);
+  const isStoryQuest = (quest) => !!quest && storyQuestIds.has(Number(quest.id || 0));
   const iconMarkup = (name) => `<span class="icon icon--${name}" aria-hidden="true"></span>`;
   const summaryConfig = [
     ['active', 'В процессе', '◎'],
@@ -145,7 +157,8 @@
       const query = state.query.trim().toLowerCase();
       return state.quests.filter((quest) => {
         const status = String(quest.status || '');
-        if (state.filter !== 'all') {
+        if (state.filter === 'story' && !isStoryQuest(quest)) return false;
+        if (state.filter !== 'all' && state.filter !== 'story') {
           if (state.filter === 'available') {
             if (!(status === 'available' || (quest.can_start && status !== 'completed'))) return false;
           } else if (status !== state.filter) {
@@ -159,9 +172,15 @@
 
     function renderSummary() {
       if (!els.summary) return;
-      els.summary.innerHTML = summaryConfig.map(([key, label, icon]) => (
+      const storyQuests = state.quests.filter(isStoryQuest);
+      const storyDone = storyQuests.filter((quest) => String(quest.status) === 'completed').length;
+      const pills = summaryConfig.map(([key, label, icon]) => (
         `<span class="quest-summary-pill is-${key}"><i>${icon}</i>${escapeHtml(label)}: ${formatNumber(state.summary[key] || 0)}</span>`
-      )).join('');
+      ));
+      if (storyQuests.length > 0) {
+        pills.push(`<span class="quest-summary-pill is-story"><i>${iconMarkup('npc-quest')}</i>Сюжет: ${storyDone} / ${storyQuests.length}</span>`);
+      }
+      els.summary.innerHTML = pills.join('');
     }
 
     function renderList() {
@@ -176,11 +195,12 @@
         const progress = quest.progress || {};
         const percent = clampPercent(progress.percent);
         const status = String(quest.status || 'available');
-        return `<button type="button" class="quest-list-card ui-card${Number(quest.id) === state.selectedId ? ' is-selected' : ''}${quest.tracked ? ' is-tracked' : ''}" data-quest-select="${Number(quest.id || 0)}">
+        const story = isStoryQuest(quest);
+        return `<button type="button" class="quest-list-card ui-card${Number(quest.id) === state.selectedId ? ' is-selected' : ''}${quest.tracked ? ' is-tracked' : ''}${story ? ' is-story' : ''}" data-quest-select="${Number(quest.id || 0)}">
           <span class="quest-list-card-icon ui-card__media"><img src="${escapeHtml(quest.icon || '/public/img/ui/menu-quests.png')}" alt=""></span>
           <span class="quest-list-card-main">
             <b class="ui-card__title">${escapeHtml(quest.title || `Квест #${quest.id}`)}</b>
-            <small class="ui-card__meta">${escapeHtml(statusLabels[status] || status)} · ${escapeHtml(typeLabels[quest.type] || 'Квест')} · ${percent}%</small>
+            <small class="ui-card__meta">${story ? 'Сюжет · ' : ''}${escapeHtml(statusLabels[status] || status)} · ${escapeHtml(typeLabels[quest.type] || 'Квест')} · ${percent}%</small>
           </span>
           ${status === 'available' ? '<span class="quest-new-dot" aria-hidden="true"></span>' : ''}
           <span class="quest-card-arrow" aria-hidden="true">›</span>
@@ -207,6 +227,7 @@
       els.detail.innerHTML = `
         <div class="quest-detail-title">
           <h2>${escapeHtml(quest.title || `Квест #${quest.id}`)}</h2>
+          ${isStoryQuest(quest) ? '<span class="quest-story-badge">Сюжетная линия</span>' : ''}
           <span class="quest-status-badge is-${escapeHtml(status)}"><i>${status === 'completed' ? iconMarkup('player-online') : status === 'available' ? iconMarkup('npc-quest') : status === 'locked' ? iconMarkup('chat-user-menu-ignore') : '◎'}</i>${escapeHtml(statusLabels[status] || status)}</span>
         </div>
         <p class="quest-description">${highlighted(quest.description || 'Описание пока не заполнено.')}</p>
@@ -261,7 +282,7 @@
       els.rewards.className = 'quest-rewards';
       els.rewards.innerHTML = rewards.map((reward) => `
         <article class="quest-reward-card ui-card">
-          <span class="quest-reward-card-media ui-card__media"><img src="${escapeHtml(reward.icon || '/public/img/ui/menu-quests.png')}" alt="" onerror="this.src='/public/img/ui/menu-quests.png'"></span>
+          <span class="quest-reward-card-media ui-card__media"><img src="${escapeHtml(reward.icon || '/public/img/ui/menu-quests.png')}" alt="" data-fallback-src="/public/img/ui/menu-quests.png"></span>
           <span>
             <b class="ui-card__title">${escapeHtml(reward.label || 'Награда')}</b>
             <small class="ui-card__meta">${reward.type === 'rank' ? '+' : '× '}${formatNumber(reward.amount || 1)}</small>
@@ -284,8 +305,11 @@
 
     function renderMiniTracker() {
       if (!mini) return;
+      const storyQuests = state.quests.filter(isStoryQuest);
       const tracked = state.quests.find((quest) => quest.tracked)
-        || state.quests.find((quest) => quest.status === 'active')
+        || storyQuests.find((quest) => String(quest.status) === 'active')
+        || storyQuests.find((quest) => quest.can_start || String(quest.status) === 'available')
+        || state.quests.find((quest) => String(quest.status) === 'active')
         || state.quests.find((quest) => quest.can_start);
       if (!tracked) {
         mini.hidden = true;
@@ -293,9 +317,12 @@
       }
       mini.hidden = false;
       const percent = clampPercent(tracked.progress && tracked.progress.percent);
+      const story = isStoryQuest(tracked);
+      const kicker = mini.querySelector('.quest-mini-title');
+      if (kicker) kicker.textContent = story ? 'Сюжет' : 'Квест';
       mini.querySelector('[data-quest-mini-title]').textContent = tracked.title || `Квест #${tracked.id}`;
       mini.querySelector('[data-quest-mini-progress]').style.width = `${percent}%`;
-      mini.querySelector('[data-quest-mini-meta]').textContent = `${statusLabels[tracked.status] || tracked.status} · ${percent}%`;
+      mini.querySelector('[data-quest-mini-meta]').textContent = `${statusLabels[tracked.status] || tracked.status} · ${percent}%${tracked.tracked ? '' : ' · открыть журнал'}`;
     }
 
     function renderAll() {

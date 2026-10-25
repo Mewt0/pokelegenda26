@@ -6,6 +6,8 @@ namespace Pokemon8\Repository;
 use PDO;
 use Pokemon8\Game\BattleTransformationCatalog;
 use Pokemon8\Game\PokemonFormCatalog;
+use Pokemon8\Game\PokemonGrowthCurve;
+use Pokemon8\Game\PokemonGrowthGroup;
 
 final class InventoryRepository
 {
@@ -13,6 +15,8 @@ final class InventoryRepository
     private ?RewardRepository $rewards = null;
     private ?SafeStorageRepository $safeStorage = null;
     private ?bool $itemGameplayMetadataAvailable = null;
+    private ?bool $itemsPokeIdIsAuto = null;
+    private ?bool $itemsPokeIdSequenceAvailable = null;
 
     public function __construct(private PDO $db, ?PokemonEvolutionRepository $evolutions = null)
     {
@@ -167,22 +171,6 @@ final class InventoryRepository
             return ['ok' => false, 'message' => 'Этот предмет нельзя применить на покемона.'];
         }
 
-        $available = (int) ($item['count'] ?? 0);
-        $min = max(1, (int) ($item['target_min_count'] ?? 1));
-        $max = max($min, (int) ($item['target_max_count'] ?? $available));
-        $max = min($max, $available);
-        if ($count < $min || $count > $max) {
-            return ['ok' => false, 'message' => sprintf('Можно применить от %d до %d шт.', $min, $max)];
-        }
-        if ((int) ($item['allow_quantity'] ?? 0) !== 1 && $count !== 1) {
-            return ['ok' => false, 'message' => 'Этот предмет применяется только по одной штуке.'];
-        }
-
-        $pokemon = $this->findActivePokemon($userId, $pokemonId);
-        if ($pokemon === null) {
-            return ['ok' => false, 'message' => 'Покемон не найден в активной команде.'];
-        }
-
         $effectKey = (string) ($item['effect_key'] ?? 'pending');
         $resultMessage = '';
         $supportedEffects = [
@@ -214,6 +202,40 @@ final class InventoryRepository
 
         $this->db->beginTransaction();
         try {
+            // Lock the pokemon first, then the inventory row. equip/unequip and
+            // target-use all follow this order, so two concurrent requests cannot
+            // both spend the same items_users row or apply an effect twice.
+            $pokemon = $this->findActivePokemon($userId, $pokemonId, true);
+            if ($pokemon === null) {
+                $this->db->rollBack();
+                return ['ok' => false, 'message' => 'Покемон не найден в активной команде.'];
+            }
+
+            $item = $this->findInventoryItemForTargetUse($userId, $itemUserId, true);
+            if ($item === null) {
+                $this->db->rollBack();
+                return ['ok' => false, 'message' => 'Этот предмет нельзя применить на покемона.'];
+            }
+
+            // Re-validate the quantity against the locked row: another request may
+            // have consumed part of it while this request was waiting for the lock.
+            $available = (int) ($item['count'] ?? 0);
+            $min = max(1, (int) ($item['target_min_count'] ?? 1));
+            $max = max($min, (int) ($item['target_max_count'] ?? $available));
+            $max = min($max, $available);
+            if ($count < $min || $count > $max) {
+                $this->db->rollBack();
+                return ['ok' => false, 'message' => sprintf('Можно применить от %d до %d шт.', $min, $max)];
+            }
+            if ((int) ($item['allow_quantity'] ?? 0) !== 1 && $count !== 1) {
+                $this->db->rollBack();
+                return ['ok' => false, 'message' => 'Этот предмет применяется только по одной штуке.'];
+            }
+
+            // Items actually spent. For exp candies the level cap may make a
+            // smaller number of items sufficient (D3), every other effect still
+            // spends exactly the requested count.
+            $consumed = $count;
             $happinessDelta = 0;
             if ($effectKey === 'consume_only') {
                 $resultMessage = 'Предмет использован.';
@@ -223,6 +245,11 @@ final class InventoryRepository
                     $this->db->rollBack();
                     return ['ok' => false, 'message' => 'Покемон уже достиг максимального уровня. Предмет не списан.'];
                 }
+                // Spend only the items needed for the levels that were actually
+                // granted. ceil() protects a partially used last item (e.g. a
+                // +5 candy that only yields +1 level at the 100 cap).
+                $perItem = $this->candyLevelsPerItem((int) ($item['item_id'] ?? 0));
+                $consumed = min($count, max(1, (int) ceil($levels / $perItem)));
                 $evolution = $this->levelPokemon($pokemonId, $userId, $levels);
                 $resultMessage = sprintf('%s получает +%d уров.', strip_tags((string) ($pokemon['names'] ?? 'Покемон')), $levels);
                 $happinessDelta += $levels * 2;
@@ -291,7 +318,7 @@ final class InventoryRepository
                     $resultMessage .= ' Счастье +' . $appliedHappiness . '.';
                 }
             }
-            $this->decrementInventoryRowById($userId, $itemUserId, $count);
+            $this->decrementInventoryRowById($userId, $itemUserId, $consumed);
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollBack();
@@ -305,7 +332,7 @@ final class InventoryRepository
                 '%s применён на %s x%d.',
                 (string) ($item['name'] ?? 'Предмет'),
                 strip_tags((string) ($pokemon['names'] ?? 'покемона')),
-                $count
+                $consumed
             ) . ($resultMessage !== '' ? ' ' . $resultMessage : ''),
         ];
     }
@@ -472,6 +499,16 @@ final class InventoryRepository
         ];
     }
 
+    private function candyLevelsPerItem(int $itemId): int
+    {
+        return match ($itemId) {
+            1401 => 5,
+            655 => 3,
+            653, 654, 861 => 2,
+            default => 1,
+        };
+    }
+
     private function candyLevelGain(int $itemId, array $pokemon, int $count): int
     {
         $level = (int) ($pokemon['lvl'] ?? 1);
@@ -480,28 +517,106 @@ final class InventoryRepository
             return 0;
         }
 
-        $perItem = match ($itemId) {
-            1401 => 5,
-            655 => 3,
-            653, 654, 861 => 2,
-            default => 1,
-        };
+        $perItem = $this->candyLevelsPerItem($itemId);
 
         return min($maxGain, max(1, $count) * $perItem);
     }
 
     private function levelPokemon(int $pokemonId, int $userId, int $levels): ?array
     {
+        $stmt = $this->db->prepare(
+            'SELECT basenum, lvl, exp
+               FROM pok_user
+              WHERE id = :pokemon AND users = :user AND active = 1
+              LIMIT 1
+                FOR UPDATE'
+        );
+        $stmt->execute(['pokemon' => $pokemonId, 'user' => $userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return null;
+        }
+
+        $oldLevel = max(1, min(100, (int) ($row['lvl'] ?? 1)));
+        $oldGroup = PokemonGrowthGroup::forBaseId((int) ($row['basenum'] ?? 0));
+        $newLevel = max(1, min(100, $oldLevel + max(1, $levels)));
+        // A candy that raises the level must land on that level's XP floor; any
+        // progress already collected above the floor is preserved (no debt, no
+        // rollback of XP) and level 100 lands exactly on the cap.
+        $storedExp = PokemonGrowthCurve::normalizeStoredExperience($oldLevel, (int) ($row['exp'] ?? 0), $oldGroup);
+        $newExp = PokemonGrowthCurve::experienceAfterLevelGrant($newLevel, $storedExp, $oldGroup);
+        $progress = PokemonGrowthCurve::progress($newLevel, $newExp, $oldGroup);
+
         $this->db->prepare(
             'UPDATE pok_user
-                SET lvl = LEAST(100, lvl + :levels)
-              WHERE id = :pokemon AND users = :user
+                SET lvl = :lvl, exp = :exp, exp_b = :exp_b
+              WHERE id = :pokemon AND users = :user AND active = 1
               LIMIT 1'
-        )->execute(['levels' => max(1, $levels), 'pokemon' => $pokemonId, 'user' => $userId]);
+        )->execute([
+            'lvl' => $newLevel,
+            'exp' => $newExp,
+            'exp_b' => $progress['expNextLevel'],
+            'pokemon' => $pokemonId,
+            'user' => $userId,
+        ]);
 
         $this->recalculatePokemonStats($pokemonId, $userId);
 
-        return $this->evolutions->applyLevelEvolution($userId, $pokemonId);
+        $evolution = $this->evolutions->applyLevelEvolution($userId, $pokemonId);
+        if ($evolution !== null) {
+            $this->syncExperienceAfterEvolution($pokemonId, $userId, $newLevel, $oldGroup);
+        }
+
+        return $evolution;
+    }
+
+    /**
+     * Evolution must never reset XP or the relative progress inside the level.
+     * Current evolution rules keep the same growth group, but if a future rule
+     * changes it, the fraction is mapped onto the new curve instead of leaving a
+     * debt or an instant extra level.
+     */
+    private function syncExperienceAfterEvolution(int $pokemonId, int $userId, int $level, string $oldGroup): void
+    {
+        $stmt = $this->db->prepare(
+            'SELECT basenum, lvl, exp FROM pok_user WHERE id = :pokemon AND users = :user LIMIT 1'
+        );
+        $stmt->execute(['pokemon' => $pokemonId, 'user' => $userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return;
+        }
+
+        $newGroup = PokemonGrowthGroup::forBaseId((int) ($row['basenum'] ?? 0));
+        if ($newGroup === $oldGroup) {
+            return;
+        }
+
+        $level = max(1, min(100, (int) ($row['lvl'] ?? $level)));
+        $exp = max(0, (int) ($row['exp'] ?? 0));
+        if ($level >= 100) {
+            $newExp = PokemonGrowthCurve::cumulative(100, $newGroup);
+        } else {
+            $current = PokemonGrowthCurve::cumulative($level, $oldGroup);
+            $width = max(1, PokemonGrowthCurve::cumulative($level + 1, $oldGroup) - $current);
+            $fraction = max(0.0, min(1.0, ($exp - $current) / $width));
+            $newCurrent = PokemonGrowthCurve::cumulative($level, $newGroup);
+            $newWidth = max(1, PokemonGrowthCurve::cumulative($level + 1, $newGroup) - $newCurrent);
+            $newExp = $newCurrent + (int) round($fraction * $newWidth);
+            $newExp = max($newCurrent, min(PokemonGrowthCurve::cumulative($level + 1, $newGroup) - 1, $newExp));
+        }
+
+        $progress = PokemonGrowthCurve::progress($level, $newExp, $newGroup);
+        $this->db->prepare(
+            'UPDATE pok_user SET lvl = :lvl, exp = :exp, exp_b = :exp_b
+              WHERE id = :pokemon AND users = :user LIMIT 1'
+        )->execute([
+            'lvl' => $level,
+            'exp' => $newExp,
+            'exp_b' => $progress['expNextLevel'],
+            'pokemon' => $pokemonId,
+            'user' => $userId,
+        ]);
     }
 
     private function adjustPokemonHappiness(int $userId, int $pokemonId, int $delta): int
@@ -687,7 +802,7 @@ final class InventoryRepository
 
     private function equipHeldItemFromTargetUse(int $userId, int $pokemonId, int $itemId): void
     {
-        $existing = $this->findEquippedPokemonItem($pokemonId);
+        $existing = $this->findEquippedPokemonItem($pokemonId, true);
         if ($existing !== null) {
             $currentExpiresAt = (string) ($existing['datetime'] ?? 'not');
             if ($currentExpiresAt === 'not' || (ctype_digit($currentExpiresAt) && (int) $currentExpiresAt > time())) {
@@ -698,8 +813,118 @@ final class InventoryRepository
             return;
         }
 
-        $this->db->prepare('INSERT INTO items_poke (id_poke, id_items, datetime) VALUES (:pokemon, :item, :time)')
-            ->execute(['pokemon' => $pokemonId, 'item' => $itemId, 'time' => 'not']);
+        $this->insertHeldItemRow($pokemonId, $itemId, 'not');
+    }
+
+    /**
+     * items_poke.id_itp is NOT NULL without a default in legacy dumps. Once the
+     * id hardening migration has run the column is AUTO_INCREMENT and the server
+     * allocates the id. Before that, the id comes from the items_poke_id_sequence
+     * row: the UPDATE takes an InnoDB row lock that is released only when the
+     * surrounding transaction commits or rolls back. That is the serialization
+     * boundary the old GET_LOCK + MAX(id)+1 fallback was missing.
+     *
+     * Transaction contract: the caller may already own the transaction (normal
+     * equip/target-use flow). In that case allocation and insert join that
+     * transaction and the caller's commit/rollback decides the sequence value. If
+     * no transaction is active this method opens and commits one itself, and rolls
+     * it back on failure, so a direct caller can never persist a half allocation.
+     */
+    private function insertHeldItemRow(int $pokemonId, int $itemId, string $datetime): void
+    {
+        if ($this->itemsPokeIdIsAuto === null) {
+            $this->itemsPokeIdIsAuto = false;
+            try {
+                $stmt = $this->db->query("SHOW COLUMNS FROM items_poke WHERE Field = 'id_itp'");
+                $row = $stmt ? $stmt->fetch() : null;
+                $this->itemsPokeIdIsAuto = is_array($row)
+                    && str_contains(strtolower((string) ($row['Extra'] ?? '')), 'auto_increment');
+            } catch (\Throwable) {
+                $this->itemsPokeIdIsAuto = false;
+            }
+        }
+
+        $ownsTransaction = !$this->db->inTransaction();
+        if ($ownsTransaction) {
+            $this->db->beginTransaction();
+        }
+
+        try {
+            if ($this->itemsPokeIdIsAuto) {
+                $this->db->prepare('INSERT INTO items_poke (id_poke, id_items, datetime) VALUES (:pokemon, :item, :datetime)')
+                    ->execute(['pokemon' => $pokemonId, 'item' => $itemId, 'datetime' => $datetime]);
+            } else {
+                $nextId = $this->allocateLegacyHeldItemId();
+                $this->db->prepare(
+                    'INSERT INTO items_poke (id_itp, id_poke, id_items, datetime)
+                     VALUES (:id, :pokemon, :item, :datetime)'
+                )->execute([
+                    'id' => $nextId,
+                    'pokemon' => $pokemonId,
+                    'item' => $itemId,
+                    'datetime' => $datetime,
+                ]);
+            }
+
+            if ($ownsTransaction) {
+                $this->db->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($ownsTransaction && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Reserve the next legacy id inside the active transaction.
+     *
+     * `LAST_INSERT_ID(expr)` lets MySQL return the incremented counter in the same
+     * statement without a SELECT that could race. The row lock is transaction
+     * scoped, so a concurrent allocator waits for commit/rollback instead of
+     * reading a stale MAX(id_itp). Rollback also restores next_id, which is safe
+     * because the corresponding items_poke insert is rolled back with it.
+     */
+    private function allocateLegacyHeldItemId(): int
+    {
+        if ($this->itemsPokeIdSequenceAvailable !== true) {
+            $this->itemsPokeIdSequenceAvailable = false;
+            try {
+                $stmt = $this->db->query("SHOW TABLES LIKE 'items_poke_id_sequence'");
+                $this->itemsPokeIdSequenceAvailable = $stmt instanceof \PDOStatement
+                    && $stmt->fetchColumn() !== false;
+            } catch (\Throwable) {
+                $this->itemsPokeIdSequenceAvailable = false;
+            }
+        }
+
+        if ($this->itemsPokeIdSequenceAvailable !== true) {
+            $message = 'items_poke.id_itp is not AUTO_INCREMENT and items_poke_id_sequence is missing; '
+                . 'apply database/migrations/2026_10_25_000007_mysql84_items_poke_id_sequence.sql '
+                . 'before deploying legacy held-item writes.';
+            error_log('[inventory] ' . $message);
+            throw new \RuntimeException($message);
+        }
+
+        if (!$this->db->inTransaction()) {
+            throw new \RuntimeException('Held-item id allocation requires an active transaction.');
+        }
+
+        $update = $this->db->prepare(
+            'UPDATE items_poke_id_sequence SET next_id = LAST_INSERT_ID(next_id + 1) WHERE id = 1'
+        );
+        $update->execute();
+        if ($update->rowCount() !== 1) {
+            throw new \RuntimeException('items_poke_id_sequence is not seeded (row id = 1 is missing).');
+        }
+
+        $nextId = (int) ($this->db->query('SELECT LAST_INSERT_ID()')->fetchColumn() ?: 0);
+        if ($nextId <= 0) {
+            throw new \RuntimeException('items_poke_id_sequence returned an invalid id.');
+        }
+
+        return $nextId;
     }
 
     private function basePokemonName(int $baseId): string
@@ -947,7 +1172,33 @@ final class InventoryRepository
 
         $this->db->beginTransaction();
         try {
-            $current = $this->findEquippedPokemonItem($pokemonId);
+            // Lock the pokemon and then the inventory row. Two concurrent equips
+            // of the same row must not both succeed while only one decrement lands;
+            // the second request now waits and re-reads the row after the first
+            // commit (and usually gets "Предмет не найден" instead of a clone).
+            $pokemon = $this->findActivePokemon($userId, $pokemonId, true);
+            if ($pokemon === null) {
+                $this->db->rollBack();
+                return ['ok' => false, 'message' => 'Покемон не найден в активной команде.'];
+            }
+
+            $item = $this->findInventoryItemForEquip($userId, $itemUserId, true);
+            if ($item === null || (int) ($item['dress'] ?? 0) <= 0 || (int) ($item['count'] ?? 0) <= 0) {
+                $this->db->rollBack();
+                return ['ok' => false, 'message' => 'Предмет не найден в инвентаре.'];
+            }
+            $itemId = (int) $item['item_id'];
+            if (!$this->canEquipHeldItem((int) ($pokemon['basenum'] ?? 0), $itemId, (string) ($item['name'] ?? ''))) {
+                $this->db->rollBack();
+                return ['ok' => false, 'message' => 'Этот предмет не подходит выбранному покемону.'];
+            }
+            $expiresAt = 'not';
+            $days = (int) ($item['timesnapoke'] ?? 0);
+            if ($days > 0) {
+                $expiresAt = (string) (time() + (60 * 60 * 24 * $days));
+            }
+
+            $current = $this->findEquippedPokemonItem($pokemonId, true);
             if ($current !== null) {
                 $currentExpiresAt = (string) ($current['datetime'] ?? 'not');
                 if ($currentExpiresAt === 'not' || (ctype_digit($currentExpiresAt) && (int) $currentExpiresAt > time())) {
@@ -963,20 +1214,15 @@ final class InventoryRepository
                     'pokemon' => $pokemonId,
                 ]);
             } else {
-                $stmt = $this->db->prepare(
-                    'INSERT INTO items_poke (id_poke, id_items, datetime) VALUES (:pokemon, :item, :datetime)'
-                );
-                $stmt->execute([
-                    'pokemon' => $pokemonId,
-                    'item' => $itemId,
-                    'datetime' => $expiresAt,
-                ]);
+                $this->insertHeldItemRow($pokemonId, $itemId, $expiresAt);
             }
 
             $this->decrementInventoryRowById($userId, $itemUserId, 1);
             $this->db->commit();
         } catch (\Throwable $e) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             return ['ok' => false, 'message' => 'Не удалось надеть предмет.'];
         }
 
@@ -1009,6 +1255,20 @@ final class InventoryRepository
 
         $this->db->beginTransaction();
         try {
+            // Lock pokemon -> items_poke. A second concurrent unequip waits here
+            // and then sees no held item, so the item is returned exactly once.
+            $pokemon = $this->findOwnedPokemonForHeldItem($userId, $pokemonId, true);
+            if ($pokemon === null) {
+                $this->db->rollBack();
+                return ['ok' => false, 'message' => 'Покемон не найден.'];
+            }
+
+            $current = $this->findEquippedPokemonItem($pokemonId, true);
+            if ($current === null) {
+                $this->db->rollBack();
+                return ['ok' => false, 'message' => 'На этом покемоне нет предмета.'];
+            }
+
             $currentExpiresAt = (string) ($current['datetime'] ?? 'not');
             $returnedToInventory = $currentExpiresAt === 'not' || (ctype_digit($currentExpiresAt) && (int) $currentExpiresAt > time());
             if ($returnedToInventory) {
@@ -1016,9 +1276,14 @@ final class InventoryRepository
             }
             $stmt = $this->db->prepare('DELETE FROM items_poke WHERE id_poke = :pokemon LIMIT 1');
             $stmt->execute(['pokemon' => $pokemonId]);
+            if ($stmt->rowCount() !== 1) {
+                throw new \RuntimeException('Held item row disappeared during unequip.');
+            }
             $this->db->commit();
         } catch (\Throwable $e) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             return ['ok' => false, 'message' => 'Не удалось снять предмет.'];
         }
 
@@ -1056,7 +1321,7 @@ final class InventoryRepository
         return $stmt->fetch() ?: null;
     }
 
-    private function findInventoryItemForEquip(int $userId, int $itemUserId): ?array
+    private function findInventoryItemForEquip(int $userId, int $itemUserId, bool $forUpdate = false): ?array
     {
         $stmt = $this->db->prepare(
             'SELECT iu.id, iu.item_id, iu.count, i.name, i.dress, i.timesnapoke
@@ -1064,7 +1329,7 @@ final class InventoryRepository
                INNER JOIN items i ON i.id = iu.item_id
               WHERE iu.id = :id AND iu.user_id = :user AND iu.count > 0
                 AND (iu.dattimer = "not" OR (iu.dattimer REGEXP "^[0-9]+$" AND CAST(iu.dattimer AS UNSIGNED) > :time))
-              LIMIT 1'
+              LIMIT 1' . ($forUpdate ? ' FOR UPDATE' : '')
         );
         $stmt->execute(['id' => $itemUserId, 'user' => $userId, 'time' => time()]);
 
@@ -1172,7 +1437,7 @@ final class InventoryRepository
         return in_array($displayBaseId, $ids, true);
     }
 
-    private function findInventoryItemForTargetUse(int $userId, int $itemUserId): ?array
+    private function findInventoryItemForTargetUse(int $userId, int $itemUserId, bool $forUpdate = false): ?array
     {
         $stmt = $this->db->prepare(
             'SELECT iu.id, iu.item_id, iu.count, i.name,
@@ -1186,7 +1451,7 @@ final class InventoryRepository
                 AND iu.count > 0
                 AND (iu.dattimer = "not" OR (iu.dattimer REGEXP "^[0-9]+$" AND CAST(iu.dattimer AS UNSIGNED) > :time))
                 AND itr.target_type = "pokemon"
-              LIMIT 1'
+              LIMIT 1' . ($forUpdate ? ' FOR UPDATE' : '')
         );
         $stmt->execute(['id' => $itemUserId, 'user' => $userId, 'time' => time()]);
 
@@ -1275,17 +1540,22 @@ final class InventoryRepository
 
     private function categorySqlCondition(string $category): string
     {
+        $evolution = '(i.dopolnen = "evolution_item"
+            OR EXISTS (SELECT 1 FROM item_target_rules evo_target
+                WHERE evo_target.item_id = iu.item_id AND evo_target.enabled = 1 AND evo_target.effect_key = "evolution_item")
+            OR EXISTS (SELECT 1 FROM pokemon_evolution_rules evo_rule
+                WHERE evo_rule.item_id = iu.item_id AND evo_rule.enabled = 1 AND evo_rule.trigger_type = "item"))';
         return match ($category) {
             'balls' => $this->battleBallSqlCondition(),
             'tm' => '(iu.item_id = 78 OR i.name LIKE "%TM%" OR i.name LIKE "%ТМ%" OR i.name LIKE "%атака%")',
             'eggs' => '(i.name LIKE "%яйц%" OR i.category = 7)',
-            'evolution' => '(iu.item_id IN (64,66,67,68,69,74,75,76,77,80,81,82,83,86,87,89,332) OR i.name LIKE "%камень%" OR i.name LIKE "%эвол%")',
+            'evolution' => $evolution,
             'consumables' => '(i.uses > 0 OR i.battleuse > 0 OR iu.item_id IN (15,217,330,678,651,652,653,654,655,861,90111,1401))',
             'quest' => '(iu.item_id IN (4,13,14) OR i.category IN (50, 99) OR i.dopolnen LIKE "%quest%" OR i.name LIKE "%квест%" OR i.tittle LIKE "%Квест%")',
             'drop' => '(iu.item_id NOT IN (4,13,14) AND (i.dopolnen LIKE "%drop%" OR iu.item_id IN (20,21,22,23)))',
-            default => 'NOT (
-                iu.item_id IN (3,64,66,67,68,69,74,75,76,77,78,80,81,82,83,86,87,89,217,330,332,678,651,652,653,654,655,861,90004,90005,90111,1401)
-                OR i.name LIKE "%бол%" OR i.name LIKE "%камень%" OR i.name LIKE "%яйц%" OR i.name LIKE "%TM%" OR i.name LIKE "%ТМ%"
+            default => 'NOT (' . $evolution . ' OR
+                iu.item_id IN (3,78,217,330,678,651,652,653,654,655,861,90004,90005,90111,1401)
+                OR i.name LIKE "%бол%" OR i.name LIKE "%яйц%" OR i.name LIKE "%TM%" OR i.name LIKE "%ТМ%"
             )',
         };
     }
@@ -1313,7 +1583,8 @@ final class InventoryRepository
         if (str_contains($name, 'яйц')) {
             return 'eggs';
         }
-        if (in_array($id, [64, 66, 67, 68, 69, 74, 75, 76, 77, 80, 81, 82, 83, 86, 87, 89, 332], true) || str_contains($name, 'камень') || str_contains($name, 'эвол')) {
+        if (($row['dopolnen'] ?? '') === 'evolution_item'
+            || ((int)($row['target_enabled'] ?? 0) === 1 && ($row['effect_key'] ?? '') === 'evolution_item')) {
             return 'evolution';
         }
         if ((int) ($row['uses'] ?? 0) > 0 || (int) ($row['battleuse'] ?? 0) > 0 || in_array($id, [15, 217, 330, 678, 651, 652, 653, 654, 655, 861, 90111, 1401], true)) {
@@ -1422,38 +1693,39 @@ final class InventoryRepository
         ]);
     }
 
-    private function findActivePokemon(int $userId, int $pokemonId): ?array
+    private function findActivePokemon(int $userId, int $pokemonId, bool $forUpdate = false): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, names, basenum, lvl, har, hp_my, hp_max,
+            'SELECT id, names, basenum, lvl, exp, har, hp_my, hp_max,
                     hp_ev, atk_ev, def_ev, satk_ev, sdef_ev, speed_ev,
                     hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv
                FROM pok_user
               WHERE id = :pokemon AND users = :user AND active = 1
-              LIMIT 1'
+              LIMIT 1' . ($forUpdate ? ' FOR UPDATE' : '')
         );
         $stmt->execute(['pokemon' => $pokemonId, 'user' => $userId]);
 
         return $stmt->fetch() ?: null;
     }
 
-    private function findOwnedPokemonForHeldItem(int $userId, int $pokemonId): ?array
+    private function findOwnedPokemonForHeldItem(int $userId, int $pokemonId, bool $forUpdate = false): ?array
     {
         $stmt = $this->db->prepare(
             'SELECT id, names, basenum, lvl, active
                FROM pok_user
               WHERE id = :pokemon AND users = :user
-              LIMIT 1'
+              LIMIT 1' . ($forUpdate ? ' FOR UPDATE' : '')
         );
         $stmt->execute(['pokemon' => $pokemonId, 'user' => $userId]);
 
         return $stmt->fetch() ?: null;
     }
 
-    private function findEquippedPokemonItem(int $pokemonId): ?array
+    private function findEquippedPokemonItem(int $pokemonId, bool $forUpdate = false): ?array
     {
         $stmt = $this->db->prepare(
             'SELECT id_poke, id_items, datetime FROM items_poke WHERE id_poke = :pokemon LIMIT 1'
+            . ($forUpdate ? ' FOR UPDATE' : '')
         );
         $stmt->execute(['pokemon' => $pokemonId]);
 
@@ -1462,14 +1734,26 @@ final class InventoryRepository
 
     private function decrementInventoryRowById(int $userId, int $itemUserId, int $count): void
     {
+        $take = max(1, $count);
         $stmt = $this->db->prepare(
-            'UPDATE items_users SET count = GREATEST(count - :count, 0) WHERE id = :id AND user_id = :user LIMIT 1'
+            'UPDATE items_users SET count = count - :count
+              WHERE id = :id AND user_id = :user AND count >= :min_count
+              LIMIT 1'
         );
         $stmt->execute([
-            'count' => max(1, $count),
+            'count' => $take,
+            'min_count' => $take,
             'id' => $itemUserId,
             'user' => $userId,
         ]);
+        if ($stmt->rowCount() !== 1) {
+            throw new \RuntimeException(sprintf(
+                'Inventory row %d for user %d is missing or holds less than %d item(s).',
+                $itemUserId,
+                $userId,
+                $take
+            ));
+        }
 
         $stmt = $this->db->prepare('DELETE FROM items_users WHERE id = :id AND user_id = :user AND count <= 0 LIMIT 1');
         $stmt->execute(['id' => $itemUserId, 'user' => $userId]);

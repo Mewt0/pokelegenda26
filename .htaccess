@@ -6,6 +6,9 @@ AddDefaultCharset UTF-8
     RewriteEngine On
     # Internal source, backups and local QA helpers are never web endpoints.
     RewriteRule ^(?:\.git|\.hybrid|\.codebase-memory|_incoming|config|database|docs|src|storage|tools|vendor)(?:/|$) - [F,L,NC]
+    # Legacy admin is not a web endpoint. The working admin is /game/admin.
+    RewriteRule ^admin(?:/|$) - [F,L,NC]
+    RewriteRule ^include(?:/|$) - [F,L,NC]
     RewriteRule ^_qa-(?:view|viewport)\.php$ - [F,L,NC]
     RewriteRule ^include/function/Services_JSON\.php$ - [F,L,NC]
     RewriteRule ^(?:debug_[^/]*|Rewire_mysql\.json|RELEASE_MANIFEST\.json|DEPLOY\.txt|probe\.js|shot\.js)$ - [F,L,NC]

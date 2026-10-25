@@ -1,0 +1,1237 @@
+[
+  {
+    "id": 1,
+    "name": "Монета",
+    "category": 0
+  },
+  {
+    "id": 2,
+    "name": "Алмаз",
+    "category": 0
+  },
+  {
+    "id": 3,
+    "name": "Покебол",
+    "category": 0
+  },
+  {
+    "id": 4,
+    "name": "Игрушка Снорлокса",
+    "category": 0
+  },
+  {
+    "id": 5,
+    "name": "Почтовы подарок",
+    "category": 2
+  },
+  {
+    "id": 6,
+    "name": "Желтая конфета",
+    "category": 3
+  },
+  {
+    "id": 7,
+    "name": "Зеленая конфета",
+    "category": 3
+  },
+  {
+    "id": 8,
+    "name": "Голубая конфета",
+    "category": 3
+  },
+  {
+    "id": 9,
+    "name": "Фиолетовая конфета",
+    "category": 3
+  },
+  {
+    "id": 10,
+    "name": "Розовая конфета",
+    "category": 3
+  },
+  {
+    "id": 11,
+    "name": "Красная конфета",
+    "category": 3
+  },
+  {
+    "id": 12,
+    "name": "Черная конфета",
+    "category": 4
+  },
+  {
+    "id": 13,
+    "name": "Перо Pidgeotto",
+    "category": 0
+  },
+  {
+    "id": 14,
+    "name": "Перо Spearow",
+    "category": 0
+  },
+  {
+    "id": 15,
+    "name": "Энергетик",
+    "category": 0
+  },
+  {
+    "id": 16,
+    "name": "Старая удочка",
+    "category": 0
+  },
+  {
+    "id": 17,
+    "name": "Шоколадная конфета",
+    "category": 5
+  },
+  {
+    "id": 18,
+    "name": "Сушеный клевер",
+    "category": 6
+  },
+  {
+    "id": 19,
+    "name": "Клевер",
+    "category": 6
+  },
+  {
+    "id": 20,
+    "name": "Свежий клевер",
+    "category": 6
+  },
+  {
+    "id": 21,
+    "name": "Билет на теплоход: Канто - Джотто",
+    "category": 0
+  },
+  {
+    "id": 22,
+    "name": "Фонарик",
+    "category": 0
+  },
+  {
+    "id": 23,
+    "name": "Каменная Кирка",
+    "category": 0
+  },
+  {
+    "id": 24,
+    "name": "Маленький осколок Громового камня",
+    "category": 0
+  },
+  {
+    "id": 25,
+    "name": "Маленький осколок Огненного камня",
+    "category": 0
+  },
+  {
+    "id": 26,
+    "name": "Маленький осколок Водного камня",
+    "category": 0
+  },
+  {
+    "id": 27,
+    "name": "Маленький осколок Лиственного камня",
+    "category": 0
+  },
+  {
+    "id": 28,
+    "name": "Маленький осколок Лунного камня",
+    "category": 0
+  },
+  {
+    "id": 29,
+    "name": "Средний осколок Громового камня",
+    "category": 0
+  },
+  {
+    "id": 30,
+    "name": "Средний осколок Огненного камня",
+    "category": 0
+  },
+  {
+    "id": 31,
+    "name": "Средний осколок Водного камня",
+    "category": 0
+  },
+  {
+    "id": 32,
+    "name": "Средний осколок Лиственного камня",
+    "category": 0
+  },
+  {
+    "id": 33,
+    "name": "Средний осколок Лунного камня",
+    "category": 0
+  },
+  {
+    "id": 34,
+    "name": "Огромный осколок Громового камня",
+    "category": 0
+  },
+  {
+    "id": 35,
+    "name": "Огромный осколок Огненного камня",
+    "category": 0
+  },
+  {
+    "id": 36,
+    "name": "Огромный осколок Водного камня",
+    "category": 0
+  },
+  {
+    "id": 37,
+    "name": "Огромный осколок Лиственного камня",
+    "category": 0
+  },
+  {
+    "id": 38,
+    "name": "Огромный осколок Лунного камня",
+    "category": 0
+  },
+  {
+    "id": 39,
+    "name": "Растворитель",
+    "category": 0
+  },
+  {
+    "id": 40,
+    "name": "Громовой камень",
+    "category": 7
+  },
+  {
+    "id": 41,
+    "name": "Огненный камень",
+    "category": 7
+  },
+  {
+    "id": 42,
+    "name": "Водный камень",
+    "category": 7
+  },
+  {
+    "id": 43,
+    "name": "Лиственный камень",
+    "category": 7
+  },
+  {
+    "id": 44,
+    "name": "Лунный камень",
+    "category": 7
+  },
+  {
+    "id": 45,
+    "name": "Уникальный подарок",
+    "category": 8
+  },
+  {
+    "id": 46,
+    "name": "Ледяной покеболл",
+    "category": 0
+  },
+  {
+    "id": 47,
+    "name": "Ледяной покеболл с #144 Articuno",
+    "category": 0
+  },
+  {
+    "id": 48,
+    "name": "Праздничный шарик",
+    "category": 0
+  },
+  {
+    "id": 49,
+    "name": "Серпантиновая лента",
+    "category": 0
+  },
+  {
+    "id": 50,
+    "name": "Пригласительный конверт",
+    "category": 0
+  },
+  {
+    "id": 51,
+    "name": "Бутылочка с водой",
+    "category": 0
+  },
+  {
+    "id": 52,
+    "name": "Мешочек с мукой",
+    "category": 0
+  },
+  {
+    "id": 53,
+    "name": "Баночка меда",
+    "category": 0
+  },
+  {
+    "id": 54,
+    "name": "Банка с молоком",
+    "category": 0
+  },
+  {
+    "id": 55,
+    "name": "Ягода",
+    "category": 0
+  },
+  {
+    "id": 56,
+    "name": "Яйцо",
+    "category": 0
+  },
+  {
+    "id": 57,
+    "name": "Праздничный торт",
+    "category": 0
+  },
+  {
+    "id": 58,
+    "name": "Небольшой подарок",
+    "category": 0
+  },
+  {
+    "id": 59,
+    "name": "Подарок",
+    "category": 0
+  },
+  {
+    "id": 60,
+    "name": "Большой подарок",
+    "category": 0
+  },
+  {
+    "id": 61,
+    "name": "Небольшой мешочек с добавками",
+    "category": 6
+  },
+  {
+    "id": 62,
+    "name": "Мешочек с добавками",
+    "category": 6
+  },
+  {
+    "id": 63,
+    "name": "Большой мешочек с добавками",
+    "category": 6
+  },
+  {
+    "id": 64,
+    "name": "Камень рассвета",
+    "category": 0
+  },
+  {
+    "id": 65,
+    "name": "Флейта",
+    "category": 0
+  },
+  {
+    "id": 66,
+    "name": "Сумрачный камень",
+    "category": 0
+  },
+  {
+    "id": 67,
+    "name": "Огненный камень",
+    "category": 0
+  },
+  {
+    "id": 68,
+    "name": "Листовой камень",
+    "category": 0
+  },
+  {
+    "id": 69,
+    "name": "Лунный камень",
+    "category": 0
+  },
+  {
+    "id": 70,
+    "name": "Камень Сумрака",
+    "category": 7
+  },
+  {
+    "id": 71,
+    "name": "Камень Рассвета",
+    "category": 7
+  },
+  {
+    "id": 72,
+    "name": "Скоба",
+    "category": 0
+  },
+  {
+    "id": 74,
+    "name": "Солнечный камень",
+    "category": 0
+  },
+  {
+    "id": 75,
+    "name": "Громовой камень",
+    "category": 0
+  },
+  {
+    "id": 76,
+    "name": "Ледяной камень",
+    "category": 0
+  },
+  {
+    "id": 77,
+    "name": "Водяной камень",
+    "category": 0
+  },
+  {
+    "id": 78,
+    "name": "Случайная TM-атака",
+    "category": 0
+  },
+  {
+    "id": 80,
+    "name": "Быстрый коготь",
+    "category": 12
+  },
+  {
+    "id": 81,
+    "name": "Острый коготь",
+    "category": 12
+  },
+  {
+    "id": 82,
+    "name": "Метка заклятия",
+    "category": 12
+  },
+  {
+    "id": 83,
+    "name": "Розовый шарф",
+    "category": 12
+  },
+  {
+    "id": 85,
+    "name": "Шёлковый шарф",
+    "category": 12
+  },
+  {
+    "id": 86,
+    "name": "Древесный уголь",
+    "category": 12
+  },
+  {
+    "id": 87,
+    "name": "Электрическая пластина",
+    "category": 12
+  },
+  {
+    "id": 88,
+    "name": "Металлическое покрытие",
+    "category": 12
+  },
+  {
+    "id": 89,
+    "name": "Твёрдый камень",
+    "category": 12
+  },
+  {
+    "id": 90,
+    "name": "Согнутая ложка",
+    "category": 12
+  },
+  {
+    "id": 91,
+    "name": "Ядовитый шип",
+    "category": 12
+  },
+  {
+    "id": 92,
+    "name": "Браслет силы",
+    "category": 12
+  },
+  {
+    "id": 93,
+    "name": "Клык дракона",
+    "category": 12
+  },
+  {
+    "id": 147,
+    "name": "Фото тренера",
+    "category": 12
+  },
+  {
+    "id": 152,
+    "name": "Покебилет",
+    "category": 10
+  },
+  {
+    "id": 153,
+    "name": "Золотой билет",
+    "category": 10
+  },
+  {
+    "id": 154,
+    "name": "Подарок",
+    "category": 8
+  },
+  {
+    "id": 181,
+    "name": "Тёмная пластина",
+    "category": 12
+  },
+  {
+    "id": 189,
+    "name": "Алмазная валюта",
+    "category": 12
+  },
+  {
+    "id": 210,
+    "name": "Муму-молоко",
+    "category": 12
+  },
+  {
+    "id": 217,
+    "name": "Витамины PP",
+    "category": 12
+  },
+  {
+    "id": 219,
+    "name": "Набор витаминов",
+    "category": 12
+  },
+  {
+    "id": 234,
+    "name": "Искатель предметов",
+    "category": 12
+  },
+  {
+    "id": 235,
+    "name": "Суперудочка",
+    "category": 12
+  },
+  {
+    "id": 320,
+    "name": "Поглощающая луковица",
+    "category": 12
+  },
+  {
+    "id": 321,
+    "name": "Красивое перо",
+    "category": 12
+  },
+  {
+    "id": 322,
+    "name": "Метроном",
+    "category": 12
+  },
+  {
+    "id": 323,
+    "name": "Клык дракона",
+    "category": 12
+  },
+  {
+    "id": 325,
+    "name": "Лёгкое перо",
+    "category": 12
+  },
+  {
+    "id": 326,
+    "name": "Связующая лента",
+    "category": 12
+  },
+  {
+    "id": 327,
+    "name": "Звёздная пыль",
+    "category": 12
+  },
+  {
+    "id": 328,
+    "name": "Шоковый привод",
+    "category": 12
+  },
+  {
+    "id": 330,
+    "name": "Кейс тренера",
+    "category": 12
+  },
+  {
+    "id": 332,
+    "name": "Лунный камень",
+    "category": 12
+  },
+  {
+    "id": 333,
+    "name": "Пламенная сфера",
+    "category": 12
+  },
+  {
+    "id": 337,
+    "name": "Волшебная пластина",
+    "category": 12
+  },
+  {
+    "id": 338,
+    "name": "Туман снов",
+    "category": 12
+  },
+  {
+    "id": 339,
+    "name": "Твёрдый камень",
+    "category": 12
+  },
+  {
+    "id": 342,
+    "name": "Чёрный пояс",
+    "category": 12
+  },
+  {
+    "id": 344,
+    "name": "Капля души",
+    "category": 12
+  },
+  {
+    "id": 349,
+    "name": "Согнутая ложка",
+    "category": 12
+  },
+  {
+    "id": 350,
+    "name": "Древесный уголь",
+    "category": 12
+  },
+  {
+    "id": 356,
+    "name": "Механическая деталь",
+    "category": 12
+  },
+  {
+    "id": 358,
+    "name": "Толстая кость",
+    "category": 12
+  },
+  {
+    "id": 360,
+    "name": "Улучшение",
+    "category": 12
+  },
+  {
+    "id": 361,
+    "name": "Кольцевая цель",
+    "category": 12
+  },
+  {
+    "id": 365,
+    "name": "Сомнительный диск",
+    "category": 12
+  },
+  {
+    "id": 366,
+    "name": "Красный шарф",
+    "category": 12
+  },
+  {
+    "id": 370,
+    "name": "Фокус-бэнд",
+    "category": 12
+  },
+  {
+    "id": 371,
+    "name": "Увеличитель линзы",
+    "category": 12
+  },
+  {
+    "id": 372,
+    "name": "Метроном",
+    "category": 12
+  },
+  {
+    "id": 373,
+    "name": "Железный шар",
+    "category": 12
+  },
+  {
+    "id": 374,
+    "name": "Металлическая пудра",
+    "category": 12
+  },
+  {
+    "id": 375,
+    "name": "Пушистый хвост",
+    "category": 12
+  },
+  {
+    "id": 376,
+    "name": "Мягкий песок",
+    "category": 12
+  },
+  {
+    "id": 377,
+    "name": "Нетающий лёд",
+    "category": 12
+  },
+  {
+    "id": 378,
+    "name": "Ледяная пластина",
+    "category": 12
+  },
+  {
+    "id": 380,
+    "name": "Ледяной самоцвет",
+    "category": 12
+  },
+  {
+    "id": 386,
+    "name": "Выборочные очки",
+    "category": 12
+  },
+  {
+    "id": 489,
+    "name": "Глина света",
+    "category": 12
+  },
+  {
+    "id": 491,
+    "name": "Шёлковый шарф",
+    "category": 12
+  },
+  {
+    "id": 492,
+    "name": "Широкая линза",
+    "category": 12
+  },
+  {
+    "id": 496,
+    "name": "Вечный камень",
+    "category": 12
+  },
+  {
+    "id": 517,
+    "name": "Штурмовой жилет",
+    "category": 12
+  },
+  {
+    "id": 520,
+    "name": "Защитные очки",
+    "category": 12
+  },
+  {
+    "id": 651,
+    "name": "Красная конфета",
+    "category": 0
+  },
+  {
+    "id": 652,
+    "name": "Розовая конфета",
+    "category": 0
+  },
+  {
+    "id": 653,
+    "name": "Шоколадная конфета",
+    "category": 0
+  },
+  {
+    "id": 654,
+    "name": "Серая конфета",
+    "category": 0
+  },
+  {
+    "id": 655,
+    "name": "Необычная конфета",
+    "category": 0
+  },
+  {
+    "id": 678,
+    "name": "Набор ослабления",
+    "category": 0
+  },
+  {
+    "id": 861,
+    "name": "Кекс с ягодами Церуго",
+    "category": 0
+  },
+  {
+    "id": 1401,
+    "name": "Золотая конфета",
+    "category": 0
+  },
+  {
+    "id": 8500,
+    "name": "Дама Черви",
+    "category": 0
+  },
+  {
+    "id": 8501,
+    "name": "Дама Буби",
+    "category": 0
+  },
+  {
+    "id": 8502,
+    "name": "Дама Пики",
+    "category": 0
+  },
+  {
+    "id": 8503,
+    "name": "Дама Крести",
+    "category": 0
+  },
+  {
+    "id": 8504,
+    "name": "Король Черви",
+    "category": 0
+  },
+  {
+    "id": 8505,
+    "name": "Король Буби",
+    "category": 0
+  },
+  {
+    "id": 8506,
+    "name": "Король Пики",
+    "category": 0
+  },
+  {
+    "id": 8507,
+    "name": "Король Крести",
+    "category": 0
+  },
+  {
+    "id": 8508,
+    "name": "Туз Черви",
+    "category": 0
+  },
+  {
+    "id": 8509,
+    "name": "Туз Буби",
+    "category": 0
+  },
+  {
+    "id": 8510,
+    "name": "Туз Пики",
+    "category": 0
+  },
+  {
+    "id": 8511,
+    "name": "Туз Крести",
+    "category": 0
+  },
+  {
+    "id": 8512,
+    "name": "Валет Черви",
+    "category": 0
+  },
+  {
+    "id": 8513,
+    "name": "Валет Буби",
+    "category": 0
+  },
+  {
+    "id": 8514,
+    "name": "Валет Пики",
+    "category": 0
+  },
+  {
+    "id": 8515,
+    "name": "Валет Крести",
+    "category": 0
+  },
+  {
+    "id": 8516,
+    "name": "Дама Черви",
+    "category": 0
+  },
+  {
+    "id": 8517,
+    "name": "Дама Буби",
+    "category": 0
+  },
+  {
+    "id": 8518,
+    "name": "Дама Пики",
+    "category": 0
+  },
+  {
+    "id": 8519,
+    "name": "Дама Крести",
+    "category": 0
+  },
+  {
+    "id": 8520,
+    "name": "Король Черви",
+    "category": 0
+  },
+  {
+    "id": 8521,
+    "name": "Король Буби",
+    "category": 0
+  },
+  {
+    "id": 8522,
+    "name": "Король Пики",
+    "category": 0
+  },
+  {
+    "id": 8523,
+    "name": "Король Крести",
+    "category": 0
+  },
+  {
+    "id": 8524,
+    "name": "Туз Черви",
+    "category": 0
+  },
+  {
+    "id": 8525,
+    "name": "Туз Буби",
+    "category": 0
+  },
+  {
+    "id": 8526,
+    "name": "Туз Пики",
+    "category": 0
+  },
+  {
+    "id": 8527,
+    "name": "Туз Крести",
+    "category": 0
+  },
+  {
+    "id": 8528,
+    "name": "Валет Черви",
+    "category": 0
+  },
+  {
+    "id": 8529,
+    "name": "Валет Буби",
+    "category": 0
+  },
+  {
+    "id": 8530,
+    "name": "Валет Пики",
+    "category": 0
+  },
+  {
+    "id": 8531,
+    "name": "Валет Крести",
+    "category": 0
+  },
+  {
+    "id": 8532,
+    "name": "Чёрный Джокер",
+    "category": 0
+  },
+  {
+    "id": 8533,
+    "name": "Красный Джокер",
+    "category": 0
+  },
+  {
+    "id": 90001,
+    "name": "Ордер Команды R I",
+    "category": 0
+  },
+  {
+    "id": 90002,
+    "name": "Ордер Команды R II",
+    "category": 0
+  },
+  {
+    "id": 90003,
+    "name": "Ордер протекции",
+    "category": 0
+  },
+  {
+    "id": 90004,
+    "name": "Мастербол",
+    "category": 0
+  },
+  {
+    "id": 90005,
+    "name": "Премиум бол",
+    "category": 0
+  },
+  {
+    "id": 90020,
+    "name": "Боевой набор",
+    "category": 8
+  },
+  {
+    "id": 90021,
+    "name": "Набор held items",
+    "category": 8
+  },
+  {
+    "id": 90022,
+    "name": "Набор эволюции",
+    "category": 8
+  },
+  {
+    "id": 90023,
+    "name": "Праймал/Мега набор",
+    "category": 8
+  },
+  {
+    "id": 90024,
+    "name": "Премиальный тестовый подарок",
+    "category": 8
+  },
+  {
+    "id": 90110,
+    "name": "Билет на пароход",
+    "category": 0
+  },
+  {
+    "id": 90111,
+    "name": "Билет на самолёт",
+    "category": 0
+  },
+  {
+    "id": 90200,
+    "name": "Blue Orb",
+    "category": 8
+  },
+  {
+    "id": 90201,
+    "name": "Red Orb",
+    "category": 8
+  },
+  {
+    "id": 90202,
+    "name": "Venusaurite",
+    "category": 8
+  },
+  {
+    "id": 90203,
+    "name": "Charizardite X",
+    "category": 8
+  },
+  {
+    "id": 90204,
+    "name": "Charizardite Y",
+    "category": 8
+  },
+  {
+    "id": 90205,
+    "name": "Blastoisinite",
+    "category": 8
+  },
+  {
+    "id": 90206,
+    "name": "Beedrillite",
+    "category": 8
+  },
+  {
+    "id": 90207,
+    "name": "Pidgeotite",
+    "category": 8
+  },
+  {
+    "id": 90208,
+    "name": "Alakazite",
+    "category": 8
+  },
+  {
+    "id": 90209,
+    "name": "Slowbronite",
+    "category": 8
+  },
+  {
+    "id": 90210,
+    "name": "Gengarite",
+    "category": 8
+  },
+  {
+    "id": 90211,
+    "name": "Kangaskhanite",
+    "category": 8
+  },
+  {
+    "id": 90212,
+    "name": "Pinsirite",
+    "category": 8
+  },
+  {
+    "id": 90213,
+    "name": "Gyaradosite",
+    "category": 8
+  },
+  {
+    "id": 90214,
+    "name": "Aerodactylite",
+    "category": 8
+  },
+  {
+    "id": 90215,
+    "name": "Mewtwonite X",
+    "category": 8
+  },
+  {
+    "id": 90216,
+    "name": "Mewtwonite Y",
+    "category": 8
+  },
+  {
+    "id": 90217,
+    "name": "Ampharosite",
+    "category": 8
+  },
+  {
+    "id": 90218,
+    "name": "Steelixite",
+    "category": 8
+  },
+  {
+    "id": 90219,
+    "name": "Scizorite",
+    "category": 8
+  },
+  {
+    "id": 90220,
+    "name": "Heracronite",
+    "category": 8
+  },
+  {
+    "id": 90221,
+    "name": "Houndoominite",
+    "category": 8
+  },
+  {
+    "id": 90222,
+    "name": "Tyranitarite",
+    "category": 8
+  },
+  {
+    "id": 90223,
+    "name": "Sceptilite",
+    "category": 8
+  },
+  {
+    "id": 90224,
+    "name": "Blazikenite",
+    "category": 8
+  },
+  {
+    "id": 90225,
+    "name": "Swampertite",
+    "category": 8
+  },
+  {
+    "id": 90226,
+    "name": "Gardevoirite",
+    "category": 8
+  },
+  {
+    "id": 90227,
+    "name": "Sablenite",
+    "category": 8
+  },
+  {
+    "id": 90228,
+    "name": "Mawilite",
+    "category": 8
+  },
+  {
+    "id": 90229,
+    "name": "Aggronite",
+    "category": 8
+  },
+  {
+    "id": 90230,
+    "name": "Medichamite",
+    "category": 8
+  },
+  {
+    "id": 90231,
+    "name": "Manectite",
+    "category": 8
+  },
+  {
+    "id": 90232,
+    "name": "Sharpedonite",
+    "category": 8
+  },
+  {
+    "id": 90233,
+    "name": "Cameruptite",
+    "category": 8
+  },
+  {
+    "id": 90234,
+    "name": "Altarianite",
+    "category": 8
+  },
+  {
+    "id": 90235,
+    "name": "Banettite",
+    "category": 8
+  },
+  {
+    "id": 90236,
+    "name": "Absolite",
+    "category": 8
+  },
+  {
+    "id": 90237,
+    "name": "Glalitite",
+    "category": 8
+  },
+  {
+    "id": 90238,
+    "name": "Salamencite",
+    "category": 8
+  },
+  {
+    "id": 90239,
+    "name": "Metagrossite",
+    "category": 8
+  },
+  {
+    "id": 90240,
+    "name": "Latiasite",
+    "category": 8
+  },
+  {
+    "id": 90241,
+    "name": "Latiosite",
+    "category": 8
+  },
+  {
+    "id": 90242,
+    "name": "Lopunnite",
+    "category": 8
+  },
+  {
+    "id": 90243,
+    "name": "Garchompite",
+    "category": 8
+  },
+  {
+    "id": 90244,
+    "name": "Lucarionite",
+    "category": 8
+  },
+  {
+    "id": 90245,
+    "name": "Abomasite",
+    "category": 8
+  },
+  {
+    "id": 90246,
+    "name": "Galladite",
+    "category": 8
+  },
+  {
+    "id": 90247,
+    "name": "Audinite",
+    "category": 8
+  },
+  {
+    "id": 90248,
+    "name": "Diancite",
+    "category": 8
+  },
+  {
+    "id": 90310,
+    "name": "Экстракт Дитто",
+    "category": 12
+  },
+  {
+    "id": 90311,
+    "name": "Инкубатор",
+    "category": 12
+  }
+]

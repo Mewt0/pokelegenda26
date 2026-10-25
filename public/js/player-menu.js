@@ -129,14 +129,67 @@
     }
   }
 
+  // Награда за бой приходит одной строкой вида
+  // «Получено: 18 монет, 72 опыта, +1 счастья, Покебол x2, Покебол x1, ...».
+  // Схлопываем одинаковые предметы по имени, чтобы 166 дроп-роллов не
+  // растягивали уведомление на несколько экранов.
+  function prepareNotification(message) {
+    const raw = String(message || '');
+    const withoutDot = raw.replace(/\s*\.\s*$/, '');
+    if (!/^\s*Получено:/iu.test(raw)) {
+      return { text: raw, isReward: false, isLong: raw.length > 180 };
+    }
+
+    const body = withoutDot.replace(/^\s*Получено:\s*/iu, '');
+    const rest = [];
+    const items = new Map();
+    for (const part of body.split(',')) {
+      const chunk = part.trim();
+      if (!chunk) continue;
+      const match = chunk.match(/^(.+?)\s*[xх×]\s*(\d+)$/iu);
+      if (match && match[1].trim() !== '' && !/^\d+$/.test(match[1].trim())) {
+        const name = match[1].trim();
+        const key = name.toLocaleLowerCase('ru-RU');
+        const current = items.get(key);
+        if (current) {
+          current.count += Number(match[2]);
+        } else {
+          items.set(key, { name, count: Number(match[2]) });
+        }
+      } else {
+        rest.push(chunk);
+      }
+    }
+
+    if (items.size === 0) {
+      return { text: raw, isReward: true, isLong: raw.length > 180 };
+    }
+
+    const parts = [
+      ...rest,
+      ...[...items.values()].map(item => item.name + ' ×' + Number(item.count).toLocaleString('ru-RU')),
+    ];
+    const text = 'Получено: ' + parts.join(', ') + '.';
+    return {
+      text,
+      isReward: true,
+      isLong: text.length > 180 || items.size > 8,
+    };
+  }
+
   function notify(message, variant = 'info', action = null) {
     if (!message) return;
+    const prepared = prepareNotification(message);
 
     const toast = document.createElement('div');
     toast.className = 'game-toast game-toast-' + variant;
+    if (prepared.isLong) {
+      toast.classList.add('game-toast--long');
+    }
 
     const label = document.createElement('span');
-    label.textContent = message;
+    label.className = 'game-toast-message';
+    label.textContent = prepared.text;
     toast.appendChild(label);
 
     let hideTimer = 0;
@@ -145,6 +198,18 @@
       toast.classList.remove('is-visible');
       window.setTimeout(() => toast.remove(), 220);
     };
+
+    // У длинного уведомления close не должен уезжать за экран вместе
+    // со списком: держим его вне прокручиваемой области сообщения.
+    if (prepared.isReward || prepared.isLong) {
+      const closeButton = document.createElement('button');
+      closeButton.type = 'button';
+      closeButton.className = 'game-toast-close';
+      closeButton.setAttribute('aria-label', 'Закрыть уведомление');
+      closeButton.textContent = '×';
+      closeButton.addEventListener('click', dismiss);
+      toast.appendChild(closeButton);
+    }
 
     if (action && typeof action.onClick === 'function') {
       const actionButton = document.createElement('button');
@@ -162,7 +227,8 @@
 
     window.setTimeout(() => toast.classList.add('is-visible'), 10);
     // Уведомление с действием живёт дольше: игроку нужно успеть нажать кнопку.
-    hideTimer = window.setTimeout(dismiss, action ? 12000 : 4200);
+    const lifetime = action ? 12000 : ((prepared.isReward || prepared.isLong) ? 9000 : 4200);
+    hideTimer = window.setTimeout(dismiss, lifetime);
   }
 
   function pad3(value) {

@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 use Pokemon8\Database\Connection;
+use Pokemon8\Game\PokemonGrowthCurve;
+use Pokemon8\Game\PokemonGrowthGroup;
 use Pokemon8\Support\Env;
 
 require dirname(__DIR__) . '/src/Support/Autoload.php';
@@ -282,6 +284,9 @@ function ensurePokemon(PDO $db, int $userId, array $spec, int $slot): int
     $ev = $spec['ev'];
     $stats = calcStats($base, $level, $iv, $ev);
     $name = plainPokemonName($base) . (!empty($spec['shiny']) ? ' - Shiny' : '');
+    $growthGroup = PokemonGrowthGroup::forBaseId($baseId);
+    $fixtureExp = PokemonGrowthCurve::cumulative($level, $growthGroup);
+    $fixtureExpNext = PokemonGrowthCurve::progress($level, $fixtureExp, $growthGroup)['expNextLevel'];
     $pokemon = row(
         $db,
         'SELECT id FROM pok_user WHERE users = :user AND basenum = :base AND tips = :tips ORDER BY id ASC LIMIT 1',
@@ -292,7 +297,9 @@ function ensurePokemon(PDO $db, int $userId, array $spec, int $slot): int
         $pokemonId = (int) $pokemon['id'];
         $stmt = $db->prepare(
             'UPDATE pok_user
-                SET names = :name, active = 1, startepoke = :starter, lvl = :lvl, hp_my = :hp_my, hp_max = :hp_max,
+                SET names = :name, active = 1, startepoke = :starter, lvl = :lvl,
+                    exp = :exp, exp_b = :exp_b,
+                    hp_my = :hp_my, hp_max = :hp_max,
                     atk = :atk, def = :def, satk = :satk, sdef = :sdef, speed = :speed,
                     hp_ev = :hp_ev, atk_ev = :atk_ev, def_ev = :def_ev, satk_ev = :satk_ev, sdef_ev = :sdef_ev, speed_ev = :speed_ev,
                     hp_iv = 31, atk_iv = 31, def_iv = 31, satk_iv = 31, sdef_iv = 31, speed_iv = 31,
@@ -303,6 +310,8 @@ function ensurePokemon(PDO $db, int $userId, array $spec, int $slot): int
             'name' => $name,
             'starter' => $slot === 0 ? 1 : 0,
             'lvl' => $level,
+            'exp' => $fixtureExp,
+            'exp_b' => $fixtureExpNext,
             'hp_my' => $stats['hp'],
             'hp_max' => $stats['hp'],
             'atk' => $stats['atk'],
@@ -330,7 +339,7 @@ function ensurePokemon(PDO $db, int $userId, array $spec, int $slot): int
                  hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv, tips, startone, startepoke,
                  reproduction, happy, datemay, usersone, sprz, item, ability_key)
              VALUES
-                (:id, :user, :base, :name, 1, :evcount, :lvl, 1, 1, :hp_my, :hp_max, 0, 100,
+                (:id, :user, :base, :name, 1, :evcount, :lvl, 1, 1, :hp_my, :hp_max, :exp, :exp_b,
                  :atk, :def, :satk, :sdef, :speed, :hp_ev, :atk_ev, :def_ev, :satk_ev, :sdef_ev, :speed_ev,
                  31, 31, 31, 31, 31, 31, :tips, 0, :starter,
                  0, 100, NOW(), :usersone, 0, :item, :ability)'
@@ -342,6 +351,8 @@ function ensurePokemon(PDO $db, int $userId, array $spec, int $slot): int
             'name' => $name,
             'evcount' => array_sum($ev),
             'lvl' => $level,
+            'exp' => $fixtureExp,
+            'exp_b' => $fixtureExpNext,
             'hp_my' => $stats['hp'],
             'hp_max' => $stats['hp'],
             'atk' => $stats['atk'],

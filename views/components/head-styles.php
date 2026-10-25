@@ -6,7 +6,8 @@
  *   1. всегда подключает базовый слой — fonts.css (self-hosted Inter) и tokens.css (дизайн-токены);
  *   2. добавляет слои, переданные страницей в $headStyles, в указанном порядке;
  *   3. версию для cache-busting берёт из filemtime, поэтому «?v=...» больше не нужно
- *      обновлять руками при каждой правке CSS.
+ *      обновлять руками при каждой правке CSS;
+ *   4. подключает внешний defer-резолвер item-иконок и передаёт ему cache-busted URL индекса.
  *
  * Как использовать (в <head> страницы):
  *   $headStyles = ['/public/css/game-start.css', '/public/css/chat.css'];
@@ -48,3 +49,7 @@ foreach ($headStyles as $headStyle) {
 
     echo '  <link rel="stylesheet" href="' . \Pokemon8\View\View::e($headStyleHref) . '">' . PHP_EOL;
 }
+
+$itemIconRuntimeSrc = asset_url('/public/js/item-icon-runtime.js');
+$itemIconIndexSrc = asset_url('/public/img/items/index.json');
+echo '  <script defer src="' . \Pokemon8\View\View::e($itemIconRuntimeSrc) . '" id="itemIconRuntime" data-index-src="' . \Pokemon8\View\View::e($itemIconIndexSrc) . '"></script>' . PHP_EOL;

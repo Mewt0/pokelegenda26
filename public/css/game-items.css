@@ -1,5 +1,3 @@
-Копировать
-Скачать
 /* Инвентарь: окно и сетка слотов приведены к единому слою компонентов.
    Значения берутся только из tokens.css; кнопки, карточки, поля и слоты
    повторяют формы .ui-btn / .ui-card / .ui-field из components.css.
@@ -141,7 +139,7 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-  image-rendering: pixelated;
+  image-rendering: auto;
 }
 
 .items-page .cnt {
@@ -259,7 +257,7 @@
   width: 36px;
   height: 36px;
   object-fit: contain;
-  image-rendering: pixelated;
+  image-rendering: auto;
 }
 
 .items-page .preview .nm {

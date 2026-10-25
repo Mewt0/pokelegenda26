@@ -5,6 +5,8 @@ namespace Pokemon8\Repository;
 
 use Pokemon8\Game\BattleTransformationCatalog;
 use Pokemon8\Game\PokemonFormCatalog;
+use Pokemon8\Game\PokemonGrowthCurve;
+use Pokemon8\Game\PokemonGrowthGroup;
 use PDO;
 
 final class BattleRepository
@@ -97,6 +99,26 @@ final class BattleRepository
         );
         $battle->execute(['id' => $battleId, 'user_1' => $userId, 'user_2' => $userId]);
         return $battle->fetchColumn() !== false ? $battleId : 0;
+    }
+
+    public function findActivePvpBattleForUser(int $userId): ?array
+    {
+        if ($userId <= 0) {
+            return null;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT id, user_1, user_2, poke_1, poke_2, attac_1, attac_2, raund, hod_user_id, pobeda
+               FROM battles
+              WHERE (user_1 = :user_1 OR user_2 = :user_2)
+                AND batl_tip = "pvp"
+                AND pobeda = 0
+              ORDER BY id DESC
+              LIMIT 1'
+        );
+        $stmt->execute(['user_1' => $userId, 'user_2' => $userId]);
+        $row = $stmt->fetch();
+        return is_array($row) ? $row : null;
     }
 
     public function findPvpBattleForUser(int $userId, int $battleId): ?array
@@ -250,15 +272,21 @@ final class BattleRepository
     {
         $this->expirePvpRequests();
 
-        if ($currentUserId <= 0 || $targetUserId <= 0) {
+        if ($currentUserId <= 0) {
+            return 'none';
+        }
+
+        // Активный бой важнее цели запроса: UI игрока в бою должен видеть status=active,
+        // даже если запрос пришёл без user_id (координатор/меню без цели).
+        if ($this->findActivePvpBattleForUser($currentUserId) !== null) {
+            return 'active';
+        }
+
+        if ($targetUserId <= 0) {
             return 'none';
         }
         if ($currentUserId === $targetUserId) {
             return 'self';
-        }
-
-        if ($this->findActivePvpBattleIdForUser($currentUserId) > 0) {
-            return 'active';
         }
 
         $stmt = $this->db->prepare(
@@ -985,7 +1013,7 @@ final class BattleRepository
     public function findUserBattlePokemonOptions(int $userId): array
     {
         $stmt = $this->db->prepare(
-            'SELECT pu.id, pu.names, pu.hp_my, pu.hp_max, pu.active, pu.basenum, pu.lvl, pu.sex, pu.tips,
+            'SELECT pu.id, pu.names, pu.hp_my, pu.hp_max, pu.active, pu.basenum, pu.lvl, pu.exp, pu.sex, pu.tips,
                     COALESCE(ip.id_items, pu.item, 0) AS held_item_id,
                     held.name AS held_item_name,
                     held.tittle AS held_item_title,
@@ -1352,21 +1380,29 @@ final class BattleRepository
         ]);
     }
 
-    public function setPvpBattleAction(int $battleId, int $side, int $moveId): void
+    public function setPvpBattleAction(int $battleId, int $side, int $moveId): bool
     {
         $column = $side === 2 ? 'attac_2' : 'attac_1';
         $stmt = $this->db->prepare(
             sprintf('UPDATE battles SET %s = :move WHERE id = :id AND batl_tip = "pvp" AND %s = 0 LIMIT 1', $column, $column)
         );
         $stmt->execute(['move' => $moveId, 'id' => $battleId]);
+        return $stmt->rowCount() > 0;
     }
 
-    public function resetPvpBattleActionsAndIncrementRound(int $battleId): void
+    public function resetPvpBattleActionsAndIncrementRound(int $battleId, int $expectedRound = 0): bool
     {
-        $stmt = $this->db->prepare(
-            'UPDATE battles SET attac_1 = 0, attac_2 = 0, raund = raund + 1 WHERE id = :id AND batl_tip = "pvp" LIMIT 1'
-        );
-        $stmt->execute(['id' => $battleId]);
+        $sql = 'UPDATE battles SET attac_1 = 0, attac_2 = 0, raund = raund + 1
+                 WHERE id = :id AND batl_tip = "pvp" AND attac_1 <> 0 AND attac_2 <> 0';
+        $params = ['id' => $battleId];
+        if ($expectedRound > 0) {
+            $sql .= ' AND raund = :round';
+            $params['round'] = $expectedRound;
+        }
+        $sql .= ' LIMIT 1';
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->rowCount() > 0;
     }
 
     public function incrementRoundAndResetActions(int $battleId): void
@@ -2192,7 +2228,7 @@ final class BattleRepository
             'SELECT r.*, i.name AS item_name
                FROM admin_drop_rules r
                INNER JOIN items i ON i.id = r.item_id
-          LEFT JOIN pokebuild pb ON pb.id = r.pokebuild_id
+          LEFT JOIN pokebuild pb ON r.pokebuild_id > 0 AND pb.id = r.pokebuild_id
               WHERE r.enabled = 1
                 AND r.source_type = "wild"
                 AND (r.location_id = 0 OR r.location_id = :location)
@@ -2216,7 +2252,13 @@ final class BattleRepository
         ]);
 
         $drops = [];
+        $seenRules = [];
         foreach ($stmt->fetchAll() ?: [] as $row) {
+            $ruleId = (int) ($row['id'] ?? 0);
+            if ($ruleId <= 0 || isset($seenRules[$ruleId])) {
+                continue;
+            }
+            $seenRules[$ruleId] = true;
             $chance = (float) ($row['chance_percent'] ?? 0) * max(1.0, $chanceMultiplier);
             if ($chance <= 0) {
                 continue;
@@ -2328,14 +2370,23 @@ final class BattleRepository
         }
 
         $level = max(1, (int) ($pokemon['lvl'] ?? 1));
-        $newExp = max(0, (int) ($pokemon['exp'] ?? 0) + max(0, $exp));
+        $group = PokemonGrowthGroup::forBaseId((int) ($pokemon['basenum'] ?? 0));
+        // Debt protection: a row created by an old/QA fixture with exp below the
+        // floor of its level is lifted to the floor before the new XP is added.
+        // Pre-migration overflow is remapped instead of jumping to the cap.
+        $storedExp = PokemonGrowthCurve::normalizeStoredExperience($level, (int) ($pokemon['exp'] ?? 0), $group);
+        $newExp = $storedExp + max(0, $exp);
         $newEv = max(0, (int) ($pokemon['evcount'] ?? 0) + $evGain);
         $levelUps = 0;
 
-        while ($level < 100 && $newExp >= $this->levelExp($level)) {
+        while ($level < 100 && $newExp >= PokemonGrowthCurve::cumulative($level + 1, $group)) {
             $level++;
             $levelUps++;
         }
+        if ($level >= 100) {
+            $newExp = PokemonGrowthCurve::cumulative(100, $group);
+        }
+        $progress = PokemonGrowthCurve::progress($level, $newExp, $group);
 
         $stats = $this->calculateStats($pokemon, $level);
         $this->db->prepare(
@@ -2347,7 +2398,7 @@ final class BattleRepository
               LIMIT 1'
         )->execute([
             'exp' => $newExp,
-            'exp_b' => $this->levelExp($level + 1),
+            'exp_b' => $progress['expNextLevel'],
             'evcount' => $newEv,
             'lvl' => $level,
             'hp_my' => $stats['hp'],
@@ -2363,7 +2414,14 @@ final class BattleRepository
 
         $evolution = $levelUps > 0 ? $this->evolutions->applyLevelEvolution($userId, $pokemonId) : null;
 
-        return ['exp' => max(0, $exp), 'ev' => $evGain, 'levelUps' => $levelUps, 'level' => $level, 'evolution' => $evolution];
+        return [
+            'exp' => max(0, $exp),
+            'ev' => $evGain,
+            'levelUps' => $levelUps,
+            'level' => $level,
+            'growthGroup' => $group,
+            'evolution' => $evolution,
+        ];
     }
 
     public function addPokemonHappiness(int $userId, int $pokemonId, int $amount): int
@@ -2420,21 +2478,23 @@ final class BattleRepository
         return $row ?: null;
     }
 
-    public function decrementInventoryItemRow(int $userId, int $itemUserId): void
+    public function decrementInventoryItemRow(int $userId, int $itemUserId): bool
     {
         if ($userId <= 0 || $itemUserId <= 0) {
-            return;
+            return false;
         }
 
-        $this->db->prepare(
+        $stmt = $this->db->prepare(
             'UPDATE items_users
                 SET count = GREATEST(count - 1, 0)
               WHERE id = :id AND user_id = :user AND count > 0
               LIMIT 1'
-        )->execute([
+        );
+        $stmt->execute([
             'id' => $itemUserId,
             'user' => $userId,
         ]);
+        $updated = $stmt->rowCount() > 0;
 
         $this->db->prepare(
             'DELETE FROM items_users WHERE id = :id AND user_id = :user AND count <= 0 LIMIT 1'
@@ -2442,6 +2502,8 @@ final class BattleRepository
             'id' => $itemUserId,
             'user' => $userId,
         ]);
+
+        return $updated;
     }
 
     public function countActivePokemon(int $userId): int
@@ -2489,6 +2551,56 @@ final class BattleRepository
         return $stmt->rowCount();
     }
 
+    /**
+     * Атомарно завершает успешную поимку: claim боя, списание шара и вставка покемона
+     * в одной транзакции. При техническом отказе вставки шар и бой откатываются.
+     *
+     * @return array{ok:bool, reason:string, pokemonId:int}
+     */
+    public function completePveCatch(int $userId, int $itemUserId, string $enemyBattlePokemon, int $active, int $battleId): array
+    {
+        $startedTransaction = !$this->db->inTransaction();
+        if ($startedTransaction) {
+            $this->db->beginTransaction();
+        }
+
+        try {
+            if (!$this->claimPveBattleFinish($battleId, $userId, $userId)) {
+                if ($startedTransaction && $this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                return ['ok' => false, 'reason' => 'already_finished', 'pokemonId' => 0];
+            }
+
+            if (!$this->decrementInventoryItemRow($userId, $itemUserId)) {
+                if ($startedTransaction && $this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                return ['ok' => false, 'reason' => 'item_missing', 'pokemonId' => 0];
+            }
+
+            $pokemonId = $this->catchWildPokemon($userId, $enemyBattlePokemon, $active, $battleId);
+            if ($pokemonId === null) {
+                if ($startedTransaction && $this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                return ['ok' => false, 'reason' => 'insert_failed', 'pokemonId' => 0];
+            }
+
+            if ($startedTransaction) {
+                $this->db->commit();
+            }
+
+            return ['ok' => true, 'reason' => '', 'pokemonId' => $pokemonId];
+        } catch (\Throwable $e) {
+            if ($startedTransaction && $this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log('[battle] completePveCatch failed: ' . $e->getMessage());
+            return ['ok' => false, 'reason' => 'technical', 'pokemonId' => 0];
+        }
+    }
+
     public function catchWildPokemon(int $userId, string $enemyBattlePokemon, int $active, int $battleId = 0): ?int
     {
         $parsed = $this->parseBattlePokemon($enemyBattlePokemon);
@@ -2496,10 +2608,12 @@ final class BattleRepository
             return null;
         }
 
-        $where = 'id = :id AND poimka = 1';
-        $params = ['id' => $parsed['id']];
+        $where = 'id = :id AND users = :user AND poimka = 1';
+        $params = ['id' => $parsed['id'], 'user' => $userId];
         if ($battleId > 0) {
-            $where .= ' AND battleid = :battle';
+            // battleid=0 допустим для wild-строк, созданных старым кодом до линковки;
+            // id+users+poimka уже однозначно определяют конкретную цель из battles.poke_2.
+            $where .= ' AND (battleid = :battle OR battleid = 0)';
             $params['battle'] = $battleId;
         }
 
@@ -2520,6 +2634,10 @@ final class BattleRepository
         $startone = in_array($sprz, [2, 3], true) ? 1 : 0;
         $reproduction = in_array($sprz, [1, 2], true) ? 1 : 0;
         $pokemonId = $this->nextTableId('pok_user', 'id');
+        $wildLevel = max(1, (int) ($wild['lvl'] ?? 1));
+        $wildGroup = PokemonGrowthGroup::forBaseId((int) ($wild['basenum'] ?? 0));
+        $wildExp = PokemonGrowthCurve::normalizeStoredExperience($wildLevel, (int) ($wild['exp'] ?? 0), $wildGroup);
+        $wildProgress = PokemonGrowthCurve::progress($wildLevel, $wildExp, $wildGroup);
 
         $insert = $this->db->prepare(
             'INSERT INTO pok_user
@@ -2540,13 +2658,13 @@ final class BattleRepository
             'names' => substr(strip_tags((string) ($wild['names'] ?? 'Pokemon')), 0, 80),
             'active' => $active > 0 ? 1 : 0,
             'evcount' => (int) ($wild['evcount'] ?? 0),
-            'lvl' => (int) ($wild['lvl'] ?? 1),
+            'lvl' => $wildLevel,
             'sex' => (int) ($wild['sex'] ?? 1),
             'har' => (int) ($wild['har'] ?? 1),
             'hp_my' => max(1, (int) ($wild['hp_my'] ?? 1)),
             'hp_max' => max(1, (int) ($wild['hp_max'] ?? 1)),
-            'exp' => (int) ($wild['exp'] ?? $this->levelExp(max(1, (int) ($wild['lvl'] ?? 1)) - 1)),
-            'exp_b' => (int) ($wild['exp_b'] ?? $this->levelExp(max(1, (int) ($wild['lvl'] ?? 1)) + 1)),
+            'exp' => $wildExp,
+            'exp_b' => $wildProgress['expNextLevel'],
             'atk' => (int) ($wild['atk'] ?? 1),
             'def' => (int) ($wild['def'] ?? 1),
             'satk' => (int) ($wild['satk'] ?? 1),
@@ -2667,6 +2785,30 @@ final class BattleRepository
         $stmt->execute(['name' => 'pokemon8_pve_battle_action_' . $battleId]);
     }
 
+    public function acquirePvpBattleActionLock(int $battleId, int $timeoutSeconds = 3): bool
+    {
+        if ($battleId <= 0) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare('SELECT GET_LOCK(:name, :timeout)');
+        $stmt->execute([
+            'name' => 'pokemon8_pvp_battle_action_' . $battleId,
+            'timeout' => max(0, $timeoutSeconds),
+        ]);
+        return (int) ($stmt->fetchColumn() ?: 0) === 1;
+    }
+
+    public function releasePvpBattleActionLock(int $battleId): void
+    {
+        if ($battleId <= 0) {
+            return;
+        }
+
+        $stmt = $this->db->prepare('SELECT RELEASE_LOCK(:name)');
+        $stmt->execute(['name' => 'pokemon8_pvp_battle_action_' . $battleId]);
+    }
+
     private function clearBattleHelpingHand(int $battleId): void
     {
         $this->db->prepare(
@@ -2735,12 +2877,17 @@ final class BattleRepository
         $this->replay?->markFinished($battleId, $winner, $battleRow ?? []);
     }
 
-    public function finishPvpBattle(int $battleId, int $winner): void
+    public function finishPvpBattle(int $battleId, int $winner): bool
     {
         $battleRow = $this->battleRowById($battleId);
-        $this->db->prepare(
-            'UPDATE battles SET pobeda = :winner WHERE id = :id AND batl_tip = "pvp" LIMIT 1'
-        )->execute(['winner' => $winner, 'id' => $battleId]);
+        $stmt = $this->db->prepare(
+            'UPDATE battles SET pobeda = :winner WHERE id = :id AND batl_tip = "pvp" AND pobeda = 0 LIMIT 1'
+        );
+        $stmt->execute(['winner' => $winner, 'id' => $battleId]);
+        if ($stmt->rowCount() === 0) {
+            return false;
+        }
+
         $this->clearBattleHelpingHand($battleId);
         $this->markBattleTransformationsReverted($battleId);
 
@@ -2753,6 +2900,7 @@ final class BattleRepository
             $battleRow['pobeda'] = $winner;
         }
         $this->replay?->markFinished($battleId, $winner, $battleRow ?? []);
+        return true;
     }
 
     private function battleRowById(int $battleId): ?array
@@ -3281,11 +3429,6 @@ final class BattleRepository
         return null;
     }
 
-    private function levelExp(int $level): int
-    {
-        return (int) round(60 * exp(2 + max(0, $level) / 10) - 50);
-    }
-
     private function pokemonHasMachoBrace(int $pokemonId): bool
     {
         $stmt = $this->db->prepare(
@@ -3328,7 +3471,7 @@ final class BattleRepository
         }
 
         $stmt = $this->db->prepare(
-            'SELECT id, login, groups, karma_score, rang_a, rang_b, buildmy
+            'SELECT id, login, `groups`, karma_score, rang_a, rang_b, buildmy
                FROM users
               WHERE id IN (' . implode(',', $placeholders) . ') AND activation = 1'
         );

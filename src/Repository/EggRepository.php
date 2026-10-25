@@ -5,6 +5,8 @@ namespace Pokemon8\Repository;
 
 use PDO;
 use Throwable;
+use Pokemon8\Game\PokemonGrowthCurve;
+use Pokemon8\Game\PokemonGrowthGroup;
 
 final class EggRepository
 {
@@ -179,6 +181,9 @@ final class EggRepository
             'speed' => $calcStat((int) $egg['speed'], $iv['speed'], (float) $nature['speed']),
         ];
         $name = $this->cleanBaseName((string) $egg['title'], $baseId) . ((string) ($egg['tips'] ?? 'normal') === 'shine' ? ' - Shiny' : '');
+        $growthGroup = PokemonGrowthGroup::forBaseId($baseId);
+        $hatchedExp = PokemonGrowthCurve::cumulative($level, $growthGroup);
+        $hatchedExpNext = PokemonGrowthCurve::progress($level, $hatchedExp, $growthGroup)['expNextLevel'];
 
         $startedTransaction = !$this->db->inTransaction();
         if ($startedTransaction) {
@@ -193,7 +198,7 @@ final class EggRepository
                      hp_iv, atk_iv, def_iv, satk_iv, sdef_iv, speed_iv, tips, startone, startepoke,
                      reproduction, happy, datemay, usersone, sprz, item)
                  VALUES
-                    (:id, :user, :base, :name, 0, 0, :level, :sex, :har, :hp_my, :hp_max, 0, 0,
+                    (:id, :user, :base, :name, 0, 0, :level, :sex, :har, :hp_my, :hp_max, :exp, :exp_b,
                      :atk, :def, :satk, :sdef, :speed, 0, 0, 0, 0, 0, 0,
                      :hp_iv, :atk_iv, :def_iv, :satk_iv, :sdef_iv, :speed_iv, :tips, 0, 0,
                      :reproduction, 0, NOW(), :usersone, 0, 0)'
@@ -207,6 +212,8 @@ final class EggRepository
                 'har' => $har,
                 'hp_my' => $stats['hp'],
                 'hp_max' => $stats['hp'],
+                'exp' => $hatchedExp,
+                'exp_b' => $hatchedExpNext,
                 'atk' => $stats['atk'],
                 'def' => $stats['def'],
                 'satk' => $stats['satk'],
